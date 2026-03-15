@@ -1,0 +1,30 @@
+services:
+  umzugsplaner-app:
+    build:
+      context: ./umzugshelfer-pwa # Pfad zum Verzeichnis mit der Dockerfile
+      dockerfile: Dockerfile
+      args:
+        # Übergib die Build-Argumente an die Dockerfile
+        # Diese werden in der Dockerfile als ARG deklariert und können dann als ENV gesetzt werden.
+        REACT_APP_SUPABASE_URL: ${REACT_APP_SUPABASE_URL}
+        REACT_APP_SUPABASE_ANON_KEY: ${REACT_APP_SUPABASE_ANON_KEY}
+        REACT_APP_PASSWORD_RESET_REDIRECT_URL: ${REACT_APP_PASSWORD_RESET_REDIRECT_URL}
+        REACT_APP_VAPID_PUBLIC_KEY: ${REACT_APP_VAPID_PUBLIC_KEY}
+        # REACT_APP_OPENAI_API_KEY wurde entfernt, da der Key zur Laufzeit vom Benutzerprofil geladen wird.
+    image: umzugsplaner-pwa-image # Name des zu erstellenden Images
+    container_name: umzugsplaner-pwa-container
+    ports:
+      - "${APP_PORT}:80" # Mappt den in .env definierten Port auf Port 80 des Containers (Nginx)
+    restart: unless-stopped
+    env_file:
+      - .env # Lädt Umgebungsvariablen aus der .env Datei (primär für docker-compose selbst)
+    # Umgebungsvariablen für den Container zur Laufzeit (Nginx benötigt diese nicht direkt,
+    # aber es ist eine gute Praxis, sie hier zu definieren, falls andere Services sie bräuchten)
+    # environment:
+    #   - NODE_ENV=production # Beispiel, falls der Container es benötigt
+
+networks:
+  default:
+    name: umzugsplaner-network
+# Volumes sind hier nicht zwingend notwendig für eine reine Frontend-App,
+# könnten aber für persistente Daten anderer Services (z.B. Datenbank) hinzugefügt werden.
