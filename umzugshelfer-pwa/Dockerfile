@@ -31,7 +31,7 @@ ENV REACT_APP_VAPID_PUBLIC_KEY=$REACT_APP_VAPID_PUBLIC_KEY
 # ENV REACT_APP_OPENAI_API_KEY=$REACT_APP_OPENAI_API_KEY wurde entfernt
 
 # Erhöhe den für Node.js verfügbaren Speicher während des Builds
-ENV NODE_OPTIONS=--max-old-space-size=8192
+ENV NODE_OPTIONS=--max-old-space-size=1536
 # Deaktiviere Source Maps Generierung, um Speicher zu sparen
 ENV GENERATE_SOURCEMAP=false
 
