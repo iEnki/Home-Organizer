@@ -41,13 +41,17 @@ $$;
 
 -- ── user_profile ──────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.user_profile (
-  id             uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  email          text,
-  username       text,
-  gesamtbudget   numeric(12,2) DEFAULT 0,
-  openai_api_key text,
-  created_at     timestamptz DEFAULT NOW(),
-  updated_at     timestamptz DEFAULT NOW()
+  id               uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email            text,
+  username         text,
+  gesamtbudget     numeric(12,2) DEFAULT 0,
+  openai_api_key   text,
+  -- KI-Provider-Einstellungen (OpenAI oder eigener Ollama-Server)
+  ki_provider      text DEFAULT 'openai',   -- 'openai' | 'ollama'
+  ollama_base_url  text,                    -- z.B. http://192.168.1.100:11434
+  ollama_model     text DEFAULT 'llama3.2', -- z.B. llama3.2, mistral, qwen2.5
+  created_at       timestamptz DEFAULT NOW(),
+  updated_at       timestamptz DEFAULT NOW()
 );
 
 -- Neuen User automatisch anlegen
@@ -125,16 +129,26 @@ CREATE POLICY kontakte_crud_own ON public.kontakte FOR ALL
 
 -- ── budget_posten ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.budget_posten (
-  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id      uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  beschreibung text NOT NULL,
-  kategorie    text,
-  betrag       numeric(12,2) NOT NULL,
-  datum        date NOT NULL DEFAULT CURRENT_DATE,
-  lieferdatum  date,
-  created_at   timestamptz DEFAULT NOW(),
-  updated_at   timestamptz DEFAULT NOW()
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  app_modus       text NOT NULL DEFAULT 'umzug',
+  beschreibung    text NOT NULL,
+  kategorie       text,
+  betrag          numeric(12,2) NOT NULL,
+  datum           date NOT NULL DEFAULT CURRENT_DATE,
+  wiederholen     boolean DEFAULT false,
+  intervall       text,
+  naechstes_datum date,
+  lieferdatum     date,
+  created_at      timestamptz DEFAULT NOW(),
+  updated_at      timestamptz DEFAULT NOW()
 );
+
+-- Migration: fehlende Spalten nachträglich ergänzen (für bestehende Installationen)
+ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS app_modus       text NOT NULL DEFAULT 'umzug';
+ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS wiederholen     boolean DEFAULT false;
+ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS intervall       text;
+ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS naechstes_datum date;
 
 CREATE INDEX IF NOT EXISTS idx_budget_posten_user_id ON public.budget_posten(user_id);
 CREATE INDEX IF NOT EXISTS idx_budget_posten_datum   ON public.budget_posten(datum);
@@ -182,6 +196,7 @@ CREATE POLICY budget_teilzahlungen_crud_own ON public.budget_teilzahlungen FOR A
 CREATE TABLE IF NOT EXISTS public.todo_aufgaben (
   id                       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id                  uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  app_modus                text NOT NULL DEFAULT 'umzug',
   beschreibung             text NOT NULL,
   kategorie                text NOT NULL,
   prioritaet               text DEFAULT 'Mittel',
@@ -192,10 +207,15 @@ CREATE TABLE IF NOT EXISTS public.todo_aufgaben (
   wiederholung_typ         text,
   wiederholung_intervall   integer,
   budget_posten_id         uuid REFERENCES public.budget_posten(id) ON DELETE SET NULL,
+  home_projekt_id          uuid,
   angehaengte_dokument_ids uuid[],
   created_at               timestamptz DEFAULT NOW(),
   updated_at               timestamptz DEFAULT NOW()
 );
+
+-- Migration: fehlende Spalten nachträglich ergänzen (für bestehende Installationen)
+ALTER TABLE public.todo_aufgaben ADD COLUMN IF NOT EXISTS app_modus       text NOT NULL DEFAULT 'umzug';
+ALTER TABLE public.todo_aufgaben ADD COLUMN IF NOT EXISTS home_projekt_id uuid;
 
 CREATE INDEX IF NOT EXISTS idx_todo_aufgaben_user_id         ON public.todo_aufgaben(user_id);
 CREATE INDEX IF NOT EXISTS idx_todo_aufgaben_budget_posten_id ON public.todo_aufgaben(budget_posten_id);
@@ -1004,18 +1024,18 @@ CREATE POLICY home_objekte_crud_own ON public.home_objekte FOR ALL
 
 -- ── home_vorraete ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.home_vorraete (
-  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id      uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  lagerort_id  uuid REFERENCES public.home_lagerorte(id) ON DELETE SET NULL,
-  name         text NOT NULL,
-  kategorie    text DEFAULT 'Haushalt',
-  einheit      text DEFAULT 'Stück',
-  menge        numeric(10,2) DEFAULT 0,
-  mindest_menge numeric(10,2) DEFAULT 1,
-  ablaufdatum  date,
-  notizen      text,
-  created_at   timestamptz DEFAULT NOW(),
-  updated_at   timestamptz DEFAULT NOW()
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  lagerort_id   uuid REFERENCES public.home_lagerorte(id) ON DELETE SET NULL,
+  name          text NOT NULL,
+  kategorie     text DEFAULT 'Haushalt',
+  einheit       text DEFAULT 'Stück',
+  bestand       numeric(10,2) DEFAULT 0,
+  mindestmenge  numeric(10,2) DEFAULT 1,
+  ablaufdatum   date,
+  notizen       text,
+  created_at    timestamptz DEFAULT NOW(),
+  updated_at    timestamptz DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_home_vorraete_user_id ON public.home_vorraete(user_id);
@@ -1195,6 +1215,52 @@ CREATE INDEX IF NOT EXISTS idx_home_sparziele_user ON public.home_sparziele(user
 DROP TRIGGER IF EXISTS set_home_sparziele_updated_at ON public.home_sparziele;
 CREATE TRIGGER set_home_sparziele_updated_at
   BEFORE UPDATE ON public.home_sparziele
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+-- ── home_verlauf ──────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.home_verlauf (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  tabelle       text NOT NULL,
+  datensatz_name text,
+  aktion        text NOT NULL,
+  created_at    timestamptz DEFAULT now()
+);
+
+ALTER TABLE public.home_verlauf ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS home_verlauf_own ON public.home_verlauf;
+CREATE POLICY home_verlauf_own ON public.home_verlauf FOR ALL
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS idx_home_verlauf_user ON public.home_verlauf(user_id);
+CREATE INDEX IF NOT EXISTS idx_home_verlauf_created ON public.home_verlauf(created_at DESC);
+
+
+-- ── home_wissen ───────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.home_wissen (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  titel      text NOT NULL,
+  inhalt     text,
+  kategorie  text,
+  tags       text[],
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE public.home_wissen ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS home_wissen_own ON public.home_wissen;
+CREATE POLICY home_wissen_own ON public.home_wissen FOR ALL
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS idx_home_wissen_user ON public.home_wissen(user_id);
+
+DROP TRIGGER IF EXISTS set_home_wissen_updated_at ON public.home_wissen;
+CREATE TRIGGER set_home_wissen_updated_at
+  BEFORE UPDATE ON public.home_wissen
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 
@@ -1417,6 +1483,11 @@ $$;
 -- Er ist idempotent und schadet nicht.
 -- ============================================================
 
+-- KI-Provider-Felder hinzufügen (falls noch nicht vorhanden)
+ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS ki_provider     text DEFAULT 'openai';
+ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS ollama_base_url text;
+ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS ollama_model    text DEFAULT 'llama3.2';
+
 -- Migration: persönliche To-Do-Vorlagen (user_id nullable)
 ALTER TABLE public.todo_vorlagen
   ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE;
@@ -1434,11 +1505,28 @@ DROP POLICY IF EXISTS todo_vorlagen_delete ON public.todo_vorlagen;
 CREATE POLICY todo_vorlagen_delete ON public.todo_vorlagen FOR DELETE TO authenticated
   USING (auth.uid() = user_id);
 
--- Migration: home_vorraete Spalten normalisieren (bestand → menge, mindestmenge → mindest_menge)
-ALTER TABLE public.home_vorraete
-  RENAME COLUMN bestand      TO menge        RENAME COLUMN IF EXISTS bestand TO menge;
-ALTER TABLE public.home_vorraete
-  RENAME COLUMN mindestmenge TO mindest_menge RENAME COLUMN IF EXISTS mindestmenge TO mindest_menge;
+-- Migration: home_vorraete Spalten auf Originalnamen zurücksetzen (menge → bestand, mindest_menge → mindestmenge)
+-- Stellt Kompatibilität mit dem Frontend sicher
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_schema = 'public' AND table_name = 'home_vorraete' AND column_name = 'menge') THEN
+    ALTER TABLE public.home_vorraete RENAME COLUMN menge TO bestand;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_schema = 'public' AND table_name = 'home_vorraete' AND column_name = 'mindest_menge') THEN
+    ALTER TABLE public.home_vorraete RENAME COLUMN mindest_menge TO mindestmenge;
+  END IF;
+  -- Fehlende Spalten ergänzen falls noch nicht vorhanden
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema = 'public' AND table_name = 'home_vorraete' AND column_name = 'bestand') THEN
+    ALTER TABLE public.home_vorraete ADD COLUMN bestand numeric(10,2) DEFAULT 0;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema = 'public' AND table_name = 'home_vorraete' AND column_name = 'mindestmenge') THEN
+    ALTER TABLE public.home_vorraete ADD COLUMN mindestmenge numeric(10,2) DEFAULT 1;
+  END IF;
+END $$;
 
 -- home_projekte: deadline-Spalte sicherstellen
 ALTER TABLE public.home_projekte
