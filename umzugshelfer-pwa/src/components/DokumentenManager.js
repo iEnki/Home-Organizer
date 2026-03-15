@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { supabase } from "../supabaseClient";
 import OpenAI from "openai";
+import { getKiClient, isKiClientReady } from "../utils/kiClient";
 import { useTheme } from "../contexts/ThemeContext";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -80,15 +81,11 @@ const DokumentenManager = ({ session }) => {
 
   const analyzeDocumentWithAI = async (dokumentId, dateiname, dateiTyp) => {
     try {
-      const { data: profile } = await supabase
-        .from("user_profile")
-        .select("openai_api_key")
-        .eq("id", userId)
-        .single();
-      if (!profile?.openai_api_key) return;
+      const { client, model, provider } = await getKiClient(userId);
+      if (!client || !isKiClientReady({ client, provider, apiKey: null })) return;
 
       setKiLaed(true);
-      const openai = new OpenAI({ apiKey: profile.openai_api_key, dangerouslyAllowBrowser: true });
+      const openai = client;
       const prompt = `Du hilfst beim Kategorisieren von Umzugsdokumenten. Analysiere den Dateinamen und den Dateityp und gib eine kurze Beschreibung und einen Kategoriehinweis zurück.
 
 Dateiname: "${dateiname}"
@@ -99,7 +96,7 @@ Antworte als JSON: {"beschreibung": "kurze Beschreibung was das Dokument wahrsch
 Antworte nur mit dem JSON.`;
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: model,
         messages: [{ role: "user", content: prompt }],
         temperature: 0.1,
       });

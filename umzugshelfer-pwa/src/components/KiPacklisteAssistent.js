@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import OpenAI from "openai";
 import { ReactMic } from "react-mic"; // Hinzugefügt
+import { getKiClient, isKiClientReady, startSpeechRecognition } from "../utils/kiClient";
 import {
   Mic,
   Settings,
@@ -23,6 +24,7 @@ const KiPacklisteAssistent = ({ session, onItemsExtracted }) => {
   const [apiKey, setApiKey] = useState("");
   const [isApiKeySet, setIsApiKeySet] = useState(false);
   const [showApiKeyInput, setShowApiKeyInput] = useState(true);
+  const [kiProvider, setKiProvider] = useState("openai");
   const [transcribedText, setTranscribedText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   // const [recordedAudioBlob, setRecordedAudioBlob] = useState(null); // Entfernt, da Blob direkt verarbeitet wird
@@ -40,7 +42,7 @@ const KiPacklisteAssistent = ({ session, onItemsExtracted }) => {
         try {
           const { data, error: dbError } = await supabase
             .from("user_profile")
-            .select("openai_api_key")
+            .select("openai_api_key, ki_provider, ollama_base_url, ollama_model")
             .eq("id", userId)
             .single();
 
@@ -49,7 +51,11 @@ const KiPacklisteAssistent = ({ session, onItemsExtracted }) => {
             throw dbError;
           }
 
-          if (data && data.openai_api_key) {
+          if (data?.ki_provider) setKiProvider(data.ki_provider);
+          if (data?.ki_provider === "ollama" && data?.ollama_base_url) {
+            setIsApiKeySet(true);
+            setShowApiKeyInput(false);
+          } else if (data && data.openai_api_key) {
             setApiKey(data.openai_api_key);
             setIsApiKeySet(true);
             setShowApiKeyInput(false);
@@ -124,7 +130,20 @@ const KiPacklisteAssistent = ({ session, onItemsExtracted }) => {
     setTranscribedText("");
     setExtractedItems([]);
     setError("");
-    setIsRecording(true);
+    if (kiProvider === "ollama") {
+      startSpeechRecognition(
+        (transcript) => {
+          setTranscribedText(transcript);
+          if (transcript.trim()) handleProcessText(transcript.trim());
+        },
+        (err) => {
+          setError(`Spracherkennung Fehler: ${err}`);
+          showToast(`Spracherkennung Fehler: ${err}`, "error");
+        }
+      );
+    } else {
+      setIsRecording(true);
+    }
   };
 
   const handleStopRecording = () => {
@@ -145,6 +164,10 @@ const KiPacklisteAssistent = ({ session, onItemsExtracted }) => {
   };
 
   const handleTranscription = async (audioBlob) => {
+    if (kiProvider === "ollama") {
+      // Web Speech API already handled in mic button click
+      return;
+    }
     if (!audioBlob) {
       setError("Keine Audioaufnahme vorhanden für Transkription.");
       showToast("Keine Audioaufnahme vorhanden.", "error"); // Toast hinzugefügt
@@ -206,22 +229,19 @@ const KiPacklisteAssistent = ({ session, onItemsExtracted }) => {
       showToast("Kein Text zum Verarbeiten vorhanden.", "error");
       return;
     }
-    if (!isApiKeySet || !apiKey) {
-      setError(
-        "OpenAI API-Key nicht gesetzt. Bitte im Profil oder hier eingeben."
-      );
-      setShowApiKeyInput(true);
-      return;
-    }
     setIsLoading(true);
     setError("");
     setExtractedItems([]);
 
     try {
-      const openai = new OpenAI({
-        apiKey: apiKey,
-        dangerouslyAllowBrowser: true,
-      });
+      const { client, model, provider } = await getKiClient(userId);
+      if (!client || !isKiClientReady({ client, provider, apiKey: provider === "openai" ? apiKey : null })) {
+        setError("KI nicht konfiguriert. Bitte Provider in den Einstellungen einrichten.");
+        setShowApiKeyInput(true);
+        setIsLoading(false);
+        return;
+      }
+      const openai = client;
 
       const prompt = `Extrahiere aus dem folgenden Text alle Aktionen bezüglich Packstücken und gib die Antwort als JSON-Array zurück. Es gibt zwei Aktionsarten:
 1. Gegenstände einer Kiste zuordnen: Erkenne Gegenstand, Kiste, optional eine Kategorie für den Gegenstand und optional die Menge des Gegenstands. Wenn keine Menge genannt wird, ist die Menge 1.
@@ -242,7 +262,7 @@ Input-Text: "${currentTranscribedText}"
 Antworte nur mit dem JSON-Array. Achte darauf, dass jeder explizit genannte Gegenstand ein eigenes Objekt bekommt. Wenn eine Mengenangabe wie "3 Bücher" erfolgt, erstelle ein Objekt für "Bücher" mit "menge": 3.`;
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4o", // Oder ein anderes passendes Modell
+        model: model,
         messages: [{ role: "user", content: prompt }],
         temperature: 0.2,
       });
@@ -426,7 +446,7 @@ Antworte nur mit dem JSON-Array. Achte darauf, dass jeder explizit genannte Gege
           </div>
         )}
       </div>
-      {!isApiKeySet && showApiKeyInput && (
+      {!isApiKeySet && showApiKeyInput && kiProvider === "openai" && (
         <div className="p-3 bg-dark-card-bg border border-dark-border rounded-lg">
           <p className="text-sm text-dark-text-secondary mb-2 flex items-center">
             <Info size={16} className="mr-2 text-blue-400" />

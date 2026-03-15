@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Save, LogOut, Truck, Home, CheckCircle, AlertCircle, RotateCcw, Bell, BellOff, BellRing } from "lucide-react";
+import { Eye, EyeOff, Save, LogOut, Truck, Home, CheckCircle, AlertCircle, RotateCcw, Bell, BellOff, BellRing, Cpu, Wifi, WifiOff } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { useTheme } from "../contexts/ThemeContext";
 import { alleToursZuruecksetzen } from "./home/tour/useTour";
@@ -24,6 +24,14 @@ const UserProfile = ({ session }) => {
   const [ladend,         setLadend]         = useState(true);
   const [tourReset,      setTourReset]      = useState(false); // Bestätigungs-Feedback
 
+  // Ollama / KI-Provider
+  const [kiProvider,       setKiProvider]       = useState("openai"); // "openai" | "ollama"
+  const [ollamaUrl,        setOllamaUrl]        = useState("");
+  const [ollamaModel,      setOllamaModel]      = useState("llama3.2");
+  const [ollamaStatus,     setOllamaStatus]     = useState(null); // null | "ok" | "fehler"
+  const [ollamaTestStatus, setOllamaTestStatus] = useState(null); // null | "testing" | "ok" | "fehler"
+  const [ollamaModelle,    setOllamaModelle]    = useState([]);
+
   // Push-Benachrichtigungen
   const {
     isSupported:  pushUnterstuetzt,
@@ -40,16 +48,19 @@ const UserProfile = ({ session }) => {
   const isStandalone = window.navigator.standalone === true ||
                        window.matchMedia("(display-mode: standalone)").matches;
 
-  // API-Key aus Supabase laden
+  // KI-Konfiguration aus Supabase laden
   useEffect(() => {
     if (!userId) return;
     supabase
       .from("user_profile")
-      .select("openai_api_key")
+      .select("openai_api_key, ki_provider, ollama_base_url, ollama_model")
       .eq("id", userId)
       .single()
       .then(({ data }) => {
         if (data?.openai_api_key) setApiKey(data.openai_api_key);
+        if (data?.ki_provider)    setKiProvider(data.ki_provider);
+        if (data?.ollama_base_url) setOllamaUrl(data.ollama_base_url);
+        if (data?.ollama_model)   setOllamaModel(data.ollama_model);
         setLadend(false);
       });
   }, [userId]);
@@ -62,6 +73,41 @@ const UserProfile = ({ session }) => {
       .eq("id", userId);
     setSpeichernStatus(error ? "fehler" : "ok");
     setTimeout(() => setSpeichernStatus(null), 3000);
+  };
+
+  const handleOllamaSpeichern = async () => {
+    setOllamaStatus(null);
+    const { error } = await supabase
+      .from("user_profile")
+      .update({
+        ki_provider: kiProvider,
+        ollama_base_url: ollamaUrl.trim(),
+        ollama_model: ollamaModel.trim(),
+      })
+      .eq("id", userId);
+    setOllamaStatus(error ? "fehler" : "ok");
+    setTimeout(() => setOllamaStatus(null), 3000);
+  };
+
+  const handleOllamaVerbindungTesten = async () => {
+    if (!ollamaUrl.trim()) return;
+    setOllamaTestStatus("testing");
+    setOllamaModelle([]);
+    try {
+      const url = ollamaUrl.trim().replace(/\/$/, "");
+      const response = await fetch(`${url}/api/tags`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      const modelle = (data.models || []).map((m) => m.name);
+      setOllamaModelle(modelle);
+      setOllamaTestStatus("ok");
+    } catch (err) {
+      setOllamaTestStatus("fehler");
+      setOllamaModelle([]);
+    }
+    setTimeout(() => setOllamaTestStatus(null), 8000);
   };
 
   const handleModusWechsel = (ziel) => {
@@ -102,54 +148,201 @@ const UserProfile = ({ session }) => {
       </div>
 
       {/* ── KI-Einstellungen ─────────────────────────────────────────────────── */}
-      <div className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-2 p-6 space-y-4">
-        <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
-          KI-Einstellungen
-        </h3>
-        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-          OpenAI API-Key für KI-Assistenten (Spracheingabe, Texterkennung). Der Key wird verschlüsselt gespeichert.
-        </p>
+      <div className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-2 p-6 space-y-5">
+        <div className="flex items-center gap-2">
+          <Cpu size={18} className="text-secondary-500 shrink-0" />
+          <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
+            KI-Einstellungen
+          </h3>
+        </div>
 
         {ladend ? (
-          <div className="h-10 bg-light-surface-1 dark:bg-canvas-3 rounded-card-sm animate-pulse" />
+          <div className="h-20 bg-light-surface-1 dark:bg-canvas-3 rounded-card-sm animate-pulse" />
         ) : (
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <input
-                type={apiKeyVisible ? "text" : "password"}
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="sk-..."
-                className="w-full pr-10 pl-3 py-2.5 text-sm rounded-card-sm
-                           bg-light-bg dark:bg-canvas-1
-                           border border-light-border dark:border-dark-border
-                           text-light-text-main dark:text-dark-text-main
-                           placeholder-light-text-secondary dark:placeholder-dark-text-secondary
-                           focus:outline-none focus:ring-2 focus:ring-secondary-500"
-              />
-              <button
-                onClick={() => setApiKeyVisible(!apiKeyVisible)}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2
-                           text-light-text-secondary dark:text-dark-text-secondary
-                           hover:text-primary-500 transition-colors"
-              >
-                {apiKeyVisible ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
+          <>
+            {/* Provider-Auswahl */}
+            <div>
+              <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2 uppercase tracking-wide">
+                KI-Provider
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { id: "openai", label: "OpenAI", desc: "GPT-4o + Whisper" },
+                  { id: "ollama", label: "Ollama", desc: "Eigener Server" },
+                ].map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => setKiProvider(p.id)}
+                    className={`flex flex-col items-center p-3 rounded-card-sm border-2 text-sm transition-all
+                                ${kiProvider === p.id
+                                  ? "border-secondary-500 bg-secondary-500/10 text-secondary-500"
+                                  : "border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:border-secondary-500/40"
+                                }`}
+                  >
+                    <span className="font-semibold">{p.label}</span>
+                    <span className="text-xs opacity-70">{p.desc}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-            <button
-              onClick={handleApiKeySpeichern}
-              className="flex items-center gap-1.5 px-4 py-2.5 rounded-pill text-sm font-medium
-                         bg-primary-500 hover:bg-primary-600 text-white transition-colors shrink-0"
-            >
-              {speichernStatus === "ok" ? (
-                <><CheckCircle size={15} /> Gespeichert</>
-              ) : speichernStatus === "fehler" ? (
-                <><AlertCircle size={15} /> Fehler</>
-              ) : (
-                <><Save size={15} /> Speichern</>
-              )}
-            </button>
-          </div>
+
+            {/* OpenAI API-Key */}
+            {kiProvider === "openai" && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">
+                  OpenAI API-Key
+                </p>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={apiKeyVisible ? "text" : "password"}
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      placeholder="sk-..."
+                      className="w-full pr-10 pl-3 py-2.5 text-sm rounded-card-sm
+                                 bg-light-bg dark:bg-canvas-1
+                                 border border-light-border dark:border-dark-border
+                                 text-light-text-main dark:text-dark-text-main
+                                 placeholder-light-text-secondary dark:placeholder-dark-text-secondary
+                                 focus:outline-none focus:ring-2 focus:ring-secondary-500"
+                    />
+                    <button
+                      onClick={() => setApiKeyVisible(!apiKeyVisible)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2
+                                 text-light-text-secondary dark:text-dark-text-secondary
+                                 hover:text-primary-500 transition-colors"
+                    >
+                      {apiKeyVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  <button
+                    onClick={handleApiKeySpeichern}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-pill text-sm font-medium
+                               bg-primary-500 hover:bg-primary-600 text-white transition-colors shrink-0"
+                  >
+                    {speichernStatus === "ok" ? (
+                      <><CheckCircle size={15} /> Gespeichert</>
+                    ) : speichernStatus === "fehler" ? (
+                      <><AlertCircle size={15} /> Fehler</>
+                    ) : (
+                      <><Save size={15} /> Speichern</>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Ollama-Einstellungen */}
+            {kiProvider === "ollama" && (
+              <div className="space-y-3">
+                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">
+                  Ollama Server
+                </p>
+                <div className="space-y-2">
+                  <div>
+                    <input
+                      type="url"
+                      value={ollamaUrl}
+                      onChange={(e) => setOllamaUrl(e.target.value)}
+                      placeholder="http://192.168.1.100:11434"
+                      className="w-full px-3 py-2.5 text-sm rounded-card-sm
+                                 bg-light-bg dark:bg-canvas-1
+                                 border border-light-border dark:border-dark-border
+                                 text-light-text-main dark:text-dark-text-main
+                                 placeholder-light-text-secondary dark:placeholder-dark-text-secondary
+                                 focus:outline-none focus:ring-2 focus:ring-secondary-500"
+                    />
+                    <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                      Nur die Basis-URL ohne Pfad, z.B.&nbsp;
+                      <code className="font-mono text-[11px]">https://mein-server.de</code>&nbsp;
+                      oder&nbsp;<code className="font-mono text-[11px]">http://localhost:11434</code>
+                    </p>
+                  </div>
+                  <input
+                    type="text"
+                    value={ollamaModel}
+                    onChange={(e) => setOllamaModel(e.target.value)}
+                    placeholder="llama3.2"
+                    className="w-full px-3 py-2.5 text-sm rounded-card-sm
+                               bg-light-bg dark:bg-canvas-1
+                               border border-light-border dark:border-dark-border
+                               text-light-text-main dark:text-dark-text-main
+                               placeholder-light-text-secondary dark:placeholder-dark-text-secondary
+                               focus:outline-none focus:ring-2 focus:ring-secondary-500"
+                  />
+                  {/* Gefundene Modelle */}
+                  {ollamaModelle.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {ollamaModelle.map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => setOllamaModel(m)}
+                          className={`text-xs px-2 py-0.5 rounded-pill border transition-colors
+                                      ${ollamaModel === m
+                                        ? "border-secondary-500 bg-secondary-500/15 text-secondary-500"
+                                        : "border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:border-secondary-500/40"
+                                      }`}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleOllamaVerbindungTesten}
+                    disabled={!ollamaUrl.trim() || ollamaTestStatus === "testing"}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-pill text-sm font-medium
+                               border border-light-border dark:border-dark-border
+                               text-light-text-main dark:text-dark-text-main
+                               hover:border-secondary-500/50 transition-colors disabled:opacity-40"
+                  >
+                    {ollamaTestStatus === "testing" ? (
+                      <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    ) : ollamaTestStatus === "ok" ? (
+                      <Wifi size={14} className="text-accent-success" />
+                    ) : ollamaTestStatus === "fehler" ? (
+                      <WifiOff size={14} className="text-accent-danger" />
+                    ) : (
+                      <Wifi size={14} />
+                    )}
+                    {ollamaTestStatus === "ok"
+                      ? "Verbunden"
+                      : ollamaTestStatus === "fehler"
+                      ? "Nicht erreichbar"
+                      : "Testen"}
+                  </button>
+                  <button
+                    onClick={handleOllamaSpeichern}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-pill text-sm font-medium
+                               bg-secondary-500 hover:bg-secondary-600 text-white transition-colors"
+                  >
+                    {ollamaStatus === "ok" ? (
+                      <><CheckCircle size={14} /> Gespeichert</>
+                    ) : ollamaStatus === "fehler" ? (
+                      <><AlertCircle size={14} /> Fehler</>
+                    ) : (
+                      <><Save size={14} /> Speichern</>
+                    )}
+                  </button>
+                </div>
+                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  Hinweis: Im Ollama-Modus wird die Spracheingabe über die Browser-Spracherkennung (Web Speech API) verarbeitet statt über Whisper.
+                </p>
+              </div>
+            )}
+
+            {/* Speichern wenn Provider geändert */}
+            {kiProvider === "ollama" ? null : (
+              <button
+                onClick={async () => {
+                  await supabase.from("user_profile").update({ ki_provider: kiProvider }).eq("id", userId);
+                }}
+                className="hidden"
+              />
+            )}
+          </>
         )}
       </div>
 

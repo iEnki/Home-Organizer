@@ -355,6 +355,7 @@ const HomeHaushaltsaufgaben = ({ session }) => {
               await supabase.from("todo_aufgaben").insert({
                 user_id: session.user.id,
                 beschreibung: item.beschreibung || "Aufgabe",
+                kategorie: item.kategorie || "Sonstiges",
                 prioritaet: item.prioritaet || "Mittel",
                 faelligkeitsdatum: item.faelligkeitsdatum || null,
                 wiederholung_typ: item.wiederholung_typ || "Keine",

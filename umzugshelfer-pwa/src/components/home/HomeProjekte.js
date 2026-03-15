@@ -211,6 +211,7 @@ const HomeProjekte = ({ session }) => {
         const todoPayload = saisonAufgaben.map((text) => ({
           user_id: userId,
           beschreibung: text,
+          kategorie: "Sonstiges",
           home_projekt_id: neu.id,
           app_modus: "home",
           erledigt: false,
@@ -257,6 +258,7 @@ const HomeProjekte = ({ session }) => {
     const { data } = await supabase.from("todo_aufgaben").insert({
       user_id: userId,
       beschreibung: text,
+      kategorie: "Sonstiges",
       home_projekt_id: projektId,
       app_modus: "home",
       erledigt: false,

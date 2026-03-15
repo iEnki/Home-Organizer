@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "../../supabaseClient";
 import OpenAI from "openai";
 import { ReactMic } from "react-mic";
+import { getKiClient, isKiClientReady, startSpeechRecognition } from "../../utils/kiClient";
 import { motion } from "framer-motion";
 import {
   Mic, StopCircle, Send, Type, X, AlertTriangle, UploadCloud,
@@ -142,6 +143,7 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
   const [apiKeySet,     setApiKeySet]     = useState(false);
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
   const [showApiInput,  setShowApiInput]  = useState(false);
+  const [kiProvider,    setKiProvider]    = useState("openai");
 
   const [inputModus,    setInputModus]    = useState("sprache"); // "sprache" | "text"
   const [isRecording,   setIsRecording]   = useState(false);
@@ -156,10 +158,17 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
   // API-Key laden
   useEffect(() => {
     if (!userId) return;
-    supabase.from("user_profile").select("openai_api_key").eq("id", userId).single()
+    supabase.from("user_profile").select("openai_api_key, ki_provider, ollama_base_url, ollama_model").eq("id", userId).single()
       .then(({ data }) => {
-        if (data?.openai_api_key) { setApiKey(data.openai_api_key); setApiKeySet(true); }
-        else { setShowApiInput(true); }
+        if (data?.ki_provider) setKiProvider(data.ki_provider);
+        if (data?.ki_provider === "ollama" && data?.ollama_base_url) {
+          setApiKeySet(true);
+          setShowApiInput(false);
+        } else if (data?.openai_api_key) {
+          setApiKey(data.openai_api_key); setApiKeySet(true);
+        } else {
+          setShowApiInput(true);
+        }
       });
   }, [userId]);
 
@@ -172,7 +181,18 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
 
   // Aufnahme-Lifecycle
   const handleStartRecording = () => {
-    setTranskription(""); setErgebnisse([]); setFehler(""); setIsRecording(true);
+    setTranskription(""); setErgebnisse([]); setFehler("");
+    if (kiProvider === "ollama") {
+      startSpeechRecognition(
+        (transcript) => {
+          setTranskription(transcript);
+          if (transcript.trim()) handleVerarbeiten(transcript.trim());
+        },
+        (err) => setFehler(`Spracherkennung Fehler: ${err}`)
+      );
+    } else {
+      setIsRecording(true);
+    }
   };
   const handleStopRecording  = () => setIsRecording(false);
   const onStopRecording = (blob) => {
@@ -182,6 +202,10 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
 
   // Whisper-Transkription
   const handleTranscription = async (audioBlob) => {
+    if (kiProvider === "ollama") {
+      // Web Speech API already handled in mic button click
+      return;
+    }
     if (!apiKeySet || !apiKey) { setShowApiInput(true); return; }
     setLadend(true); setFehler(""); setTranskription("");
     try {
@@ -200,17 +224,23 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
   // GPT-4o Verarbeitung
   const handleVerarbeiten = async (text) => {
     if (!text?.trim()) { setFehler("Kein Text zum Verarbeiten."); return; }
-    if (!apiKeySet || !apiKey) { setShowApiInput(true); return; }
     setLadend(true); setFehler(""); setErgebnisse([]);
     try {
-      const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
+      const { client, model, provider } = await getKiClient(userId);
+      if (!client || !isKiClientReady({ client, provider, apiKey: provider === "openai" ? apiKey : null })) {
+        setFehler("KI nicht konfiguriert. Bitte Provider in den Einstellungen einrichten.");
+        setShowApiInput(true);
+        setLadend(false);
+        return;
+      }
+      const openai = client;
       const prompt = `Extrahiere alle relevanten Felder (${config.felder}) aus dem folgenden Text und gib ein JSON-Array zurück.
 Format: [${config.schema}]
 Erkenne automatisch: Kategorien, Mengen, Zeitangaben, Intervalle, wiederkehrende Ereignisse.
 Text: "${text}"
 Antworte NUR mit dem JSON-Array, kein anderer Text.`;
       const res = await openai.chat.completions.create({
-        model: "gpt-4o", messages: [{ role: "user", content: prompt }], temperature: 0.2,
+        model: model, messages: [{ role: "user", content: prompt }], temperature: 0.2,
       });
       const items = parseJsonAntwort(res.choices[0].message.content);
       if (Array.isArray(items) && items.length > 0) setErgebnisse(items);
@@ -302,7 +332,7 @@ Antworte NUR mit dem JSON-Array, kein anderer Text.`;
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
 
           {/* API-Key Eingabe */}
-          {(!apiKeySet || showApiInput) && (
+          {(!apiKeySet || showApiInput) && kiProvider === "openai" && (
             <div className="p-4 rounded-card-sm bg-light-surface-1 dark:bg-canvas-3
                             border border-light-border dark:border-dark-border space-y-3">
               <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">

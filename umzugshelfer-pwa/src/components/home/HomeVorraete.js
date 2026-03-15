@@ -295,7 +295,8 @@ const HomeVorraete = ({ session }) => {
                 user_id: session.user.id,
                 name: item.name || "Unbenannt",
                 kategorie: item.kategorie || null,
-                menge: item.menge || 1,
+                bestand: item.bestand ?? item.menge ?? 1,
+                mindestmenge: item.mindestmenge ?? 1,
                 einheit: item.einheit || "Stück",
               });
             }

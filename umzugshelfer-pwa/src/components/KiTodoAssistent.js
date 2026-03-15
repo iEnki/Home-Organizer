@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import OpenAI from "openai";
 import { ReactMic } from "react-mic";
+import { getKiClient, isKiClientReady, startSpeechRecognition } from "../utils/kiClient";
 import {
   Mic,
   Settings,
@@ -22,6 +23,7 @@ const KiTodoAssistent = ({ session, onTodosExtracted }) => {
   const [apiKey, setApiKey] = useState("");
   const [isApiKeySet, setIsApiKeySet] = useState(false);
   const [showApiKeyInput, setShowApiKeyInput] = useState(true);
+  const [kiProvider, setKiProvider] = useState("openai");
   const [transcribedText, setTranscribedText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -38,11 +40,15 @@ const KiTodoAssistent = ({ session, onTodosExtracted }) => {
         try {
           const { data, error: dbError } = await supabase
             .from("user_profile")
-            .select("openai_api_key")
+            .select("openai_api_key, ki_provider, ollama_base_url, ollama_model")
             .eq("id", userId)
             .single();
           if (dbError && dbError.code !== "PGRST116") throw dbError;
-          if (data && data.openai_api_key) {
+          if (data?.ki_provider) setKiProvider(data.ki_provider);
+          if (data?.ki_provider === "ollama" && data?.ollama_base_url) {
+            setIsApiKeySet(true);
+            setShowApiKeyInput(false);
+          } else if (data && data.openai_api_key) {
             setApiKey(data.openai_api_key);
             setIsApiKeySet(true);
             setShowApiKeyInput(false);
@@ -105,7 +111,20 @@ const KiTodoAssistent = ({ session, onTodosExtracted }) => {
     setTranscribedText("");
     setExtractedTodos([]);
     setError("");
-    setIsRecording(true);
+    if (kiProvider === "ollama") {
+      startSpeechRecognition(
+        (transcript) => {
+          setTranscribedText(transcript);
+          if (transcript.trim()) handleProcessTextWithGPT(transcript.trim());
+        },
+        (err) => {
+          setError(`Spracherkennung Fehler: ${err}`);
+          showToast(`Spracherkennung Fehler: ${err}`, "error");
+        }
+      );
+    } else {
+      setIsRecording(true);
+    }
   };
 
   const handleStopRecording = () => setIsRecording(false);
@@ -120,6 +139,10 @@ const KiTodoAssistent = ({ session, onTodosExtracted }) => {
   };
 
   const handleTranscription = async (audioBlob) => {
+    if (kiProvider === "ollama") {
+      // Web Speech API already handled in mic button click
+      return;
+    }
     if (!audioBlob) {
       setError("Keine Audioaufnahme für Transkription.");
       showToast("Keine Audioaufnahme vorhanden.", "error");
@@ -170,7 +193,14 @@ const KiTodoAssistent = ({ session, onTodosExtracted }) => {
     setError("");
     setExtractedTodos([]);
     try {
-      const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
+      const { client, model, provider } = await getKiClient(userId);
+      if (!client || !isKiClientReady({ client, provider, apiKey: provider === "openai" ? apiKey : null })) {
+        setError("KI nicht konfiguriert. Bitte Provider in den Einstellungen einrichten.");
+        setShowApiKeyInput(true);
+        setIsLoading(false);
+        return;
+      }
+      const openai = client;
       const prompt = `Extrahiere aus dem folgenden Text To-Do Aufgaben und gib die Antwort als JSON-Array zurück. Jedes To-Do sollte ein Objekt mit "beschreibung", optional "kategorie", optional "prioritaet" (Hoch, Mittel, Niedrig), und optional "faelligkeitsdatum" (Format YYYY-MM-DD) sein.
 Beispiel-Input: "Arzttermin vereinbaren für nächste Woche Dienstag, Kategorie Gesundheit, Priorität Hoch. Ummelden bis Ende des Monats."
 Beispiel-Output:
@@ -182,7 +212,7 @@ Input-Text: "${textToProcess}"
 Antworte nur mit dem JSON-Array.`;
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: model,
         messages: [{ role: "user", content: prompt }],
         temperature: 0.2,
       });
@@ -328,7 +358,7 @@ Antworte nur mit dem JSON-Array.`;
         )}
       </div>
 
-      {!isApiKeySet && showApiKeyInput && (
+      {!isApiKeySet && showApiKeyInput && kiProvider === "openai" && (
         /* API Key Input Form */
         <div className="p-3 bg-dark-card-bg border border-dark-border rounded-lg">
           <p className="text-sm text-dark-text-secondary mb-2 flex items-center">
