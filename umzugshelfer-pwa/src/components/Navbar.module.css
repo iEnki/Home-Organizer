@@ -1,0 +1,46 @@
+/* Navbar.module.css */
+
+.navbar {
+  /* Basis-Styling für die Navbar, falls nicht schon durch Tailwind abgedeckt */
+  /* Beispiel: box-shadow: 0 2px 4px rgba(0,0,0,0.1); */
+}
+
+.navLink {
+  /* Basis-Styling für Navigationslinks */
+  text-decoration: none;
+  /* color: inherit; */ /* Erbt Farbe von .navbar oder spezifischer Textfarbe */
+  /* padding: 0.5rem 0.75rem; */ /* Tailwind Klassen werden bevorzugt */
+  /* border-radius: 0.375rem; */ /* Tailwind Klassen werden bevorzugt */
+  /* transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out; */
+}
+
+.activeNavLink {
+  /* Styling für den aktiven Navigationslink */
+  /* Beispiel: Tailwind-Klassen könnten hier auch direkt in der Komponente verwendet werden */
+  /* background-color: var(--primary-color); */ /* Beispiel, wenn du CSS-Variablen nutzt */
+  /* color: white; */
+  font-weight: 600; /* Semibold */
+  /* Du kannst hier spezifischere Klassen definieren oder dich auf Tailwind verlassen */
+  /* In Navbar.js wird text-primary für aktive Links verwendet, was gut ist */
+}
+
+.inactiveNavLink {
+  /* Styling für inaktive Navigationslinks */
+  /* color: inherit; */ /* Oder eine spezifischere Farbe für inaktive Links */
+}
+
+/* Hover-Effekte könnten auch hier definiert oder über Tailwind in der Komponente gesteuert werden */
+/* .navLink:hover {
+  background-color: rgba(0,0,0,0.05);
+} */
+
+.menuButton {
+  /* Styling für den Mobile-Menü-Button */
+  /* background-color: transparent; */
+  /* border: none; */
+  /* color: inherit; */
+  /* padding: 0.5rem; */
+  /* cursor: pointer; */
+}
+
+/* Zusätzliche spezifische Styles, falls Tailwind nicht ausreicht oder für komplexe Selektoren */
