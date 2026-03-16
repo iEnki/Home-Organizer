@@ -27,7 +27,9 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Hilfsfunktion: updated_at automatisch setzen
 CREATE OR REPLACE FUNCTION public.set_updated_at()
-RETURNS TRIGGER LANGUAGE plpgsql AS $$
+RETURNS TRIGGER LANGUAGE plpgsql
+SET search_path = ''
+AS $$
 BEGIN
   NEW.updated_at = NOW();
   RETURN NEW;
@@ -56,7 +58,9 @@ CREATE TABLE IF NOT EXISTS public.user_profile (
 
 -- Neuen User automatisch anlegen
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = ''
+AS $$
 BEGIN
   INSERT INTO public.user_profile (id, email, username)
   VALUES (
@@ -88,16 +92,16 @@ WHERE NOT EXISTS (SELECT 1 FROM public.user_profile p WHERE p.id = u.id);
 ALTER TABLE public.user_profile ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS user_profile_select_own ON public.user_profile;
-CREATE POLICY user_profile_select_own ON public.user_profile FOR SELECT USING (auth.uid() = id);
+CREATE POLICY user_profile_select_own ON public.user_profile FOR SELECT USING ((select auth.uid()) = id);
 
 DROP POLICY IF EXISTS user_profile_insert_own ON public.user_profile;
-CREATE POLICY user_profile_insert_own ON public.user_profile FOR INSERT WITH CHECK (auth.uid() = id);
+CREATE POLICY user_profile_insert_own ON public.user_profile FOR INSERT WITH CHECK ((select auth.uid()) = id);
 
 DROP POLICY IF EXISTS user_profile_update_own ON public.user_profile;
-CREATE POLICY user_profile_update_own ON public.user_profile FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+CREATE POLICY user_profile_update_own ON public.user_profile FOR UPDATE USING ((select auth.uid()) = id) WITH CHECK ((select auth.uid()) = id);
 
 DROP POLICY IF EXISTS user_profile_delete_own ON public.user_profile;
-CREATE POLICY user_profile_delete_own ON public.user_profile FOR DELETE USING (auth.uid() = id);
+CREATE POLICY user_profile_delete_own ON public.user_profile FOR DELETE USING ((select auth.uid()) = id);
 
 
 -- ── kontakte ──────────────────────────────────────────────
@@ -124,7 +128,7 @@ ALTER TABLE public.kontakte ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS kontakte_crud_own ON public.kontakte;
 CREATE POLICY kontakte_crud_own ON public.kontakte FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
 -- ── budget_posten ─────────────────────────────────────────
@@ -162,7 +166,7 @@ ALTER TABLE public.budget_posten ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS budget_posten_crud_own ON public.budget_posten;
 CREATE POLICY budget_posten_crud_own ON public.budget_posten FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
 -- ── budget_teilzahlungen ──────────────────────────────────
@@ -189,7 +193,7 @@ ALTER TABLE public.budget_teilzahlungen ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS budget_teilzahlungen_crud_own ON public.budget_teilzahlungen;
 CREATE POLICY budget_teilzahlungen_crud_own ON public.budget_teilzahlungen FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
 -- ── todo_aufgaben ─────────────────────────────────────────
@@ -230,7 +234,7 @@ ALTER TABLE public.todo_aufgaben ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS todo_aufgaben_crud_own ON public.todo_aufgaben;
 CREATE POLICY todo_aufgaben_crud_own ON public.todo_aufgaben FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
 -- ── todo_vorlagen ─────────────────────────────────────────
@@ -296,15 +300,15 @@ ALTER TABLE public.todo_vorlagen ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS todo_vorlagen_read ON public.todo_vorlagen;
 CREATE POLICY todo_vorlagen_read ON public.todo_vorlagen FOR SELECT TO authenticated
-  USING (user_id IS NULL OR auth.uid() = user_id);
+  USING (user_id IS NULL OR (select auth.uid()) = user_id);
 
 DROP POLICY IF EXISTS todo_vorlagen_insert ON public.todo_vorlagen;
 CREATE POLICY todo_vorlagen_insert ON public.todo_vorlagen FOR INSERT TO authenticated
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((select auth.uid()) = user_id);
 
 DROP POLICY IF EXISTS todo_vorlagen_delete ON public.todo_vorlagen;
 CREATE POLICY todo_vorlagen_delete ON public.todo_vorlagen FOR DELETE TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 
 -- ── pack_kisten ───────────────────────────────────────────
@@ -332,7 +336,7 @@ ALTER TABLE public.pack_kisten ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS pack_kisten_crud_own ON public.pack_kisten;
 CREATE POLICY pack_kisten_crud_own ON public.pack_kisten FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
 -- ── pack_gegenstaende ─────────────────────────────────────
@@ -387,7 +391,7 @@ ALTER TABLE public.pack_gegenstaende ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS pack_gegenstaende_crud_own ON public.pack_gegenstaende;
 CREATE POLICY pack_gegenstaende_crud_own ON public.pack_gegenstaende FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
 -- ── dokumente ─────────────────────────────────────────────
@@ -416,7 +420,7 @@ ALTER TABLE public.dokumente ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS dokumente_crud_own ON public.dokumente;
 CREATE POLICY dokumente_crud_own ON public.dokumente FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
 -- ── renovierungs_posten ───────────────────────────────────
@@ -445,7 +449,7 @@ ALTER TABLE public.renovierungs_posten ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS renovierungs_posten_crud_own ON public.renovierungs_posten;
 CREATE POLICY renovierungs_posten_crud_own ON public.renovierungs_posten FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
 -- ============================================================
@@ -462,27 +466,27 @@ ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS storage_user_dokumente_insert ON storage.objects;
 CREATE POLICY storage_user_dokumente_insert ON storage.objects FOR INSERT TO authenticated
-  WITH CHECK (bucket_id = 'user-dokumente' AND auth.uid()::text = (storage.foldername(name))[1]);
+  WITH CHECK (bucket_id = 'user-dokumente' AND (select auth.uid())::text = (storage.foldername(name))[1]);
 
 DROP POLICY IF EXISTS storage_user_dokumente_select ON storage.objects;
 CREATE POLICY storage_user_dokumente_select ON storage.objects FOR SELECT TO authenticated
-  USING (bucket_id = 'user-dokumente' AND auth.uid()::text = (storage.foldername(name))[1]);
+  USING (bucket_id = 'user-dokumente' AND (select auth.uid())::text = (storage.foldername(name))[1]);
 
 DROP POLICY IF EXISTS storage_user_dokumente_delete ON storage.objects;
 CREATE POLICY storage_user_dokumente_delete ON storage.objects FOR DELETE TO authenticated
-  USING (bucket_id = 'user-dokumente' AND auth.uid()::text = (storage.foldername(name))[1]);
+  USING (bucket_id = 'user-dokumente' AND (select auth.uid())::text = (storage.foldername(name))[1]);
 
 DROP POLICY IF EXISTS storage_kisten_fotos_insert ON storage.objects;
 CREATE POLICY storage_kisten_fotos_insert ON storage.objects FOR INSERT TO authenticated
-  WITH CHECK (bucket_id = 'kisten-fotos' AND auth.uid()::text = (storage.foldername(name))[1]);
+  WITH CHECK (bucket_id = 'kisten-fotos' AND (select auth.uid())::text = (storage.foldername(name))[1]);
 
 DROP POLICY IF EXISTS storage_kisten_fotos_select ON storage.objects;
 CREATE POLICY storage_kisten_fotos_select ON storage.objects FOR SELECT TO authenticated
-  USING (bucket_id = 'kisten-fotos' AND auth.uid()::text = (storage.foldername(name))[1]);
+  USING (bucket_id = 'kisten-fotos' AND (select auth.uid())::text = (storage.foldername(name))[1]);
 
 DROP POLICY IF EXISTS storage_kisten_fotos_delete ON storage.objects;
 CREATE POLICY storage_kisten_fotos_delete ON storage.objects FOR DELETE TO authenticated
-  USING (bucket_id = 'kisten-fotos' AND auth.uid()::text = (storage.foldername(name))[1]);
+  USING (bucket_id = 'kisten-fotos' AND (select auth.uid())::text = (storage.foldername(name))[1]);
 
 
 -- ============================================================
@@ -912,7 +916,7 @@ ALTER TABLE public.home_projekte ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS home_projekte_crud_own ON public.home_projekte;
 CREATE POLICY home_projekte_crud_own ON public.home_projekte FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
 -- ── home_orte ─────────────────────────────────────────────
@@ -941,7 +945,7 @@ ALTER TABLE public.home_orte ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS home_orte_crud_own ON public.home_orte;
 CREATE POLICY home_orte_crud_own ON public.home_orte FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
 -- ── home_lagerorte ────────────────────────────────────────
@@ -975,7 +979,7 @@ ALTER TABLE public.home_lagerorte ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS home_lagerorte_crud_own ON public.home_lagerorte;
 CREATE POLICY home_lagerorte_crud_own ON public.home_lagerorte FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
 -- ── home_objekte ──────────────────────────────────────────
@@ -1019,7 +1023,7 @@ ALTER TABLE public.home_objekte ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS home_objekte_crud_own ON public.home_objekte;
 CREATE POLICY home_objekte_crud_own ON public.home_objekte FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
 -- ── home_vorraete ─────────────────────────────────────────
@@ -1049,7 +1053,7 @@ ALTER TABLE public.home_vorraete ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS home_vorraete_crud_own ON public.home_vorraete;
 CREATE POLICY home_vorraete_crud_own ON public.home_vorraete FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
 -- ── home_einkaufliste ─────────────────────────────────────
@@ -1080,7 +1084,7 @@ ALTER TABLE public.home_einkaufliste ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS home_einkaufliste_crud_own ON public.home_einkaufliste;
 CREATE POLICY home_einkaufliste_crud_own ON public.home_einkaufliste FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
 -- ── home_geraete ──────────────────────────────────────────
@@ -1118,7 +1122,7 @@ ALTER TABLE public.home_geraete ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS home_geraete_crud_own ON public.home_geraete;
 CREATE POLICY home_geraete_crud_own ON public.home_geraete FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
 -- ── home_wartungen ────────────────────────────────────────
@@ -1149,7 +1153,7 @@ ALTER TABLE public.home_wartungen ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS home_wartungen_crud_own ON public.home_wartungen;
 CREATE POLICY home_wartungen_crud_own ON public.home_wartungen FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
 -- ── home_bewohner ─────────────────────────────────────────
@@ -1168,7 +1172,7 @@ ALTER TABLE public.home_bewohner ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS home_bewohner_user_own ON public.home_bewohner;
 CREATE POLICY home_bewohner_user_own ON public.home_bewohner FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
 -- ── home_budget_limits ────────────────────────────────────
@@ -1185,7 +1189,7 @@ ALTER TABLE public.home_budget_limits ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS home_budget_limits_own ON public.home_budget_limits;
 CREATE POLICY home_budget_limits_own ON public.home_budget_limits FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 CREATE INDEX IF NOT EXISTS idx_home_budget_limits_user ON public.home_budget_limits(user_id);
 
@@ -1208,7 +1212,7 @@ ALTER TABLE public.home_sparziele ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS home_sparziele_own ON public.home_sparziele;
 CREATE POLICY home_sparziele_own ON public.home_sparziele FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 CREATE INDEX IF NOT EXISTS idx_home_sparziele_user ON public.home_sparziele(user_id);
 
@@ -1232,7 +1236,7 @@ ALTER TABLE public.home_verlauf ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS home_verlauf_own ON public.home_verlauf;
 CREATE POLICY home_verlauf_own ON public.home_verlauf FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 CREATE INDEX IF NOT EXISTS idx_home_verlauf_user ON public.home_verlauf(user_id);
 CREATE INDEX IF NOT EXISTS idx_home_verlauf_created ON public.home_verlauf(created_at DESC);
@@ -1254,7 +1258,7 @@ ALTER TABLE public.home_wissen ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS home_wissen_own ON public.home_wissen;
 CREATE POLICY home_wissen_own ON public.home_wissen FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 CREATE INDEX IF NOT EXISTS idx_home_wissen_user ON public.home_wissen(user_id);
 
@@ -1292,7 +1296,7 @@ ALTER TABLE public.haushaltsaufgaben ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS haushaltsaufgaben_crud_own ON public.haushaltsaufgaben;
 CREATE POLICY haushaltsaufgaben_crud_own ON public.haushaltsaufgaben FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
 -- ── vorraete (Alias-Tabelle für check-reminders) ──────────
@@ -1323,7 +1327,7 @@ ALTER TABLE public.vorraete ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS vorraete_crud_own ON public.vorraete;
 CREATE POLICY vorraete_crud_own ON public.vorraete FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
 -- ── projekte (Alias für check-reminders) ──────────────────
@@ -1350,7 +1354,7 @@ ALTER TABLE public.projekte ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS projekte_crud_own ON public.projekte;
 CREATE POLICY projekte_crud_own ON public.projekte FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
 -- ── geraete (Alias für check-reminders) ───────────────────
@@ -1369,7 +1373,7 @@ ALTER TABLE public.geraete ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS geraete_crud_own ON public.geraete;
 CREATE POLICY geraete_crud_own ON public.geraete FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
 -- ============================================================
@@ -1413,6 +1417,16 @@ ALTER TABLE public.home_objekte
 ALTER TABLE public.user_profile
   ADD COLUMN IF NOT EXISTS app_modus text DEFAULT 'umzug';
 
+-- user_profile: Einkaufsliste Push-Reminder
+ALTER TABLE public.user_profile
+  ADD COLUMN IF NOT EXISTS einkauf_reminder_aktiv        boolean DEFAULT false,
+  ADD COLUMN IF NOT EXISTS einkauf_reminder_zeit         text,
+  ADD COLUMN IF NOT EXISTS einkauf_reminder_letzter_versand date;
+
+-- user_profile: Umzugsplaner dauerhaft deaktivieren
+ALTER TABLE public.user_profile
+  ADD COLUMN IF NOT EXISTS umzug_deaktiviert boolean DEFAULT false;
+
 
 -- ============================================================
 -- 7. STORAGE BUCKET (HOME FOTOS)
@@ -1429,21 +1443,21 @@ DROP POLICY IF EXISTS storage_home_fotos_insert ON storage.objects;
 CREATE POLICY storage_home_fotos_insert ON storage.objects FOR INSERT
   WITH CHECK (
     bucket_id = 'home-fotos'
-    AND auth.uid()::text = (storage.foldername(name))[1]
+    AND (select auth.uid())::text = (storage.foldername(name))[1]
   );
 
 DROP POLICY IF EXISTS storage_home_fotos_select ON storage.objects;
 CREATE POLICY storage_home_fotos_select ON storage.objects FOR SELECT
   USING (
     bucket_id = 'home-fotos'
-    AND auth.uid()::text = (storage.foldername(name))[1]
+    AND (select auth.uid())::text = (storage.foldername(name))[1]
   );
 
 DROP POLICY IF EXISTS storage_home_fotos_delete ON storage.objects;
 CREATE POLICY storage_home_fotos_delete ON storage.objects FOR DELETE
   USING (
     bucket_id = 'home-fotos'
-    AND auth.uid()::text = (storage.foldername(name))[1]
+    AND (select auth.uid())::text = (storage.foldername(name))[1]
   );
 
 
@@ -1467,11 +1481,13 @@ ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Eigene Subscriptions verwalten" ON public.push_subscriptions;
 CREATE POLICY "Eigene Subscriptions verwalten"
   ON public.push_subscriptions FOR ALL
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- Alte Subscriptions automatisch bereinigen (> 90 Tage)
 CREATE OR REPLACE FUNCTION public.bereinige_alte_subscriptions()
-RETURNS void LANGUAGE sql AS $$
+RETURNS void LANGUAGE sql
+SET search_path = ''
+AS $$
   DELETE FROM public.push_subscriptions
   WHERE created_at < NOW() - INTERVAL '90 days';
 $$;
@@ -1495,15 +1511,15 @@ ALTER TABLE public.todo_vorlagen
 -- RLS für todo_vorlagen aktualisieren
 DROP POLICY IF EXISTS todo_vorlagen_read ON public.todo_vorlagen;
 CREATE POLICY todo_vorlagen_read ON public.todo_vorlagen FOR SELECT TO authenticated
-  USING (user_id IS NULL OR auth.uid() = user_id);
+  USING (user_id IS NULL OR (select auth.uid()) = user_id);
 
 DROP POLICY IF EXISTS todo_vorlagen_insert ON public.todo_vorlagen;
 CREATE POLICY todo_vorlagen_insert ON public.todo_vorlagen FOR INSERT TO authenticated
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((select auth.uid()) = user_id);
 
 DROP POLICY IF EXISTS todo_vorlagen_delete ON public.todo_vorlagen;
 CREATE POLICY todo_vorlagen_delete ON public.todo_vorlagen FOR DELETE TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- Migration: home_vorraete Spalten auf Originalnamen zurücksetzen (menge → bestand, mindest_menge → mindestmenge)
 -- Stellt Kompatibilität mit dem Frontend sicher
@@ -1555,4 +1571,191 @@ ALTER TABLE public.home_projekte
 --   $$
 -- );
 
+-- ══════════════════════════════════════════════════════════════════════════════
+-- Migration: RLS Performance & Security Fixes
+-- Kann auch einzeln im Supabase SQL Editor auf bestehenden Instanzen ausgeführt werden
+-- ══════════════════════════════════════════════════════════════════════════════
+
+-- Fix 1: Funktionen mit fixem search_path absichern (Security: function_search_path_mutable)
+CREATE OR REPLACE FUNCTION public.set_updated_at()
+RETURNS TRIGGER LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  INSERT INTO public.user_profile (id, email, username)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1))
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.bereinige_alte_subscriptions()
+RETURNS void LANGUAGE sql
+SET search_path = ''
+AS $$
+  DELETE FROM public.push_subscriptions
+  WHERE created_at < NOW() - INTERVAL '90 days';
+$$;
+
+-- Fix 2: RLS Policies neu erstellen mit (select auth.uid()) (Performance: auth_rls_initplan)
+-- user_profile
+DROP POLICY IF EXISTS user_profile_select_own ON public.user_profile;
+DROP POLICY IF EXISTS user_profile_insert_own ON public.user_profile;
+DROP POLICY IF EXISTS user_profile_update_own ON public.user_profile;
+DROP POLICY IF EXISTS user_profile_delete_own ON public.user_profile;
+CREATE POLICY user_profile_select_own ON public.user_profile FOR SELECT USING ((select auth.uid()) = id);
+CREATE POLICY user_profile_insert_own ON public.user_profile FOR INSERT WITH CHECK ((select auth.uid()) = id);
+CREATE POLICY user_profile_update_own ON public.user_profile FOR UPDATE USING ((select auth.uid()) = id) WITH CHECK ((select auth.uid()) = id);
+CREATE POLICY user_profile_delete_own ON public.user_profile FOR DELETE USING ((select auth.uid()) = id);
+
+-- kontakte
+DROP POLICY IF EXISTS kontakte_crud_own ON public.kontakte;
+CREATE POLICY kontakte_crud_own ON public.kontakte FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- budget_posten
+DROP POLICY IF EXISTS budget_posten_crud_own ON public.budget_posten;
+CREATE POLICY budget_posten_crud_own ON public.budget_posten FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- budget_teilzahlungen
+DROP POLICY IF EXISTS budget_teilzahlungen_crud_own ON public.budget_teilzahlungen;
+CREATE POLICY budget_teilzahlungen_crud_own ON public.budget_teilzahlungen FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- todo_aufgaben
+DROP POLICY IF EXISTS todo_aufgaben_crud_own ON public.todo_aufgaben;
+CREATE POLICY todo_aufgaben_crud_own ON public.todo_aufgaben FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- todo_vorlagen
+DROP POLICY IF EXISTS todo_vorlagen_read ON public.todo_vorlagen;
+DROP POLICY IF EXISTS todo_vorlagen_insert ON public.todo_vorlagen;
+DROP POLICY IF EXISTS todo_vorlagen_delete ON public.todo_vorlagen;
+CREATE POLICY todo_vorlagen_read ON public.todo_vorlagen FOR SELECT TO authenticated USING (user_id IS NULL OR (select auth.uid()) = user_id);
+CREATE POLICY todo_vorlagen_insert ON public.todo_vorlagen FOR INSERT TO authenticated WITH CHECK ((select auth.uid()) = user_id);
+CREATE POLICY todo_vorlagen_delete ON public.todo_vorlagen FOR DELETE TO authenticated USING ((select auth.uid()) = user_id);
+
+-- pack_kisten
+DROP POLICY IF EXISTS pack_kisten_crud_own ON public.pack_kisten;
+CREATE POLICY pack_kisten_crud_own ON public.pack_kisten FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- pack_gegenstaende
+DROP POLICY IF EXISTS pack_gegenstaende_crud_own ON public.pack_gegenstaende;
+CREATE POLICY pack_gegenstaende_crud_own ON public.pack_gegenstaende FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- dokumente
+DROP POLICY IF EXISTS dokumente_crud_own ON public.dokumente;
+CREATE POLICY dokumente_crud_own ON public.dokumente FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- renovierungs_posten
+DROP POLICY IF EXISTS renovierungs_posten_crud_own ON public.renovierungs_posten;
+CREATE POLICY renovierungs_posten_crud_own ON public.renovierungs_posten FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- home_projekte
+DROP POLICY IF EXISTS home_projekte_crud_own ON public.home_projekte;
+CREATE POLICY home_projekte_crud_own ON public.home_projekte FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- home_orte
+DROP POLICY IF EXISTS home_orte_crud_own ON public.home_orte;
+CREATE POLICY home_orte_crud_own ON public.home_orte FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- home_lagerorte
+DROP POLICY IF EXISTS home_lagerorte_crud_own ON public.home_lagerorte;
+CREATE POLICY home_lagerorte_crud_own ON public.home_lagerorte FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- home_objekte
+DROP POLICY IF EXISTS home_objekte_crud_own ON public.home_objekte;
+CREATE POLICY home_objekte_crud_own ON public.home_objekte FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- home_vorraete
+DROP POLICY IF EXISTS home_vorraete_crud_own ON public.home_vorraete;
+CREATE POLICY home_vorraete_crud_own ON public.home_vorraete FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- home_einkaufliste
+DROP POLICY IF EXISTS home_einkaufliste_crud_own ON public.home_einkaufliste;
+CREATE POLICY home_einkaufliste_crud_own ON public.home_einkaufliste FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- home_geraete
+DROP POLICY IF EXISTS home_geraete_crud_own ON public.home_geraete;
+CREATE POLICY home_geraete_crud_own ON public.home_geraete FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- home_wartungen
+DROP POLICY IF EXISTS home_wartungen_crud_own ON public.home_wartungen;
+CREATE POLICY home_wartungen_crud_own ON public.home_wartungen FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- home_bewohner
+DROP POLICY IF EXISTS home_bewohner_user_own ON public.home_bewohner;
+CREATE POLICY home_bewohner_user_own ON public.home_bewohner FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- home_budget_limits
+DROP POLICY IF EXISTS home_budget_limits_own ON public.home_budget_limits;
+CREATE POLICY home_budget_limits_own ON public.home_budget_limits FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- home_sparziele
+DROP POLICY IF EXISTS home_sparziele_own ON public.home_sparziele;
+CREATE POLICY home_sparziele_own ON public.home_sparziele FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- home_verlauf
+DROP POLICY IF EXISTS home_verlauf_own ON public.home_verlauf;
+CREATE POLICY home_verlauf_own ON public.home_verlauf FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- home_wissen
+DROP POLICY IF EXISTS home_wissen_own ON public.home_wissen;
+CREATE POLICY home_wissen_own ON public.home_wissen FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- haushaltsaufgaben
+DROP POLICY IF EXISTS haushaltsaufgaben_crud_own ON public.haushaltsaufgaben;
+CREATE POLICY haushaltsaufgaben_crud_own ON public.haushaltsaufgaben FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- vorraete
+DROP POLICY IF EXISTS vorraete_crud_own ON public.vorraete;
+CREATE POLICY vorraete_crud_own ON public.vorraete FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- projekte
+DROP POLICY IF EXISTS projekte_crud_own ON public.projekte;
+CREATE POLICY projekte_crud_own ON public.projekte FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- geraete
+DROP POLICY IF EXISTS geraete_crud_own ON public.geraete;
+CREATE POLICY geraete_crud_own ON public.geraete FOR ALL USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- push_subscriptions
+DROP POLICY IF EXISTS "Eigene Subscriptions verwalten" ON public.push_subscriptions;
+CREATE POLICY "Eigene Subscriptions verwalten" ON public.push_subscriptions FOR ALL USING ((select auth.uid()) = user_id);
+
 SELECT pg_notify('pgrst', 'reload schema');
+
+
+-- ── Avatar-Support ─────────────────────────────────────────────────────────
+ALTER TABLE public.user_profile
+  ADD COLUMN IF NOT EXISTS avatar_url text;
+
+-- Öffentlicher Bucket für Profilbilder
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('avatars', 'avatars', TRUE)
+ON CONFLICT (id) DO NOTHING;
+
+-- RLS: Nur eigener User darf hochladen / überschreiben
+DROP POLICY IF EXISTS avatars_upload ON storage.objects;
+CREATE POLICY avatars_upload ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'avatars' AND (select auth.uid())::text = (storage.foldername(name))[1]);
+
+DROP POLICY IF EXISTS avatars_update ON storage.objects;
+CREATE POLICY avatars_update ON storage.objects FOR UPDATE
+  USING (bucket_id = 'avatars' AND (select auth.uid())::text = (storage.foldername(name))[1]);
+
+-- RLS: Öffentliches Lesen (für <img src>)
+DROP POLICY IF EXISTS avatars_public_read ON storage.objects;
+CREATE POLICY avatars_public_read ON storage.objects FOR SELECT
+  USING (bucket_id = 'avatars');
