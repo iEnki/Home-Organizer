@@ -439,19 +439,7 @@ if [[ "$MODE" == "vollstack" ]]; then
     sed -i "s/your-super-secret-jwt-token-with-at-least-32-characters-long/${JWT_SECRET}/g" volumes/db/jwt.sql 2>/dev/null || true
   fi
 
-  if [[ ! -f "volumes/functions/main/index.ts" ]]; then
-    cat > volumes/functions/main/index.ts << 'TSEOF'
-Deno.serve(async (_req: Request) => {
-  return new Response(
-    JSON.stringify({ message: "Supabase Edge Functions running" }),
-    { headers: { "Content-Type": "application/json" } }
-  )
-})
-TSEOF
-    echo "    ✓ volumes/functions/main/index.ts"
-  fi
-
-  for fn in send-push check-reminders delete-account; do
+  for fn in main send-push check-reminders delete-account; do
     if [[ -f "supabase/functions/${fn}/index.ts" ]]; then
       cp "supabase/functions/${fn}/index.ts" "volumes/functions/${fn}/index.ts"
       echo "    ✓ volumes/functions/${fn}/index.ts"

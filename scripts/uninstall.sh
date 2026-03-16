@@ -2,15 +2,16 @@
 # ============================================================
 # Umzughelfer — Deinstallations-Skript
 #
-# Entfernt alle durch install.sh erstellten Komponenten:
-#   - Docker-Container und -Networks
-#   - Docker Named Volumes (DB-Daten)
-#   - volumes/ Verzeichnis (Supabase-Configs + Datenbankdateien)
-#   - .env und CREDENTIALS.txt
-#   - Optional: Docker-Images + Build-Cache
+# Optionen:
+#   1) Vollstaendige Deinstallation  — alles entfernen
+#   2) Soft-Reset                    — Container + Volumes (Daten bleiben)
+#   3) Nur Container stoppen         — nichts loeschen
+#   4) Edge Functions neu deployen   — volumes/functions aktualisieren
+#   5) Docker-Images entfernen       — Speicher freigeben
+#   6) Abbrechen
 #
 # Verwendung: chmod +x scripts/uninstall.sh && ./scripts/uninstall.sh
-#             oder über install.sh → Option [5]
+#             oder ueber install.sh -> Option [5]
 # ============================================================
 
 set -e
@@ -25,10 +26,10 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-info()    { echo -e "${CYAN}▶ $1${NC}"; }
-warn()    { echo -e "${YELLOW}⚠  $1${NC}"; }
-err()     { echo -e "${RED}✗  FEHLER: $1${NC}"; exit 1; }
-success() { echo -e "${GREEN}✅ $1${NC}"; }
+info()    { echo -e "${CYAN}> $1${NC}"; }
+warn()    { echo -e "${YELLOW}!  $1${NC}"; }
+err()     { echo -e "${RED}x  FEHLER: $1${NC}"; exit 1; }
+success() { echo -e "${GREEN}OK $1${NC}"; }
 header()  { echo -e "\n${BOLD}${GREEN}$1${NC}"; echo "$(printf '=%.0s' {1..60})"; }
 
 cd "$PROJECT_DIR"
@@ -41,10 +42,59 @@ COMPOSE_FILE="docker-compose.full.yml"
 IS_VOLLSTACK=false
 [[ "$COMPOSE_FILE" == "docker-compose.full.yml" ]] && IS_VOLLSTACK=true
 
-# Projekt-Verzeichnisname für Docker Volume-Namen ermitteln
 PROJECT_NAME="$(basename "$PROJECT_DIR" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g')"
-# Häufige Varianten die Docker Compose nutzt
 PROJECT_NAME_ALT="$(basename "$PROJECT_DIR" | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g')"
+
+# ============================================================
+# Hilfsfunktionen
+# ============================================================
+
+container_stoppen() {
+  info "Stoppe und entferne Container..."
+  if [[ "$IS_VOLLSTACK" == "true" ]]; then
+    docker compose -f "$COMPOSE_FILE" --profile ollama down --remove-orphans 2>/dev/null || \
+    docker compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || \
+    warn "Container konnten nicht entfernt werden (moeglicherweise schon gestoppt)."
+  else
+    docker compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || \
+    warn "Container konnten nicht entfernt werden (moeglicherweise schon gestoppt)."
+  fi
+  success "Container entfernt."
+}
+
+volumes_entfernen() {
+  if [[ "$IS_VOLLSTACK" != "true" ]]; then
+    info "App-only Installation -- keine Named Volumes zu entfernen."
+    return
+  fi
+  info "Entferne Docker Named Volumes..."
+  docker compose -f "$COMPOSE_FILE" --profile ollama down -v 2>/dev/null || \
+  docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true
+  for SUFFIX in db-config deno-cache ollama-data; do
+    for PREFIX in "$PROJECT_NAME" "$PROJECT_NAME_ALT" "umzughelfer" "umzug-helfer"; do
+      VOL="${PREFIX}_${SUFFIX}"
+      if docker volume inspect "$VOL" >/dev/null 2>&1; then
+        docker volume rm "$VOL" && echo "    OK Volume ${VOL} entfernt" || true
+      fi
+    done
+  done
+  success "Docker Volumes entfernt."
+}
+
+backup_erstellen() {
+  if [[ -f ".env" || -f "CREDENTIALS.txt" ]]; then
+    read -p "  .env und CREDENTIALS.txt vorher sichern? [J/n]: " DO_BACKUP
+    if [[ "${DO_BACKUP,,}" != "n" ]]; then
+      BACKUP_DIR="backup_$(date +%Y%m%d_%H%M%S)"
+      mkdir -p "$BACKUP_DIR"
+      [[ -f ".env" ]]            && cp .env            "$BACKUP_DIR/.env"            && echo "    OK .env gesichert"
+      [[ -f "CREDENTIALS.txt" ]] && cp CREDENTIALS.txt "$BACKUP_DIR/CREDENTIALS.txt" && echo "    OK CREDENTIALS.txt gesichert"
+      success "Backup gespeichert in: ${BACKUP_DIR}/"
+    else
+      warn "Kein Backup erstellt."
+    fi
+  fi
+}
 
 # ============================================================
 # Header
@@ -52,7 +102,7 @@ PROJECT_NAME_ALT="$(basename "$PROJECT_DIR" | tr '[:upper:]' '[:lower:]' | sed '
 clear
 echo ""
 echo -e "${BOLD}${RED}============================================================${NC}"
-echo -e "${BOLD}${RED}  Umzughelfer — Deinstallation${NC}"
+echo -e "${BOLD}${RED}  Umzughelfer -- Deinstallation & Wartung${NC}"
 echo -e "${BOLD}${RED}============================================================${NC}"
 echo ""
 
@@ -64,200 +114,175 @@ fi
 echo ""
 
 # ============================================================
-# Modus wählen
+# Hauptmenue
 # ============================================================
-echo "  Was soll entfernt werden?"
+echo "  Was moechtest du tun?"
 echo ""
-echo -e "  ${BOLD}[1] Vollständige Deinstallation${NC}"
-echo "      Container, Docker-Volumes, volumes/-Verzeichnis,"
-echo "      .env, CREDENTIALS.txt"
+echo -e "  ${BOLD}[1] Vollstaendige Deinstallation${NC}"
+echo "      Container, Docker-Volumes, volumes/, .env, CREDENTIALS.txt"
 echo ""
-echo -e "  ${BOLD}[2] Soft-Reset${NC} (Container + Docker-Volumes)"
-echo "      Behält: volumes/, .env, CREDENTIALS.txt"
-echo "      Sinnvoll wenn: Neustart mit gleicher Konfiguration"
+echo -e "  ${BOLD}[2] Soft-Reset${NC}"
+echo "      Container + Docker-Volumes entfernen"
+echo "      Behaelt: volumes/, .env, CREDENTIALS.txt"
 echo ""
-echo "  [3] Abbrechen"
+echo -e "  ${BOLD}[3] Nur Container stoppen${NC}"
+echo "      Alle Container stoppen und entfernen"
+echo "      Behaelt: Volumes, volumes/, .env (schnellster Neustart)"
 echo ""
-read -p "  → Wahl [1]: " MAIN_CHOICE
-[[ -z "$MAIN_CHOICE" ]] && MAIN_CHOICE=1
+echo -e "  ${BOLD}[4] Edge Functions neu deployen${NC}"
+echo "      supabase/functions/ -> volumes/functions/ kopieren"
+echo "      + Functions-Container neu starten"
+echo ""
+echo -e "  ${BOLD}[5] Docker-Images entfernen${NC}"
+echo "      Gibt ~3-5 GB Speicher frei (naechste Installation laedt neu)"
+echo ""
+echo "  [6] Abbrechen"
+echo ""
+read -p "  -> Wahl [6]: " MAIN_CHOICE
+[[ -z "$MAIN_CHOICE" ]] && MAIN_CHOICE=6
 
 case "$MAIN_CHOICE" in
   1) MODE="vollstaendig" ;;
   2) MODE="soft" ;;
-  3) echo "  Abgebrochen."; exit 0 ;;
-  *) err "Ungültige Auswahl." ;;
+  3) MODE="stoppen" ;;
+  4) MODE="functions" ;;
+  5) MODE="images" ;;
+  6) echo "  Auf Wiedersehen."; exit 0 ;;
+  *) err "Ungueltige Auswahl." ;;
 esac
 
 # ============================================================
-# Letzte Warnung
+# MODUS: Nur Container stoppen
+# ============================================================
+if [[ "$MODE" == "stoppen" ]]; then
+  header "Container stoppen"
+  read -p "  Container stoppen und entfernen? [j/N]: " CONFIRM
+  [[ "${CONFIRM,,}" != "j" && "${CONFIRM,,}" != "y" ]] && { echo "  Abgebrochen."; exit 0; }
+  container_stoppen
+  echo ""
+  success "Fertig. Neustart mit: docker compose -f ${COMPOSE_FILE} up -d"
+  exit 0
+fi
+
+# ============================================================
+# MODUS: Edge Functions deployen
+# ============================================================
+if [[ "$MODE" == "functions" ]]; then
+  header "Edge Functions neu deployen"
+
+  DEPLOYED=0
+  for fn in main send-push check-reminders delete-account; do
+    SRC="supabase/functions/${fn}/index.ts"
+    DST="volumes/functions/${fn}/index.ts"
+    if [[ -f "$SRC" ]]; then
+      mkdir -p "volumes/functions/${fn}"
+      cp "$SRC" "$DST"
+      echo "    OK ${fn}"
+      DEPLOYED=$((DEPLOYED + 1))
+    else
+      warn "${fn} nicht gefunden in supabase/functions/ -- uebersprungen."
+    fi
+  done
+
+  if [[ $DEPLOYED -gt 0 ]]; then
+    info "Starte Functions-Container neu..."
+    docker compose -f "$COMPOSE_FILE" restart functions 2>/dev/null || \
+    warn "Functions-Container konnte nicht neu gestartet werden."
+    success "${DEPLOYED} Function(s) deployt und Container neu gestartet."
+  else
+    warn "Keine Functions deployt."
+  fi
+  exit 0
+fi
+
+# ============================================================
+# MODUS: Nur Images entfernen
+# ============================================================
+if [[ "$MODE" == "images" ]]; then
+  header "Docker-Images entfernen"
+  echo ""
+  warn "Die Supabase-Docker-Images (~3-5 GB) werden entfernt."
+  warn "Die naechste Installation muss alle Images neu herunterladen."
+  echo ""
+  read -p "  Docker-Images entfernen? [j/N]: " CONFIRM
+  [[ "${CONFIRM,,}" != "j" && "${CONFIRM,,}" != "y" ]] && { echo "  Abgebrochen."; exit 0; }
+
+  info "Entferne Docker-Images..."
+  docker compose -f "$COMPOSE_FILE" --profile ollama down --rmi all 2>/dev/null || \
+  docker compose -f "$COMPOSE_FILE" down --rmi all 2>/dev/null || \
+  warn "Einige Images konnten nicht entfernt werden."
+
+  read -p "  Auch Docker Build-Cache leeren? [j/N]: " RM_CACHE
+  [[ "${RM_CACHE,,}" == "j" || "${RM_CACHE,,}" == "y" ]] && docker builder prune -f
+
+  success "Docker-Images entfernt."
+  exit 0
+fi
+
+# ============================================================
+# MODUS: Soft-Reset oder Vollstaendige Deinstallation
 # ============================================================
 echo ""
 if [[ "$MODE" == "vollstaendig" ]]; then
-  echo -e "  ${RED}${BOLD}ACHTUNG: Diese Aktion löscht ALLE Daten unwiderruflich!${NC}"
-  echo -e "  ${RED}Das betrifft die gesamte Datenbank, alle Konfigurationen"
-  echo -e "  und alle hochgeladenen Dateien.${NC}"
+  echo -e "  ${RED}${BOLD}ACHTUNG: Diese Aktion loescht ALLE Daten unwiederruflich!${NC}"
+  echo -e "  ${RED}Betroffen: Datenbank, Konfiguration, hochgeladene Dateien.${NC}"
 else
-  echo -e "  ${YELLOW}Alle Container und Docker-Volumes werden entfernt.${NC}"
-  echo -e "  ${YELLOW}Das volumes/-Verzeichnis und .env bleiben erhalten.${NC}"
+  echo -e "  ${YELLOW}Container und Docker-Volumes werden entfernt.${NC}"
+  echo -e "  ${YELLOW}volumes/, .env und CREDENTIALS.txt bleiben erhalten.${NC}"
 fi
 echo ""
 read -p "  Fortfahren? [j/N]: " FINAL_CONFIRM
 [[ "${FINAL_CONFIRM,,}" != "j" && "${FINAL_CONFIRM,,}" != "y" ]] && { echo "  Abgebrochen."; exit 0; }
 
-# ============================================================
-# Schritt 1: Backup (optional)
-# ============================================================
+# Backup
 header "Schritt 1: Backup"
+backup_erstellen
 
-BACKUP_GEMACHT=false
-if [[ -f ".env" || -f "CREDENTIALS.txt" ]]; then
-  read -p "  .env und CREDENTIALS.txt vorher sichern? [J/n]: " DO_BACKUP
-  if [[ "${DO_BACKUP,,}" != "n" ]]; then
-    BACKUP_DIR="backup_$(date +%Y%m%d_%H%M%S)"
-    mkdir -p "$BACKUP_DIR"
-    [[ -f ".env" ]]            && cp .env            "$BACKUP_DIR/.env"            && echo "    ✓ .env gesichert"
-    [[ -f "CREDENTIALS.txt" ]] && cp CREDENTIALS.txt "$BACKUP_DIR/CREDENTIALS.txt" && echo "    ✓ CREDENTIALS.txt gesichert"
-    BACKUP_GEMACHT=true
-    success "Backup gespeichert in: ${BACKUP_DIR}/"
-  else
-    warn "Kein Backup erstellt."
-  fi
-else
-  info "Keine .env oder CREDENTIALS.txt gefunden — kein Backup nötig."
-fi
+# Container stoppen
+header "Schritt 2: Container stoppen"
+container_stoppen
 
-# ============================================================
-# Schritt 2: Container stoppen und entfernen
-# ============================================================
-header "Schritt 2: Container stoppen und entfernen"
-
-info "Stoppe und entferne Container..."
-
-if [[ "$IS_VOLLSTACK" == "true" ]]; then
-  docker compose -f "$COMPOSE_FILE" --profile ollama down --remove-orphans 2>/dev/null || \
-  docker compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || \
-  warn "Compose konnte nicht alle Container entfernen (möglicherweise schon gestoppt)."
-else
-  docker compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || \
-  warn "Compose konnte nicht alle Container entfernen (möglicherweise schon gestoppt)."
-fi
-
-success "Container entfernt."
-
-# ============================================================
-# Schritt 3: Docker Named Volumes entfernen
-# ============================================================
+# Docker Volumes
 header "Schritt 3: Docker Volumes entfernen"
+volumes_entfernen
 
-if [[ "$IS_VOLLSTACK" == "true" ]]; then
-  info "Entferne Docker Named Volumes..."
-
-  # Compose down -v entfernt alle in der compose-Datei definierten Volumes
-  docker compose -f "$COMPOSE_FILE" --profile ollama down -v 2>/dev/null || \
-  docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true
-
-  # Explizit nach häufigen Namensmustern suchen und entfernen
-  for SUFFIX in db-config deno-cache ollama-data; do
-    for PREFIX in "$PROJECT_NAME" "$PROJECT_NAME_ALT" "umzughelfer" "umzug-helfer"; do
-      VOL="${PREFIX}_${SUFFIX}"
-      if docker volume inspect "$VOL" >/dev/null 2>&1; then
-        docker volume rm "$VOL" && echo "    ✓ Volume ${VOL} entfernt" || true
-      fi
-    done
-  done
-
-  success "Docker Volumes entfernt."
-else
-  info "App-only Installation — keine Named Volumes zu entfernen."
-fi
-
-# ============================================================
-# Schritt 4: volumes/ Verzeichnis entfernen (nur Vollständig)
-# ============================================================
+# volumes/ Verzeichnis (nur Vollstaendig)
 if [[ "$MODE" == "vollstaendig" ]]; then
   header "Schritt 4: volumes/-Verzeichnis entfernen"
-
   if [[ -d "volumes" ]]; then
     echo ""
-    warn "Das volumes/-Verzeichnis enthält:"
-    echo "  • Alle PostgreSQL-Datenbankdaten (volumes/db/data/)"
-    echo "  • Supabase-Konfigurationsdateien"
-    echo "  • Edge Functions"
-    echo "  • Hochgeladene Dateien (Storage)"
+    warn "Das volumes/-Verzeichnis enthaelt alle PostgreSQL-Daten,"
+    warn "Supabase-Konfigurationen, Edge Functions und Storage-Dateien."
     echo ""
-    read -p "  volumes/-Verzeichnis unwiderruflich löschen? [j/N]: " CONFIRM_VOL
+    read -p "  volumes/-Verzeichnis loeschen? [j/N]: " CONFIRM_VOL
     if [[ "${CONFIRM_VOL,,}" == "j" || "${CONFIRM_VOL,,}" == "y" ]]; then
       rm -rf volumes/
-      success "volumes/-Verzeichnis gelöscht."
+      success "volumes/-Verzeichnis geloescht."
     else
-      warn "volumes/ wurde NICHT gelöscht. Datenbankdaten bleiben erhalten."
+      warn "volumes/ wurde NICHT geloescht."
     fi
   else
-    info "volumes/-Verzeichnis nicht gefunden — nichts zu tun."
+    info "volumes/-Verzeichnis nicht gefunden."
   fi
-fi
 
-# ============================================================
-# Schritt 5: .env und CREDENTIALS.txt entfernen (nur Vollständig)
-# ============================================================
-if [[ "$MODE" == "vollstaendig" ]]; then
   header "Schritt 5: Konfigurationsdateien entfernen"
-
   ENTFERNT=false
-  if [[ -f ".env" ]]; then
-    rm .env
-    echo "    ✓ .env entfernt"
-    ENTFERNT=true
+  [[ -f ".env" ]]            && rm .env            && echo "    OK .env entfernt"            && ENTFERNT=true
+  [[ -f "CREDENTIALS.txt" ]] && rm CREDENTIALS.txt && echo "    OK CREDENTIALS.txt entfernt" && ENTFERNT=true
+  [[ "$ENTFERNT" == "true" ]] && success "Konfigurationsdateien entfernt." || info "Keine Konfigurationsdateien gefunden."
+
+  header "Schritt 6: Docker-Images (optional)"
+  echo ""
+  read -p "  Docker-Images entfernen? (~3-5 GB) [j/N]: " RM_IMAGES
+  if [[ "${RM_IMAGES,,}" == "j" || "${RM_IMAGES,,}" == "y" ]]; then
+    docker compose -f "$COMPOSE_FILE" --profile ollama down --rmi all 2>/dev/null || \
+    docker compose -f "$COMPOSE_FILE" down --rmi all 2>/dev/null || true
+    success "Docker-Images entfernt."
   fi
-  if [[ -f "CREDENTIALS.txt" ]]; then
-    rm CREDENTIALS.txt
-    echo "    ✓ CREDENTIALS.txt entfernt"
-    ENTFERNT=true
-  fi
 
-  if [[ "$ENTFERNT" == "true" ]]; then
-    success "Konfigurationsdateien entfernt."
-  else
-    info "Keine Konfigurationsdateien gefunden."
-  fi
-fi
-
-# ============================================================
-# Schritt 6: Docker-Images entfernen (optional)
-# ============================================================
-header "Schritt 6: Docker-Images (optional)"
-
-echo ""
-echo "  Die Supabase-Docker-Images belegen ca. 3–5 GB Speicherplatz."
-echo "  Entfernen spart Speicher, aber die nächste Installation"
-echo "  muss alle Images erneut herunterladen (~10–20 Min)."
-echo ""
-read -p "  Docker-Images entfernen? [j/N]: " RM_IMAGES
-
-if [[ "${RM_IMAGES,,}" == "j" || "${RM_IMAGES,,}" == "y" ]]; then
-  info "Entferne Docker-Images..."
-  docker compose -f "$COMPOSE_FILE" --profile ollama down --rmi all 2>/dev/null || \
-  docker compose -f "$COMPOSE_FILE" down --rmi all 2>/dev/null || \
-  warn "Einige Images konnten nicht entfernt werden."
-  success "Docker-Images entfernt."
-else
-  info "Docker-Images bleiben erhalten (schnellere Neuinstallation)."
-fi
-
-# ============================================================
-# Schritt 7: Build-Cache leeren (optional)
-# ============================================================
-header "Schritt 7: Docker Build-Cache (optional)"
-
-echo ""
-read -p "  Docker Build-Cache leeren? [j/N]: " RM_CACHE
-
-if [[ "${RM_CACHE,,}" == "j" || "${RM_CACHE,,}" == "y" ]]; then
-  info "Leere Docker Build-Cache..."
-  docker builder prune -f
-  success "Build-Cache geleert."
-else
-  info "Build-Cache bleibt erhalten."
+  header "Schritt 7: Build-Cache (optional)"
+  read -p "  Docker Build-Cache leeren? [j/N]: " RM_CACHE
+  [[ "${RM_CACHE,,}" == "j" || "${RM_CACHE,,}" == "y" ]] && docker builder prune -f && success "Build-Cache geleert."
 fi
 
 # ============================================================
@@ -265,20 +290,15 @@ fi
 # ============================================================
 echo ""
 echo -e "${BOLD}${GREEN}============================================================${NC}"
-success "Deinstallation abgeschlossen!"
+success "Abgeschlossen!"
 echo -e "${BOLD}${GREEN}============================================================${NC}"
 echo ""
 
 if [[ "$MODE" == "vollstaendig" ]]; then
-  echo -e "  Alle Komponenten wurden entfernt."
+  echo "  Alle Komponenten wurden entfernt."
 else
-  echo -e "  Container und Docker-Volumes entfernt."
-  echo -e "  volumes/, .env und CREDENTIALS.txt sind noch vorhanden."
-fi
-
-if [[ "$BACKUP_GEMACHT" == "true" ]]; then
-  echo ""
-  echo -e "  Backup gespeichert in: ${CYAN}${BACKUP_DIR}/${NC}"
+  echo "  Container und Docker-Volumes entfernt."
+  echo "  volumes/, .env und CREDENTIALS.txt sind noch vorhanden."
 fi
 
 echo ""

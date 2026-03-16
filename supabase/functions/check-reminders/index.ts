@@ -128,7 +128,8 @@ Deno.serve(async (req: Request) => {
   }
 
   // ── 5. Einkaufsliste-Reminder ─────────────────────────────────────────────
-  const aktuelleMinutenTag = jetzt.getUTCHours() * 60 + jetzt.getUTCMinutes();
+  // Lokalzeit des Containers verwenden (TZ=Europe/Vienna in docker-compose gesetzt)
+  const aktuelleMinutenTag = jetzt.getHours() * 60 + jetzt.getMinutes();
   const heuteDatum = heute; // bereits gesetzt: jetzt.toISOString().split("T")[0]
 
   const { data: einkaufProfile } = await supabase
