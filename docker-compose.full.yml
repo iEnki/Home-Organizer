@@ -286,16 +286,9 @@ services:
       VAPID_SUBJECT: ${VAPID_SUBJECT}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
-    command:
-      - start
-      - --main-service
-      - /home/deno/functions/main
-      - --function
-      - send-push:/home/deno/functions/send-push/index.ts
-      - --function
-      - check-reminders:/home/deno/functions/check-reminders/index.ts
-      - --function
-      - delete-account:/home/deno/functions/delete-account/index.ts
+      # Zeitzone für korrekte Lokalzeit in Edge Functions (getHours/getMinutes)
+      TZ: Europe/Vienna
+    command: ["start", "--main-service", "/home/deno/functions/main"]
 
   # ---- Analytics (Logflare) ----
   analytics:
