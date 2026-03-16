@@ -9,6 +9,7 @@
 //   2. Vorräte unter Minimum  (vorraete.menge <= mindest_menge)
 //   3. Geräte-Wartung fällig  (geraete.naechste_wartung ≤ heute + 7 Tage)
 //   4. Projekt-Deadlines      (projekte.deadline ≤ heute + 1 Tag)
+//   5. Einkaufsliste-Reminder (user_profile.einkauf_reminder_aktiv + einkauf_reminder_zeit)
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -124,6 +125,54 @@ Deno.serve(async (req: Request) => {
       url:     "/home/projekte",
       tag:     `projekt-${p.id}`,
     });
+  }
+
+  // ── 5. Einkaufsliste-Reminder ─────────────────────────────────────────────
+  const aktuelleMinutenTag = jetzt.getUTCHours() * 60 + jetzt.getUTCMinutes();
+  const heuteDatum = heute; // bereits gesetzt: jetzt.toISOString().split("T")[0]
+
+  const { data: einkaufProfile } = await supabase
+    .from("user_profile")
+    .select("id, einkauf_reminder_zeit, einkauf_reminder_letzter_versand")
+    .eq("einkauf_reminder_aktiv", true)
+    .not("einkauf_reminder_zeit", "is", null)
+    .in("id", abonnenten);
+
+  for (const profil of einkaufProfile ?? []) {
+    // Heute bereits gesendet?
+    if (profil.einkauf_reminder_letzter_versand === heuteDatum) continue;
+
+    // Zeitfenster ±15 Minuten prüfen
+    const [h, m] = (profil.einkauf_reminder_zeit as string).split(":").map(Number);
+    const reminderMinuten = h * 60 + m;
+    if (Math.abs(aktuelleMinutenTag - reminderMinuten) > 15) continue;
+
+    // Offene Einkäufe ermitteln
+    const { data: offeneItems } = await supabase
+      .from("home_einkaufliste")
+      .select("name")
+      .eq("user_id", profil.id)
+      .eq("erledigt", false)
+      .limit(5);
+
+    if (!offeneItems?.length) continue;
+
+    const vorschau = offeneItems.slice(0, 3).map((i: any) => i.name).join(", ");
+    const rest     = offeneItems.length > 3 ? ` +${offeneItems.length - 3} weitere` : "";
+
+    nachrichten.push({
+      user_id: profil.id,
+      title:   "Einkaufsliste",
+      body:    `${offeneItems.length} Artikel offen: ${vorschau}${rest}`,
+      url:     "/home/einkaufen",
+      tag:     "einkauf-reminder",
+    });
+
+    // Letzter Versand aktualisieren (Duplikat-Schutz)
+    await supabase
+      .from("user_profile")
+      .update({ einkauf_reminder_letzter_versand: heuteDatum })
+      .eq("id", profil.id);
   }
 
   // ── Pushes senden ─────────────────────────────────────────────────────────
