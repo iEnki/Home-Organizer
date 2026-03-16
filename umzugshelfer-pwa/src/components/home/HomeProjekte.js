@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { FolderOpen, Plus, Edit2, Trash2, X, Loader2, AlertCircle, ChevronDown, ChevronRight, CheckSquare, Square, Leaf, Sun, Wind, Snowflake } from "lucide-react";
+import { FolderOpen, Plus, Edit2, Trash2, X, Loader2, AlertCircle, ChevronDown, ChevronRight, CheckSquare, Square, Leaf, Sun, Wind, Snowflake, Sparkles } from "lucide-react";
+import KiHomeAssistent from "./KiHomeAssistent";
 import { supabase } from "../../supabaseClient";
 import { logVerlauf } from "../../utils/homeVerlauf";
 import TourOverlay from "./tour/TourOverlay";
@@ -175,7 +176,8 @@ const HomeProjekte = ({ session }) => {
   const [statusFilter, setStatusFilter] = useState("");
   const [expandedId, setExpandedId] = useState(null);
   const [neuerTodoText, setNeuerTodoText] = useState("");
-  const [saisonModal, setSaisonModal] = useState(false); // Saison-Template-Wahl
+  const [saisonModal, setSaisonModal] = useState(false);
+  const [kiOffen, setKiOffen] = useState(false);
 
   const ladeDaten = useCallback(async () => {
     if (!userId) return;
@@ -286,6 +288,9 @@ const HomeProjekte = ({ session }) => {
         <div className="flex flex-wrap gap-2">
           <button onClick={() => setSaisonModal(true)} className="flex items-center gap-1.5 px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-pill text-sm font-medium" title="Jahreszeiten-Template verwenden">
             <Leaf size={14} />Saison
+          </button>
+          <button onClick={() => setKiOffen(true)} className="flex items-center gap-1.5 px-3 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-pill text-sm font-medium" title="Per KI erfassen">
+            <Sparkles size={14} /><span className="hidden sm:inline">KI</span>
           </button>
           <button data-tour="tour-projekte-hinzufuegen" onClick={() => setModal({})} className="flex items-center gap-1.5 px-3 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-pill text-sm font-medium">
             <Plus size={14} />Neues Projekt
@@ -399,6 +404,29 @@ const HomeProjekte = ({ session }) => {
             );
           })}
         </div>
+      )}
+
+      {kiOffen && (
+        <KiHomeAssistent
+          session={session}
+          modul="projekte"
+          onClose={() => setKiOffen(false)}
+          onErgebnis={async (items) => {
+            for (const item of items) {
+              await supabase.from("home_projekte").insert({
+                user_id: session.user.id,
+                name: item.name || "Neues Projekt",
+                typ: item.typ || "Sonstiges",
+                beschreibung: item.beschreibung || null,
+                budget: item.budget || null,
+                startdatum: item.startdatum || null,
+                zieldatum: item.zieldatum || null,
+                status: "geplant",
+              });
+            }
+            ladeDaten();
+          }}
+        />
       )}
 
       {tourAktiv && (

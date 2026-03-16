@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { supabase } from "../supabaseClient";
-import OpenAI from "openai";
 import { getKiClient, isKiClientReady } from "../utils/kiClient";
 import { useTheme } from "../contexts/ThemeContext";
 import { Link, useLocation } from "react-router-dom";

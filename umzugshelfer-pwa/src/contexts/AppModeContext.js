@@ -21,6 +21,14 @@ export const AppModeProvider = ({ children }) => {
     return localStorage.getItem("onboardingGezeigt") === "true";
   });
 
+  // Wird true sobald der App-Modus aus Supabase geladen wurde (verhindert Race Condition mit OnboardingGate)
+  const [modusGeladen, setModusGeladen] = useState(false);
+
+  // Umzugsplaner dauerhaft deaktiviert (User hat Umzug abgeschlossen)
+  const [umzugDeaktiviert, setUmzugDeaktiviert] = useState(() => {
+    return localStorage.getItem("umzugDeaktiviert") === "true";
+  });
+
   useEffect(() => {
     localStorage.setItem("appMode", appMode);
   }, [appMode]);
@@ -33,13 +41,36 @@ export const AppModeProvider = ({ children }) => {
     localStorage.setItem("onboardingGezeigt", onboardingGezeigt);
   }, [onboardingGezeigt]);
 
+  useEffect(() => {
+    localStorage.setItem("umzugDeaktiviert", umzugDeaktiviert);
+  }, [umzugDeaktiviert]);
+
   const switchToHome = () => setAppMode("home");
-  const switchToUmzug = () => setAppMode("umzug");
-  const toggleMode = () =>
+
+  // switchToUmzug ist gesperrt wenn der Umzugsplaner dauerhaft deaktiviert wurde
+  const switchToUmzug = () => {
+    if (umzugDeaktiviert) return;
+    setAppMode("umzug");
+  };
+
+  const toggleMode = () => {
+    if (umzugDeaktiviert) return;
     setAppMode((prev) => (prev === "umzug" ? "home" : "umzug"));
+  };
 
   const markUmzugAbgeschlossen = () => setUmzugAbgeschlossen(true);
   const markOnboardingGezeigt = () => setOnboardingGezeigt(true);
+
+  // Umzugsplaner dauerhaft deaktivieren (Umzug abgeschlossen)
+  const deaktiviereUmzug = () => {
+    setUmzugDeaktiviert(true);
+    setAppMode("home");
+  };
+
+  // Umzugsplaner wieder aktivieren (z.B. erneuter Umzug)
+  const aktiviereUmzug = () => {
+    setUmzugDeaktiviert(false);
+  };
 
   return (
     <AppModeContext.Provider
@@ -54,6 +85,11 @@ export const AppModeProvider = ({ children }) => {
         markUmzugAbgeschlossen,
         onboardingGezeigt,
         markOnboardingGezeigt,
+        modusGeladen,
+        setModusGeladen,
+        umzugDeaktiviert,
+        deaktiviereUmzug,
+        aktiviereUmzug,
       }}
     >
       {children}

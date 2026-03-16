@@ -89,6 +89,19 @@ const MODUL_CONFIG = {
       '"Miete 950 Euro monatlich, Kategorie Wohnen" → mit Kategorie',
     ],
   },
+  projekte: {
+    titel: "Projekt per KI anlegen",
+    beschreibung: 'z.B. „Badezimmer renovieren bis Oktober, Budget 2000 Euro" oder „Keller aufräumen, Reorganisation"',
+    felder: "name, typ (Reorganisation/Reparatur/Saisonwechsel/Renovierung/Dekoration/Anschaffung/Sonstiges), beschreibung (optional), budget (Zahl optional), startdatum (ISO-Datum optional), zieldatum (ISO-Datum optional)",
+    schema: '{"name":"Badezimmer renovieren","typ":"Renovierung","beschreibung":"Fliesen und Armatur erneuern","budget":2000,"zieldatum":"2026-10-01"}',
+    ergebnisLabel: "Erkannte Projekte",
+    renderItem: (item) => `${item.name}${item.typ ? ` [${item.typ}]` : ""}${item.budget ? ` — Budget: ${item.budget} €` : ""}${item.zieldatum ? ` · bis ${item.zieldatum}` : ""}`,
+    hilfe: [
+      '"Badezimmer renovieren bis Oktober, Budget 2000 Euro" → Renovierungsprojekt mit Deadline',
+      '"Keller aufräumen und reorganisieren" → Reorganisationsprojekt',
+      '"Küche streichen nächsten Monat" → Dekorationsprojekt mit Datum',
+    ],
+  },
   // ── Umzugsplaner-Module ────────────────────────────────────────────────────
   todos: {
     titel: "Aufgaben per KI erstellen",

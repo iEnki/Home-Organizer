@@ -98,29 +98,40 @@ const ROUTE_TITLES = {
 // Liest appMode synchron aus dem Context (bereits aus localStorage initialisiert),
 // sodass Home-Organizer-Nutzer direkt zu /home weitergeleitet werden.
 const SmartRedirect = () => {
-  const { appMode } = useAppMode();
+  const { appMode, modusGeladen } = useAppMode();
+  // Warten bis Modus aus Supabase geladen — verhindert Flash auf /dashboard bei gecleared localStorage
+  if (!modusGeladen) return null;
   return <Navigate to={appMode === "home" ? "/home" : "/dashboard"} replace />;
 };
 
 // ── Cross-Device Sync (Modus-Persistenz in Supabase) ──────────────────────────
 const HomeModusSyncer = ({ session }) => {
-  const { appMode, switchToHome, switchToUmzug, markOnboardingGezeigt } = useAppMode();
+  const { appMode, switchToHome, switchToUmzug, markOnboardingGezeigt, setModusGeladen, modusGeladen, deaktiviereUmzug } = useAppMode();
   const navigate  = useNavigate();
   const location  = useLocation();
   const userId    = session?.user?.id;
 
-  // Einmalig beim Login: Modus aus Supabase laden.
-  // Falls app_modus === "home" und der User auf /dashboard gelandet ist
-  // (Default-Redirect bei leerem localStorage), direkt zu /home weiterleiten.
+  // Einmalig beim Login: Modus + umzug_deaktiviert aus Supabase laden.
+  // setModusGeladen(true) gibt SmartRedirect und OnboardingGate frei.
   useEffect(() => {
     if (!userId) return;
     supabase
       .from("user_profile")
-      .select("app_modus")
+      .select("app_modus, umzug_deaktiviert")
       .eq("id", userId)
       .single()
       .then(({ data }) => {
-        if (data?.app_modus === "home") {
+        const umzugPfade = ["/dashboard", "/packliste", "/todo", "/budget",
+          "/contacts", "/dokumente", "/kalender", "/rechner", "/planung", "/zeitstrahl"];
+
+        if (data?.umzug_deaktiviert === true) {
+          // Umzugsplaner dauerhaft deaktiviert → immer Home-Modus
+          deaktiviereUmzug();
+          markOnboardingGezeigt();
+          if (umzugPfade.some(p => location.pathname.startsWith(p))) {
+            navigate("/home", { replace: true });
+          }
+        } else if (data?.app_modus === "home") {
           switchToHome();
           markOnboardingGezeigt();
           // Zur Home-Startseite weiterleiten, falls auf Umzug-Dashboard gelandet
@@ -131,24 +142,34 @@ const HomeModusSyncer = ({ session }) => {
           switchToUmzug();
           markOnboardingGezeigt();
         }
-      });
+        setModusGeladen(true);
+      })
+      .catch(() => setModusGeladen(true)); // Bei Fehler freigeben damit App nicht hängt
   }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Bei Modus-Änderung in Supabase persistieren
+  // Bei Modus-Änderung in Supabase persistieren —
+  // aber erst nachdem der Modus aus Supabase geladen wurde (modusGeladen),
+  // sonst überschreibt der localStorage-Startwert den gespeicherten Modus.
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !modusGeladen) return;
     supabase.from("user_profile").update({ app_modus: appMode }).eq("id", userId);
-  }, [appMode, userId]);
+  }, [appMode, userId, modusGeladen]);
 
   return null;
 };
 
 // ── Onboarding-Gate: Modusauswahl für neue Nutzer ──────────────────────────────
 const OnboardingGate = ({ session, children }) => {
-  const { onboardingGezeigt, markOnboardingGezeigt, switchToHome, switchToUmzug } = useAppMode();
+  const { onboardingGezeigt, modusGeladen, markOnboardingGezeigt, switchToHome, switchToUmzug } = useAppMode();
   const navigate = useNavigate();
 
-  if (session && !onboardingGezeigt) {
+  // Warten bis Modus aus Supabase geladen → verhindert Flash des Onboarding-Modals
+  // für eingeloggte User deren Modus bereits gesetzt ist
+  if (session && !onboardingGezeigt && !modusGeladen) {
+    return children;
+  }
+
+  if (session && !onboardingGezeigt && modusGeladen) {
     return (
       <>
         {children}
