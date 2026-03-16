@@ -68,7 +68,8 @@ case "$MAIN_CHOICE" in
   2) MODE="apponly" ;;
   3) MODE="rebuild" ;;
   4) MODE="ollama" ;;
-  5) bash "$SCRIPT_DIR/uninstall.sh"; exit 0 ;;
+  5) sed -i 's/\r//' "$SCRIPT_DIR/uninstall.sh" 2>/dev/null || true
+     bash "$SCRIPT_DIR/uninstall.sh"; exit 0 ;;
   6) echo "  Auf Wiedersehen."; exit 0 ;;
   *) err "Ungültige Auswahl." ;;
 esac
@@ -416,6 +417,7 @@ if [[ "$MODE" == "vollstack" ]]; then
 
   mkdir -p volumes/db volumes/logs volumes/pooler volumes/storage volumes/functions/main \
            volumes/functions/send-push volumes/functions/check-reminders \
+           volumes/functions/delete-account \
            volumes/snippets volumes/db/data volumes/api
 
   ALL_DOWNLOADED=true
@@ -449,7 +451,7 @@ TSEOF
     echo "    ✓ volumes/functions/main/index.ts"
   fi
 
-  for fn in send-push check-reminders; do
+  for fn in send-push check-reminders delete-account; do
     if [[ -f "supabase/functions/${fn}/index.ts" ]]; then
       cp "supabase/functions/${fn}/index.ts" "volumes/functions/${fn}/index.ts"
       echo "    ✓ volumes/functions/${fn}/index.ts"
