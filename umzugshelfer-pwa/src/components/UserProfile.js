@@ -668,7 +668,7 @@ const UserProfile = ({ session, householdContext }) => {
       {/* â”€â”€ App-Modus â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <AkkordeonSektion title="App-Modus" icon={<Layers size={16} />} defaultOpen={true}>
         <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-4">
-          WÃ¤hle, welchen Bereich du primÃ¤r nutzt. Du kannst jederzeit wechseln.
+          Wähle, welchen Bereich du primär nutzt. Du kannst jederzeit wechseln.
         </p>
         <div className="grid grid-cols-2 gap-3">
           <button
@@ -723,7 +723,7 @@ const UserProfile = ({ session, householdContext }) => {
           <div className="mt-4 p-3 rounded-card-sm bg-accent-success/10 border border-accent-success/30">
             <p className="text-xs text-accent-success mb-2.5 leading-snug">
               Umzugsplaner ist dauerhaft deaktiviert. Du bleibst immer im Home Organizer,
-              auch nach einem Neustart oder auf neuen GerÃ¤ten.
+              auch nach einem Neustart oder auf neuen Geräten.
             </p>
             <button
               onClick={handleUmzugAktivieren}
@@ -738,7 +738,7 @@ const UserProfile = ({ session, householdContext }) => {
           <div className="mt-4 p-3 rounded-card-sm bg-light-surface-1 dark:bg-canvas-3
                           border border-light-border dark:border-dark-border">
             <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-2.5 leading-snug">
-              Umzug abgeschlossen? Den Umzugsplaner dauerhaft deaktivieren â€”
+              Umzug abgeschlossen? Den Umzugsplaner dauerhaft deaktivieren –
               er bleibt gespeichert und kann jederzeit reaktiviert werden.
             </p>
             <button
@@ -983,7 +983,7 @@ const UserProfile = ({ session, householdContext }) => {
                   </button>
                 </div>
                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                  Hinweis: Im Ollama-Modus wird die Spracheingabe Ã¼ber die Browser-Spracherkennung (Web Speech API) verarbeitet statt Ã¼ber Whisper.
+                  Hinweis: Im Ollama-Modus wird die Spracheingabe über die Browser-Spracherkennung (Web Speech API) verarbeitet statt über Whisper.
                 </p>
               </div>
             )}
@@ -994,7 +994,7 @@ const UserProfile = ({ session, householdContext }) => {
       ) : (
       <AkkordeonSektion title="Haushaltseinstellungen" icon={<Shield size={16} />}>
         <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-          Globale Haushaltseinstellungen (App-Modus und KI) kÃ¶nnen nur vom Haushalts-Admin geÃ¤ndert werden.
+          Globale Haushaltseinstellungen (App-Modus und KI) können nur vom Haushalts-Admin geändert werden.
         </p>
       </AkkordeonSektion>
       )}
@@ -1002,7 +1002,7 @@ const UserProfile = ({ session, householdContext }) => {
       {/* â”€â”€ Push-Benachrichtigungen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <AkkordeonSektion title="Push-Benachrichtigungen" icon={<Bell size={16} />}>
         <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-4">
-          Erhalte Benachrichtigungen auch wenn die App geschlossen ist â€“ fÃ¼r Aufgaben, VorrÃ¤te, Wartungen und Deadlines.
+          Erhalte Benachrichtigungen auch wenn die App geschlossen ist – für Aufgaben, Vorräte, Wartungen und Deadlines.
         </p>
 
         {isIOS && !isStandalone && (
@@ -1010,8 +1010,8 @@ const UserProfile = ({ session, householdContext }) => {
                           bg-accent-yellow/10 border border-accent-yellow/30">
             <BellRing size={16} className="text-accent-yellow shrink-0 mt-0.5" />
             <p className="text-xs text-accent-yellow leading-relaxed">
-              Auf iOS mÃ¼ssen Push-Nachrichten Ã¼ber Safari aktiviert werden und die App muss
-              zuerst zum Homescreen hinzugefÃ¼gt werden <strong>(Teilen â†’ Zum Home-Bildschirm)</strong>.
+              Auf iOS müssen Push-Nachrichten über Safari aktiviert werden und die App muss
+              zuerst zum Homescreen hinzugefügt werden <strong>(Teilen → Zum Home-Bildschirm)</strong>.
             </p>
           </div>
         )}
@@ -1019,7 +1019,7 @@ const UserProfile = ({ session, householdContext }) => {
         {!pushUnterstuetzt ? (
           <div className="flex items-center gap-2 text-sm text-light-text-secondary dark:text-dark-text-secondary">
             <BellOff size={15} />
-            Push-Benachrichtigungen werden von diesem Browser nicht unterstÃ¼tzt.
+            Push-Benachrichtigungen werden von diesem Browser nicht unterstützt.
           </div>
         ) : (
           <div className="flex items-center justify-between gap-4">
@@ -1092,7 +1092,7 @@ const UserProfile = ({ session, householdContext }) => {
                 className="mt-0.5 accent-primary-500 w-4 h-4 cursor-pointer"
               />
               <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary leading-snug">
-                TÃ¤glich erinnern, wenn unerledigte EinkÃ¤ufe in der Liste vorhanden sind
+                Täglich erinnern, wenn unerledigte Einkäufe in der Liste vorhanden sind
               </span>
             </label>
             {einkaufReminderAktiv && (
@@ -1138,7 +1138,7 @@ const UserProfile = ({ session, householdContext }) => {
       {/* â”€â”€ Interaktive Anleitungen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <AkkordeonSektion title="Interaktive Anleitungen" icon={<RotateCcw size={16} />}>
         <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-4">
-          Setze alle Schritt-fÃ¼r-Schritt-Anleitungen zurÃ¼ck. Beim nÃ¤chsten Besuch jedes Bereichs erscheint die Tour wieder automatisch.
+          Setze alle Schritt-für-Schritt-Anleitungen zurück. Beim nächsten Besuch jedes Bereichs erscheint die Tour wieder automatisch.
         </p>
         <button
           onClick={handleTourZuruecksetzen}
@@ -1147,9 +1147,9 @@ const UserProfile = ({ session, householdContext }) => {
                      border border-secondary-500/30 transition-colors"
         >
           {tourReset ? (
-            <><CheckCircle size={15} /> Anleitungen zurÃ¼ckgesetzt</>
+            <><CheckCircle size={15} /> Anleitungen zurückgesetzt</>
           ) : (
-            <><RotateCcw size={15} /> Alle Anleitungen zurÃ¼cksetzen</>
+            <><RotateCcw size={15} /> Alle Anleitungen zurücksetzen</>
           )}
         </button>
       </AkkordeonSektion>
@@ -1181,11 +1181,11 @@ const UserProfile = ({ session, householdContext }) => {
             )}
           </div>
 
-          {/* E-Mail Ã¤ndern */}
+          {/* E-Mail ändern */}
           <div>
             <p className="text-xs font-medium uppercase tracking-wide
                           text-light-text-secondary dark:text-dark-text-secondary mb-2">
-              E-Mail-Adresse Ã¤ndern
+              E-Mail-Adresse ändern
             </p>
             <div className="flex gap-2">
               <input
@@ -1202,22 +1202,22 @@ const UserProfile = ({ session, householdContext }) => {
                            bg-secondary-500/10 hover:bg-secondary-500/20 text-secondary-500
                            border border-secondary-500/30 transition-colors disabled:opacity-40 shrink-0"
               >
-                <Save size={14} /> Ã„ndern
+                <Save size={14} /> Ändern
               </button>
             </div>
             {emailStatus === "ok" && (
               <p className="text-xs text-accent-success mt-2 flex items-center gap-1">
-                <CheckCircle size={12} /> BestÃ¤tigungs-Mail wurde gesendet.
+                <CheckCircle size={12} /> Bestätigungs-Mail wurde gesendet.
               </p>
             )}
             {emailStatus === "fehler" && (
               <p className="text-xs text-accent-danger mt-2 flex items-center gap-1">
-                <AlertCircle size={12} /> Fehler beim Ã„ndern der E-Mail.
+                <AlertCircle size={12} /> Fehler beim Ändern der E-Mail.
               </p>
             )}
           </div>
 
-          {/* Account lÃ¶schen */}
+          {/* Account löschen */}
           <div className="pt-2 border-t border-light-border dark:border-dark-border">
             {!loeschenBestaetigung ? (
               <button
@@ -1225,12 +1225,12 @@ const UserProfile = ({ session, householdContext }) => {
                 className="text-xs text-light-text-secondary dark:text-dark-text-secondary
                            hover:text-accent-danger transition-colors underline underline-offset-2"
               >
-                Account unwiderruflich lÃ¶schen
+                Account unwiderruflich löschen
               </button>
             ) : (
               <div className="p-3 bg-accent-danger/10 border border-accent-danger/30 rounded-card-sm space-y-3">
                 <p className="text-xs text-accent-danger font-medium leading-snug">
-                  Alle Daten werden dauerhaft gelÃ¶scht. Diese Aktion kann nicht rÃ¼ckgÃ¤ngig gemacht werden.
+                  Alle Daten werden dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.
                 </p>
                 <div className="flex gap-2">
                   <button
@@ -1238,7 +1238,7 @@ const UserProfile = ({ session, householdContext }) => {
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-xs font-medium
                                bg-accent-danger text-white hover:bg-accent-danger/90 transition-colors"
                   >
-                    Ja, Account lÃ¶schen
+                    Ja, Account löschen
                   </button>
                   <button
                     onClick={() => setLoeschenBestaetigung(false)}

@@ -13,11 +13,11 @@ import {
   FilePlus,
   FileText,
   BookOpen,
-  KeyRound, // FÃ¼r API Key Button/Modal
-  Save, // FÃ¼r Speicherbutton
-  XCircle as XCircleIcon, // Umbenannt fÃ¼r Klarheit im Modal
-  Info as InfoIcon, // FÃ¼r den Hinweis, wenn kein API Key gesetzt ist
-  CalendarPlus, // FÃ¼r Liefertermine
+  KeyRound, // Für API Key Button/Modal
+  Save, // Für Speicherbutton
+  XCircle as XCircleIcon, // Umbenannt für Klarheit im Modal
+  Info as InfoIcon, // Für den Hinweis, wenn kein API Key gesetzt ist
+  CalendarPlus, // Für Liefertermine
   DollarSign,
   TrendingUp,
 } from "lucide-react";
@@ -89,7 +89,7 @@ const UmzugsZeitstrahl = ({ session }) => {
   const [pdfBereit, setPdfBereit] = useState(false);
   const [signedImageUrlsMap, setSignedImageUrlsMap] = useState({});
 
-  // States fÃ¼r API Key Management
+  // States für API Key Management
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [currentApiKey, setCurrentApiKey] = useState(""); // Um den geladenen Key zu halten
@@ -141,7 +141,7 @@ const UmzugsZeitstrahl = ({ session }) => {
         if (eindeutigeDokumentenIds.length > 0) {
           const { data: dokumenteData, error: docError } = await supabase
             .from("dokumente")
-            .select("id, dateiname, datei_typ, storage_pfad") // Nur benÃ¶tigte Spalten
+            .select("id, dateiname, datei_typ, storage_pfad") // Nur benötigte Spalten
             .in("id", eindeutigeDokumentenIds);
           if (docError) throw docError;
           if (dokumenteData && Array.isArray(dokumenteData)) {
@@ -186,7 +186,7 @@ const UmzugsZeitstrahl = ({ session }) => {
         )
       );
 
-      // Kisten + GegenstÃ¤nde laden
+      // Kisten + Gegenstände laden
       const { data: kistenData, error: kistenError } = await supabase
         .from("pack_kisten")
         .select(
@@ -327,7 +327,7 @@ const UmzugsZeitstrahl = ({ session }) => {
           details: [
             doc.datei_typ ? `Typ: ${doc.datei_typ}` : null,
             doc.beschreibung ? `Beschreibung: ${doc.beschreibung}` : null,
-            doc.todo_aufgabe_id ? "Mit Aufgabe verknÃ¼pft" : "Ohne Aufgabenbezug",
+            doc.todo_aufgabe_id ? "Mit Aufgabe verknüpft" : "Ohne Aufgabenbezug",
           ]
             .filter(Boolean)
             .join(" | "),
@@ -361,7 +361,7 @@ const UmzugsZeitstrahl = ({ session }) => {
             rp.kategorie ? `Kategorie: ${rp.kategorie}` : null,
             rp.status ? `Status: ${rp.status}` : null,
             rp.geschaetzter_preis != null
-              ? `GeschÃ¤tzt: ${rp.geschaetzter_preis} â‚¬`
+              ? `Geschätzt: ${rp.geschaetzter_preis} â‚¬`
               : null,
           ]
             .filter(Boolean)
@@ -466,7 +466,7 @@ const UmzugsZeitstrahl = ({ session }) => {
     if (isOverdue(aufgabe.faelligkeitsdatum, aufgabe.erledigt))
       return <AlertTriangle />;
     const kategorie = aufgabe.kategorie?.toLowerCase() || "";
-    if (kategorie.includes("arbeit") || kategorie.includes("bÃ¼ro"))
+    if (kategorie.includes("arbeit") || kategorie.includes("büro"))
       return <Briefcase />;
     if (kategorie.includes("kurs") || kategorie.includes("lernen"))
       return <Home />;
@@ -479,7 +479,7 @@ const UmzugsZeitstrahl = ({ session }) => {
     const color = "#fff";
     let background;
     const kategorie = aufgabe.kategorie?.toLowerCase() || "";
-    if (kategorie.includes("arbeit") || kategorie.includes("bÃ¼ro"))
+    if (kategorie.includes("arbeit") || kategorie.includes("büro"))
       background = getTailwindColor("workBlue", theme);
     else if (kategorie.includes("kurs") || kategorie.includes("lernen"))
       background = getTailwindColor("educationRed", theme);
@@ -509,7 +509,7 @@ const UmzugsZeitstrahl = ({ session }) => {
     let background = getTailwindColor("cardBg", theme);
     let color = getTailwindColor("textMain", theme);
     const kategorie = aufgabe.kategorie?.toLowerCase() || "";
-    if (kategorie.includes("arbeit") || kategorie.includes("bÃ¼ro")) {
+    if (kategorie.includes("arbeit") || kategorie.includes("büro")) {
       background = getTailwindColor("workBlue", theme);
       color = "#fff";
     } else if (kategorie.includes("kurs") || kategorie.includes("lernen")) {
@@ -532,7 +532,7 @@ const UmzugsZeitstrahl = ({ session }) => {
   const getContentArrowStyle = (aufgabe) => {
     let arrowColor = getTailwindColor("cardBg", theme);
     const kategorie = aufgabe.kategorie?.toLowerCase() || "";
-    if (kategorie.includes("arbeit") || kategorie.includes("bÃ¼ro"))
+    if (kategorie.includes("arbeit") || kategorie.includes("büro"))
       arrowColor = getTailwindColor("workBlue", theme);
     else if (kategorie.includes("kurs") || kategorie.includes("lernen"))
       arrowColor = getTailwindColor("educationRed", theme);
@@ -564,7 +564,7 @@ const UmzugsZeitstrahl = ({ session }) => {
                     .then(({ data, error }) => {
                       if (error) {
                         console.error(
-                          `Fehler beim Erstellen der Signed URL fÃ¼r ${mediaItem.storage_path} im Bucket user-dokumente:`,
+                          `Fehler beim Erstellen der Signed URL für ${mediaItem.storage_path} im Bucket user-dokumente:`,
                           error
                         );
                         return {
@@ -593,7 +593,7 @@ const UmzugsZeitstrahl = ({ session }) => {
         urlsMap[result.path] = result.url;
       } else if (result.error) {
         console.warn(
-          `Konnte Signed URL fÃ¼r ${result.path} nicht laden: ${result.error}`
+          `Konnte Signed URL für ${result.path} nicht laden: ${result.error}`
         );
       }
     });
@@ -649,12 +649,12 @@ const UmzugsZeitstrahl = ({ session }) => {
       const { data: packKistenData, error: packKistenError } = await supabase
         .from("pack_kisten")
         .select(
-          "*, inhalte:pack_gegenstaende(id, beschreibung, menge, kategorie)" // foto_url fÃ¼r GegenstÃ¤nde nicht mehr nÃ¶tig
+          "*, inhalte:pack_gegenstaende(id, beschreibung, menge, kategorie)" // foto_url für Gegenstände nicht mehr nötig
         )
         .eq("user_id", userId);
       if (packKistenError) {
         console.error(
-          "Fehler beim Laden der Packkisten und GegenstÃ¤nde:",
+          "Fehler beim Laden der Packkisten und Gegenstände:",
           packKistenError
         );
         throw packKistenError;
@@ -715,7 +715,7 @@ const UmzugsZeitstrahl = ({ session }) => {
                 kategorie: g.kategorie,
               })) || [],
           };
-          // Logik zum HinzufÃ¼gen von kiste.foto_url zu kisteEvent.media entfernt
+          // Logik zum Hinzufügen von kiste.foto_url zu kisteEvent.media entfernt
           umzugsEvents.push(kisteEvent);
         });
       }
@@ -736,28 +736,28 @@ const UmzugsZeitstrahl = ({ session }) => {
         events: umzugsEvents,
       };
 
-      console.log("Lade signierte URLs fÃ¼r Bilder (nur fÃ¼r Aufgaben)...");
+      console.log("Lade signierte URLs für Bilder (nur für Aufgaben)...");
       const urlsMap = await fetchSignedImageUrls(datenFuerKI.events);
       setSignedImageUrlsMap(urlsMap);
       console.log("Signierte URLs geladen:", urlsMap);
 
       console.log(
-        "Strukturierte Daten fÃ¼r KI:",
+        "Strukturierte Daten für KI:",
         JSON.stringify(datenFuerKI, null, 2)
       );
 
       const { client, model } = await getKiClient(userId);
       const openai = client;
-      const prompt = `Erstelle ein sehr ausfÃ¼hrliches, detailliertes, lebendiges und freundliches Umzugstagebuch im lockeren Plauderton, gerne mit einer Prise Humor.
-Gliedere den Text deutlich in die Phasen: "Phase: Vorbereitung", "Phase: Packen", "Phase: Umzugstag", "Phase: Ankommen" und "Phase: Abschluss". Jede Phase soll als klare Ãœberschrift auf einer neuen Zeile beginnen (z.B. "Phase: Packen" oder "PACKEN").
-Baue alle erledigten Aufgaben und Meilensteine als natÃ¼rlichen Teil des FlieÃŸtextes ein. Beschreibe die Ereignisse und Aufgaben so, als wÃ¼rdest du einem Freund davon erzÃ¤hlen.
-Wenn eine Kiste beschrieben wird, erwÃ¤hne ihren Namen und sei kreativ bei der Beschreibung! Liste dann ihren Inhalt (GegenstÃ¤nde mit Menge und optional Kategorie) als Ã¼bersichtliche AufzÃ¤hlungspunkte auf, etwa so:
-In Kiste '**Kistenname XY**' (oder ein lustiger Spitzname fÃ¼r die Kiste) habe ich folgende SchÃ¤tze verstaut:
+      const prompt = `Erstelle ein sehr ausführliches, detailliertes, lebendiges und freundliches Umzugstagebuch im lockeren Plauderton, gerne mit einer Prise Humor.
+Gliedere den Text deutlich in die Phasen: "Phase: Vorbereitung", "Phase: Packen", "Phase: Umzugstag", "Phase: Ankommen" und "Phase: Abschluss". Jede Phase soll als klare Überschrift auf einer neuen Zeile beginnen (z.B. "Phase: Packen" oder "PACKEN").
+Baue alle erledigten Aufgaben und Meilensteine als natürlichen Teil des Fließtextes ein. Beschreibe die Ereignisse und Aufgaben so, als würdest du einem Freund davon erzählen.
+Wenn eine Kiste beschrieben wird, erwähne ihren Namen und sei kreativ bei der Beschreibung! Liste dann ihren Inhalt (Gegenstände mit Menge und optional Kategorie) als übersichtliche Aufzählungspunkte auf, etwa so:
+In Kiste '**Kistenname XY**' (oder ein lustiger Spitzname für die Kiste) habe ich folgende Schätze verstaut:
 - Menge x Gegenstandsname (Kategorie: Kategorie)
 - Menge x Gegenstandsname
-(Kommentiere den Inhalt vielleicht mit einem Augenzwinkern, passend zum Stil des Tagebuchs. Der Name des Gegenstands wird im 'name'-Feld der Inhaltsobjekte Ã¼bergeben.)
-Wenn zu einem Ereignis Medien (Bilder oder Dokumente, die NICHT zu Kisten gehÃ¶ren) gehÃ¶ren, erwÃ¤hne diese im Text. FÃ¼r Bilder verwende bitte das Format [BILD: EXAKTER_DATEINAME.EXT, BESCHREIBUNG_DES_BILDES] und fÃ¼r Dokumente [DOKUMENT: EXAKTER_DATEINAME.EXT, BESCHREIBUNG_DES_DOKUMENTS]. Der EXAKTE_DATEINAME.EXT muss genau dem Namen der Datei entsprechen, ohne zusÃ¤tzliche Informationen oder Pfade.
-FÃ¼ge â€“ falls vorhanden â€“ persÃ¶nliche Notizen/Zitate als kurze, kursiv formatierte Abschnitte ein (z.B. *Das war anstrengend!*).
+(Kommentiere den Inhalt vielleicht mit einem Augenzwinkern, passend zum Stil des Tagebuchs. Der Name des Gegenstands wird im 'name'-Feld der Inhaltsobjekte übergeben.)
+Wenn zu einem Ereignis Medien (Bilder oder Dokumente, die NICHT zu Kisten gehören) gehören, erwähne diese im Text. Für Bilder verwende bitte das Format [BILD: EXAKTER_DATEINAME.EXT, BESCHREIBUNG_DES_BILDES] und für Dokumente [DOKUMENT: EXAKTER_DATEINAME.EXT, BESCHREIBUNG_DES_DOKUMENTS]. Der EXAKTE_DATEINAME.EXT muss genau dem Namen der Datei entsprechen, ohne zusätzliche Informationen oder Pfade.
+Füge – falls vorhanden – persönliche Notizen/Zitate als kurze, kursiv formatierte Abschnitte ein (z.B. *Das war anstrengend!*).
 
 Hier sind die Umzugsdaten:
 ${JSON.stringify(datenFuerKI, null, 2)}
@@ -770,7 +770,7 @@ Generiere nun das Umzugstagebuch:`;
           {
             role: "system",
             content:
-              "Du bist ein kreativer Assistent, der fesselnde und humorvolle UmzugstagebÃ¼cher im Plauderton schreibt und dabei Listen von Kisteninhalten als AufzÃ¤hlungspunkte formatiert.",
+              "Du bist ein kreativer Assistent, der fesselnde und humorvolle Umzugstagebücher im Plauderton schreibt und dabei Listen von Kisteninhalten als Aufzählungspunkte formatiert.",
           },
           { role: "user", content: prompt },
         ],
@@ -817,7 +817,7 @@ Generiere nun das Umzugstagebuch:`;
       setLightboxOpen(true);
     } else {
       console.warn(
-        "Lightbox konnte nicht geÃ¶ffnet werden: Keine Bild-URL vorhanden."
+        "Lightbox konnte nicht geöffnet werden: Keine Bild-URL vorhanden."
       );
     }
   };
@@ -882,10 +882,10 @@ Generiere nun das Umzugstagebuch:`;
           </h4>
         )}
         <p className="text-xs mt-1">
-          PrioritÃ¤t: {aufgabe.prioritaet || "Standard"}{" "}
+          Priorität: {aufgabe.prioritaet || "Standard"}{" "}
           {isOverdue(aufgabe.faelligkeitsdatum, aufgabe.erledigt) && (
             <span className="text-red-500 dark:text-red-400 font-semibold ml-2">
-              ÃœberfÃ¤llig!
+              Überfällig!
             </span>
           )}
         </p>
@@ -928,7 +928,7 @@ Generiere nun das Umzugstagebuch:`;
       </div>
     );
 
-  // Hilfsfunktion fÃ¼r Kisten-Events
+  // Hilfsfunktion für Kisten-Events
   const renderKistenTimelineElement = (event, idx) => (
     <VerticalTimelineElement
       key={`kiste-${idx}`}
@@ -958,7 +958,7 @@ Generiere nun das Umzugstagebuch:`;
     </VerticalTimelineElement>
   );
 
-  // Timeline-Elemente fÃ¼r Aufgaben und Kisten gemischt nach Datum
+  // Timeline-Elemente für Aufgaben und Kisten gemischt nach Datum
   // Filter- und Sortierlogik nach Userwunsch
   const alleAufgaben = [
     ...zukuenftigeAufgaben,
@@ -1028,7 +1028,7 @@ Generiere nun das Umzugstagebuch:`;
     (event) => eventFilter === "alle" || event.__eventType === eventFilter
   );
 
-  // Hilfsfunktion fÃ¼r Liefertermine
+  // Hilfsfunktion für Liefertermine
   const renderLieferTimelineElement = (event, idx) => (
     <VerticalTimelineElement
       key={`lieferung-${idx}`}
@@ -1213,8 +1213,8 @@ Generiere nun das Umzugstagebuch:`;
           {false && !isApiKeySetForZeitstrahl && !tagebuchLoading && (
             <p className="text-xs text-orange-500 dark:text-orange-400 flex items-center mt-1">
               <InfoIcon size={14} className="mr-1 flex-shrink-0" />
-              FÃ¼r die Tagebuch-Generierung wird ein OpenAI API-Key benÃ¶tigt.
-              Bitte Ã¼ber "API-Key verwalten" einrichten.
+              Für die Tagebuch-Generierung wird ein OpenAI API-Key benötigt.
+              Bitte über "API-Key verwalten" einrichten.
             </p>
           )}
           {tagebuchError && (
@@ -1222,7 +1222,7 @@ Generiere nun das Umzugstagebuch:`;
           )}
           {false && <button
             onClick={() => {
-              setApiKeyInput(currentApiKey); // Input mit aktuellem Key vorbefÃ¼llen
+              setApiKeyInput(currentApiKey); // Input mit aktuellem Key vorbefüllen
               setShowApiKeyModal(true);
             }}
             className={`px-4 py-2 text-sm font-semibold rounded-pill flex items-center transition-colors ${
@@ -1294,7 +1294,7 @@ Generiere nun das Umzugstagebuch:`;
       {angezeigteTimelineElemente.length === 0 && !loading && (
         <div className="text-center py-10 bg-light-card-bg dark:bg-canvas-2 p-6 rounded-card shadow-elevation-2">
           <p className="text-light-text-secondary dark:text-dark-text-secondary">
-            Noch keine Ereignisse vorhanden. FÃ¼ge Aufgaben, Budgetposten,
+            Noch keine Ereignisse vorhanden. Füge Aufgaben, Budgetposten,
             Teilzahlungen, Kisten, Dokumente oder Kontakte hinzu.
           </p>
           <p className="text-light-text-secondary dark:text-dark-text-secondary mt-2">
@@ -1398,7 +1398,7 @@ Generiere nun das Umzugstagebuch:`;
                   }`}
                 >
                   Dein API-Key wird sicher in deinem Benutzerprofil gespeichert
-                  und nur fÃ¼r KI-Funktionen verwendet. Du findest deinen Key auf
+                  und nur für KI-Funktionen verwendet. Du findest deinen Key auf
                   der{" "}
                   <a
                     href="https://platform.openai.com/api-keys"

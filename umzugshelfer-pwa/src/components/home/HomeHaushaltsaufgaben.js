@@ -9,7 +9,7 @@ import { TOUR_STEPS } from "./tour/tourSteps";
 
 const KATEGORIEN = ["Reinigung", "Pflege", "Garten", "Einkauf", "Reparatur", "Wartung", "Organisation", "Sonstiges"];
 const PRIORITAETEN = ["Hoch", "Mittel", "Niedrig"];
-const WIEDERHOLUNG = ["Keine", "TÃ¤glich", "WÃ¶chentlich", "Monatlich", "JÃ¤hrlich"];
+const WIEDERHOLUNG = ["Keine", "Täglich", "Wöchentlich", "Monatlich", "Jährlich"];
 
 const BewohnerBadge = ({ bewohner }) => {
   if (!bewohner) return null;
@@ -41,7 +41,7 @@ const AufgabeForm = ({ initial, onSpeichern, onAbbrechen, bewohner }) => {
         <input
           value={form.beschreibung}
           onChange={(e) => setForm((p) => ({ ...p, beschreibung: e.target.value }))}
-          placeholder="z.B. KÃ¼hlschrank reinigen"
+          placeholder="z.B. Kühlschrank reinigen"
           autoFocus
           className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
         />
@@ -54,7 +54,7 @@ const AufgabeForm = ({ initial, onSpeichern, onAbbrechen, bewohner }) => {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">PrioritÃ¤t</label>
+          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Priorität</label>
           <select value={form.prioritaet} onChange={(e) => setForm((p) => ({ ...p, prioritaet: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none">
             {PRIORITAETEN.map((p) => <option key={p}>{p}</option>)}
           </select>
@@ -62,7 +62,7 @@ const AufgabeForm = ({ initial, onSpeichern, onAbbrechen, bewohner }) => {
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">FÃ¤llig am</label>
+          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Fällig am</label>
           <input type="date" value={form.faelligkeitsdatum} onChange={(e) => setForm((p) => ({ ...p, faelligkeitsdatum: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none" />
         </div>
         <div>
@@ -74,13 +74,13 @@ const AufgabeForm = ({ initial, onSpeichern, onAbbrechen, bewohner }) => {
       </div>
       {bewohner.length > 0 && (
         <div>
-          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">ZustÃ¤ndig</label>
+          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Zuständig</label>
           <select
             value={form.bewohner_id}
             onChange={(e) => setForm((p) => ({ ...p, bewohner_id: e.target.value }))}
             className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none"
           >
-            <option value="">â€” Niemand zugewiesen â€”</option>
+            <option value="">— Niemand zugewiesen —</option>
             {bewohner.map((b) => (
               <option key={b.id} value={b.id}>{b.emoji} {b.name}</option>
             ))}
@@ -172,7 +172,7 @@ const HomeHaushaltsaufgaben = ({ session }) => {
   };
 
   const loesche = async (id) => {
-    if (!window.confirm("Aufgabe lÃ¶schen?")) return;
+    if (!window.confirm("Aufgabe löschen?")) return;
     await supabase.from("todo_aufgaben").delete().eq("id", id);
     ladeDaten();
   };
@@ -287,7 +287,7 @@ const HomeHaushaltsaufgaben = ({ session }) => {
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <span className={`text-xs font-medium ${prioritaetFarbe(a.prioritaet)}`}>{a.prioritaet}</span>
                           <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{a.kategorie}</span>
-                          {a.faelligkeitsdatum && <span className={`text-xs ${ueberfaellig ? "text-red-500 font-medium" : "text-light-text-secondary dark:text-dark-text-secondary"}`}>{ueberfaellig ? "ÃœberfÃ¤llig: " : "FÃ¤llig: "}{a.faelligkeitsdatum.split("T")[0]}</span>}
+                          {a.faelligkeitsdatum && <span className={`text-xs ${ueberfaellig ? "text-red-500 font-medium" : "text-light-text-secondary dark:text-dark-text-secondary"}`}>{ueberfaellig ? "Überfällig: " : "Fällig: "}{a.faelligkeitsdatum.split("T")[0]}</span>}
                           {a.wiederholung_typ && a.wiederholung_typ !== "Keine" && <span className="flex items-center gap-0.5 text-xs text-blue-500"><RefreshCw size={10} />{a.wiederholung_typ}</span>}
                           <BewohnerBadge bewohner={bewohner.find((b) => b.id === a.bewohner_id)} />
                         </div>
