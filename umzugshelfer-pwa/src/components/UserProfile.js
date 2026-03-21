@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Eye, EyeOff, Save, LogOut, Truck, Home, CheckCircle, AlertCircle,
+  Eye, EyeOff, Save, Truck, Home, CheckCircle, AlertCircle,
   RotateCcw, Bell, BellOff, BellRing, Cpu, Wifi, WifiOff,
-  ChevronDown, Camera, Pencil, Check, X, KeyRound, Shield, Layers, Sun,
+  ChevronDown, Camera, Pencil, Check, X, KeyRound, Shield, Layers, Sun, Copy, UserPlus,
+  Users, Crown,
 } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { useTheme } from "../contexts/ThemeContext";
@@ -12,7 +13,7 @@ import { useAppMode } from "../contexts/AppModeContext";
 import ThemeSwitch from "./ThemeSwitch";
 import usePushSubscription from "../hooks/usePushSubscription";
 
-// ── Akkordeon-Helper ──────────────────────────────────────────────────────────
+// â”€â”€ Akkordeon-Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const AkkordeonSektion = ({ title, icon, defaultOpen = false, children }) => {
   const [offen, setOffen] = useState(defaultOpen);
   return (
@@ -41,8 +42,8 @@ const AkkordeonSektion = ({ title, icon, defaultOpen = false, children }) => {
   );
 };
 
-// ── Haupt-Komponente ──────────────────────────────────────────────────────────
-const UserProfile = ({ session }) => {
+// â”€â”€ Haupt-Komponente â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const UserProfile = ({ session, householdContext }) => {
   const navigate  = useNavigate();
   const { theme } = useTheme();
   const {
@@ -54,8 +55,9 @@ const UserProfile = ({ session }) => {
   const email    = session?.user?.email || "";
   const nameRaw  = session?.user?.user_metadata?.full_name || email.split("@")[0] || "Nutzer";
   const initiale = nameRaw.charAt(0).toUpperCase();
+  const isHouseholdAdmin = householdContext?.is_admin !== false;
 
-  // ── Basis-States ────────────────────────────────────────────────────────────
+  // â”€â”€ Basis-States â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [ladend, setLadend] = useState(true);
 
   // Name-Bearbeitung
@@ -105,13 +107,26 @@ const UserProfile = ({ session }) => {
   const [emailStatus,          setEmailStatus]          = useState(null);
   const [passwortStatus,       setPasswortStatus]       = useState(null);
   const [loeschenBestaetigung, setLoeschenBestaetigung] = useState(false);
+  const [inviteEmail,          setInviteEmail]          = useState("");
+  const [inviteLink,           setInviteLink]           = useState("");
+  const [inviteStatus,         setInviteStatus]         = useState(null); // null | ok | copied | fehler
+  const [inviteFehler,         setInviteFehler]         = useState("");
+  const [inviteLadend,         setInviteLadend]         = useState(false);
+  const [inviteMailStatus,     setInviteMailStatus]     = useState(null); // null | sending | sent | failed
+  const [inviteMailHinweis,    setInviteMailHinweis]    = useState("");
+  const [haushaltMitglieder,   setHaushaltMitglieder]   = useState([]);
+  const [haushaltUebersichtLadend, setHaushaltUebersichtLadend] = useState(false);
+  const [haushaltUebersichtFehler, setHaushaltUebersichtFehler] = useState("");
+  const [bewohnerAnzahl,       setBewohnerAnzahl]       = useState(0);
+  const [mitgliedZuEntfernen,  setMitgliedZuEntfernen]  = useState(null);
+  const [entfernenLadend,      setEntfernenLadend]      = useState(false);
 
   // iOS-Erkennung
   const isIOS        = /iPad|iPhone|iPod/.test(navigator.userAgent);
   const isStandalone = window.navigator.standalone === true ||
                        window.matchMedia("(display-mode: standalone)").matches;
 
-  // ── Daten aus Supabase laden ─────────────────────────────────────────────────
+  // â”€â”€ Daten aus Supabase laden â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (!userId) return;
     supabase
@@ -132,7 +147,43 @@ const UserProfile = ({ session }) => {
       });
   }, [userId]);
 
-  // ── Handler ──────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+
+    const ladeHaushaltUebersicht = async () => {
+      setHaushaltUebersichtLadend(true);
+      setHaushaltUebersichtFehler("");
+
+      try {
+        const [mitgliederRes, bewohnerRes] = await Promise.all([
+          supabase.rpc("get_household_members_overview"),
+          supabase.rpc("get_bewohner_overview"),
+        ]);
+
+        if (mitgliederRes.error) throw mitgliederRes.error;
+        if (bewohnerRes.error) throw bewohnerRes.error;
+
+        if (cancelled) return;
+        setHaushaltMitglieder(Array.isArray(mitgliederRes.data) ? mitgliederRes.data : []);
+        setBewohnerAnzahl(Array.isArray(bewohnerRes.data) ? bewohnerRes.data.length : 0);
+      } catch (_err) {
+        if (cancelled) return;
+        setHaushaltMitglieder([]);
+        setBewohnerAnzahl(0);
+        setHaushaltUebersichtFehler("Haushaltsuebersicht nicht verfuegbar - Migration ausfuehren.");
+      } finally {
+        if (!cancelled) setHaushaltUebersichtLadend(false);
+      }
+    };
+
+    ladeHaushaltUebersicht();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  // â”€â”€ Handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const handleNameSpeichern = async () => {
     const { error } = await supabase.auth.updateUser({ data: { full_name: displayName.trim() } });
@@ -163,6 +214,14 @@ const UserProfile = ({ session }) => {
       .from("user_profile")
       .update({ openai_api_key: apiKey.trim() })
       .eq("id", userId);
+    if (!error && isHouseholdAdmin) {
+      await supabase.rpc("set_household_ki_settings", {
+        p_ki_provider: "openai",
+        p_openai_api_key: apiKey.trim() || null,
+        p_ollama_base_url: null,
+        p_ollama_model: null,
+      });
+    }
     setSpeichernStatus(error ? "fehler" : "ok");
     setTimeout(() => setSpeichernStatus(null), 3000);
   };
@@ -173,8 +232,29 @@ const UserProfile = ({ session }) => {
       .from("user_profile")
       .update({ ki_provider: kiProvider, ollama_base_url: ollamaUrl.trim(), ollama_model: ollamaModel.trim() })
       .eq("id", userId);
+    if (!error && isHouseholdAdmin) {
+      await supabase.rpc("set_household_ki_settings", {
+        p_ki_provider: kiProvider,
+        p_openai_api_key: kiProvider === "openai" ? (apiKey.trim() || null) : null,
+        p_ollama_base_url: kiProvider === "ollama" ? (ollamaUrl.trim() || null) : null,
+        p_ollama_model: kiProvider === "ollama" ? (ollamaModel.trim() || "llama3.2") : null,
+      });
+    }
     setOllamaStatus(error ? "fehler" : "ok");
     setTimeout(() => setOllamaStatus(null), 3000);
+  };
+
+  const handleMitgliedEntfernen = async () => {
+    if (!mitgliedZuEntfernen) return;
+    setEntfernenLadend(true);
+    const { error } = await supabase.rpc("remove_household_member", {
+      p_user_id: mitgliedZuEntfernen.user_id,
+    });
+    setEntfernenLadend(false);
+    setMitgliedZuEntfernen(null);
+    if (!error) {
+      setHaushaltMitglieder((prev) => prev.filter((m) => m.user_id !== mitgliedZuEntfernen.user_id));
+    }
   };
 
   const handleOllamaVerbindungTesten = async () => {
@@ -218,10 +298,8 @@ const UserProfile = ({ session }) => {
   const handleModusWechsel = (ziel) => {
     if (ziel === "home") {
       switchToHome();
-      navigate("/home");
     } else {
       switchToUmzug();
-      navigate("/dashboard");
     }
   };
 
@@ -231,15 +309,103 @@ const UserProfile = ({ session }) => {
       .eq("id", userId);
     setUmzugDeaktiviertLokal(true);
     deaktiviereUmzug();
-    navigate("/home");
   };
 
   const handleUmzugAktivieren = async () => {
     await supabase.from("user_profile")
-      .update({ umzug_deaktiviert: false })
+      .update({ umzug_deaktiviert: false, app_modus: "umzug" })
       .eq("id", userId);
     setUmzugDeaktiviertLokal(false);
     aktiviereUmzug();
+  };
+
+  const handleInviteErstellen = async () => {
+    const emailNormalisiert = inviteEmail.trim().toLowerCase();
+    if (!emailNormalisiert || !emailNormalisiert.includes("@")) {
+      setInviteStatus("fehler");
+      setInviteFehler("Bitte eine gueltige E-Mail-Adresse eingeben.");
+      return;
+    }
+
+    setInviteLadend(true);
+    setInviteStatus(null);
+    setInviteFehler("");
+    setInviteMailStatus(null);
+    setInviteMailHinweis("");
+
+    const { data, error } = await supabase.rpc("create_household_invite", {
+      p_email: emailNormalisiert,
+      p_expires_in: "7 days",
+    });
+
+    if (error) {
+      setInviteStatus("fehler");
+      setInviteFehler(error.message || "Einladung konnte nicht erstellt werden.");
+      setInviteLadend(false);
+      return;
+    }
+
+    const eintrag = Array.isArray(data) ? data[0] : data;
+    const relativeUrl = eintrag?.invite_url || "";
+    const absoluteUrl = relativeUrl.startsWith("http")
+      ? relativeUrl
+      : `${window.location.origin}${relativeUrl}`;
+
+    setInviteLink(absoluteUrl);
+    setInviteStatus("ok");
+
+    setInviteMailStatus("sending");
+    try {
+      const supabaseUrl = (process.env.REACT_APP_SUPABASE_URL || "").replace(/\/$/, "");
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+
+      if (!supabaseUrl || !currentSession?.access_token) {
+        throw new Error("Mailversand aktuell nicht verfuegbar.");
+      }
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/send-household-invite`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${currentSession.access_token}`,
+        },
+        body: JSON.stringify({
+          inviteEmail: emailNormalisiert,
+          inviteLink: absoluteUrl,
+          householdName: householdContext?.household_name || "",
+          inviterName: displayName?.trim() || nameRaw,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.sent !== true) {
+        throw new Error(payload?.error || "Einladungs-Mail konnte nicht gesendet werden.");
+      }
+
+      setInviteMailStatus("sent");
+      setInviteMailHinweis("Einladung wurde per E-Mail verschickt.");
+    } catch (mailError) {
+      setInviteMailStatus("failed");
+      setInviteMailHinweis(
+        mailError?.message
+          ? `${mailError.message} Link bitte manuell teilen.`
+          : "Mailversand fehlgeschlagen. Link bitte manuell teilen.",
+      );
+    }
+
+    setInviteLadend(false);
+  };
+
+  const handleInviteLinkKopieren = async () => {
+    if (!inviteLink) return;
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setInviteStatus("copied");
+      setTimeout(() => setInviteStatus("ok"), 1800);
+    } catch {
+      setInviteStatus("fehler");
+      setInviteFehler("Link konnte nicht kopiert werden.");
+    }
   };
 
   const handlePasswortReset = async () => {
@@ -265,12 +431,7 @@ const UserProfile = ({ session }) => {
     navigate("/");
   };
 
-  const handleAbmelden = async () => {
-    await supabase.auth.signOut();
-    navigate("/");
-  };
-
-  // ── Eingabe-Klassen (wiederverwendbar) ────────────────────────────────────
+  // â”€â”€ Eingabe-Klassen (wiederverwendbar) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const inputCls = `w-full px-3 py-2.5 text-sm rounded-card-sm
     bg-light-bg dark:bg-canvas-1
     border border-light-border dark:border-dark-border
@@ -278,11 +439,11 @@ const UserProfile = ({ session }) => {
     placeholder-light-text-secondary dark:placeholder-dark-text-secondary
     focus:outline-none focus:ring-2 focus:ring-secondary-500`;
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return (
     <div className="max-w-2xl mx-auto px-4 lg:px-6 py-6 pb-24 lg:pb-8 space-y-3">
 
-      {/* ── Header: Avatar + Name + E-Mail ────────────────────────────────── */}
+      {/* â”€â”€ Header: Avatar + Name + E-Mail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-2 p-5
                       flex items-center gap-4">
         {/* Avatar */}
@@ -370,7 +531,7 @@ const UserProfile = ({ session }) => {
         </div>
       </div>
 
-      {/* ── Erscheinungsbild ──────────────────────────────────────────────── */}
+      {/* â”€â”€ Erscheinungsbild â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <AkkordeonSektion title="Erscheinungsbild" icon={<Sun size={16} />} defaultOpen={true}>
         <div className="flex items-center justify-between">
           <div>
@@ -385,10 +546,129 @@ const UserProfile = ({ session }) => {
         </div>
       </AkkordeonSektion>
 
-      {/* ── App-Modus ─────────────────────────────────────────────────────── */}
+      <AkkordeonSektion title="Haushalt & Bewohner" icon={<Users size={16} />} defaultOpen={true}>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+              {householdContext?.household_name ? `Haushalt: ${householdContext.household_name}` : "Dein Haushalt"}
+            </div>
+            <button
+              onClick={() => navigate("/home/bewohner")}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-xs font-medium
+                         border border-secondary-500/30 text-secondary-500 hover:bg-secondary-500/10 transition-colors"
+            >
+              <Users size={13} /> Bewohner verwalten
+            </button>
+          </div>
+
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className="px-2 py-1 rounded-pill bg-primary-500/10 text-primary-500 border border-primary-500/30">
+              Haushaltsmitglieder: {haushaltMitglieder.length}
+            </span>
+            <span className="px-2 py-1 rounded-pill bg-light-surface-1 dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary border border-light-border dark:border-dark-border">
+              Bewohner-Eintraege: {bewohnerAnzahl}
+            </span>
+          </div>
+
+          {haushaltUebersichtLadend ? (
+            <div className="space-y-2">
+              <div className="h-14 rounded-card-sm bg-light-surface-1 dark:bg-canvas-3 animate-pulse" />
+              <div className="h-14 rounded-card-sm bg-light-surface-1 dark:bg-canvas-3 animate-pulse" />
+            </div>
+          ) : haushaltUebersichtFehler ? (
+            <p className="text-xs text-accent-danger flex items-center gap-1.5">
+              <AlertCircle size={13} /> {haushaltUebersichtFehler}
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {haushaltMitglieder.map((mitglied) => {
+                const initial = (mitglied.display_name || mitglied.email || "?").charAt(0).toUpperCase();
+                return (
+                  <div
+                    key={mitglied.user_id}
+                    className="flex items-center justify-between gap-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-surface-1 dark:bg-canvas-3 px-3 py-2.5"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {mitglied.avatar_url ? (
+                        <img src={mitglied.avatar_url} alt={mitglied.display_name || "Profilbild"} className="w-9 h-9 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-primary-500 text-white text-xs font-semibold flex items-center justify-center">
+                          {initial}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main truncate">
+                          {mitglied.display_name || "Mitglied"} {mitglied.is_current_user ? "(Du)" : ""}
+                        </p>
+                        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">
+                          {mitglied.email || "Keine E-Mail"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {mitglied.role === "admin" ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-pill text-[11px] font-medium bg-secondary-500/10 text-secondary-500 border border-secondary-500/30">
+                          <Crown size={11} /> Admin
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 rounded-pill text-[11px] font-medium bg-light-bg dark:bg-canvas-2 text-light-text-secondary dark:text-dark-text-secondary border border-light-border dark:border-dark-border">
+                          Mitglied
+                        </span>
+                      )}
+                      {isHouseholdAdmin && !mitglied.is_current_user && (
+                        <button
+                          onClick={() => setMitgliedZuEntfernen(mitglied)}
+                          className="ml-1 p-1.5 rounded-card-sm text-red-500 hover:bg-red-500/10 transition-colors"
+                          title="Mitglied entfernen"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </AkkordeonSektion>
+
+      {/* Bestätigungs-Modal: Mitglied entfernen */}
+      {mitgliedZuEntfernen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-4 p-6 max-w-sm w-full space-y-4">
+            <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
+              Mitglied entfernen
+            </h3>
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+              <strong>{mitgliedZuEntfernen.display_name || mitgliedZuEntfernen.email}</strong> wird sofort aus dem Haushalt entfernt und verliert den Zugriff.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setMitgliedZuEntfernen(null)}
+                disabled={entfernenLadend}
+                className="px-4 py-2 rounded-pill text-sm font-medium border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:bg-light-surface-1 dark:hover:bg-canvas-3 transition-colors"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleMitgliedEntfernen}
+                disabled={entfernenLadend}
+                className="px-4 py-2 rounded-pill text-sm font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
+              >
+                {entfernenLadend ? "Wird entfernt…" : "Entfernen"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isHouseholdAdmin ? (
+      <>
+      {/* â”€â”€ App-Modus â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <AkkordeonSektion title="App-Modus" icon={<Layers size={16} />} defaultOpen={true}>
         <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-4">
-          Wähle, welchen Bereich du primär nutzt. Du kannst jederzeit wechseln.
+          WÃ¤hle, welchen Bereich du primÃ¤r nutzt. Du kannst jederzeit wechseln.
         </p>
         <div className="grid grid-cols-2 gap-3">
           <button
@@ -443,7 +723,7 @@ const UserProfile = ({ session }) => {
           <div className="mt-4 p-3 rounded-card-sm bg-accent-success/10 border border-accent-success/30">
             <p className="text-xs text-accent-success mb-2.5 leading-snug">
               Umzugsplaner ist dauerhaft deaktiviert. Du bleibst immer im Home Organizer,
-              auch nach einem Neustart oder auf neuen Geräten.
+              auch nach einem Neustart oder auf neuen GerÃ¤ten.
             </p>
             <button
               onClick={handleUmzugAktivieren}
@@ -458,7 +738,7 @@ const UserProfile = ({ session }) => {
           <div className="mt-4 p-3 rounded-card-sm bg-light-surface-1 dark:bg-canvas-3
                           border border-light-border dark:border-dark-border">
             <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-2.5 leading-snug">
-              Umzug abgeschlossen? Den Umzugsplaner dauerhaft deaktivieren —
+              Umzug abgeschlossen? Den Umzugsplaner dauerhaft deaktivieren â€”
               er bleibt gespeichert und kann jederzeit reaktiviert werden.
             </p>
             <button
@@ -473,7 +753,81 @@ const UserProfile = ({ session }) => {
         ) : null}
       </AkkordeonSektion>
 
-      {/* ── KI-Einstellungen ──────────────────────────────────────────────── */}
+      {/* â”€â”€ KI-Einstellungen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      <AkkordeonSektion title="Haushaltsmitglieder einladen" icon={<UserPlus size={16} />}>
+        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-3">
+          Lade neue Personen per E-Mail ein. Sie koennen auch ohne bestehenden Account beitreten:
+          Link oeffnen, registrieren/anmelden und Einladung wird direkt angenommen.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            type="email"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            placeholder="person@email.de"
+            className={`flex-1 ${inputCls}`}
+          />
+          <button
+            onClick={handleInviteErstellen}
+            disabled={inviteLadend}
+            className="px-4 py-2.5 rounded-pill text-sm font-medium
+                       bg-secondary-500 hover:bg-secondary-600 text-white
+                       transition-colors disabled:opacity-50"
+          >
+            {inviteLadend ? "Erstelle..." : "Einladung erstellen"}
+          </button>
+        </div>
+
+        {inviteLink && (
+          <div className="mt-3 p-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-surface-1 dark:bg-canvas-3">
+            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">
+              Einladungslink
+            </p>
+            <p className="text-xs break-all text-light-text-main dark:text-dark-text-main">
+              {inviteLink}
+            </p>
+            <button
+              onClick={handleInviteLinkKopieren}
+              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-xs font-medium
+                         border border-primary-500/30 text-primary-500 hover:bg-primary-500/10 transition-colors"
+            >
+              <Copy size={13} /> Link kopieren
+            </button>
+          </div>
+        )}
+
+        {inviteStatus === "ok" && (
+          <p className="mt-2 text-xs text-accent-success flex items-center gap-1">
+            <CheckCircle size={13} /> Einladung erstellt.
+          </p>
+        )}
+        {inviteStatus === "copied" && (
+          <p className="mt-2 text-xs text-accent-success flex items-center gap-1">
+            <CheckCircle size={13} /> Link kopiert.
+          </p>
+        )}
+        {inviteStatus === "fehler" && (
+          <p className="mt-2 text-xs text-accent-danger flex items-center gap-1">
+            <AlertCircle size={13} /> {inviteFehler || "Fehler beim Erstellen der Einladung."}
+          </p>
+        )}
+        {inviteMailStatus === "sending" && (
+          <p className="mt-2 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+            Einladungs-Mail wird versendet...
+          </p>
+        )}
+        {inviteMailStatus === "sent" && (
+          <p className="mt-2 text-xs text-accent-success flex items-center gap-1">
+            <CheckCircle size={13} /> {inviteMailHinweis}
+          </p>
+        )}
+        {inviteMailStatus === "failed" && (
+          <p className="mt-2 text-xs text-accent-danger flex items-center gap-1">
+            <AlertCircle size={13} /> {inviteMailHinweis}
+          </p>
+        )}
+      </AkkordeonSektion>
+
       <AkkordeonSektion title="KI-Einstellungen" icon={<Cpu size={16} />}>
         {ladend ? (
           <div className="h-20 bg-light-surface-1 dark:bg-canvas-3 rounded-card-sm animate-pulse" />
@@ -629,18 +983,26 @@ const UserProfile = ({ session }) => {
                   </button>
                 </div>
                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                  Hinweis: Im Ollama-Modus wird die Spracheingabe über die Browser-Spracherkennung (Web Speech API) verarbeitet statt über Whisper.
+                  Hinweis: Im Ollama-Modus wird die Spracheingabe Ã¼ber die Browser-Spracherkennung (Web Speech API) verarbeitet statt Ã¼ber Whisper.
                 </p>
               </div>
             )}
           </div>
         )}
       </AkkordeonSektion>
+      </>
+      ) : (
+      <AkkordeonSektion title="Haushaltseinstellungen" icon={<Shield size={16} />}>
+        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+          Globale Haushaltseinstellungen (App-Modus und KI) kÃ¶nnen nur vom Haushalts-Admin geÃ¤ndert werden.
+        </p>
+      </AkkordeonSektion>
+      )}
 
-      {/* ── Push-Benachrichtigungen ────────────────────────────────────────── */}
+      {/* â”€â”€ Push-Benachrichtigungen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <AkkordeonSektion title="Push-Benachrichtigungen" icon={<Bell size={16} />}>
         <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-4">
-          Erhalte Benachrichtigungen auch wenn die App geschlossen ist – für Aufgaben, Vorräte, Wartungen und Deadlines.
+          Erhalte Benachrichtigungen auch wenn die App geschlossen ist â€“ fÃ¼r Aufgaben, VorrÃ¤te, Wartungen und Deadlines.
         </p>
 
         {isIOS && !isStandalone && (
@@ -648,8 +1010,8 @@ const UserProfile = ({ session }) => {
                           bg-accent-yellow/10 border border-accent-yellow/30">
             <BellRing size={16} className="text-accent-yellow shrink-0 mt-0.5" />
             <p className="text-xs text-accent-yellow leading-relaxed">
-              Auf iOS müssen Push-Nachrichten über Safari aktiviert werden und die App muss
-              zuerst zum Homescreen hinzugefügt werden <strong>(Teilen → Zum Home-Bildschirm)</strong>.
+              Auf iOS mÃ¼ssen Push-Nachrichten Ã¼ber Safari aktiviert werden und die App muss
+              zuerst zum Homescreen hinzugefÃ¼gt werden <strong>(Teilen â†’ Zum Home-Bildschirm)</strong>.
             </p>
           </div>
         )}
@@ -657,7 +1019,7 @@ const UserProfile = ({ session }) => {
         {!pushUnterstuetzt ? (
           <div className="flex items-center gap-2 text-sm text-light-text-secondary dark:text-dark-text-secondary">
             <BellOff size={15} />
-            Push-Benachrichtigungen werden von diesem Browser nicht unterstützt.
+            Push-Benachrichtigungen werden von diesem Browser nicht unterstÃ¼tzt.
           </div>
         ) : (
           <div className="flex items-center justify-between gap-4">
@@ -730,7 +1092,7 @@ const UserProfile = ({ session }) => {
                 className="mt-0.5 accent-primary-500 w-4 h-4 cursor-pointer"
               />
               <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary leading-snug">
-                Täglich erinnern, wenn unerledigte Einkäufe in der Liste vorhanden sind
+                TÃ¤glich erinnern, wenn unerledigte EinkÃ¤ufe in der Liste vorhanden sind
               </span>
             </label>
             {einkaufReminderAktiv && (
@@ -773,10 +1135,10 @@ const UserProfile = ({ session }) => {
         )}
       </AkkordeonSektion>
 
-      {/* ── Interaktive Anleitungen ────────────────────────────────────────── */}
+      {/* â”€â”€ Interaktive Anleitungen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <AkkordeonSektion title="Interaktive Anleitungen" icon={<RotateCcw size={16} />}>
         <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-4">
-          Setze alle Schritt-für-Schritt-Anleitungen zurück. Beim nächsten Besuch jedes Bereichs erscheint die Tour wieder automatisch.
+          Setze alle Schritt-fÃ¼r-Schritt-Anleitungen zurÃ¼ck. Beim nÃ¤chsten Besuch jedes Bereichs erscheint die Tour wieder automatisch.
         </p>
         <button
           onClick={handleTourZuruecksetzen}
@@ -785,14 +1147,14 @@ const UserProfile = ({ session }) => {
                      border border-secondary-500/30 transition-colors"
         >
           {tourReset ? (
-            <><CheckCircle size={15} /> Anleitungen zurückgesetzt</>
+            <><CheckCircle size={15} /> Anleitungen zurÃ¼ckgesetzt</>
           ) : (
-            <><RotateCcw size={15} /> Alle Anleitungen zurücksetzen</>
+            <><RotateCcw size={15} /> Alle Anleitungen zurÃ¼cksetzen</>
           )}
         </button>
       </AkkordeonSektion>
 
-      {/* ── Account & Sicherheit ──────────────────────────────────────────── */}
+      {/* â”€â”€ Account & Sicherheit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <AkkordeonSektion title="Account & Sicherheit" icon={<Shield size={16} />}>
         <div className="space-y-5">
 
@@ -819,11 +1181,11 @@ const UserProfile = ({ session }) => {
             )}
           </div>
 
-          {/* E-Mail ändern */}
+          {/* E-Mail Ã¤ndern */}
           <div>
             <p className="text-xs font-medium uppercase tracking-wide
                           text-light-text-secondary dark:text-dark-text-secondary mb-2">
-              E-Mail-Adresse ändern
+              E-Mail-Adresse Ã¤ndern
             </p>
             <div className="flex gap-2">
               <input
@@ -840,34 +1202,22 @@ const UserProfile = ({ session }) => {
                            bg-secondary-500/10 hover:bg-secondary-500/20 text-secondary-500
                            border border-secondary-500/30 transition-colors disabled:opacity-40 shrink-0"
               >
-                <Save size={14} /> Ändern
+                <Save size={14} /> Ã„ndern
               </button>
             </div>
             {emailStatus === "ok" && (
               <p className="text-xs text-accent-success mt-2 flex items-center gap-1">
-                <CheckCircle size={12} /> Bestätigungs-Mail wurde gesendet.
+                <CheckCircle size={12} /> BestÃ¤tigungs-Mail wurde gesendet.
               </p>
             )}
             {emailStatus === "fehler" && (
               <p className="text-xs text-accent-danger mt-2 flex items-center gap-1">
-                <AlertCircle size={12} /> Fehler beim Ändern der E-Mail.
+                <AlertCircle size={12} /> Fehler beim Ã„ndern der E-Mail.
               </p>
             )}
           </div>
 
-          {/* Abmelden */}
-          <div className="pt-2 border-t border-light-border dark:border-dark-border">
-            <button
-              onClick={handleAbmelden}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-pill text-sm font-medium
-                         bg-accent-danger/10 hover:bg-accent-danger/20 text-accent-danger
-                         border border-accent-danger/30 transition-colors"
-            >
-              <LogOut size={15} /> Abmelden
-            </button>
-          </div>
-
-          {/* Account löschen */}
+          {/* Account lÃ¶schen */}
           <div className="pt-2 border-t border-light-border dark:border-dark-border">
             {!loeschenBestaetigung ? (
               <button
@@ -875,12 +1225,12 @@ const UserProfile = ({ session }) => {
                 className="text-xs text-light-text-secondary dark:text-dark-text-secondary
                            hover:text-accent-danger transition-colors underline underline-offset-2"
               >
-                Account unwiderruflich löschen
+                Account unwiderruflich lÃ¶schen
               </button>
             ) : (
               <div className="p-3 bg-accent-danger/10 border border-accent-danger/30 rounded-card-sm space-y-3">
                 <p className="text-xs text-accent-danger font-medium leading-snug">
-                  Alle Daten werden dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.
+                  Alle Daten werden dauerhaft gelÃ¶scht. Diese Aktion kann nicht rÃ¼ckgÃ¤ngig gemacht werden.
                 </p>
                 <div className="flex gap-2">
                   <button
@@ -888,7 +1238,7 @@ const UserProfile = ({ session }) => {
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-xs font-medium
                                bg-accent-danger text-white hover:bg-accent-danger/90 transition-colors"
                   >
-                    Ja, Account löschen
+                    Ja, Account lÃ¶schen
                   </button>
                   <button
                     onClick={() => setLoeschenBestaetigung(false)}
@@ -913,3 +1263,4 @@ const UserProfile = ({ session }) => {
 };
 
 export default UserProfile;
+

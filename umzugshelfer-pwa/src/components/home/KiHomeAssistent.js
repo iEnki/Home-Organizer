@@ -27,8 +27,8 @@ const MODUL_CONFIG = {
   vorraete: {
     titel: "Vorräte per KI erfassen",
     beschreibung: 'z.B. „Milch 2 Liter und Butter im Kühlschrank"',
-    felder: "name, menge (Zahl), einheit (Liter/Stück/kg/etc.), kategorie (optional)",
-    schema: '{"name":"Milch","menge":2,"einheit":"Liter","kategorie":"Kühlwaren"}',
+    felder: "name, bestand (Zahl, aktuell vorhandene Menge), einheit (Liter/Stück/kg/etc.), kategorie (optional)",
+    schema: '{"name":"Milch","bestand":2,"einheit":"Liter","kategorie":"Kühlwaren"}',
     ergebnisLabel: "Erkannte Vorräte",
     renderItem: (item) => `${item.name}${item.menge ? ` — ${item.menge} ${item.einheit || ""}` : ""}${item.kategorie ? ` (${item.kategorie})` : ""}`,
     hilfe: [
@@ -132,6 +132,22 @@ const MODUL_CONFIG = {
       '"Kiste 1 kommt ins Schlafzimmer" → Raum zuweisen',
       '"5 Teller in Kiste Küche" → Menge + Kiste',
     ],
+    buildPrompt: (text) => `Extrahiere aus dem folgenden Text alle Aktionen bezüglich Packstücken und gib die Antwort als JSON-Array zurück. Es gibt zwei Aktionsarten:
+1. Gegenstände einer Kiste zuordnen: Erkenne Gegenstand, Kiste, optional eine Kategorie für den Gegenstand und optional die Menge. Wenn keine Menge genannt wird, ist die Menge 1.
+   Format: {"aktion": "gegenstand_hinzufuegen", "gegenstand": "Name des Gegenstands", "menge": Zahl, "kiste": "Name der Kiste", "kategorie": "Kategorie (optional)"}
+2. Einer Kiste einen Zielraum zuweisen:
+   Format: {"aktion": "raum_zuweisen", "kiste_name": "Name der Kiste", "raum": "Name des Zielraums"}
+
+Beispiel-Input: "3 Bücher und Handy in Kiste 1, Kategorie Büro. Kiste 1 ist für das Arbeitszimmer. 2 Vasen in Kiste Deko."
+Beispiel-Output:
+[
+  {"aktion": "gegenstand_hinzufuegen", "gegenstand": "Bücher", "menge": 3, "kiste": "Kiste 1", "kategorie": "Büro"},
+  {"aktion": "gegenstand_hinzufuegen", "gegenstand": "Handy", "menge": 1, "kiste": "Kiste 1", "kategorie": "Büro"},
+  {"aktion": "raum_zuweisen", "kiste_name": "Kiste 1", "raum": "Arbeitszimmer"},
+  {"aktion": "gegenstand_hinzufuegen", "gegenstand": "Vasen", "menge": 2, "kiste": "Kiste Deko"}
+]
+Input-Text: "${text}"
+Antworte nur mit dem JSON-Array. Wenn mehrere Gegenstände ohne explizite Kistenangabe aufgezählt werden, verwende den zuletzt genannten Kistennamen. Gib immer ein gültiges JSON-Array zurück, auch wenn nur ein Eintrag erkannt wird.`,
   },
 };
 
@@ -153,10 +169,10 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
   const config = MODUL_CONFIG[modul];
 
   const [apiKey,        setApiKey]        = useState("");
-  const [apiKeySet,     setApiKeySet]     = useState(false);
+  const [apiKeySet,     setApiKeySet]     = useState(true);
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
   const [showApiInput,  setShowApiInput]  = useState(false);
-  const [kiProvider,    setKiProvider]    = useState("openai");
+  const [kiProvider,    setKiProvider]    = useState("edge");
 
   const [inputModus,    setInputModus]    = useState("sprache"); // "sprache" | "text"
   const [isRecording,   setIsRecording]   = useState(false);
@@ -167,6 +183,7 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
   const [fehler,        setFehler]        = useState("");
   const [ergebnisse,    setErgebnisse]    = useState([]);
   const [showHelp,      setShowHelp]      = useState(false);
+  const [sprachAktiv,   setSprachAktiv]   = useState(false);
 
   // API-Key laden
   useEffect(() => {
@@ -174,14 +191,8 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
     supabase.from("user_profile").select("openai_api_key, ki_provider, ollama_base_url, ollama_model").eq("id", userId).single()
       .then(({ data }) => {
         if (data?.ki_provider) setKiProvider(data.ki_provider);
-        if (data?.ki_provider === "ollama" && data?.ollama_base_url) {
-          setApiKeySet(true);
-          setShowApiInput(false);
-        } else if (data?.openai_api_key) {
-          setApiKey(data.openai_api_key); setApiKeySet(true);
-        } else {
-          setShowApiInput(true);
-        }
+        setApiKeySet(true);
+        setShowApiInput(false);
       });
   }, [userId]);
 
@@ -195,17 +206,18 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
   // Aufnahme-Lifecycle
   const handleStartRecording = () => {
     setTranskription(""); setErgebnisse([]); setFehler("");
-    if (kiProvider === "ollama") {
-      startSpeechRecognition(
-        (transcript) => {
-          setTranskription(transcript);
-          if (transcript.trim()) handleVerarbeiten(transcript.trim());
-        },
-        (err) => setFehler(`Spracherkennung Fehler: ${err}`)
-      );
-    } else {
-      setIsRecording(true);
-    }
+    setSprachAktiv(true);
+    startSpeechRecognition(
+      (transcript) => {
+        setSprachAktiv(false);
+        setTranskription(transcript);
+        if (transcript.trim()) handleVerarbeiten(transcript.trim());
+      },
+      (err) => {
+        setSprachAktiv(false);
+        setFehler(`Spracherkennung Fehler: ${err}`);
+      }
+    );
   };
   const handleStopRecording  = () => setIsRecording(false);
   const onStopRecording = (blob) => {
@@ -247,11 +259,9 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
         return;
       }
       const openai = client;
-      const prompt = `Extrahiere alle relevanten Felder (${config.felder}) aus dem folgenden Text und gib ein JSON-Array zurück.
-Format: [${config.schema}]
-Erkenne automatisch: Kategorien, Mengen, Zeitangaben, Intervalle, wiederkehrende Ereignisse.
-Text: "${text}"
-Antworte NUR mit dem JSON-Array, kein anderer Text.`;
+      const prompt = config.buildPrompt
+        ? config.buildPrompt(text)
+        : `Extrahiere alle relevanten Felder (${config.felder}) aus dem folgenden Text und gib ein JSON-Array zurück.\nFormat: [${config.schema}]\nErkenne automatisch: Kategorien, Mengen, Zeitangaben, Intervalle, wiederkehrende Ereignisse.\nText: "${text}"\nAntworte NUR mit dem JSON-Array, kein anderer Text.`;
       const res = await openai.chat.completions.create({
         model: model, messages: [{ role: "user", content: prompt }], temperature: 0.2,
       });
@@ -345,7 +355,7 @@ Antworte NUR mit dem JSON-Array, kein anderer Text.`;
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
 
           {/* API-Key Eingabe */}
-          {(!apiKeySet || showApiInput) && kiProvider === "openai" && (
+          {false && (!apiKeySet || showApiInput) && kiProvider === "openai" && (
             <div className="p-4 rounded-card-sm bg-light-surface-1 dark:bg-canvas-3
                             border border-light-border dark:border-dark-border space-y-3">
               <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
@@ -376,7 +386,7 @@ Antworte NUR mit dem JSON-Array, kein anderer Text.`;
             </div>
           )}
 
-          {apiKeySet && !showApiInput && (
+          {false && apiKeySet && !showApiInput && (
             <button onClick={() => setShowApiInput(true)}
                     className="flex items-center gap-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 transition-colors">
               <Settings size={12} /> API-Key ändern
@@ -401,28 +411,18 @@ Antworte NUR mit dem JSON-Array, kein anderer Text.`;
 
               {inputModus === "sprache" ? (
                 <div className="space-y-3">
-                  {isRecording && (
-                    <ReactMic
-                      record={isRecording}
-                      className="w-full h-16 rounded-card-sm"
-                      onStop={onStopRecording}
-                      strokeColor="#10B981"
-                      backgroundColor="#0E1B22"
-                      mimeType="audio/webm"
-                    />
-                  )}
-                  {!isRecording ? (
+                  {sprachAktiv ? (
+                    <div className="flex items-center justify-center gap-3 py-3 rounded-pill
+                                    bg-accent-danger/10 border border-accent-danger/30">
+                      <span className="w-2.5 h-2.5 rounded-full bg-accent-danger animate-pulse" />
+                      <span className="text-sm font-medium text-accent-danger">Aufnahme läuft – bitte sprechen…</span>
+                    </div>
+                  ) : (
                     <button onClick={handleStartRecording} disabled={ladend}
                             className="w-full flex items-center justify-center gap-2 py-3 rounded-pill text-sm font-medium
                                        bg-primary-500 hover:bg-primary-600 text-white disabled:opacity-60">
                       <Mic size={16} />
                       {ergebnisse.length > 0 ? "Neue Aufnahme" : "Spracheingabe starten"}
-                    </button>
-                  ) : (
-                    <button onClick={handleStopRecording}
-                            className="w-full flex items-center justify-center gap-2 py-3 rounded-pill text-sm font-medium
-                                       bg-accent-danger hover:bg-red-500 text-white">
-                      <StopCircle size={16} /> Aufnahme stoppen & verarbeiten
                     </button>
                   )}
                   {transkription && (

@@ -895,7 +895,23 @@ const TodoListenManager = ({ session }) => {
     }
   };
   const handleKiExtractedTodos = async (extractedTodos) => {
-    /* ... unverändert ... */
+    if (!extractedTodos?.length || !userId) return;
+    try {
+      for (const item of extractedTodos) {
+        await supabase.from("todo_aufgaben").insert([{
+          user_id: userId,
+          beschreibung: item.beschreibung || "Aufgabe",
+          kategorie: item.kategorie || null,
+          prioritaet: item.prioritaet || null,
+          faelligkeitsdatum: item.faelligkeitsdatum || null,
+          wiederholung_typ: null,
+          erledigt: false,
+        }]);
+      }
+      fetchAufgaben();
+    } catch (err) {
+      console.error("Fehler beim Speichern der KI-Aufgaben:", err);
+    }
   };
 
   const handleExportTaskToIcs = async (aufgabe) => {

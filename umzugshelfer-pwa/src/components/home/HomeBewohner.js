@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { Users, Plus, Trash2, Edit2, X, Check, Loader2, AlertCircle } from "lucide-react";
+﻿import React, { useState, useEffect, useCallback } from "react";
+import { Users, Plus, Trash2, Edit2, X, Check, Loader2, AlertCircle, Crown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../../supabaseClient";
 import { useToast } from "../../hooks/useToast";
@@ -8,18 +8,17 @@ import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
 
 const FARBEN = [
-  "#10B981", // grün
-  "#06B6D4", // cyan
-  "#F59E0B", // amber
-  "#EF4444", // rot
-  "#8B5CF6", // lila
-  "#EC4899", // pink
-  "#3B82F6", // blau
-  "#6B7280", // grau
+  "#10B981",
+  "#06B6D4",
+  "#F59E0B",
+  "#EF4444",
+  "#8B5CF6",
+  "#EC4899",
+  "#3B82F6",
+  "#6B7280",
 ];
 
 const EMOJIS = ["👤", "👨", "👩", "👦", "👧", "🧑", "👴", "👵", "🐱", "🐶"];
-
 const LEER_FORM = { name: "", farbe: "#10B981", emoji: "👤" };
 
 const HomeBewohner = ({ session }) => {
@@ -27,55 +26,73 @@ const HomeBewohner = ({ session }) => {
   const toast = useToast();
   const { active: tourAktiv, schritt, setSchritt, beenden: tourBeenden } = useTour("bewohner");
 
-  const [loading, setLoading]     = useState(true);
-  const [bewohner, setBewohner]   = useState([]);
-  const [stats, setStats]         = useState({});
-  const [fehler, setFehler]       = useState(null);
-  const [modal, setModal]         = useState(null); // null | {} (neu) | {id,...} (edit)
-  const [form, setForm]           = useState(LEER_FORM);
-  const [saving, setSaving]       = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [bewohner, setBewohner] = useState([]);
+  const [stats, setStats] = useState({});
+  const [fehler, setFehler] = useState(null);
+  const [modal, setModal] = useState(null);
+  const [form, setForm] = useState(LEER_FORM);
+  const [saving, setSaving] = useState(false);
+
+  const mapBewohner = useCallback((row) => ({
+    id: row.id,
+    name: row.display_name || row.name || "Bewohner",
+    farbe: row.farbe || "#10B981",
+    emoji: row.emoji || "👤",
+    linked_user_id: row.linked_user_id || null,
+    is_household_member: row.is_household_member === true,
+    is_admin: row.is_admin === true,
+    is_current_user: row.is_current_user === true,
+    email: row.email || "",
+  }), []);
 
   const ladeDaten = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
+    setFehler(null);
     try {
-      const { data, error } = await supabase
-        .from("home_bewohner")
-        .select("*")
-        .eq("user_id", userId)
-        .order("created_at");
+      const { data, error } = await supabase.rpc("get_bewohner_overview");
       if (error) throw error;
-      setBewohner(data || []);
 
-      // Statistiken laden: Aufgaben + Budgetposten pro Bewohner
-      if (data && data.length > 0) {
-        const ids = data.map((b) => b.id);
+      const liste = Array.isArray(data) ? data.map(mapBewohner) : [];
+      setBewohner(liste);
+
+      if (liste.length > 0) {
+        const ids = liste.map((b) => b.id);
         const [aufgabenRes, budgetRes] = await Promise.all([
           supabase.from("todo_aufgaben").select("bewohner_id").in("bewohner_id", ids).eq("erledigt", false),
           supabase.from("budget_posten").select("bewohner_id, betrag").in("bewohner_id", ids),
         ]);
+
         const aufgabenMap = {};
-        const budgetMap   = {};
+        const budgetMap = {};
         (aufgabenRes.data || []).forEach((a) => {
           aufgabenMap[a.bewohner_id] = (aufgabenMap[a.bewohner_id] || 0) + 1;
         });
         (budgetRes.data || []).forEach((b) => {
           budgetMap[b.bewohner_id] = (budgetMap[b.bewohner_id] || 0) + Math.abs(Number(b.betrag));
         });
+
         const merged = {};
         ids.forEach((id) => {
           merged[id] = { aufgaben: aufgabenMap[id] || 0, budget: budgetMap[id] || 0 };
         });
         setStats(merged);
+      } else {
+        setStats({});
       }
-    } catch (e) {
-      setFehler("Fehler beim Laden der Bewohner.");
+    } catch (_e) {
+      setBewohner([]);
+      setStats({});
+      setFehler("Bewohneruebersicht nicht verfuegbar - Migration ausfuehren.");
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, mapBewohner]);
 
-  useEffect(() => { ladeDaten(); }, [ladeDaten]);
+  useEffect(() => {
+    ladeDaten();
+  }, [ladeDaten]);
 
   const oeffneNeu = () => {
     setForm(LEER_FORM);
@@ -83,16 +100,24 @@ const HomeBewohner = ({ session }) => {
   };
 
   const oeffneEdit = (b) => {
+    if (b.linked_user_id) {
+      toast.info("Haushaltsmitglieder werden im Haushaltsbereich verwaltet.");
+      return;
+    }
     setForm({ name: b.name, farbe: b.farbe, emoji: b.emoji });
     setModal(b);
   };
 
   const speichern = async () => {
     if (!form.name.trim()) return;
+    if (modal?.linked_user_id) {
+      toast.info("Haushaltsmitglieder koennen hier nicht bearbeitet werden.");
+      return;
+    }
+
     setSaving(true);
     try {
       if (modal.id) {
-        // Update
         const { error } = await supabase
           .from("home_bewohner")
           .update({ name: form.name.trim(), farbe: form.farbe, emoji: form.emoji })
@@ -100,12 +125,11 @@ const HomeBewohner = ({ session }) => {
         if (error) throw error;
         toast.success(`${form.name.trim()} aktualisiert.`);
       } else {
-        // Insert
         const { error } = await supabase
           .from("home_bewohner")
           .insert({ user_id: userId, name: form.name.trim(), farbe: form.farbe, emoji: form.emoji });
         if (error) throw error;
-        toast.success(`${form.name.trim()} hinzugefügt.`);
+        toast.success(`${form.name.trim()} hinzugefuegt.`);
       }
       setModal(null);
       ladeDaten();
@@ -117,9 +141,18 @@ const HomeBewohner = ({ session }) => {
   };
 
   const loesche = async (b) => {
-    if (!window.confirm(`„${b.name}" wirklich löschen? Bestehende Zuordnungen bleiben erhalten.`)) return;
+    if (b.linked_user_id) {
+      toast.info("Haushaltsmitglieder koennen hier nicht geloescht werden.");
+      return;
+    }
+
+    if (!window.confirm(`"${b.name}" wirklich loeschen? Bestehende Zuordnungen bleiben erhalten.`)) return;
+
     const { error } = await supabase.from("home_bewohner").delete().eq("id", b.id);
-    if (error) { toast.error(`Fehler: ${error.message}`); return; }
+    if (error) {
+      toast.error(`Fehler: ${error.message}`);
+      return;
+    }
     toast.info(`${b.name} entfernt.`);
     ladeDaten();
   };
@@ -134,7 +167,6 @@ const HomeBewohner = ({ session }) => {
 
   return (
     <div className="max-w-2xl mx-auto px-4 lg:px-6 py-4 space-y-4">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Users size={22} className="text-teal-500" />
@@ -148,7 +180,7 @@ const HomeBewohner = ({ session }) => {
           onClick={oeffneNeu}
           className="flex items-center gap-1.5 px-3 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-pill text-sm font-medium"
         >
-          <Plus size={14} />Bewohner hinzufügen
+          <Plus size={14} />Bewohner hinzufuegen
         </button>
       </div>
 
@@ -158,17 +190,16 @@ const HomeBewohner = ({ session }) => {
         </div>
       )}
 
-      {/* Liste */}
       {bewohner.length === 0 ? (
         <div className="text-center py-16 text-light-text-secondary dark:text-dark-text-secondary">
           <Users size={44} className="mx-auto mb-3 opacity-25" />
           <p className="text-sm font-medium mb-1">Noch keine Bewohner</p>
-          <p className="text-xs mb-4">Füge die Personen hinzu, die in diesem Haushalt leben.</p>
+          <p className="text-xs mb-4">Fuege zusaetzliche Bewohner hinzu (z. B. Kinder oder Haustiere).</p>
           <button
             onClick={oeffneNeu}
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-pill text-sm"
           >
-            <Plus size={14} />Ersten Bewohner hinzufügen
+            <Plus size={14} />Ersten Bewohner hinzufuegen
           </button>
         </div>
       ) : (
@@ -184,7 +215,6 @@ const HomeBewohner = ({ session }) => {
                 transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
                 className="flex items-center gap-3 bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-4 group"
               >
-                {/* Avatar */}
                 <div
                   className="w-10 h-10 rounded-full flex items-center justify-center text-xl flex-shrink-0"
                   style={{ backgroundColor: b.farbe + "22", border: `2px solid ${b.farbe}` }}
@@ -192,9 +222,31 @@ const HomeBewohner = ({ session }) => {
                   {b.emoji}
                 </div>
 
-                {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-light-text-main dark:text-dark-text-main">{b.name}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-medium text-light-text-main dark:text-dark-text-main">
+                      {b.name}
+                      {b.is_current_user ? " (Du)" : ""}
+                    </p>
+                    {b.is_household_member && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill text-[10px] font-semibold bg-primary-500/10 text-primary-500 border border-primary-500/30">
+                        Haushalt
+                      </span>
+                    )}
+                    {b.is_admin && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill text-[10px] font-semibold bg-secondary-500/15 text-secondary-500 border border-secondary-500/30">
+                        <Crown size={10} />
+                        Admin
+                      </span>
+                    )}
+                  </div>
+
+                  {b.email && (
+                    <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate mt-0.5">
+                      {b.email}
+                    </p>
+                  )}
+
                   {stats[b.id] && (
                     <div className="flex items-center gap-3 mt-0.5">
                       {stats[b.id].aufgaben > 0 && (
@@ -204,38 +256,38 @@ const HomeBewohner = ({ session }) => {
                       )}
                       {stats[b.id].budget > 0 && (
                         <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                          {stats[b.id].budget.toFixed(2).replace(".", ",")} € zugeordnet
+                          {stats[b.id].budget.toFixed(2).replace(".", ",")} EUR zugeordnet
                         </span>
                       )}
                     </div>
                   )}
                 </div>
 
-                {/* Actions */}
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => oeffneEdit(b)}
-                    className="p-1.5 rounded-card-sm text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500 hover:bg-blue-500/10 transition-colors"
-                  >
-                    <Edit2 size={14} />
-                  </button>
-                  <button
-                    onClick={() => loesche(b)}
-                    className="p-1.5 rounded-card-sm text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500 hover:bg-red-500/10 transition-colors"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
+                {!b.linked_user_id && (
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => oeffneEdit(b)}
+                      className="p-1.5 rounded-card-sm text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500 hover:bg-blue-500/10 transition-colors"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                    <button
+                      onClick={() => loesche(b)}
+                      className="p-1.5 rounded-card-sm text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                )}
               </motion.div>
             ))}
           </AnimatePresence>
         </div>
       )}
 
-      {/* Info-Hinweis */}
       {bewohner.length > 0 && (
         <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary text-center pt-2">
-          Bewohner können Aufgaben und Budgetposten zugeordnet werden.
+          Haushaltsmitglieder sind automatisch enthalten. Zusatzbewohner koennen frei verwaltet werden.
         </p>
       )}
 
@@ -248,7 +300,6 @@ const HomeBewohner = ({ session }) => {
         />
       )}
 
-      {/* Modal */}
       <AnimatePresence>
         {modal !== null && (
           <motion.div
@@ -265,19 +316,16 @@ const HomeBewohner = ({ session }) => {
               transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
               className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-sm w-full border border-light-border dark:border-dark-border"
             >
-              {/* Modal-Header */}
               <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
                 <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
-                  {modal.id ? "Bewohner bearbeiten" : "Bewohner hinzufügen"}
+                  {modal.id ? "Bewohner bearbeiten" : "Bewohner hinzufuegen"}
                 </h3>
                 <button onClick={() => setModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main">
                   <X size={18} />
                 </button>
               </div>
 
-              {/* Modal-Body */}
               <div className="p-4 space-y-4">
-                {/* Vorschau */}
                 <div className="flex justify-center">
                   <div
                     className="w-16 h-16 rounded-full flex items-center justify-center text-3xl"
@@ -287,7 +335,6 @@ const HomeBewohner = ({ session }) => {
                   </div>
                 </div>
 
-                {/* Name */}
                 <div>
                   <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Name *</label>
                   <input
@@ -300,7 +347,6 @@ const HomeBewohner = ({ session }) => {
                   />
                 </div>
 
-                {/* Emoji-Auswahl */}
                 <div>
                   <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">Emoji</label>
                   <div className="flex flex-wrap gap-2">
@@ -317,7 +363,6 @@ const HomeBewohner = ({ session }) => {
                   </div>
                 </div>
 
-                {/* Farb-Auswahl */}
                 <div>
                   <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">Farbe</label>
                   <div className="flex gap-2 flex-wrap">
@@ -335,7 +380,6 @@ const HomeBewohner = ({ session }) => {
                   </div>
                 </div>
 
-                {/* Buttons */}
                 <div className="flex gap-2 pt-1">
                   <button
                     onClick={() => setModal(null)}
@@ -348,7 +392,7 @@ const HomeBewohner = ({ session }) => {
                     disabled={!form.name.trim() || saving}
                     className="flex-1 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50"
                   >
-                    {saving ? "Speichern…" : modal.id ? "Aktualisieren" : "Hinzufügen"}
+                    {saving ? "Speichern..." : modal.id ? "Aktualisieren" : "Hinzufuegen"}
                   </button>
                 </div>
               </div>

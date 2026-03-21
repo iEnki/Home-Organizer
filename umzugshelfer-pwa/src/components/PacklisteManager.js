@@ -2575,7 +2575,7 @@ const PacklisteManager = ({ session }) => {
       const { data, error: dbError } = await supabase
         .from("pack_kisten")
         .select(
-          "*, foto_pfad, qr_code_wert, inhalt:pack_gegenstaende(*, id, beschreibung, menge, kategorie, ausgepakt_am)"
+          "*, inhalt:pack_gegenstaende(*)"
         )
         .eq("user_id", userId)
         .order("created_at", { ascending: false });
@@ -2668,7 +2668,7 @@ const PacklisteManager = ({ session }) => {
         const { data: updatedKiste, error: fetchError } = await supabase
           .from("pack_kisten")
           .select(
-            "*, foto_pfad, qr_code_wert, inhalt:pack_gegenstaende(*, id, beschreibung, menge, kategorie, ausgepakt_am)"
+            "*, inhalt:pack_gegenstaende(*)"
           )
           .eq("id", aktuelleKiste.id)
           .single();
@@ -2739,7 +2739,7 @@ const PacklisteManager = ({ session }) => {
         await supabase
           .from("pack_kisten")
           .select(
-            "*, foto_pfad, qr_code_wert, inhalt:pack_gegenstaende(*, id, beschreibung, menge, kategorie, ausgepakt_am)"
+            "*, inhalt:pack_gegenstaende(*)"
           )
           .eq("id", aktuelleKiste.id)
           .single();
@@ -2798,7 +2798,7 @@ const PacklisteManager = ({ session }) => {
         await supabase
           .from("pack_kisten")
           .select(
-            "*, foto_pfad, qr_code_wert, inhalt:pack_gegenstaende(*, id, beschreibung, menge, kategorie, ausgepakt_am)"
+            "*, inhalt:pack_gegenstaende(*)"
           )
           .eq("id", aktuelleKiste.id)
           .single();

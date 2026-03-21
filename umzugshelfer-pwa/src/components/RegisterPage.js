@@ -1,10 +1,14 @@
 import React, { useState } from "react";
 import { supabase } from "../supabaseClient";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { UserPlus, Mail, KeyRound } from "lucide-react";
 
 const RegisterPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const requestedNextPath = new URLSearchParams(location.search).get("next") || "";
+  const redirectPath =
+    requestedNextPath.startsWith("/") ? requestedNextPath : "/dashboard";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -47,7 +51,7 @@ const RegisterPage = () => {
         );
       } else if (data.session) {
         setMessage("Registrierung erfolgreich! Du wirst weitergeleitet...");
-        setTimeout(() => navigate("/dashboard"), 2000);
+        setTimeout(() => navigate(redirectPath), 2000);
       } else {
         setMessage(
           "Registrierung erfolgreich! Bitte bestätige deine E-Mail-Adresse, um dich einzuloggen. Überprüfe dein Postfach (auch Spam)."
@@ -159,7 +163,11 @@ const RegisterPage = () => {
         </form>
         <div className="text-sm text-center">
           <Link
-            to="/login"
+            to={
+              requestedNextPath
+                ? `/login?next=${encodeURIComponent(requestedNextPath)}`
+                : "/login"
+            }
             className="font-medium text-light-accent-green dark:text-dark-accent-green hover:opacity-80"
           >
             Bereits ein Konto? Hier einloggen

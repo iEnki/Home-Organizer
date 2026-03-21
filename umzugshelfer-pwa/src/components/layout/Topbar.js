@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Search, Bell, Home, Truck } from "lucide-react";
+import { Search, Bell, Home, Truck, ChevronDown, Settings, LogOut, Crown, Users } from "lucide-react";
 import ThemeSwitch from "../ThemeSwitch";
 import { useAppMode } from "../../contexts/AppModeContext";
+import { supabase } from "../../supabaseClient";
 
 /**
  * Premium Topbar — sticky, glassmorphism, Suche + User-Avatar + ThemeSwitch.
@@ -23,14 +24,26 @@ const Topbar = ({
   onSearchResultClick,
   onNavigate,
   onOpenMobileSearch,
+  onLogout,
 }) => {
   const [suchOffen, setSuchOffen] = useState(false);
+  const [avatarMenuOffen, setAvatarMenuOffen] = useState(false);
+  const [mitglieder, setMitglieder] = useState([]);
   const suchContainerRef = useRef(null);
+  const avatarMenuRef = useRef(null);
   const { appMode } = useAppMode();
 
+  const userId   = session?.user?.id;
   const email   = session?.user?.email || "";
   const name    = session?.user?.user_metadata?.full_name || email.split("@")[0] || "Nutzer";
   const initiale = name.charAt(0).toUpperCase();
+
+  useEffect(() => {
+    if (!userId) return;
+    supabase.rpc("get_household_members_overview").then(({ data }) => {
+      if (Array.isArray(data)) setMitglieder(data);
+    });
+  }, [userId]);
 
   // Dropdown öffnen/schließen basierend auf Ergebnissen
   useEffect(() => {
@@ -46,6 +59,24 @@ const Topbar = ({
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (avatarMenuRef.current && !avatarMenuRef.current.contains(e.target)) {
+        setAvatarMenuOffen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === "Escape") setAvatarMenuOffen(false);
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
   }, []);
 
   const handleChange = (e) => {
@@ -174,39 +205,145 @@ const Topbar = ({
           <Bell size={18} />
         </button>
 
-        {/* User-Avatar + Name/E-Mail (md+) */}
-        <button
-          data-tour="tour-topbar-profil"
-          onClick={() => onNavigate?.("/profil")}
-          className="hidden md:flex items-center gap-2.5 pl-2 border-l border-light-border dark:border-dark-border ml-1
-                     hover:opacity-80 transition-opacity duration-150 cursor-pointer"
-          title="Mein Profil"
-        >
-          <div
-            className="w-9 h-9 rounded-full bg-primary-500 flex items-center justify-center
-                       text-white text-sm font-semibold shadow-glow-primary shrink-0"
+        <div className="relative" ref={avatarMenuRef}>
+          {/* User-Avatar + Name/E-Mail (md+) */}
+          <button
+            data-tour="tour-topbar-profil"
+            onClick={() => setAvatarMenuOffen((prev) => !prev)}
+            className="hidden md:flex items-center gap-2.5 pl-2 border-l border-light-border dark:border-dark-border ml-1
+                       hover:opacity-80 transition-opacity duration-150 cursor-pointer"
+            title="Benutzermenue"
+          >
+            <div
+              className="w-9 h-9 rounded-full bg-primary-500 flex items-center justify-center
+                         text-white text-sm font-semibold shadow-glow-primary shrink-0"
+            >
+              {initiale}
+            </div>
+            <div className="hidden lg:block text-left">
+              <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main leading-none">
+                {name}
+              </p>
+              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5 truncate max-w-[140px]">
+                {email}
+              </p>
+            </div>
+            <ChevronDown
+              size={14}
+              className={`text-light-text-secondary dark:text-dark-text-secondary transition-transform ${
+                avatarMenuOffen ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+
+          {/* Nur Avatar auf Mobile */}
+          <button
+            onClick={() => setAvatarMenuOffen((prev) => !prev)}
+            className="md:hidden w-9 h-9 rounded-full bg-primary-500 flex items-center justify-center
+                       text-white text-sm font-semibold shrink-0 hover:opacity-80 transition-opacity duration-150"
+            title="Benutzermenue"
           >
             {initiale}
-          </div>
-          <div className="hidden lg:block text-left">
-            <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main leading-none">
-              {name}
-            </p>
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5 truncate max-w-[140px]">
-              {email}
-            </p>
-          </div>
-        </button>
+          </button>
 
-        {/* Nur Avatar auf Mobile */}
-        <button
-          onClick={() => onNavigate?.("/profil")}
-          className="md:hidden w-9 h-9 rounded-full bg-primary-500 flex items-center justify-center
-                     text-white text-sm font-semibold shrink-0 hover:opacity-80 transition-opacity duration-150"
-          title="Mein Profil"
-        >
-          {initiale}
-        </button>
+          {avatarMenuOffen && (
+            <div
+              className="absolute right-0 top-full mt-2 w-64 rounded-card-sm
+                         bg-light-card-bg dark:bg-canvas-3 border border-light-border dark:border-dark-border
+                         shadow-elevation-2 overflow-hidden z-50"
+            >
+              <div className="px-3 pt-3 pb-2 border-b border-light-border dark:border-dark-border">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">
+                  Haushalt & Bewohner
+                </p>
+                <div className="space-y-1">
+                  <button
+                    onClick={() => {
+                      setAvatarMenuOffen(false);
+                      onNavigate?.("/profil");
+                    }}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-card-sm text-xs
+                               text-light-text-main dark:text-dark-text-main
+                               hover:bg-light-surface-1 dark:hover:bg-canvas-4 transition-colors"
+                  >
+                    <Home size={13} />
+                    Haushalt
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAvatarMenuOffen(false);
+                      onNavigate?.("/home/bewohner");
+                    }}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-card-sm text-xs
+                               text-light-text-main dark:text-dark-text-main
+                               hover:bg-light-surface-1 dark:hover:bg-canvas-4 transition-colors"
+                  >
+                    <Users size={13} />
+                    Bewohner
+                  </button>
+                </div>
+              </div>
+
+              {/* Haushaltsmitglieder (nur wenn > 1) */}
+              {mitglieder.length > 1 && (
+                <div className="px-3 pt-3 pb-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">
+                    Haushalt
+                  </p>
+                  <div className="space-y-1.5">
+                    {mitglieder.map((m) => {
+                      const ini = (m.display_name || m.email || "?").charAt(0).toUpperCase();
+                      return (
+                        <div key={m.user_id} className="flex items-center gap-2">
+                          {m.avatar_url ? (
+                            <img src={m.avatar_url} alt={m.display_name || ""} className="w-7 h-7 rounded-full object-cover shrink-0" />
+                          ) : (
+                            <div className="w-7 h-7 rounded-full bg-primary-500 text-white text-[11px] font-semibold flex items-center justify-center shrink-0">
+                              {ini}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-medium text-light-text-main dark:text-dark-text-main truncate">
+                              {m.display_name || m.email || "Mitglied"}{m.is_current_user ? " (Du)" : ""}
+                            </p>
+                          </div>
+                          {m.role === "admin" && (
+                            <Crown size={11} className="text-secondary-500 shrink-0" />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-2 border-t border-light-border dark:border-dark-border" />
+                </div>
+              )}
+              <button
+                onClick={() => {
+                  setAvatarMenuOffen(false);
+                  onNavigate?.("/profil");
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm
+                           text-light-text-main dark:text-dark-text-main
+                           hover:bg-light-surface-1 dark:hover:bg-canvas-4 transition-colors"
+              >
+                <Settings size={15} />
+                Einstellungen / Profil
+              </button>
+              <button
+                onClick={() => {
+                  setAvatarMenuOffen(false);
+                  onLogout?.();
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm
+                           text-accent-danger hover:bg-accent-danger/10 transition-colors
+                           border-t border-light-border dark:border-dark-border"
+              >
+                <LogOut size={15} />
+                Ausloggen
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

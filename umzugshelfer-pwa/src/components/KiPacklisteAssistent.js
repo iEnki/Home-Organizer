@@ -22,9 +22,9 @@ const KiPacklisteAssistent = ({ session, onItemsExtracted }) => {
   // onItemsExtracted Prop hinzugefügt
   const userId = session?.user?.id;
   const [apiKey, setApiKey] = useState("");
-  const [isApiKeySet, setIsApiKeySet] = useState(false);
-  const [showApiKeyInput, setShowApiKeyInput] = useState(true);
-  const [kiProvider, setKiProvider] = useState("openai");
+  const [isApiKeySet, setIsApiKeySet] = useState(true);
+  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  const [kiProvider, setKiProvider] = useState("edge");
   const [transcribedText, setTranscribedText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   // const [recordedAudioBlob, setRecordedAudioBlob] = useState(null); // Entfernt, da Blob direkt verarbeitet wird
@@ -52,22 +52,13 @@ const KiPacklisteAssistent = ({ session, onItemsExtracted }) => {
           }
 
           if (data?.ki_provider) setKiProvider(data.ki_provider);
-          if (data?.ki_provider === "ollama" && data?.ollama_base_url) {
-            setIsApiKeySet(true);
-            setShowApiKeyInput(false);
-          } else if (data && data.openai_api_key) {
-            setApiKey(data.openai_api_key);
-            setIsApiKeySet(true);
-            setShowApiKeyInput(false);
-          } else {
-            setShowApiKeyInput(true);
-            setIsApiKeySet(false);
-          }
+          setIsApiKeySet(true);
+          setShowApiKeyInput(false);
         } catch (err) {
           console.error("Fehler beim Laden des API-Keys:", err);
           // setError("Fehler beim Laden des API-Keys."); // Fehler hier nicht global setzen, da es normal sein kann, keinen Key zu haben
-          setShowApiKeyInput(true);
-          setIsApiKeySet(false);
+          setShowApiKeyInput(false);
+          setIsApiKeySet(true);
         }
       }
     };
@@ -130,20 +121,16 @@ const KiPacklisteAssistent = ({ session, onItemsExtracted }) => {
     setTranscribedText("");
     setExtractedItems([]);
     setError("");
-    if (kiProvider === "ollama") {
-      startSpeechRecognition(
-        (transcript) => {
-          setTranscribedText(transcript);
-          if (transcript.trim()) handleProcessText(transcript.trim());
-        },
-        (err) => {
-          setError(`Spracherkennung Fehler: ${err}`);
-          showToast(`Spracherkennung Fehler: ${err}`, "error");
-        }
-      );
-    } else {
-      setIsRecording(true);
-    }
+    startSpeechRecognition(
+      (transcript) => {
+        setTranscribedText(transcript);
+        if (transcript.trim()) handleProcessText(transcript.trim());
+      },
+      (err) => {
+        setError(`Spracherkennung Fehler: ${err}`);
+        showToast(`Spracherkennung Fehler: ${err}`, "error");
+      }
+    );
   };
 
   const handleStopRecording = () => {
@@ -446,7 +433,7 @@ Antworte nur mit dem JSON-Array. Achte darauf, dass jeder explizit genannte Gege
           </div>
         )}
       </div>
-      {!isApiKeySet && showApiKeyInput && kiProvider === "openai" && (
+      {false && !isApiKeySet && showApiKeyInput && kiProvider === "openai" && (
         <div className="p-3 bg-dark-card-bg border border-dark-border rounded-lg">
           <p className="text-sm text-dark-text-secondary mb-2 flex items-center">
             <Info size={16} className="mr-2 text-blue-400" />
@@ -474,7 +461,7 @@ Antworte nur mit dem JSON-Array. Achte darauf, dass jeder explizit genannte Gege
           )}
         </div>
       )}
-      {isApiKeySet && (
+      {false && isApiKeySet && (
         <button
           onClick={() => {
             setShowApiKeyInput(true);

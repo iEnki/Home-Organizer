@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { supabase } from "../supabaseClient";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { LogIn, Mail, KeyRound, XCircle } from "lucide-react";
 
 const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
@@ -17,6 +18,9 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
   const passwordResetRedirectUrl =
     process.env.REACT_APP_PASSWORD_RESET_REDIRECT_URL ||
     `${window.location.origin}/update-password`;
+  const requestedNextPath = new URLSearchParams(location.search).get("next") || "";
+  const redirectPath =
+    requestedNextPath.startsWith("/") ? requestedNextPath : "/dashboard";
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -36,7 +40,7 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
       if (data.session) {
         if (setSession) setSession(data.session);
         if (onLoginSuccess) onLoginSuccess();
-        navigate("/dashboard");
+        navigate(redirectPath);
       } else {
         setError(
           "Login fehlgeschlagen. Bitte überprüfe deine E-Mail-Bestätigung oder versuche es erneut."
@@ -186,7 +190,11 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
         </form>
         <div className="text-sm text-center">
           <Link
-            to="/register"
+            to={
+              requestedNextPath
+                ? `/register?next=${encodeURIComponent(requestedNextPath)}`
+                : "/register"
+            }
             className="font-medium text-light-accent-green dark:text-dark-accent-green hover:opacity-80"
           >
             Noch kein Konto? Hier registrieren

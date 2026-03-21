@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, DollarSign, ListChecks, Archive,
   Paintbrush, Calculator, CalendarClock, FolderOpen,
   Package, ShoppingCart, Wrench, CheckSquare, ShoppingBag,
-  Search, BookOpen, History, LogOut,
+  Search, BookOpen, History,
   Menu, X, CalendarDays,
 } from "lucide-react";
 
@@ -46,7 +46,6 @@ const homeGruppen = [
       { name: "Inventar",  path: "/home/inventar",  icon: Package },
       { name: "Vorräte",   path: "/home/vorraete",  icon: ShoppingCart },
       { name: "Geräte",    path: "/home/geraete",   icon: Wrench },
-      { name: "Bewohner",  path: "/home/bewohner",  icon: Users },
     ],
   },
   {
@@ -70,7 +69,7 @@ const homeGruppen = [
 ];
 
 // ── Sidebar ─────────────────────────────────────────────────────────────────────
-const Sidebar = ({ activeRoute, onNavigate, onLogout, appMode, onToggleMode, mobileNavigationEnabled = false }) => {
+const Sidebar = ({ activeRoute, onNavigate, appMode, onToggleMode, mobileNavigationEnabled = false }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const gruppen  = appMode === "home" ? homeGruppen : umzugGruppen;
@@ -125,18 +124,6 @@ const Sidebar = ({ activeRoute, onNavigate, onLogout, appMode, onToggleMode, mob
 
       {/* Spacer */}
       <div className="flex-1 min-h-4" />
-
-      {/* Logout — pinned to bottom */}
-      <button
-        onClick={onLogout}
-        title="Ausloggen"
-        className="w-12 h-12 rounded-sidebar-tile flex items-center justify-center
-                   border border-transparent text-dark-text-secondary
-                   hover:bg-canvas-3 hover:text-accent-danger
-                   transition-all duration-200 shrink-0"
-      >
-        <LogOut size={20} />
-      </button>
     </div>
   );
 

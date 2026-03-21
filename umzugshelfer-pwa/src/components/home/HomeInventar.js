@@ -262,8 +262,19 @@ const HomeInventar = ({ session }) => {
       setLoading(false);
     }
     // Bewohner separat laden — schlägt still fehl wenn Tabelle noch nicht existiert
-    supabase.from("home_bewohner").select("id, name, farbe, emoji").eq("user_id", userId).order("created_at")
-      .then(({ data }) => { if (data) setBewohner(data); });
+    supabase.rpc("get_bewohner_overview")
+      .then(({ data, error }) => {
+        if (!error && Array.isArray(data)) {
+          setBewohner(
+            data.map((b) => ({
+              id: b.id,
+              name: b.display_name || b.name || "Bewohner",
+              farbe: b.farbe || "#10B981",
+              emoji: b.emoji || "👤",
+            })),
+          );
+        }
+      });
   }, [userId]);
 
   useEffect(() => { ladeDaten(); }, [ladeDaten]);

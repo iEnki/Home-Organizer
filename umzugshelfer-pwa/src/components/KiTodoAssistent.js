@@ -21,9 +21,9 @@ import {
 const KiTodoAssistent = ({ session, onTodosExtracted }) => {
   const userId = session?.user?.id;
   const [apiKey, setApiKey] = useState("");
-  const [isApiKeySet, setIsApiKeySet] = useState(false);
-  const [showApiKeyInput, setShowApiKeyInput] = useState(true);
-  const [kiProvider, setKiProvider] = useState("openai");
+  const [isApiKeySet, setIsApiKeySet] = useState(true);
+  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  const [kiProvider, setKiProvider] = useState("edge");
   const [transcribedText, setTranscribedText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -45,24 +45,15 @@ const KiTodoAssistent = ({ session, onTodosExtracted }) => {
             .single();
           if (dbError && dbError.code !== "PGRST116") throw dbError;
           if (data?.ki_provider) setKiProvider(data.ki_provider);
-          if (data?.ki_provider === "ollama" && data?.ollama_base_url) {
-            setIsApiKeySet(true);
-            setShowApiKeyInput(false);
-          } else if (data && data.openai_api_key) {
-            setApiKey(data.openai_api_key);
-            setIsApiKeySet(true);
-            setShowApiKeyInput(false);
-          } else {
-            setShowApiKeyInput(true);
-            setIsApiKeySet(false);
-          }
+          setIsApiKeySet(true);
+          setShowApiKeyInput(false);
         } catch (err) {
           console.error(
             "Fehler beim Laden des API-Keys für KI Todo Assistent:",
             err
           );
-          setShowApiKeyInput(true);
-          setIsApiKeySet(false);
+          setShowApiKeyInput(false);
+          setIsApiKeySet(true);
         }
       }
     };
@@ -111,20 +102,16 @@ const KiTodoAssistent = ({ session, onTodosExtracted }) => {
     setTranscribedText("");
     setExtractedTodos([]);
     setError("");
-    if (kiProvider === "ollama") {
-      startSpeechRecognition(
-        (transcript) => {
-          setTranscribedText(transcript);
-          if (transcript.trim()) handleProcessTextWithGPT(transcript.trim());
-        },
-        (err) => {
-          setError(`Spracherkennung Fehler: ${err}`);
-          showToast(`Spracherkennung Fehler: ${err}`, "error");
-        }
-      );
-    } else {
-      setIsRecording(true);
-    }
+    startSpeechRecognition(
+      (transcript) => {
+        setTranscribedText(transcript);
+        if (transcript.trim()) handleProcessTextWithGPT(transcript.trim());
+      },
+      (err) => {
+        setError(`Spracherkennung Fehler: ${err}`);
+        showToast(`Spracherkennung Fehler: ${err}`, "error");
+      }
+    );
   };
 
   const handleStopRecording = () => setIsRecording(false);
@@ -358,7 +345,7 @@ Antworte nur mit dem JSON-Array.`;
         )}
       </div>
 
-      {!isApiKeySet && showApiKeyInput && kiProvider === "openai" && (
+      {false && !isApiKeySet && showApiKeyInput && kiProvider === "openai" && (
         /* API Key Input Form */
         <div className="p-3 bg-dark-card-bg border border-dark-border rounded-lg">
           <p className="text-sm text-dark-text-secondary mb-2 flex items-center">
@@ -386,7 +373,7 @@ Antworte nur mit dem JSON-Array.`;
           )}
         </div>
       )}
-      {isApiKeySet && (
+      {false && isApiKeySet && (
         <button
           onClick={() => {
             setShowApiKeyInput(true);

@@ -18,7 +18,6 @@ import {
   Calculator,
   CalendarClock,
   CalendarDays,
-  LogOut,
   UserCircle2,
   Repeat,
 } from "lucide-react";
@@ -61,7 +60,6 @@ const MobileMoreSheet = ({
   onClose,
   onNavigate,
   onToggleMode,
-  onLogout,
 }) => {
   useEffect(() => {
     if (!open) return undefined;
@@ -145,16 +143,6 @@ const MobileMoreSheet = ({
             <span className="text-sm font-medium">{modeLabel}</span>
           </button>
 
-          <button
-            onClick={() => {
-              onLogout?.();
-              onClose();
-            }}
-            className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-pill bg-accent-danger/15 text-accent-danger border border-accent-danger/30"
-          >
-            <LogOut size={16} />
-            <span className="text-sm font-medium">Ausloggen</span>
-          </button>
         </div>
       </section>
     </div>

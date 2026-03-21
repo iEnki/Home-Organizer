@@ -1,10 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
-import { useNavigate } from "react-router-dom"; // useLocation entfernt
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { KeyRound, ShieldCheck } from "lucide-react"; // AlertCircle entfernt
 
 const UpdatePasswordPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const nextTargetRaw = (searchParams.get("next") || "/").trim();
+  const nextTarget =
+    nextTargetRaw.startsWith("/") && !nextTargetRaw.startsWith("//")
+      ? nextTargetRaw
+      : "/";
   // const location = useLocation(); // Entfernt
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -76,16 +82,37 @@ const UpdatePasswordPage = () => {
     try {
       const { error: updateError } = await supabase.auth.updateUser({
         password: password,
+        data: { invite_first_login_required: false },
       });
 
       if (updateError) {
         throw updateError;
       }
+
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        throw userError;
+      }
+
+      const userId = userData?.user?.id;
+      if (userId) {
+        const { error: profileError } = await supabase
+          .from("user_profile")
+          .upsert(
+            { id: userId, password_change_required: false },
+            { onConflict: "id" }
+          );
+
+        if (profileError) {
+          throw profileError;
+        }
+      }
+
       setMessage(
-        "Dein Passwort wurde erfolgreich aktualisiert. Du wirst in Kürze zum Login weitergeleitet."
+        "Dein Passwort wurde erfolgreich aktualisiert. Du wirst in K\u00fcrze weitergeleitet."
       );
       setTimeout(() => {
-        navigate("/"); // Zurück zur HomePage (ehemals LoginPage)
+        navigate(nextTarget, { replace: true });
       }, 3000);
     } catch (err) {
       console.error("Fehler beim Aktualisieren des Passworts:", err);
