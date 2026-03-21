@@ -96,6 +96,20 @@ backup_erstellen() {
   fi
 }
 
+deploy_edge_functions_to_volumes() {
+  DEPLOYED=0
+  while IFS= read -r fn_index; do
+    local fn_dir
+    fn_dir="$(dirname "$fn_index")"
+    local fn_name
+    fn_name="$(basename "$fn_dir")"
+    mkdir -p "volumes/functions/${fn_name}"
+    cp "$fn_index" "volumes/functions/${fn_name}/index.ts"
+    echo "    OK ${fn_name}"
+    DEPLOYED=$((DEPLOYED + 1))
+  done < <(find supabase/functions -mindepth 2 -maxdepth 2 -type f -name 'index.ts' | sort)
+}
+
 # ============================================================
 # Header
 # ============================================================
@@ -171,18 +185,7 @@ if [[ "$MODE" == "functions" ]]; then
   header "Edge Functions neu deployen"
 
   DEPLOYED=0
-  for fn in main send-push check-reminders delete-account; do
-    SRC="supabase/functions/${fn}/index.ts"
-    DST="volumes/functions/${fn}/index.ts"
-    if [[ -f "$SRC" ]]; then
-      mkdir -p "volumes/functions/${fn}"
-      cp "$SRC" "$DST"
-      echo "    OK ${fn}"
-      DEPLOYED=$((DEPLOYED + 1))
-    else
-      warn "${fn} nicht gefunden in supabase/functions/ -- uebersprungen."
-    fi
-  done
+  deploy_edge_functions_to_volumes
 
   if [[ $DEPLOYED -gt 0 ]]; then
     info "Starte Functions-Container neu..."

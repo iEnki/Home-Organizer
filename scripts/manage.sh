@@ -72,10 +72,14 @@ mit_spinner() {
     success "$MSG"
   else
     echo -e "${RED}✗  $MSG — fehlgeschlagen (Exit $EXIT_CODE)${NC}"
+    cp "$LOG" /tmp/umzug_build_error.log 2>/dev/null || true
     echo -e "${DIM}--- Letzte Log-Zeilen ---${NC}"
-    tail -20 "$LOG" >&2
+    tail -80 "$LOG" >&2
+    echo ""
+    echo -e "${DIM}  Vollständiges Log: cat /tmp/umzug_build_error.log${NC}"
+    echo -e "${DIM}  Nur Fehler:        grep -i 'error\|failed\|warn' /tmp/umzug_build_error.log | head -30${NC}"
     rm -f "$LOG"
-    exit $EXIT_CODE
+    return $EXIT_CODE
   fi
   rm -f "$LOG"
 }
@@ -737,9 +741,15 @@ modus_update() {
 
         echo ""
         mit_spinner "App-Container wird gebaut (kann 2-5 Min dauern)" \
-          docker compose -f "$COMPOSE_FILE" build umzugsplaner-app
+          docker compose -f "$COMPOSE_FILE" build umzugsplaner-app || {
+          warn "Build fehlgeschlagen. Logs prüfen: docker compose logs umzugsplaner-app"
+          weiter; continue
+        }
         mit_spinner "Container werden neu gestartet" \
-          docker compose -f "$COMPOSE_FILE" up -d --force-recreate umzugsplaner-app
+          docker compose -f "$COMPOSE_FILE" up -d --force-recreate umzugsplaner-app || {
+          warn "Neustart fehlgeschlagen. Status prüfen: docker compose ps"
+          weiter; continue
+        }
 
         if [[ "$IS_VOLLSTACK" == "true" && $DEPLOYED -gt 0 ]]; then
           mit_spinner "Functions-Container wird neu gestartet" \
@@ -767,9 +777,15 @@ modus_update() {
         if [[ "${CONFIRM,,}" == "n" ]]; then echo "  Abgebrochen."; weiter; continue; fi
 
         mit_spinner "App-Container wird gebaut (kann 2-5 Min dauern)" \
-          docker compose -f "$COMPOSE_FILE" build umzugsplaner-app
+          docker compose -f "$COMPOSE_FILE" build umzugsplaner-app || {
+          warn "Build fehlgeschlagen. Logs prüfen: docker compose logs umzugsplaner-app"
+          weiter; continue
+        }
         mit_spinner "Container wird neu gestartet" \
-          docker compose -f "$COMPOSE_FILE" up -d --force-recreate umzugsplaner-app
+          docker compose -f "$COMPOSE_FILE" up -d --force-recreate umzugsplaner-app || {
+          warn "Neustart fehlgeschlagen. Status prüfen: docker compose ps"
+          weiter; continue
+        }
 
         success "App erfolgreich neu gebaut und gestartet."
         APP_URL_NOW="$(env_get "SITE_URL")"
@@ -816,15 +832,24 @@ modus_update() {
 
         echo ""
         mit_spinner "App-Image wird lokal gebaut (kann 2-5 Min dauern)" \
-          docker compose -f "$COMPOSE_FILE" build umzugsplaner-app
+          docker compose -f "$COMPOSE_FILE" build umzugsplaner-app || {
+          warn "Build fehlgeschlagen. Logs prüfen: docker compose logs umzugsplaner-app"
+          weiter; continue
+        }
 
         echo ""
         if [[ "$HAS_OLLAMA" == "true" ]]; then
           mit_spinner "Alle Container werden neu gestartet" \
-            docker compose -f "$COMPOSE_FILE" --profile ollama up -d --force-recreate
+            docker compose -f "$COMPOSE_FILE" --profile ollama up -d --force-recreate || {
+            warn "Neustart fehlgeschlagen. Status prüfen: docker compose ps"
+            weiter; continue
+          }
         else
           mit_spinner "Alle Container werden neu gestartet" \
-            docker compose -f "$COMPOSE_FILE" up -d --force-recreate
+            docker compose -f "$COMPOSE_FILE" up -d --force-recreate || {
+            warn "Neustart fehlgeschlagen. Status prüfen: docker compose ps"
+            weiter; continue
+          }
         fi
 
         success "Docker-Images aktualisiert und Container neu gestartet."

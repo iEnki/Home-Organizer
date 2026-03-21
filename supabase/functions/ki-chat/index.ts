@@ -9,7 +9,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-type ChatMessage = { role: string; content: string };
+type ContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string; detail?: "low" | "high" | "auto" } };
+
+type ChatMessage = { role: string; content: string | ContentPart[] };
 
 const parseJson = async (req: Request) => {
   try {
@@ -93,9 +97,7 @@ Deno.serve(async (req: Request) => {
   try {
     if (provider === "ollama" && settings.ollama_base_url) {
       const base = settings.ollama_base_url.replace(/\/$/, "");
-      // Immer das konfigurierte Haushalts-Modell verwenden – requestedModel vom Client ignorieren,
-      // da der Client kein Wissen über Ollama-Modelle hat (sendet z.B. "gpt-4o").
-      const ollamaModel = settings.ollama_model || "llama3.2";
+      const ollamaModel = requestedModel || settings.ollama_model || "llama3.2";
       const ollamaRes = await fetch(`${base}/v1/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
