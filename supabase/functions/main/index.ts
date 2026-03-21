@@ -17,6 +17,11 @@ const ENV_KEYS = [
   "VAPID_SUBJECT",
   "VAPID_PUBLIC_KEY",
   "VAPID_PRIVATE_KEY",
+  "RESEND_API_KEY",
+  "INVITE_FROM_EMAIL",
+  "INVITE_BRAND_NAME",
+  "APP_URL",
+  "SITE_URL",
 ];
 
 Deno.serve(async (req: Request) => {
