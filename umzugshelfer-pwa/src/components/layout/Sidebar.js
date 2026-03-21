@@ -4,7 +4,7 @@ import {
   Paintbrush, Calculator, CalendarClock, FolderOpen,
   Package, ShoppingCart, Wrench, CheckSquare, ShoppingBag,
   Search, BookOpen, History,
-  Menu, X, CalendarDays,
+  Menu, X, CalendarDays, ScanLine,
 } from "lucide-react";
 
 // ── Nav-Gruppen Umzugsmodus ─────────────────────────────────────────────────────
@@ -51,9 +51,10 @@ const homeGruppen = [
   {
     label: "Aktionen",
     items: [
-      { name: "Einkauf",   path: "/home/einkaufliste", icon: ShoppingBag },
-      { name: "Aufgaben",  path: "/home/aufgaben",     icon: CheckSquare },
-      { name: "Projekte",  path: "/home/projekte",     icon: FolderOpen },
+      { name: "Einkauf",          path: "/home/einkaufliste",     icon: ShoppingBag },
+      { name: "Aufgaben",         path: "/home/aufgaben",         icon: CheckSquare },
+      { name: "Projekte",         path: "/home/projekte",         icon: FolderOpen },
+      { name: "Rechnung scannen", path: "/home/rechnung-scannen", icon: ScanLine },
     ],
   },
   {

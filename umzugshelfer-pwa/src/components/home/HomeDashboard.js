@@ -71,8 +71,10 @@ const fmt = (n) =>
   Number(n).toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
 const MODUL_ICON = {
-  inventar: "📦", budget: "💶", geraete: "🔧",
-  einkaufliste: "🛒", projekte: "📋", vorraete: "🛒", aufgaben: "✅",
+  home_objekte: "📦", budget_posten: "💶", home_geraete: "🔧",
+  home_einkaufliste: "🛒", home_projekte: "📋", home_vorraete: "🥫",
+  todo_aufgaben: "✅", home_wissen: "📚", home_bewohner: "👥",
+  home_wartungen: "🔧", home_orte: "📍",
 };
 
 // ── Animated progress bar ────────────────────────────────────────────────────
@@ -242,9 +244,9 @@ const HomeDashboard = ({ session }) => {
       // ── Verlauf (silent fail) ──
       supabase
         .from("home_verlauf")
-        .select("aktion, erstellt_am, modul")
+        .select("aktion, created_at, tabelle")
         .eq("user_id", userId)
-        .order("erstellt_am", { ascending: false })
+        .order("created_at", { ascending: false })
         .limit(6)
         .then(({ data }) => {
           if (data) setErweitert(e => ({ ...e, verlauf: data }));
@@ -723,13 +725,13 @@ const HomeDashboard = ({ session }) => {
             {verlauf.map((v, i) => (
               <motion.div key={i} variants={listItemVariants} className="flex items-center gap-2.5">
                 <span className="text-sm flex-shrink-0">
-                  {MODUL_ICON[v.modul] || "📝"}
+                  {MODUL_ICON[v.tabelle] || "📝"}
                 </span>
                 <span className="text-xs text-light-text-main dark:text-dark-text-main flex-1 truncate">
                   {v.aktion}
                 </span>
                 <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary flex-shrink-0">
-                  {relativeZeit(v.erstellt_am)}
+                  {relativeZeit(v.created_at)}
                 </span>
               </motion.div>
             ))}

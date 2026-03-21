@@ -80,6 +80,13 @@ const UserProfile = ({ session, householdContext }) => {
   const [ollamaTestStatus,setOllamaTestStatus]= useState(null);
   const [ollamaModelle,   setOllamaModelle]   = useState([]);
 
+  // Bildanalyse
+  const [bildanalyseModus,         setBildanalyseModus]         = useState("chatgpt_vision");
+  const [bildanalyseOpenaiKey,     setBildanalyseOpenaiKey]     = useState("");
+  const [bildanalyseOpenaiKeySet,  setBildanalyseOpenaiKeySet]  = useState(false);
+  const [loescheOpenaiKey,         setLoescheOpenaiKey]         = useState(false);
+  const [bildanalyseStatus,        setBildanalyseStatus]        = useState(null);
+
   // Push
   const {
     isSupported:  pushUnterstuetzt,
@@ -144,6 +151,19 @@ const UserProfile = ({ session, householdContext }) => {
         if (data?.umzug_deaktiviert !== undefined) setUmzugDeaktiviertLokal(!!data.umzug_deaktiviert);
         if (data?.avatar_url)               setAvatarUrl(data.avatar_url);
         setLadend(false);
+      });
+  }, [userId]);
+
+  // Bildanalyse-Einstellungen aus household_settings laden
+  useEffect(() => {
+    if (!userId) return;
+    supabase
+      .from("household_settings")
+      .select("bildanalyse_modus, bildanalyse_openai_key_set")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.bildanalyse_modus) setBildanalyseModus(data.bildanalyse_modus);
+        if (data?.bildanalyse_openai_key_set !== undefined) setBildanalyseOpenaiKeySet(!!data.bildanalyse_openai_key_set);
       });
   }, [userId]);
 
@@ -242,6 +262,35 @@ const UserProfile = ({ session, householdContext }) => {
     }
     setOllamaStatus(error ? "fehler" : "ok");
     setTimeout(() => setOllamaStatus(null), 3000);
+  };
+
+  const handleBildanalyseSpeichern = async () => {
+    setBildanalyseStatus(null);
+    const { error } = await supabase.rpc("set_household_bildanalyse_settings", {
+      p_modus: bildanalyseModus,
+      p_bildanalyse_openai_api_key: bildanalyseOpenaiKey.trim() || null,
+    });
+    if (!error) {
+      if (bildanalyseOpenaiKey.trim()) setBildanalyseOpenaiKeySet(true);
+      setBildanalyseOpenaiKey("");
+    }
+    setBildanalyseStatus(error ? "fehler" : "ok");
+    setTimeout(() => setBildanalyseStatus(null), 3000);
+  };
+
+  const handleOpenaiKeyLoeschen = async () => {
+    setLoescheOpenaiKey(true);
+    const { error } = await supabase.rpc("set_household_bildanalyse_settings", {
+      p_modus: bildanalyseModus,
+      p_bildanalyse_openai_api_key: "",
+    });
+    setLoescheOpenaiKey(false);
+    if (!error) {
+      setBildanalyseOpenaiKeySet(false);
+      setBildanalyseOpenaiKey("");
+    }
+    setBildanalyseStatus(error ? "fehler" : "ok");
+    setTimeout(() => setBildanalyseStatus(null), 3000);
   };
 
   const handleMitgliedEntfernen = async () => {
@@ -987,6 +1036,95 @@ const UserProfile = ({ session, householdContext }) => {
                 </p>
               </div>
             )}
+          </div>
+        )}
+      </AkkordeonSektion>
+
+      {/* -- Bildanalyse / Dokumentenerkennung -------------------------------- */}
+      <AkkordeonSektion title="Bildanalyse / Dokumentenerkennung" icon={<Camera size={16} />}>
+        {ladend ? (
+          <div className="h-20 bg-light-surface-1 dark:bg-canvas-3 rounded-card-sm animate-pulse" />
+        ) : (
+          <div className="space-y-5">
+            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+              Waehle den Modus fuer die KI-gestuetzte Rechnungserkennung. Diese Einstellung gilt fuer den gesamten Haushalt.
+            </p>
+
+            {/* Modus-Auswahl */}
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { id: "chatgpt_vision", label: "ChatGPT Vision",  desc: "GPT-4o analysiert das Bild direkt" },
+                { id: "ocr_regeln",     label: "OCR + Regeln",    desc: "Textextraktion, kein API-Key noetig" },
+                { id: "ocr_ollama",     label: "OCR + Ollama",    desc: "OCR-Text wird an Ollama uebergeben" },
+              ].map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => setBildanalyseModus(m.id)}
+                  className={`flex flex-col items-center p-3 rounded-card-sm border-2 text-sm transition-all text-center
+                              ${bildanalyseModus === m.id
+                                ? "border-secondary-500 bg-secondary-500/10 text-secondary-500"
+                                : "border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:border-secondary-500/40"
+                              }`}
+                >
+                  <span className="font-semibold">{m.label}</span>
+                  <span className="text-xs opacity-70 mt-0.5">{m.desc}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* OpenAI API-Key fuer Bildanalyse (nur wenn Modus = chatgpt_vision) */}
+            {bildanalyseModus === "chatgpt_vision" && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">
+                  OpenAI API-Key (Bildanalyse)
+                </p>
+                {bildanalyseOpenaiKeySet && (
+                  <div className="flex items-center gap-3">
+                    <p className="text-xs text-accent-success flex items-center gap-1.5">
+                      <CheckCircle size={13} /> Key gesetzt: <span className="font-mono">***</span>
+                    </p>
+                    <button
+                      onClick={handleOpenaiKeyLoeschen}
+                      disabled={loescheOpenaiKey}
+                      className="text-xs text-accent-danger hover:underline disabled:opacity-50"
+                    >
+                      {loescheOpenaiKey ? "…" : "Key löschen"}
+                    </button>
+                  </div>
+                )}
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={bildanalyseOpenaiKey}
+                  onChange={(e) => setBildanalyseOpenaiKey(e.target.value)}
+                  placeholder={bildanalyseOpenaiKeySet ? "Neuen Key eingeben um zu ersetzen" : "sk-..."}
+                  className={`w-full px-3 py-2.5 rounded-card-sm border text-sm
+                              bg-light-surface-1 dark:bg-canvas-2
+                              border-light-border dark:border-dark-border
+                              text-light-text-main dark:text-dark-text-main
+                              placeholder-light-text-secondary dark:placeholder-dark-text-secondary
+                              focus:outline-none focus:border-secondary-500 transition-colors`}
+                />
+                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  Unabhaengig von den KI-Einstellungen. Wird nur fuer die Rechnungsanalyse verwendet.
+                </p>
+              </div>
+            )}
+
+            {/* Speichern */}
+            <button
+              onClick={handleBildanalyseSpeichern}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-pill text-sm font-medium
+                         bg-secondary-500 hover:bg-secondary-600 text-white transition-colors"
+            >
+              {bildanalyseStatus === "ok" ? (
+                <><CheckCircle size={15} /> Gespeichert</>
+              ) : bildanalyseStatus === "fehler" ? (
+                <><AlertCircle size={15} /> Fehler</>
+              ) : (
+                <><Save size={15} /> Einstellungen speichern</>
+              )}
+            </button>
           </div>
         )}
       </AkkordeonSektion>
