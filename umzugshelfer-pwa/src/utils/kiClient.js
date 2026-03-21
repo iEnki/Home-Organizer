@@ -45,7 +45,7 @@ const edgeChatClient = {
 };
 
 /**
- * Liefert einen KI-Client, der serverseitig über Edge Functions proxied.
+ * Liefert einen KI-Client, der serverseitig ï¿½ber Edge Functions proxied.
  */
 export async function getKiClient(_userId) {
   return {
@@ -110,9 +110,34 @@ export function startSpeechRecognition(onResult, onError) {
 }
 
 /**
+ * Erstellt Vision-Nachrichten fuer ChatGPT Vision (GPT-4o).
+ * @param {string} imageBase64 - Base64-kodiertes Bild
+ * @param {string} mimeType - MIME-Typ (z.B. "image/jpeg")
+ * @param {string} promptText - Textanweisung an das Modell
+ */
+export function createVisionMessages(imageBase64, mimeType, promptText) {
+  return [
+    {
+      role: "user",
+      content: [
+        {
+          type: "image_url",
+          image_url: {
+            url: `data:${mimeType};base64,${imageBase64}`,
+            detail: "high",
+          },
+        },
+        { type: "text", text: promptText },
+      ],
+    },
+  ];
+}
+
+/**
  * Bereinigt JSON-Antworten der KI (entfernt Markdown-Code-Bloecke).
  */
 export function cleanKiJsonResponse(rawText, expectedType = "array") {
+  if (typeof rawText !== "string") rawText = String(rawText ?? "");
   let cleaned = rawText.trim();
 
   const codeBlockMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);

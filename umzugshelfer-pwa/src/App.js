@@ -21,7 +21,8 @@ import MobileMoreSheet from "./components/layout/MobileMoreSheet";
 import MobileSearchSheet from "./components/layout/MobileSearchSheet";
 
 // ── Home Organizer Komponenten ─────────────────────────────────────────────────
-import HomeDashboard        from "./components/home/HomeDashboard";
+import HomeDashboard          from "./components/home/HomeDashboard";
+import HomeRechnungScannen   from "./components/home/HomeRechnungScannen";
 import HomeInventar         from "./components/home/HomeInventar";
 import HomeGlobalSuche      from "./components/home/HomeGlobalSuche";
 import HomeVorraete         from "./components/home/HomeVorraete";
@@ -93,7 +94,8 @@ const ROUTE_TITLES = {
   "/home/budget":       "Budget",
   "/home/projekte":     "Projekte",
   "/home/verlauf":      "Verlauf",
-  "/home/wissen":       "Wissensdatenbank",
+  "/home/wissen":            "Wissensdatenbank",
+  "/home/rechnung-scannen": "Rechnung scannen",
 };
 
 // ── Modus-bewusster Redirect nach Login ────────────────────────────────────────
@@ -578,7 +580,8 @@ function App() {
               <Route path="/home/budget"       element={<HomeBudget session={session} />} />
               <Route path="/home/projekte"     element={<HomeProjekte session={session} />} />
               <Route path="/home/verlauf"      element={<HomeVerlauf session={session} />} />
-              <Route path="/home/wissen"       element={<HomeWissen session={session} />} />
+              <Route path="/home/wissen"            element={<HomeWissen session={session} />} />
+              <Route path="/home/rechnung-scannen" element={<HomeRechnungScannen session={session} />} />
 
               {/* Übergreifend */}
               <Route path="/kalender" element={<KalenderUebersicht session={session} />} />
