@@ -1,4 +1,4 @@
-DEMO: https://umzug.enkination.de/ · Login: demo@demo.com · PW: Demo123
+DEMO: https://umzug.enkination.de/ · Login: demo@demo.com · PW: Demo1234
 
 # Umzugsplaner & Home Organizer PWA
 
