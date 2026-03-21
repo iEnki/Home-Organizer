@@ -1,90 +1,70 @@
 /**
  * kiClient.js
- * Zentralisierte KI-Client-Initialisierung für alle KI-Assistenten.
- * Unterstützt OpenAI und Ollama als Provider.
- *
- * Verwendung:
- *   import { getKiClient, startSpeechRecognition } from "../utils/kiClient";
- *   const { client, model, provider } = await getKiClient(userId);
+ * Zentralisierte KI-Client-Initialisierung fuer alle KI-Assistenten.
+ * Nutzt serverseitigen Edge-Proxy (household settings), kein API-Key im Browser.
  */
 
-import OpenAI from "openai";
 import { supabase } from "../supabaseClient";
 
+const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
+
+const buildFunctionsUrl = (fnName) => {
+  if (!SUPABASE_URL) {
+    throw new Error("REACT_APP_SUPABASE_URL fehlt.");
+  }
+  return `${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/${fnName}`;
+};
+
+const edgeChatClient = {
+  chat: {
+    completions: {
+      create: async ({ model, messages, temperature }) => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          throw new Error("Nicht eingeloggt.");
+        }
+
+        const response = await fetch(buildFunctionsUrl("ki-chat"), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ model, messages, temperature }),
+        });
+
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(json?.error || `KI-Proxy Fehler (${response.status})`);
+        }
+
+        return json;
+      },
+    },
+  },
+};
+
 /**
- * Lädt KI-Konfiguration aus user_profile und gibt einen konfigurierten Client zurück.
- *
- * @param {string} userId - Supabase User-ID
- * @returns {{ client: OpenAI, model: string, provider: string, apiKey: string|null }}
+ * Liefert einen KI-Client, der serverseitig �ber Edge Functions proxied.
  */
-export async function getKiClient(userId) {
-  if (!userId) {
-    return { client: null, model: null, provider: null, apiKey: null };
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from("user_profile")
-      .select("ki_provider, ollama_base_url, ollama_model, openai_api_key")
-      .eq("id", userId)
-      .single();
-
-    if (error && error.code !== "PGRST116") {
-      console.error("Fehler beim Laden der KI-Konfiguration:", error);
-    }
-
-    const provider = data?.ki_provider || "openai";
-
-    if (provider === "ollama" && data?.ollama_base_url) {
-      const baseURL = data.ollama_base_url.replace(/\/$/, "") + "/v1";
-      const model = data.ollama_model || "llama3.2";
-
-      return {
-        client: new OpenAI({
-          apiKey: "ollama", // Ollama benötigt keinen echten API-Key
-          baseURL,
-          dangerouslyAllowBrowser: true,
-        }),
-        model,
-        provider: "ollama",
-        apiKey: null,
-      };
-    }
-
-    // OpenAI (Standard)
-    const apiKey = data?.openai_api_key || null;
-    return {
-      client: apiKey
-        ? new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
-        : null,
-      model: "gpt-4o",
-      provider: "openai",
-      apiKey,
-    };
-  } catch (err) {
-    console.error("Fehler in getKiClient:", err);
-    return { client: null, model: null, provider: "openai", apiKey: null };
-  }
+export async function getKiClient(_userId) {
+  return {
+    client: edgeChatClient,
+    model: "gpt-4o",
+    provider: "edge",
+    apiKey: "server-side",
+  };
 }
 
 /**
- * Prüft ob für den gegebenen Provider ein gültiger Client verfügbar ist.
- *
- * @param {{ client: OpenAI|null, provider: string, apiKey: string|null }} kiConfig
- * @returns {boolean}
+ * Prueft ob ein nutzbarer KI-Client vorhanden ist.
  */
-export function isKiClientReady({ client, provider, apiKey }) {
-  if (provider === "ollama") return client !== null;
-  return client !== null && !!apiKey;
+export function isKiClientReady({ client }) {
+  return !!client;
 }
 
 /**
- * Startet die Web Speech API für Spracheingabe (Fallback wenn kein Whisper verfügbar).
- * Wird im Ollama-Modus statt Whisper verwendet.
- *
- * @param {(transcript: string) => void} onResult - Callback mit erkanntem Text
- * @param {(error: string) => void} onError - Callback bei Fehler
- * @returns {SpeechRecognition|null} Recognition-Instanz (zum Stoppen)
+ * Startet die Web Speech API fuer Spracheingabe.
  */
 export function startSpeechRecognition(onResult, onError) {
   const SpeechRecognition =
@@ -92,7 +72,7 @@ export function startSpeechRecognition(onResult, onError) {
 
   if (!SpeechRecognition) {
     onError(
-      "Web Speech API wird von diesem Browser nicht unterstützt. Bitte Chrome oder Edge verwenden."
+      "Web Speech API wird von diesem Browser nicht unterstuetzt. Bitte Chrome oder Edge verwenden."
     );
     return null;
   }
@@ -130,23 +110,16 @@ export function startSpeechRecognition(onResult, onError) {
 }
 
 /**
- * Bereinigt JSON-Antworten der KI (entfernt Markdown-Code-Blöcke).
- * Wird von allen KI-Komponenten für konsistentes Parsing verwendet.
- *
- * @param {string} rawText - Rohe KI-Antwort
- * @param {'array'|'object'} expectedType - Erwarteter JSON-Typ
- * @returns {string} Bereinigter JSON-String
+ * Bereinigt JSON-Antworten der KI (entfernt Markdown-Code-Bloecke).
  */
 export function cleanKiJsonResponse(rawText, expectedType = "array") {
   let cleaned = rawText.trim();
 
-  // Markdown-Code-Blöcke entfernen
   const codeBlockMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
   if (codeBlockMatch) {
     cleaned = codeBlockMatch[1];
   }
 
-  // JSON-Grenzen extrahieren
   if (expectedType === "array") {
     const first = cleaned.indexOf("[");
     const last = cleaned.lastIndexOf("]");

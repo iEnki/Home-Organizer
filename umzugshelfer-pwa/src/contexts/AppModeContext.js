@@ -70,6 +70,14 @@ export const AppModeProvider = ({ children }) => {
   // Umzugsplaner wieder aktivieren (z.B. erneuter Umzug)
   const aktiviereUmzug = () => {
     setUmzugDeaktiviert(false);
+    setAppMode("umzug");
+  };
+
+  // Nur den Sperr-Flag entfernen, Modus unverändert lassen.
+  // Wird von HomeModusSyncer genutzt wenn Admin umzug_deaktiviert=false setzt,
+  // damit Nicht-Admin-Mitglieder wieder in den Umzug-Modus wechseln können.
+  const clearUmzugDeaktiviert = () => {
+    setUmzugDeaktiviert(false);
   };
 
   return (
@@ -90,6 +98,7 @@ export const AppModeProvider = ({ children }) => {
         umzugDeaktiviert,
         deaktiviereUmzug,
         aktiviereUmzug,
+        clearUmzugDeaktiviert,
       }}
     >
       {children}

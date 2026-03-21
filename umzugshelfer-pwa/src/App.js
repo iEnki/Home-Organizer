@@ -7,7 +7,7 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom";
-import { supabase } from "./supabaseClient";
+import { supabase, setActiveHouseholdId } from "./supabaseClient";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AppModeProvider, useAppMode } from "./contexts/AppModeContext";
 import { ToastProvider } from "./hooks/useToast";
@@ -27,13 +27,13 @@ import HomeGlobalSuche      from "./components/home/HomeGlobalSuche";
 import HomeVorraete         from "./components/home/HomeVorraete";
 import HomeEinkaufliste     from "./components/home/HomeEinkaufliste";
 import HomeHaushaltsaufgaben from "./components/home/HomeHaushaltsaufgaben";
+import HomeBewohner         from "./components/home/HomeBewohner";
 import HomeGeraete          from "./components/home/HomeGeraete";
 import HomeBudget           from "./components/home/HomeBudget";
 import HomeProjekte         from "./components/home/HomeProjekte";
 import HomeOnboarding       from "./components/home/HomeOnboarding";
 import HomeVerlauf          from "./components/home/HomeVerlauf";
 import HomeWissen           from "./components/home/HomeWissen";
-import HomeBewohner         from "./components/home/HomeBewohner";
 
 // ── Umzugsplaner Komponenten ───────────────────────────────────────────────────
 import Dashboard            from "./components/Dashboard";
@@ -49,10 +49,12 @@ import RegisterPage         from "./components/RegisterPage";
 import UmzugsZeitstrahl     from "./components/UmzugsZeitstrahl";
 import DokumentenManager    from "./components/DokumentenManager";
 import UpdatePasswordPage   from "./components/UpdatePasswordPage";
+import ForcedPasswordChangeModal from "./components/ForcedPasswordChangeModal";
 import KostenVergleich      from "./components/KostenVergleich";
 import useErinnerungen      from "./hooks/useErinnerungen";
 import UserProfile          from "./components/UserProfile";
 import KalenderUebersicht   from "./components/KalenderUebersicht";
+import JoinHouseholdPage    from "./components/JoinHouseholdPage";
 
 // ── Feature-Landing-Pages (öffentlich) ────────────────────────────────────────
 import TodoListenFeaturePage      from "./components/featurepages/TodoListenFeaturePage";
@@ -86,12 +88,12 @@ const ROUTE_TITLES = {
   "/home/vorraete":     "Vorräte",
   "/home/einkaufliste": "Einkaufsliste",
   "/home/aufgaben":     "Aufgaben",
+  "/home/bewohner":     "Bewohner",
   "/home/geraete":      "Geräte",
   "/home/budget":       "Budget",
   "/home/projekte":     "Projekte",
   "/home/verlauf":      "Verlauf",
   "/home/wissen":       "Wissensdatenbank",
-  "/home/bewohner":     "Bewohner",
 };
 
 // ── Modus-bewusster Redirect nach Login ────────────────────────────────────────
@@ -105,61 +107,83 @@ const SmartRedirect = () => {
 };
 
 // ── Cross-Device Sync (Modus-Persistenz in Supabase) ──────────────────────────
-const HomeModusSyncer = ({ session }) => {
-  const { appMode, switchToHome, switchToUmzug, markOnboardingGezeigt, setModusGeladen, modusGeladen, deaktiviereUmzug } = useAppMode();
+const HomeModusSyncer = ({ session, householdContext }) => {
+  const { appMode, switchToHome, switchToUmzug, markOnboardingGezeigt, setModusGeladen, modusGeladen, deaktiviereUmzug, umzugDeaktiviert, clearUmzugDeaktiviert } = useAppMode();
   const navigate  = useNavigate();
   const location  = useLocation();
   const userId    = session?.user?.id;
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  // Einmalig beim Login: Modus + umzug_deaktiviert aus Supabase laden.
+  // Beim Login: Modus + umzug_deaktiviert einmalig aus Supabase laden.
   // setModusGeladen(true) gibt SmartRedirect und OnboardingGate frei.
+  //
+  // householdContext wird bei JEDER Navigation neu geladen (location.pathname-Dep
+  // in syncHouseholdContext). Um eine Race Condition zu verhindern — bei der ein
+  // noch nicht persistierter Moduswechsel durch den Re-Fetch überschrieben wird —
+  // wird der appMode nach dem Erstladen (modusGeladen=true) NICHT mehr aus der DB
+  // überschrieben. Nur das umzug_deaktiviert-Flag wird weiterhin synchronisiert,
+  // da es eine Admin-Entscheidung für alle Haushaltsmitglieder darstellt.
   useEffect(() => {
     if (!userId) return;
-    supabase
-      .from("user_profile")
-      .select("app_modus, umzug_deaktiviert")
-      .eq("id", userId)
-      .single()
-      .then(({ data }) => {
-        const umzugPfade = ["/dashboard", "/packliste", "/todo", "/budget",
-          "/contacts", "/dokumente", "/kalender", "/rechner", "/planung", "/zeitstrahl"];
+    if (!householdContext) {
+      setModusGeladen(false);
+      return;
+    }
 
-        if (data?.umzug_deaktiviert === true) {
-          // Umzugsplaner dauerhaft deaktiviert → immer Home-Modus
-          deaktiviereUmzug();
-          markOnboardingGezeigt();
-          if (umzugPfade.some(p => location.pathname.startsWith(p))) {
-            navigate("/home", { replace: true });
-          }
-        } else if (data?.app_modus === "home") {
-          switchToHome();
-          markOnboardingGezeigt();
-          // Zur Home-Startseite weiterleiten, falls auf Umzug-Dashboard gelandet
-          if (location.pathname === "/dashboard" || location.pathname === "/") {
-            navigate("/home", { replace: true });
-          }
-        } else if (data?.app_modus === "umzug") {
-          switchToUmzug();
-          markOnboardingGezeigt();
+    const data = householdContext;
+    const umzugPfade = ["/dashboard", "/packliste", "/todo", "/budget",
+      "/contacts", "/dokumente", "/kalender", "/rechner", "/planung", "/zeitstrahl"];
+    setIsAdmin(!!data?.is_admin);
+
+    if (modusGeladen) {
+      // Bereits geladen: appMode nicht überschreiben, nur umzug_deaktiviert-Flag prüfen
+      if (data?.umzug_deaktiviert === true) {
+        deaktiviereUmzug();
+        if (umzugPfade.some((p) => location.pathname.startsWith(p))) {
+          navigate("/home", { replace: true });
         }
-        setModusGeladen(true);
-      })
-      .catch(() => setModusGeladen(true)); // Bei Fehler freigeben damit App nicht hängt
-  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
+      } else if (data?.umzug_deaktiviert === false && umzugDeaktiviert) {
+        // Admin hat Sperre aufgehoben → lokales Flag entfernen
+        clearUmzugDeaktiviert();
+      }
+      return;
+    }
+
+    // Erstladen: Modus einmalig aus Supabase setzen
+    if (data?.umzug_deaktiviert === true) {
+      // Umzugsplaner dauerhaft deaktiviert → immer Home-Modus
+      deaktiviereUmzug();
+      markOnboardingGezeigt();
+      if (umzugPfade.some((p) => location.pathname.startsWith(p))) {
+        navigate("/home", { replace: true });
+      }
+    } else if (data?.app_modus === "home") {
+      switchToHome();
+      markOnboardingGezeigt();
+      // Zur Home-Startseite weiterleiten, falls auf Umzug-Dashboard gelandet
+      if (location.pathname === "/dashboard" || location.pathname === "/") {
+        navigate("/home", { replace: true });
+      }
+    } else if (data?.app_modus === "umzug") {
+      switchToUmzug();
+      markOnboardingGezeigt();
+    }
+    setModusGeladen(true);
+  }, [userId, householdContext]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Bei Modus-Änderung in Supabase persistieren —
   // aber erst nachdem der Modus aus Supabase geladen wurde (modusGeladen),
   // sonst überschreibt der localStorage-Startwert den gespeicherten Modus.
   useEffect(() => {
-    if (!userId || !modusGeladen) return;
-    supabase.from("user_profile").update({ app_modus: appMode }).eq("id", userId);
-  }, [appMode, userId, modusGeladen]);
+    if (!userId || !modusGeladen || !isAdmin) return;
+    supabase.rpc("set_household_app_mode", { p_app_modus: appMode, p_umzug_deaktiviert: umzugDeaktiviert });
+  }, [appMode, umzugDeaktiviert, userId, modusGeladen, isAdmin]);
 
   return null;
 };
 
 // ── Onboarding-Gate: Modusauswahl für neue Nutzer ──────────────────────────────
-const OnboardingGate = ({ session, children }) => {
+const OnboardingGate = ({ session, blockOnboarding = false, children }) => {
   const { onboardingGezeigt, modusGeladen, markOnboardingGezeigt, switchToHome, switchToUmzug } = useAppMode();
   const navigate = useNavigate();
 
@@ -169,7 +193,7 @@ const OnboardingGate = ({ session, children }) => {
     return children;
   }
 
-  if (session && !onboardingGezeigt && modusGeladen) {
+  if (session && !onboardingGezeigt && modusGeladen && !blockOnboarding) {
     return (
       <>
         {children}
@@ -186,7 +210,13 @@ const OnboardingGate = ({ session, children }) => {
 // ── Authenticated Layout Shell ─────────────────────────────────────────────────
 // Layout-Komponente für alle geschützten Routen.
 // Rendert Sidebar + Topbar + <Outlet /> (React Router v6 Nested Route Pattern).
-const AuthenticatedShell = ({ session, setSession }) => {
+const AuthenticatedShell = ({
+  session,
+  setSession,
+  householdContext,
+  passwordChangeRequired,
+  onPasswordChangeCompleted,
+}) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { appMode, toggleMode } = useAppMode();
@@ -197,10 +227,11 @@ const AuthenticatedShell = ({ session, setSession }) => {
 
   // Modus wechseln + automatisch zum passenden Dashboard navigieren
   const handleToggleMode = useCallback(() => {
+    if (householdContext && householdContext.is_admin === false) return;
     const next = appMode === "umzug" ? "home" : "umzug";
     toggleMode();
     navigate(next === "home" ? "/home" : "/dashboard");
-  }, [appMode, toggleMode, navigate]);
+  }, [appMode, toggleMode, navigate, householdContext]);
 
   const suchTimerRef  = useRef(null);
   const [suchbegriff,   setSuchbegriff]   = useState("");
@@ -280,7 +311,6 @@ const AuthenticatedShell = ({ session, setSession }) => {
       <Sidebar
         activeRoute={location.pathname}
         onNavigate={navigate}
-        onLogout={handleLogout}
         session={session}
         appMode={appMode}
         onToggleMode={handleToggleMode}
@@ -298,6 +328,7 @@ const AuthenticatedShell = ({ session, setSession }) => {
           onSearchResultClick={handleSuchErgebnisKlick}
           onNavigate={navigate}
           onOpenMobileSearch={() => setMobileSearchOpen(true)}
+          onLogout={handleLogout}
         />
         <main
           className="flex-grow relative z-[1]"
@@ -325,7 +356,6 @@ const AuthenticatedShell = ({ session, setSession }) => {
             onClose={() => setMobileMoreOpen(false)}
             onNavigate={navigate}
             onToggleMode={handleToggleMode}
-            onLogout={handleLogout}
           />
 
           <MobileSearchSheet
@@ -338,14 +368,24 @@ const AuthenticatedShell = ({ session, setSession }) => {
           />
         </>
       )}
+
+      <ForcedPasswordChangeModal
+        open={passwordChangeRequired}
+        onCompleted={onPasswordChangeCompleted}
+      />
     </div>
   );
 };
 
 // ── Haupt-App ──────────────────────────────────────────────────────────────────
 function App() {
+  const location = useLocation();
   const [session,     setSession]     = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
+  const [householdContext, setHouseholdContext] = useState(null);
+  const [householdLoading, setHouseholdLoading] = useState(false);
+  const [passwordChangeRequired, setPasswordChangeRequired] = useState(false);
+  const [passwordFlagLoading, setPasswordFlagLoading] = useState(false);
   useErinnerungen(session?.user?.id);
 
   useEffect(() => {
@@ -371,6 +411,83 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncHouseholdContext = async () => {
+      if (!session?.user?.id) {
+        setActiveHouseholdId(null);
+        setHouseholdContext(null);
+        setHouseholdLoading(false);
+        return;
+      }
+
+      setHouseholdLoading(true);
+
+      const loadContext = async () => {
+        const { data } = await supabase.rpc("get_household_context");
+        return Array.isArray(data) ? data[0] : data;
+      };
+
+      let ctx = null;
+      const searchParams = new URLSearchParams(location.search);
+      const tokenInCurrentUrl =
+        location.pathname === "/join-household" && !!searchParams.get("token");
+      const nextPath = searchParams.get("next") || "";
+      const joinViaNextPath = nextPath.startsWith("/join-household");
+      const shouldSkipAutoCreate = tokenInCurrentUrl || joinViaNextPath;
+
+      try {
+        ctx = await loadContext();
+        if (!ctx?.household_id && !shouldSkipAutoCreate) {
+          await supabase.rpc("create_household", { p_name: null });
+          ctx = await loadContext();
+        }
+      } catch (_err) {
+        ctx = null;
+      }
+
+      if (cancelled) return;
+      setHouseholdContext(ctx || null);
+      setActiveHouseholdId(ctx?.household_id || null);
+      setHouseholdLoading(false);
+    };
+
+    syncHouseholdContext();
+    return () => { cancelled = true; };
+  }, [session?.user?.id, location.pathname, location.search]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPasswordFlag = async () => {
+      if (!session?.user?.id) {
+        setPasswordChangeRequired(false);
+        setPasswordFlagLoading(false);
+        return;
+      }
+
+      setPasswordFlagLoading(true);
+      try {
+        const { data } = await supabase
+          .from("user_profile")
+          .select("password_change_required")
+          .eq("id", session.user.id)
+          .single();
+
+        if (cancelled) return;
+        setPasswordChangeRequired(data?.password_change_required === true);
+      } catch (_err) {
+        if (!cancelled) setPasswordChangeRequired(false);
+      } finally {
+        if (!cancelled) setPasswordFlagLoading(false);
+      }
+    };
+
+    loadPasswordFlag();
+    return () => { cancelled = true; };
+  }, [session?.user?.id, location.pathname]);
+
   // ── Lade-Screen ──────────────────────────────────────────────────────────────
   const loadingScreen = (
     <div className="text-center py-20 text-dark-text-main">
@@ -385,14 +502,29 @@ function App() {
     ? loadingScreen
     : !session
     ? <Navigate to="/login" replace />
-    : <AuthenticatedShell session={session} setSession={setSession} />;
+    : householdLoading
+    ? loadingScreen
+    : passwordFlagLoading
+    ? loadingScreen
+    : (
+      <AuthenticatedShell
+        session={session}
+        setSession={setSession}
+        householdContext={householdContext}
+        passwordChangeRequired={passwordChangeRequired}
+        onPasswordChangeCompleted={() => setPasswordChangeRequired(false)}
+      />
+    );
 
   return (
     <ToastProvider>
     <ThemeProvider>
       <AppModeProvider>
-        <HomeModusSyncer session={session} />
-        <OnboardingGate session={session}>
+        <HomeModusSyncer session={session} householdContext={householdContext} />
+        <OnboardingGate
+          session={session}
+          blockOnboarding={passwordFlagLoading || passwordChangeRequired}
+        >
           <Routes>
             {/* ── Öffentliche Routen (ohne Shell) ─────────────────────────────── */}
             <Route path="/login"           element={<HomePage setSession={setSession} />} />
@@ -406,6 +538,7 @@ function App() {
               <HomePage setSession={setSession} />
             } />
             <Route path="/update-password" element={<UpdatePasswordPage />} />
+            <Route path="/join-household"  element={<JoinHouseholdPage session={session} />} />
 
             {/* Feature-Landing-Pages */}
             <Route path="/features/todo-listen"        element={<TodoListenFeaturePage />} />
@@ -440,16 +573,16 @@ function App() {
               <Route path="/home/vorraete"     element={<HomeVorraete session={session} />} />
               <Route path="/home/einkaufliste" element={<HomeEinkaufliste session={session} />} />
               <Route path="/home/aufgaben"     element={<HomeHaushaltsaufgaben session={session} />} />
+              <Route path="/home/bewohner"     element={<HomeBewohner session={session} />} />
               <Route path="/home/geraete"      element={<HomeGeraete session={session} />} />
               <Route path="/home/budget"       element={<HomeBudget session={session} />} />
               <Route path="/home/projekte"     element={<HomeProjekte session={session} />} />
               <Route path="/home/verlauf"      element={<HomeVerlauf session={session} />} />
               <Route path="/home/wissen"       element={<HomeWissen session={session} />} />
-              <Route path="/home/bewohner"     element={<HomeBewohner session={session} />} />
 
               {/* Übergreifend */}
               <Route path="/kalender" element={<KalenderUebersicht session={session} />} />
-              <Route path="/profil"   element={<UserProfile session={session} />} />
+              <Route path="/profil"   element={<UserProfile session={session} householdContext={householdContext} />} />
             </Route>
 
             {/* ── Fallback ─────────────────────────────────────────────────────── */}
