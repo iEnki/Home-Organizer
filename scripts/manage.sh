@@ -327,6 +327,11 @@ modus_restore() {
   header "Datenbank wiederherstellen"
   echo ""
 
+  if [[ "$IS_VOLLSTACK" != "true" ]]; then
+    warn "Wiederherstellung nur für Vollstack-Installation verfügbar (supabase-db Container erforderlich)."
+    weiter; return 0
+  fi
+
   if [[ ! -d "backups" ]] || ! ls -d backups/backup_* >/dev/null 2>&1; then
     warn "Keine Backups gefunden unter backups/. Bitte zuerst ein Backup erstellen (Option [4])."
     weiter; return 0
@@ -361,45 +366,86 @@ modus_restore() {
   fi
 
   echo ""
-  warn "ACHTUNG: Die bestehende Datenbank wird überschrieben!"
+  warn "ACHTUNG: Die bestehende Datenbank und Konfiguration werden vollständig überschrieben!"
   warn "Backup:  ${SELECTED_BACKUP}"
   echo ""
   read -p "  Fortfahren? [j/N]: " CONFIRM
   [[ "${CONFIRM,,}" != "j" && "${CONFIRM,,}" != "y" ]] && { echo "  Abgebrochen."; return 0; }
 
+  # 1) Alle Container stoppen
+  info "Stoppe alle Container..."
+  set +e
+  docker compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null
+  set -e
+
+  # 2) Konfigurationsdateien automatisch wiederherstellen
   if [[ -f "${SELECTED_BACKUP}/.env" ]]; then
-    echo ""
-    read -p "  .env aus Backup wiederherstellen? [j/N]: " RESTORE_ENV
-    if [[ "${RESTORE_ENV,,}" == "j" || "${RESTORE_ENV,,}" == "y" ]]; then
-      cp "${SELECTED_BACKUP}/.env" .env
-      success ".env aus Backup wiederhergestellt."
-    fi
+    cp "${SELECTED_BACKUP}/.env" .env
+    success ".env aus Backup wiederhergestellt."
+  else
+    warn ".env nicht im Backup gefunden — bestehende .env wird verwendet."
+  fi
+  if [[ -f "${SELECTED_BACKUP}/credentials.txt" ]]; then
+    cp "${SELECTED_BACKUP}/credentials.txt" CREDENTIALS.txt
+    success "CREDENTIALS.txt aus Backup wiederhergestellt."
   fi
 
-  if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^supabase-db$"; then
-    info "Container 'supabase-db' läuft nicht. Starte Container..."
-    set +e; docker compose -f "$COMPOSE_FILE" up -d; set -e
-    info "Warte auf Datenbankbereitschaft..."
-    local RETRIES=24
-    until docker exec supabase-db pg_isready -U postgres -h localhost >/dev/null 2>&1 || [[ $RETRIES -eq 0 ]]; do
-      echo -n "."; sleep 5; RETRIES=$((RETRIES - 1))
-    done
-    echo ""
-    if [[ $RETRIES -eq 0 ]]; then
-      warn "Datenbank antwortet nicht. Bitte Container manuell prüfen."
-      weiter; return 0
-    fi
+  # 3) Nur Datenbank-Container starten
+  info "Starte Datenbank-Container..."
+  set +e; docker compose -f "$COMPOSE_FILE" up -d db; set -e
+
+  # 4) Auf Datenbankbereitschaft warten (max. 2 Minuten)
+  info "Warte auf Datenbankbereitschaft..."
+  local RETRIES=24
+  until docker exec supabase-db pg_isready -U postgres -h localhost >/dev/null 2>&1 || [[ $RETRIES -eq 0 ]]; do
+    echo -n "."; sleep 5; RETRIES=$((RETRIES - 1))
+  done
+  echo ""
+  if [[ $RETRIES -eq 0 ]]; then
+    warn "Datenbank antwortet nicht. Bitte Container manuell prüfen."
+    weiter; return 0
   fi
 
+  # 5) Datenbank wiederherstellen
   info "Kopiere Backup in Container..."
   docker cp "${SELECTED_BACKUP}/db.dump" supabase-db:/tmp/restore.dump
 
-  info "Stelle Datenbank wieder her (pg_restore --clean --if-exists)..."
-  docker exec supabase-db pg_restore -U postgres -d postgres --clean --if-exists /tmp/restore.dump
+  info "Stelle Datenbank wieder her (pg_restore --clean --if-exists --no-owner)..."
+  set +e
+  docker exec supabase-db pg_restore -U postgres -d postgres \
+    --clean --if-exists --no-owner /tmp/restore.dump
+  local PG_EXIT=$?
+  set -e
   docker exec supabase-db rm -f /tmp/restore.dump
 
+  if [[ $PG_EXIT -ne 0 ]]; then
+    warn "pg_restore meldete Fehler (Exit ${PG_EXIT}) — häufig harmlose Warnungen bei --clean. Fortfahren..."
+  fi
+
+  # 6) Trigger-Funktionen sicherstellen
+  info "Stelle Datenbank-Hilfsfunktionen sicher..."
+  ensure_updated_at_functions
+
+  # 7) Edge Functions in Volumes deployen
+  info "Deploye Edge Functions in Volumes..."
+  deploy_edge_functions_to_volumes
+
+  # 8) Alle Container starten
+  info "Starte alle Container..."
+  set +e; docker compose -f "$COMPOSE_FILE" up -d; set -e
+
+  # 9) Functions-Container neu starten, damit neue Functions geladen werden
+  if [[ ${DEPLOYED:-0} -gt 0 ]]; then
+    info "Starte Functions-Container neu..."
+    docker compose -f "$COMPOSE_FILE" restart functions 2>/dev/null || true
+  fi
+
+  local APP_URL_NOW
+  APP_URL_NOW="$(env_get "SITE_URL")"
+
   echo ""
-  success "Datenbank erfolgreich wiederhergestellt aus: ${SELECTED_BACKUP}"
+  success "Wiederherstellung abgeschlossen aus: ${SELECTED_BACKUP}"
+  [[ -n "$APP_URL_NOW" ]] && echo -e "  App erreichbar unter: ${CYAN}${APP_URL_NOW}${NC}"
   weiter
 }
 
