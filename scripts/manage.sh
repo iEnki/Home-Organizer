@@ -1458,11 +1458,11 @@ MAILER_URLPATHS_EMAIL_CHANGE=/auth/v1/verify
 
 # SMTP
 SMTP_ADMIN_EMAIL=${ADMIN_EMAIL}
-SMTP_HOST=${SMTP_HOST_VAL}
-SMTP_PORT=${SMTP_PORT_VAL}
-SMTP_USER=${SMTP_USER_VAL}
-SMTP_PASS=${SMTP_PASS_VAL}
-SMTP_SENDER_NAME=${SMTP_SENDER_VAL}
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASS=
+SMTP_SENDER_NAME=Umzughelfer
 
 # VAPID (Push-Notifications)
 VAPID_SUBJECT=mailto:${ADMIN_EMAIL}
@@ -1520,6 +1520,17 @@ APPONLY_ENV
   fi
 
   success ".env geschrieben."
+
+  # SMTP-Werte via env_set schreiben — sicher gegen Sonderzeichen im Passwort (Heredoc würde $, `` etc. expandieren)
+  if [[ "$INSTALL_MODE" == "vollstack" && ( "${DO_SMTP_NOW,,}" == "j" || "${DO_SMTP_NOW,,}" == "y" ) ]]; then
+    env_set "SMTP_HOST"                "$SMTP_HOST_VAL"
+    env_set "SMTP_PORT"                "$SMTP_PORT_VAL"
+    env_set "SMTP_USER"                "$SMTP_USER_VAL"
+    env_set "SMTP_PASS"                "$SMTP_PASS_VAL"
+    env_set "SMTP_SENDER_NAME"         "$SMTP_SENDER_VAL"
+    env_set "ENABLE_EMAIL_AUTOCONFIRM" "false"
+    success "SMTP-Konfiguration in .env gespeichert."
+  fi
 
   # ---- Schritt 6: Docker bauen und starten ----
   header "Schritt 6: Docker Container starten"
