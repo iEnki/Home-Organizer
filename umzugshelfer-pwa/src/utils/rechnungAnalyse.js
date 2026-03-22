@@ -62,6 +62,11 @@ const OBERGRUPPE_TO_MODUL = {
   gartengeraet_elektrisch: "geraete",
   klimageraet: "geraete",
   audio_hifi: "geraete",
+  // Dienstleistung / Handwerker → Budget (kein Modul-Vorschlag ausser Budget)
+  dienstleistung: "budget",
+  arbeitszeit: "budget",
+  material: "budget",
+  anfahrt: "budget",
 };
 
 /**
@@ -220,25 +225,44 @@ const HAENDLER_HINTS = {
 // KI-Prompt fuer Vision / Text-Analyse
 // ============================================================
 
-const KI_RECHNUNG_PROMPT = `Du bist ein Rechnungs-Analyse-Assistent. Extrahiere alle Daten aus dieser Rechnung und gib ausschliesslich ein JSON-Objekt zurueck (kein Markdown, keine Erklaerungen):
+const KI_RECHNUNG_PROMPT = `Du bist ein Rechnungs-Analyse-Assistent fuer deutsche Rechnungen. Extrahiere alle Daten und gib ausschliesslich ein JSON-Objekt zurueck (kein Markdown, keine Erklaerungen).
+
+Unterstuetzte Rechnungstypen: Einzelhandel (Kassenbon), Handwerker, Dienstleistung, Online-Shop, Abonnement.
+Dezimalkomma (DE) in Dezimalpunkt umrechnen. Alle Datumsfelder als YYYY-MM-DD. Unbekannte Felder auf null.
 
 {
-  "haendler": "Name des Haendlers oder null",
-  "datum": "YYYY-MM-DD oder null",
-  "gesamt": 49.99,
+  "haendler": "Traditionsname / Firmenname oder null",
+  "rechnungsnummer": "Rechnungs- oder Belegnummer oder null",
+  "datum": "Rechnungsdatum YYYY-MM-DD oder null",
+  "leistungsdatum": "Leistungs- oder Lieferdatum YYYY-MM-DD (falls abweichend) oder null",
+  "zahlbar_bis": "Faelligkeitsdatum YYYY-MM-DD oder null",
+  "zahlungsziel_text": "z.B. 'zahlbar innerhalb 14 Tagen' oder null",
+  "waehrung": "EUR",
+  "lieferant": {
+    "name": "Vollstaendiger Firmenname",
+    "anschrift": "Strasse, PLZ Ort oder null",
+    "ust_id": "USt-IdNr z.B. DE123456789 oder null"
+  },
+  "netto": 42.00,
+  "ust_satz": 19.0,
+  "ust_betrag": 7.98,
+  "gesamt": 49.98,
   "positionen": [
     {
-      "name": "Produktname wie auf Rechnung",
+      "pos_nr": 1,
+      "name": "Positionsbezeichnung wie auf Rechnung",
       "menge": 1,
+      "einheit": "Stk | h | m | kg | pauschal oder null",
       "einzelpreis": 9.99,
       "gesamtpreis": 9.99,
-      "obergruppe": "eine der folgenden: lebensmittel | getraenke | koerperpflege | hygieneartikel | haushaltsreiniger | waschmittel | geschirrspuelmittel | papierprodukte | moebel | dekoration | beleuchtung | aufbewahrung | textilien | geschirr_besteck | kochutensilien | wohnaccessoires | grossgeraet_kueche | grossgeraet_wasche | unterhaltungselektronik | computer_technik | haushaltsgeraet_elektrisch | reinigungsgeraet_elektrisch | therme_heizung | smart_home_geraet | drucker_scanner | werkzeug_klein | sonstiges",
+      "ust_satz": 19.0,
+      "obergruppe": "eine der folgenden: lebensmittel | getraenke | koerperpflege | hygieneartikel | haushaltsreiniger | waschmittel | geschirrspuelmittel | papierprodukte | moebel | dekoration | beleuchtung | aufbewahrung | textilien | geschirr_besteck | kochutensilien | wohnaccessoires | grossgeraet_kueche | grossgeraet_wasche | unterhaltungselektronik | computer_technik | haushaltsgeraet_elektrisch | reinigungsgeraet_elektrisch | therme_heizung | smart_home_geraet | drucker_scanner | werkzeug_klein | dienstleistung | arbeitszeit | material | anfahrt | sonstiges",
       "confidence": 0.91
     }
-  ]
-}
-
-Verwende Dezimalpunkte fuer Zahlen. Setze unbekannte Felder auf null.`;
+  ],
+  "confidence": 0.85,
+  "raw_hinweis": "optionale Anmerkung zu Unsicherheiten oder null"
+}`;
 
 // ============================================================
 // Hilfsfunktionen
@@ -547,7 +571,7 @@ async function ladeTesseract() {
   if (window.Tesseract?.createWorker) return window.Tesseract;
   return new Promise((resolve, reject) => {
     const s = document.createElement("script");
-    s.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+    s.src = "https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js";
     s.onload = () =>
       window.Tesseract?.createWorker
         ? resolve(window.Tesseract)
@@ -566,9 +590,9 @@ async function analyzeWithOCRRules(base64OrText, hatText) {
   if (!hatText) {
     const Tesseract = await ladeTesseract();
     const worker = await Tesseract.createWorker(["deu", "eng"], 1, {
-      workerPath: "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js",
+      workerPath: "https://unpkg.com/tesseract.js@5.1.1/dist/worker.min.js",
       langPath: "https://tessdata.projectnaptha.com/4.0.0",
-      corePath: "https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js",
+      corePath: "https://unpkg.com/tesseract.js-core@5/tesseract-core.wasm.js",
     });
     const { data: { text } } = await worker.recognize(
       `data:image/jpeg;base64,${base64OrText}`
@@ -593,9 +617,9 @@ async function analyzeWithOCROllama(file, kiClient) {
   } else {
     const Tesseract = await ladeTesseract();
     const worker = await Tesseract.createWorker(["deu", "eng"], 1, {
-      workerPath: "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js",
+      workerPath: "https://unpkg.com/tesseract.js@5.1.1/dist/worker.min.js",
       langPath: "https://tessdata.projectnaptha.com/4.0.0",
-      corePath: "https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js",
+      corePath: "https://unpkg.com/tesseract.js-core@5/tesseract-core.wasm.js",
     });
     const { data: { text } } = await worker.recognize(
       `data:${file.type};base64,${base64}`
@@ -682,6 +706,7 @@ export async function starteAnalyse(file, modus, { kiClient, session } = {}) {
   const erkannteModule = ermittleErkannteModule(positionen);
 
   return {
+    // Bestandsfelder (abwaertskompatibel)
     haendler: roherAnalyse.haendler,
     datum: roherAnalyse.datum,
     gesamt: roherAnalyse.gesamt,
@@ -689,5 +714,17 @@ export async function starteAnalyse(file, modus, { kiClient, session } = {}) {
     roher_text: roherAnalyse.roher_text || "",
     confidence: roherAnalyse.confidence || 0.5,
     erkannte_module: erkannteModule,
+    // Neue strukturierte Rechnungsfelder
+    rechnungsnummer: roherAnalyse.rechnungsnummer || null,
+    rechnungsdatum: roherAnalyse.datum || null,
+    leistungsdatum: roherAnalyse.leistungsdatum || null,
+    faellig_am: roherAnalyse.zahlbar_bis || null,
+    zahlungsziel_text: roherAnalyse.zahlungsziel_text || null,
+    waehrung: roherAnalyse.waehrung || "EUR",
+    lieferant: roherAnalyse.lieferant || { name: roherAnalyse.haendler || null },
+    netto: roherAnalyse.netto || null,
+    ust: roherAnalyse.ust_betrag || null,
+    ust_satz: roherAnalyse.ust_satz || null,
+    brutto: roherAnalyse.gesamt || null,
   };
 }

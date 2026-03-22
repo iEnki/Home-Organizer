@@ -35,6 +35,7 @@ import HomeProjekte         from "./components/home/HomeProjekte";
 import HomeOnboarding       from "./components/home/HomeOnboarding";
 import HomeVerlauf          from "./components/home/HomeVerlauf";
 import HomeWissen           from "./components/home/HomeWissen";
+import HomeDokumente        from "./components/home/HomeDokumente";
 
 // ── Umzugsplaner Komponenten ───────────────────────────────────────────────────
 import Dashboard            from "./components/Dashboard";
@@ -96,6 +97,7 @@ const ROUTE_TITLES = {
   "/home/verlauf":      "Verlauf",
   "/home/wissen":            "Wissensdatenbank",
   "/home/rechnung-scannen": "Rechnung scannen",
+  "/home/dokumente":        "Dokumentenarchiv",
 };
 
 // ── Modus-bewusster Redirect nach Login ────────────────────────────────────────
@@ -582,6 +584,7 @@ function App() {
               <Route path="/home/verlauf"      element={<HomeVerlauf session={session} />} />
               <Route path="/home/wissen"            element={<HomeWissen session={session} />} />
               <Route path="/home/rechnung-scannen" element={<HomeRechnungScannen session={session} />} />
+              <Route path="/home/dokumente"        element={<HomeDokumente session={session} />} />
 
               {/* Übergreifend */}
               <Route path="/kalender" element={<KalenderUebersicht session={session} />} />

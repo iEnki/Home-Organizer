@@ -38,6 +38,10 @@ const SHARED_TABLES = new Set([
   "vorraete",
   "projekte",
   "geraete",
+  // Rechnungsscan-Pipeline
+  "rechnungen",
+  "rechnungs_positionen",
+  "dokument_links",
 ]);
 
 let activeHouseholdId =
