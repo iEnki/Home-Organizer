@@ -588,8 +588,8 @@ function App() {
               <Route path="/home/wissen"            element={<HomeWissen session={session} />} />
               <Route path="/home/rechnung-scannen" element={<HomeRechnungScannen session={session} />} />
               <Route path="/home/dokumente"        element={<HomeDokumente session={session} />} />
-              <Route path="/home/vertraege"        element={<HomeVertraege session={session} />} />
-              <Route path="/home/versicherungen"   element={<HomeVersicherungen session={session} />} />
+              <Route path="/home/vertraege"        element={<Navigate to="/home/dokumente?filter=Vertrag" replace />} />
+              <Route path="/home/versicherungen"   element={<Navigate to="/home/dokumente?filter=Versicherung" replace />} />
 
               {/* Übergreifend */}
               <Route path="/kalender" element={<KalenderUebersicht session={session} />} />
