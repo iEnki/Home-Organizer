@@ -259,7 +259,15 @@ Deno.serve(async (req: Request) => {
       // Update
       const { error } = await supabaseAdmin
         .from("home_wissen")
-        .update({ titel, inhalt, tags, rechnung_id: rechnungId })
+        .update({
+          titel,
+          inhalt,
+          tags,
+          kategorie:   "Rechnungen & Belege",
+          dokument_id,
+          rechnung_id: rechnungId,
+          herkunft:    "auto_full",
+        })
         .eq("id", vorhandenes.id);
       wissenErr = error;
       wissenId = vorhandenes.id;
@@ -276,6 +284,7 @@ Deno.serve(async (req: Request) => {
           tags,
           dokument_id,
           rechnung_id:  rechnungId,
+          herkunft:     "auto_full",
         })
         .select("id")
         .single();
