@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect, useCallback } from "react";
 import { CheckSquare, Plus, Trash2, X, Check, Loader2, RefreshCw, AlertCircle, Sparkles } from "lucide-react";
+import MobileFab from "../ui/MobileFab";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../../supabaseClient";
 import KiHomeAssistent from "./KiHomeAssistent";
@@ -177,6 +178,13 @@ const HomeHaushaltsaufgaben = ({ session }) => {
     ladeDaten();
   };
 
+  const loescheAlleErledigt = async () => {
+    if (!window.confirm(`${erledigt.length} erledigte Aufgabe(n) löschen?`)) return;
+    const ids = erledigt.map((a) => a.id);
+    await supabase.from("todo_aufgaben").delete().in("id", ids);
+    ladeDaten();
+  };
+
   const prioritaetFarbe = (p) => {
     if (p === "Hoch") return "text-red-500";
     if (p === "Mittel") return "text-amber-500";
@@ -306,7 +314,15 @@ const HomeHaushaltsaufgaben = ({ session }) => {
 
           {erledigt.length > 0 && (
             <div>
-              <h2 className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider mb-2">Erledigt ({erledigt.length})</h2>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider">Erledigt ({erledigt.length})</h2>
+                <button
+                  onClick={loescheAlleErledigt}
+                  className="flex items-center gap-1 px-2 py-1 text-xs text-red-500 hover:bg-red-500/10 rounded-card-sm transition-colors"
+                >
+                  <Trash2 size={11} /> Alle löschen
+                </button>
+              </div>
               <div className="space-y-2">
                 {erledigt.slice(0, 5).map((a) => (
                   <div key={a.id} className="flex items-center gap-3 bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border p-3 opacity-60 group">
@@ -323,6 +339,10 @@ const HomeHaushaltsaufgaben = ({ session }) => {
           )}
         </div>
       )}
+
+      <MobileFab onClick={() => setModal({})} title="Neue Aufgabe">
+        <Plus size={22} />
+      </MobileFab>
 
       {modal !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-safe bg-black/60 backdrop-blur-sm">

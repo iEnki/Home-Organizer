@@ -411,11 +411,10 @@ const HomeInventar = ({ session }) => {
           </button>
           <button
             onClick={() => setModal({ typ: "ort", daten: null })}
-            className="flex items-center gap-1.5 px-3 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-pill text-sm font-medium transition-colors"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-pill text-sm font-medium transition-colors"
           >
             <Plus size={15} />
-            <span className="hidden sm:inline">Neuer Standort</span>
-            <span className="sm:hidden">Standort</span>
+            Neuer Standort
           </button>
         </div>
       </div>

@@ -78,6 +78,13 @@ const MODUL_ICON = {
   dokumente: "📄",
 };
 
+const AKTION_LABEL = {
+  erstellt:     "erstellt",
+  geaendert:    "geändert",
+  geloescht:    "gelöscht",
+  aktualisiert: "aktualisiert",
+};
+
 // ── Animated progress bar ────────────────────────────────────────────────────
 const AnimBar = ({ ratio, color = "bg-primary-500" }) => (
   <div className="h-2 w-full bg-light-border dark:bg-dark-border rounded-full overflow-hidden">
@@ -249,7 +256,7 @@ const HomeDashboard = ({ session }) => {
       // ── Verlauf (silent fail) ──
       supabase
         .from("home_verlauf")
-        .select("aktion, created_at, tabelle")
+        .select("aktion, created_at, tabelle, datensatz_name")
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(6)
@@ -740,7 +747,8 @@ const HomeDashboard = ({ session }) => {
                   {MODUL_ICON[v.tabelle] || "📝"}
                 </span>
                 <span className="text-xs text-light-text-main dark:text-dark-text-main flex-1 truncate">
-                  {v.aktion}
+                  {v.datensatz_name && <span className="font-medium">{v.datensatz_name} </span>}
+                  {AKTION_LABEL[v.aktion] || v.aktion}
                 </span>
                 <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary flex-shrink-0">
                   {relativeZeit(v.created_at)}

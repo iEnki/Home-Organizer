@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   FileText, FolderOpen, Upload, Download, Trash2, BookOpen,
   Search, X, Plus, CheckCircle, File, Loader2, AlertTriangle, Eye,
-  ScanLine,
+  ScanLine, Edit2,
 } from "lucide-react";
 import DokumentVorschauModal from "./DokumentVorschauModal";
 import { supabase } from "../../supabaseClient";
@@ -380,8 +380,94 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
   );
 };
 
+// ── Rechnungs-Edit-Modal ───────────────────────────────────────────────────────
+const RechnungsEditModal = ({ dokId, onSchliessen, onErfolgreich }) => {
+  const [form, setForm] = useState({ lieferant_name: "", rechnungsnummer: "", rechnungsdatum: "", brutto: "" });
+  const [laden, setLaden] = useState(true);
+  const [speichern, setSpeichern] = useState(false);
+  const [fehler, setFehler] = useState("");
+
+  useEffect(() => {
+    supabase.from("rechnungen").select("lieferant_name, rechnungsnummer, rechnungsdatum, brutto").eq("dokument_id", dokId).maybeSingle().then(({ data }) => {
+      if (data) setForm({
+        lieferant_name: data.lieferant_name || "",
+        rechnungsnummer: data.rechnungsnummer || "",
+        rechnungsdatum: data.rechnungsdatum || "",
+        brutto: data.brutto != null ? String(data.brutto) : "",
+      });
+      setLaden(false);
+    });
+  }, [dokId]);
+
+  const handleSpeichern = async () => {
+    setSpeichern(true);
+    setFehler("");
+    try {
+      const { error } = await supabase.from("rechnungen").update({
+        lieferant_name: form.lieferant_name || null,
+        rechnungsnummer: form.rechnungsnummer || null,
+        rechnungsdatum: form.rechnungsdatum || null,
+        brutto: form.brutto !== "" ? parseFloat(form.brutto) : null,
+      }).eq("dokument_id", dokId);
+      if (error) throw error;
+      onErfolgreich();
+    } catch (err) {
+      setFehler(`Fehler: ${err.message}`);
+    } finally {
+      setSpeichern(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 pb-safe bg-black/60 backdrop-blur-sm">
+      <div className="bg-light-card-bg dark:bg-canvas-2 w-full max-w-md rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 max-h-[90dvh] flex flex-col">
+        <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-light-border dark:border-dark-border">
+          <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
+            <Edit2 size={16} className="text-blue-500" /> Rechnung bearbeiten
+          </h3>
+          <button onClick={onSchliessen} className="w-8 h-8 flex items-center justify-center rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+          {laden ? (
+            <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-light-text-secondary dark:text-dark-text-secondary" /></div>
+          ) : (
+            <>
+              <div>
+                <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Lieferant</label>
+                <input value={form.lieferant_name} onChange={(e) => setForm((p) => ({ ...p, lieferant_name: e.target.value }))} placeholder="z.B. Supermarkt GmbH" className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Rechnungsnummer</label>
+                <input value={form.rechnungsnummer} onChange={(e) => setForm((p) => ({ ...p, rechnungsnummer: e.target.value }))} placeholder="z.B. RE-2024-001" className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Rechnungsdatum</label>
+                <input type="date" value={form.rechnungsdatum} onChange={(e) => setForm((p) => ({ ...p, rechnungsdatum: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Brutto (€)</label>
+                <input type="number" step="0.01" value={form.brutto} onChange={(e) => setForm((p) => ({ ...p, brutto: e.target.value }))} placeholder="0.00" className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-blue-500" />
+              </div>
+              {fehler && <p className="text-xs text-red-500">{fehler}</p>}
+            </>
+          )}
+        </div>
+        <div className="shrink-0 border-t border-light-border dark:border-dark-border px-4 py-3 flex gap-2">
+          <button onClick={onSchliessen} className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main">Abbrechen</button>
+          <button onClick={handleSpeichern} disabled={laden || speichern} className="flex-1 px-3 py-2 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-pill disabled:opacity-50 flex items-center justify-center gap-2">
+            {speichern ? <Loader2 size={14} className="animate-spin" /> : <Edit2 size={14} />}
+            Speichern
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── Dokument-Karte ─────────────────────────────────────────────────────────────
-const DokumentKarte = ({ dok, onDownload, onLoeschen, onWissen, onVorschau, onAnalyseStarten, laedtDownload }) => {
+const DokumentKarte = ({ dok, onDownload, onLoeschen, onWissen, onVorschau, onAnalyseStarten, onRechnungBearbeiten, laedtDownload }) => {
   const kat = effektiveKategorie(dok);
   const katFarbe = KATEGORIE_FARBEN[kat] || KATEGORIE_FARBEN.Sonstiges;
   const beschreibungOhneHinweis = dok.beschreibung?.replace(/\s*\[[^\]]+\]$/, "") || "";
@@ -471,13 +557,21 @@ const DokumentKarte = ({ dok, onDownload, onLoeschen, onWissen, onVorschau, onAn
         </div>
       </div>
 
-      <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-light-border dark:border-dark-border">
+      <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-light-border dark:border-dark-border flex-wrap">
         <button
           onClick={() => onVorschau(dok)}
           className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-canvas-3 dark:bg-canvas-3 text-dark-text-main hover:bg-canvas-4 transition-colors"
         >
           <Eye size={12} /> Anzeigen
         </button>
+        {kat === "Rechnung" && onRechnungBearbeiten && (
+          <button
+            onClick={() => onRechnungBearbeiten(dok)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-colors"
+          >
+            <Edit2 size={12} /> Rechnung
+          </button>
+        )}
         <button
           onClick={() => onDownload(dok.storage_pfad, dok.dateiname)}
           disabled={laedtDownload}
@@ -518,6 +612,7 @@ const HomeDokumente = ({ session }) => {
   const [wissenErfolgreich, setWissenErfolgreich] = useState(false);
   const [kategorieFilter, setKategorieFilter] = useState("Alle");
   const [suchbegriff, setSuchbegriff] = useState("");
+  const [rechnungsEditDok, setRechnungsEditDok] = useState(null);
 
   // URL-Filter (z.B. von /home/vertraege oder /home/versicherungen Redirect)
   useEffect(() => {
@@ -752,6 +847,7 @@ const HomeDokumente = ({ session }) => {
               onWissen={setWissenModalDok}
               onVorschau={(d) => setVorschauDok({ storagePfad: d.storage_pfad, dateiname: d.dateiname, datei_typ: d.datei_typ })}
               onAnalyseStarten={handleAnalyseStarten}
+              onRechnungBearbeiten={setRechnungsEditDok}
               laedtDownload={laedtDownload}
             />
           ))}
@@ -772,6 +868,13 @@ const HomeDokumente = ({ session }) => {
           userId={userId}
           onSchliessen={() => setWissenModalDok(null)}
           onErfolgreich={handleWissensErfolg}
+        />
+      )}
+      {rechnungsEditDok && (
+        <RechnungsEditModal
+          dokId={rechnungsEditDok.id}
+          onSchliessen={() => setRechnungsEditDok(null)}
+          onErfolgreich={() => { setRechnungsEditDok(null); toast.success("Rechnung aktualisiert."); }}
         />
       )}
       {vorschauDok && (
