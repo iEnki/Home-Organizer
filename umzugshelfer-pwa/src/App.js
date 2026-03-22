@@ -36,6 +36,8 @@ import HomeOnboarding       from "./components/home/HomeOnboarding";
 import HomeVerlauf          from "./components/home/HomeVerlauf";
 import HomeWissen           from "./components/home/HomeWissen";
 import HomeDokumente        from "./components/home/HomeDokumente";
+import HomeVertraege        from "./components/home/HomeVertraege";
+import HomeVersicherungen   from "./components/home/HomeVersicherungen";
 
 // ── Umzugsplaner Komponenten ───────────────────────────────────────────────────
 import Dashboard            from "./components/Dashboard";
@@ -136,7 +138,7 @@ const HomeModusSyncer = ({ session, householdContext }) => {
 
     const data = householdContext;
     const umzugPfade = ["/dashboard", "/packliste", "/todo", "/budget",
-      "/contacts", "/dokumente", "/kalender", "/rechner", "/planung", "/zeitstrahl"];
+      "/contacts", "/dokumente", "/rechner", "/planung", "/zeitstrahl"];
     setIsAdmin(!!data?.is_admin);
 
     if (modusGeladen) {
@@ -337,6 +339,7 @@ const AuthenticatedShell = ({
         <main
           className="flex-grow relative z-[1]"
           style={{
+            paddingTop: "var(--app-topbar-offset)",
             paddingBottom: isDesktop ? 0 : Math.max(mobileBottomOffsetPx, 72),
           }}
         >
@@ -585,6 +588,8 @@ function App() {
               <Route path="/home/wissen"            element={<HomeWissen session={session} />} />
               <Route path="/home/rechnung-scannen" element={<HomeRechnungScannen session={session} />} />
               <Route path="/home/dokumente"        element={<HomeDokumente session={session} />} />
+              <Route path="/home/vertraege"        element={<HomeVertraege session={session} />} />
+              <Route path="/home/versicherungen"   element={<HomeVersicherungen session={session} />} />
 
               {/* Übergreifend */}
               <Route path="/kalender" element={<KalenderUebersicht session={session} />} />

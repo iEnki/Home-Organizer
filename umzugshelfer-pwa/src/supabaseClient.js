@@ -42,6 +42,9 @@ const SHARED_TABLES = new Set([
   "rechnungen",
   "rechnungs_positionen",
   "dokument_links",
+  // Multiscanner-Pipeline
+  "vertraege",
+  "versicherungs_polizzen",
 ]);
 
 let activeHouseholdId =

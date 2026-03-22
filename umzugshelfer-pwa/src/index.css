@@ -7,6 +7,8 @@
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --mobile-nav-height: 0px;
   --mobile-bottom-offset: 0px;
+  --app-topbar-height: 72px;
+  --app-topbar-offset: calc(var(--app-topbar-height) + var(--safe-area-top));
 }
 
 @media (max-width: 1023px) {
@@ -64,6 +66,7 @@ code {
 @layer utilities {
   .glass-dark  { background: rgba(10,20,26,0.75); backdrop-filter: blur(12px); }
   .glass-light { background: rgba(241,245,249,0.80); backdrop-filter: blur(12px); }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
