@@ -2,10 +2,12 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   FileText, FolderOpen, Upload, Download, Trash2, BookOpen,
   Search, X, Plus, CheckCircle, File, Loader2, AlertTriangle, Eye,
+  ScanLine,
 } from "lucide-react";
 import DokumentVorschauModal from "./DokumentVorschauModal";
 import { supabase } from "../../supabaseClient";
 import { logVerlauf } from "../../utils/homeVerlauf";
+import { useToast } from "../../hooks/useToast";
 import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
@@ -42,11 +44,26 @@ const extrahiereKategorieHinweis = (beschreibung) => {
 const effektiveKategorie = (dok) =>
   dok.kategorie || extrahiereKategorieHinweis(dok.beschreibung);
 
+// SHA-256 Hash (client-seitig, Foundation für spätere Deduplizierung)
+const berechneHash = async (file) => {
+  try {
+    const buffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+    return Array.from(new Uint8Array(hashBuffer))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  } catch {
+    return null;
+  }
+};
+
 // ── Upload-Modal ──────────────────────────────────────────────────────────────
 const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
+  const toast = useToast();
   const [datei, setDatei] = useState(null);
   const [beschreibung, setBeschreibung] = useState("");
   const [kategorie, setKategorie] = useState("Sonstiges");
+  const [processingLevel, setProcessingLevel] = useState("classify_only");
   const [uploading, setUploading] = useState(false);
   const [fehler, setFehler] = useState("");
   const [dragOver, setDragOver] = useState(false);
@@ -74,7 +91,9 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
         .upload(filePath, datei);
       if (storageErr) throw storageErr;
 
-      const { error: dbErr } = await supabase.from("dokumente").insert({
+      const hash = await berechneHash(datei);
+
+      const { data: insertData, error: dbErr } = await supabase.from("dokumente").insert({
         user_id: userId,
         dateiname: datei.name,
         datei_typ: datei.type,
@@ -82,11 +101,29 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
         beschreibung: beschreibung || null,
         groesse_kb: Math.round(datei.size / 1024),
         kategorie,
-      });
+        datei_hash: hash,
+        meta: {
+          processing: {
+            status: "pending",
+            level: processingLevel,
+            queued_at: new Date().toISOString(),
+          },
+        },
+      }).select("id").single();
       if (dbErr) throw dbErr;
 
       await logVerlauf(supabase, userId, "dokumente", datei.name, "erstellt");
+
+      // Fire-and-forget: Modal sofort schließen, Analyse läuft im Hintergrund
       onErfolgreich();
+
+      if (processingLevel !== "store_only" && insertData?.id) {
+        supabase.functions
+          .invoke("doc-process", { body: { dokument_id: insertData.id, level: processingLevel } })
+          .catch(() => {
+            toast.info("KI-Analyse konnte nicht automatisch gestartet werden. Über die Dokumentkarte erneut versuchen.");
+          });
+      }
     } catch (err) {
       setFehler(`Upload fehlgeschlagen: ${err.message}`);
     } finally {
@@ -95,7 +132,7 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 pb-safe bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
@@ -156,6 +193,22 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
           </select>
         </div>
 
+        {/* KI-Analyse-Level */}
+        <div>
+          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
+            KI-Analyse
+          </label>
+          <select
+            value={processingLevel}
+            onChange={(e) => setProcessingLevel(e.target.value)}
+            className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
+          >
+            <option value="store_only">Nur speichern</option>
+            <option value="classify_only">Erkennen &amp; kategorisieren</option>
+            <option value="full">Vollständig extrahieren &amp; zuordnen</option>
+          </select>
+        </div>
+
         {/* Beschreibung */}
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
@@ -212,15 +265,41 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
     setSpeichern(true);
     setFehler("");
     try {
-      const { error } = await supabase.from("home_wissen").insert({
-        user_id: userId,
-        titel: titel.trim(),
-        inhalt: inhalt || null,
-        kategorie,
-        tags: [dok.dateiname],
-      });
-      if (error) throw error;
-      await logVerlauf(supabase, userId, "home_wissen", titel.trim(), "erstellt");
+      // Vorhandenen Auto-Stub prüfen (doc-process könnte bereits einen angelegt haben)
+      const { data: vorhandener } = await supabase
+        .from("home_wissen")
+        .select("id, herkunft")
+        .eq("dokument_id", dok.id)
+        .maybeSingle();
+
+      if (vorhandener?.id) {
+        // Stub übernehmen: manuell markieren, user_id setzen
+        const { error } = await supabase
+          .from("home_wissen")
+          .update({
+            titel: titel.trim(),
+            inhalt: inhalt || null,
+            kategorie,
+            herkunft: "manuell",
+            user_id: userId,
+          })
+          .eq("id", vorhandener.id);
+        if (error) throw error;
+        await logVerlauf(supabase, userId, "home_wissen", titel.trim(), "aktualisiert");
+      } else {
+        // Neu anlegen mit dokument_id-Verknüpfung
+        const { error } = await supabase.from("home_wissen").insert({
+          user_id: userId,
+          titel: titel.trim(),
+          inhalt: inhalt || null,
+          kategorie,
+          tags: [dok.dateiname],
+          dokument_id: dok.id,
+          herkunft: "manuell",
+        });
+        if (error) throw error;
+        await logVerlauf(supabase, userId, "home_wissen", titel.trim(), "erstellt");
+      }
       onErfolgreich();
     } catch (err) {
       setFehler(`Fehler: ${err.message}`);
@@ -230,7 +309,7 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-safe bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
@@ -301,10 +380,14 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
 };
 
 // ── Dokument-Karte ─────────────────────────────────────────────────────────────
-const DokumentKarte = ({ dok, onDownload, onLoeschen, onWissen, onVorschau, laedtDownload }) => {
+const DokumentKarte = ({ dok, onDownload, onLoeschen, onWissen, onVorschau, onAnalyseStarten, laedtDownload }) => {
   const kat = effektiveKategorie(dok);
   const katFarbe = KATEGORIE_FARBEN[kat] || KATEGORIE_FARBEN.Sonstiges;
   const beschreibungOhneHinweis = dok.beschreibung?.replace(/\s*\[[^\]]+\]$/, "") || "";
+
+  const processingStatus = dok.meta?.processing?.status;
+  const klassiKonfidenz = dok.meta?.classification?.confidence;
+  const niedrigeKonfidenz = klassiKonfidenz != null && klassiKonfidenz < 0.75;
 
   const dateiIcon = () => {
     if (dok.datei_typ?.startsWith("image/")) return <File size={20} className="text-blue-500" />;
@@ -333,6 +416,11 @@ const DokumentKarte = ({ dok, onDownload, onLoeschen, onWissen, onVorschau, laed
                 {kat}
               </span>
             )}
+            {niedrigeKonfidenz && processingStatus === "done" && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500/10 text-yellow-600 dark:text-yellow-400">
+                Niedrige Konfidenz
+              </span>
+            )}
             {dok.groesse_kb != null && (
               <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
                 {dok.groesse_kb < 1024
@@ -344,6 +432,41 @@ const DokumentKarte = ({ dok, onDownload, onLoeschen, onWissen, onVorschau, laed
               {new Date(dok.erstellt_am).toLocaleDateString("de-DE")}
             </span>
           </div>
+
+          {/* Processing-Status-Badge */}
+          {processingStatus === "pending" && (
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-500/10 text-gray-500 dark:text-gray-400">
+                <Loader2 size={10} /> Warte auf Analyse…
+              </span>
+              <button
+                onClick={() => onAnalyseStarten(dok, false)}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors"
+              >
+                <ScanLine size={10} /> Analyse starten
+              </button>
+            </div>
+          )}
+          {processingStatus === "processing" && (
+            <div className="mt-2">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-500/10 text-blue-500 dark:text-blue-400">
+                <Loader2 size={10} className="animate-spin" /> KI analysiert…
+              </span>
+            </div>
+          )}
+          {processingStatus === "failed" && (
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-500/10 text-red-500 dark:text-red-400">
+                <AlertTriangle size={10} /> Analyse fehlgeschlagen
+              </span>
+              <button
+                onClick={() => onAnalyseStarten(dok, true)}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors"
+              >
+                <ScanLine size={10} /> Erneut versuchen
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -381,6 +504,7 @@ const DokumentKarte = ({ dok, onDownload, onLoeschen, onWissen, onVorschau, laed
 // ── Hauptkomponente ────────────────────────────────────────────────────────────
 const HomeDokumente = ({ session }) => {
   const userId = session?.user?.id;
+  const toast = useToast();
   const { active: tourAktiv, schritt, setSchritt, beenden: tourBeenden } = useTour("dokumente");
 
   const [dokumente, setDokumente] = useState([]);
@@ -401,7 +525,7 @@ const HomeDokumente = ({ session }) => {
     try {
       const { data, error } = await supabase
         .from("dokumente")
-        .select("id, dateiname, datei_typ, storage_pfad, beschreibung, groesse_kb, kategorie, erstellt_am")
+        .select("id, dateiname, datei_typ, storage_pfad, beschreibung, groesse_kb, kategorie, erstellt_am, meta")
         .eq("user_id", userId)
         .order("erstellt_am", { ascending: false });
       if (error) throw error;
@@ -453,6 +577,34 @@ const HomeDokumente = ({ session }) => {
       setDokumente((prev) => prev.filter((d) => d.id !== id));
     } catch (err) {
       setFehler(`Löschen fehlgeschlagen: ${err.message}`);
+    }
+  };
+
+  // ── Analyse starten (aus pending/failed Badge) ─────────────────────────────
+  const handleAnalyseStarten = async (dok, force) => {
+    const level = dok.meta?.processing?.level ?? "classify_only";
+    try {
+      // Optimistisch UI-Update: status → "processing"
+      setDokumente((prev) =>
+        prev.map((d) =>
+          d.id === dok.id
+            ? { ...d, meta: { ...d.meta, processing: { ...d.meta?.processing, status: "processing" } } }
+            : d,
+        ),
+      );
+      await supabase.functions.invoke("doc-process", {
+        body: { dokument_id: dok.id, level, force },
+      });
+    } catch {
+      toast.info("Analyse konnte nicht gestartet werden.");
+      // Status zurücksetzen auf "pending" damit Button wieder erscheint
+      setDokumente((prev) =>
+        prev.map((d) =>
+          d.id === dok.id
+            ? { ...d, meta: { ...d.meta, processing: { ...d.meta?.processing, status: "pending" } } }
+            : d,
+        ),
+      );
     }
   };
 
@@ -591,6 +743,7 @@ const HomeDokumente = ({ session }) => {
               onLoeschen={handleLoeschen}
               onWissen={setWissenModalDok}
               onVorschau={(d) => setVorschauDok({ storagePfad: d.storage_pfad, dateiname: d.dateiname, datei_typ: d.datei_typ })}
+              onAnalyseStarten={handleAnalyseStarten}
               laedtDownload={laedtDownload}
             />
           ))}

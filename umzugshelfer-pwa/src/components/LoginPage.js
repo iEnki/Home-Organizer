@@ -274,7 +274,7 @@ const HomePage = ({ setSession }) => {
 
       {/* Login Modal */}
       {showLoginModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-sm flex items-center justify-center z-50 p-4 pb-safe">
           <LoginForm
             setSession={setSession}
             onLoginSuccess={handleLoginSuccess}

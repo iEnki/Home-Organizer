@@ -95,7 +95,7 @@ const ForcedPasswordChangeModal = ({ open, onCompleted }) => {
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 pb-safe"
       role="dialog"
       aria-modal="true"
       aria-labelledby="forced-password-change-title"

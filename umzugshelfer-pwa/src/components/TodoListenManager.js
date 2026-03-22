@@ -1598,19 +1598,18 @@ const TodoListenManager = ({ session }) => {
         />
       )}
       {showFormModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-start py-4 px-3 z-50 overflow-y-auto">
-          <div className="bg-light-card-bg dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-md relative border border-light-border dark:border-dark-border">
-            <button
-              onClick={resetForm}
-              className="absolute top-2.5 right-2.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main z-10"
-            >
-              {" "}
-              <XCircle size={20} />{" "}
-            </button>
-            <h3 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main mb-3">
-              {editingAufgabeId ? "Aufgabe bearbeiten" : "Neue Aufgabe"}
-            </h3>
-            <form onSubmit={handleSubmit} className="space-y-3">
+        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-4 pb-safe z-50">
+          <div className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-3 w-full max-w-md border border-light-border dark:border-dark-border max-h-[90vh] flex flex-col">
+            <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-light-border dark:border-dark-border">
+              <h3 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main">
+                {editingAufgabeId ? "Aufgabe bearbeiten" : "Neue Aufgabe"}
+              </h3>
+              <button onClick={resetForm} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main">
+                <XCircle size={20} />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-4 py-3">
+            <form id="todo-form" onSubmit={handleSubmit} className="space-y-3">
               {!editingAufgabeId && (
                 <div>
                   {" "}
@@ -1836,27 +1835,26 @@ const TodoListenManager = ({ session }) => {
                   ))}{" "}
                 </select>{" "}
               </div>
-              <div className="flex justify-end space-x-2 pt-2">
-                {" "}
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="px-3 py-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary bg-light-border dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-700 rounded-card-sm"
-                >
-                  {" "}
-                  Abbrechen{" "}
-                </button>{" "}
-                <button
-                  type="submit"
-                  className="px-3 py-1.5 text-xs text-white bg-primary-500 hover:bg-primary-600 rounded-pill"
-                >
-                  {" "}
-                  {editingAufgabeId ? "Speichern" : "Hinzufügen"}{" "}
-                </button>{" "}
-              </div>
             </form>
           </div>
+          <div className="shrink-0 border-t border-light-border dark:border-dark-border px-4 py-3 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={resetForm}
+              className="px-3 py-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary bg-light-border dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-700 rounded-card-sm"
+            >
+              Abbrechen
+            </button>
+            <button
+              type="submit"
+              form="todo-form"
+              className="px-3 py-1.5 text-xs text-white bg-primary-500 hover:bg-primary-600 rounded-pill"
+            >
+              {editingAufgabeId ? "Speichern" : "Hinzufügen"}
+            </button>
+          </div>
         </div>
+      </div>
       )}
       {Object.keys(gruppierteAufgaben).length === 0 &&
         !loading &&
@@ -1890,17 +1888,20 @@ const TodoListenManager = ({ session }) => {
         index={lightboxIndex}
       />
       {showVorlagenModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-start py-4 px-3 z-50 overflow-y-auto">
-          <div className="bg-light-card-bg dark:bg-canvas-2 p-5 rounded-card shadow-elevation-3 w-full max-w-md relative border border-light-border dark:border-dark-border">
-            <button
-              onClick={() => setShowVorlagenModal(false)}
-              className="absolute top-2.5 right-2.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
-            >
-              <XCircle size={20} />
-            </button>
-            <h3 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main mb-4">
-              Meine Vorlagen
-            </h3>
+        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-4 pb-safe z-50">
+          <div className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-3 w-full max-w-md border border-light-border dark:border-dark-border max-h-[90vh] flex flex-col">
+            <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-light-border dark:border-dark-border">
+              <h3 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main">
+                Meine Vorlagen
+              </h3>
+              <button
+                onClick={() => setShowVorlagenModal(false)}
+                className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
+              >
+                <XCircle size={20} />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-5 py-4">
             <form onSubmit={handleVorlageErstellen} className="space-y-2 mb-5 pb-4 border-b border-light-border dark:border-dark-border">
               <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">Neue Vorlage erstellen</p>
               <input
@@ -1967,6 +1968,7 @@ const TodoListenManager = ({ session }) => {
                   </div>
                 ))
               )}
+            </div>
             </div>
           </div>
         </div>

@@ -3,7 +3,7 @@ import { Truck, Home } from "lucide-react";
 
 const HomeOnboarding = ({ onWaehleUmzug, onWaehleHome }) => {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pb-safe">
       <div className="bg-light-card dark:bg-dark-card rounded-2xl shadow-2xl max-w-lg w-full p-8 border border-light-border dark:border-dark-border">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-light-text-main dark:text-dark-text-main mb-2">

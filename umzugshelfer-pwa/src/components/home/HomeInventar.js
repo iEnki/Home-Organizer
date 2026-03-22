@@ -72,7 +72,7 @@ const OrtForm = ({ initial, onSpeichern, onAbbrechen }) => {
           {typen.map((t) => <option key={t}>{t}</option>)}
         </select>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="sticky bottom-0 bg-light-card dark:bg-canvas-2 border-t border-light-border dark:border-dark-border -mx-4 px-4 py-3 mt-1 flex flex-wrap gap-2">
         <button onClick={onAbbrechen} className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main">Abbrechen</button>
         <button onClick={() => name.trim() && onSpeichern({ name: name.trim(), typ })} className="flex-1 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50" disabled={!name.trim()}>Speichern</button>
       </div>
@@ -107,7 +107,7 @@ const LagerortForm = ({ ortId, parentId, initial, onSpeichern, onAbbrechen }) =>
           {typen.map((t) => <option key={t}>{t}</option>)}
         </select>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="sticky bottom-0 bg-light-card dark:bg-canvas-2 border-t border-light-border dark:border-dark-border -mx-4 px-4 py-3 mt-1 flex flex-wrap gap-2">
         <button onClick={onAbbrechen} className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main">Abbrechen</button>
         <button onClick={() => name.trim() && onSpeichern({ name: name.trim(), typ, ort_id: ortId, parent_id: parentId || null })} className="flex-1 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50" disabled={!name.trim()}>Speichern</button>
       </div>
@@ -200,7 +200,7 @@ const ObjektForm = ({ ortId, lagerortId, initial, bewohner, onSpeichern, onAbbre
           </select>
         </div>
       )}
-      <div className="flex flex-wrap gap-2">
+      <div className="sticky bottom-0 bg-light-card dark:bg-canvas-2 border-t border-light-border dark:border-dark-border -mx-4 px-4 py-3 mt-1 flex flex-wrap gap-2">
         <button onClick={onAbbrechen} className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main">Abbrechen</button>
         <button
           onClick={() => form.name.trim() && onSpeichern({
@@ -430,7 +430,8 @@ const HomeInventar = ({ session }) => {
         <>
           <div
             data-tour="tour-inventar-filter"
-            className="sticky top-[72px] z-20 -mx-4 px-4 py-3 bg-light-bg/95 dark:bg-canvas-1/95 backdrop-blur border-y border-light-border dark:border-dark-border space-y-2"
+            className="sticky z-20 -mx-4 px-4 py-3 bg-light-bg/95 dark:bg-canvas-1/95 backdrop-blur border-y border-light-border dark:border-dark-border space-y-2"
+            style={{ top: "var(--app-topbar-offset)" }}
           >
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary" />
@@ -891,9 +892,9 @@ const HomeInventar = ({ session }) => {
 
       {/* Modals */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center py-4 px-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border sticky top-0 bg-light-card dark:bg-canvas-2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-safe bg-black/60 backdrop-blur-sm">
+          <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border shrink-0">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
                 {modal.typ === "ort" && (modal.daten?.id ? "Standort bearbeiten" : "Neuer Standort")}
                 {modal.typ === "lagerort" && (modal.daten?.id ? "Lagerort bearbeiten" : "Neuer Lagerort")}
@@ -902,7 +903,7 @@ const HomeInventar = ({ session }) => {
               </h3>
               <button onClick={() => setModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"><X size={18} /></button>
             </div>
-            <div className="p-4">
+            <div className="overflow-y-auto flex-1 p-4 pb-2">
               {modal.typ === "ort" && (
                 <OrtForm initial={modal.daten} onSpeichern={speichereOrt} onAbbrechen={() => setModal(null)} />
               )}

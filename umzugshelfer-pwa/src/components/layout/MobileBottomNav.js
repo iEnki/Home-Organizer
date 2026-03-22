@@ -36,7 +36,7 @@ const MobileBottomNav = ({ activeRoute, appMode, onNavigate, onOpenMore }) => {
 
   return (
     <nav
-      className="lg:hidden fixed bottom-0 inset-x-0 z-[90]
+      className="lg:hidden fixed bottom-0 inset-x-0 z-40
                  border-t border-light-border dark:border-dark-border
                  bg-light-card-bg/95 dark:bg-canvas-2/95 backdrop-blur-md"
       style={{ paddingBottom: "var(--safe-area-bottom)" }}

@@ -66,6 +66,20 @@ const BUDGET_KATEGORIEN = [
   "Kleidung", "Gesundheit", "Freizeit", "Sonstiges",
 ];
 
+const DOKUMENTTYP_OPTIONEN = [
+  { value: "rechnung",     label: "Rechnung" },
+  { value: "vertrag",      label: "Vertrag" },
+  { value: "versicherung", label: "Versicherung / Polizze" },
+  { value: "sonstiges",    label: "Sonstiges" },
+];
+
+const DOKUMENTTYP_MODUL_PRESETS = {
+  rechnung:     { budget: true  },
+  vertrag:      { budget: false },
+  versicherung: { budget: false },
+  sonstiges:    { budget: false },
+};
+
 // ============================================================
 // Hilfsfunktionen
 // ============================================================
@@ -163,6 +177,10 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
   const [speichern, setSpeichern] = useState(false);
   const [wissenId, setWissenId] = useState(null);
 
+  const initialTyp = ergebnis.haendler || ergebnis.gesamt ? "rechnung" : "sonstiges";
+  const [dokumentTyp, setDokumentTyp] = useState(initialTyp);
+  const [budgetHinweis, setBudgetHinweis] = useState(false);
+
   // Budget-Felder
   const [budgetKategorie, setBudgetKategorie] = useState("Haushalt");
   const [budgetBeschreibung, setBudgetBeschreibung] = useState(
@@ -188,9 +206,10 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
   );
 
   const hatPflichffehler = useMemo(() => {
-    const gesamtNum = parseFloat(gesamt.replace(",", "."));
-    return !datum || isNaN(gesamtNum) || gesamtNum <= 0;
-  }, [datum, gesamt]);
+    if (!modulAktiv.budget) return false;
+    const gesamtNum = parseFloat((gesamt || "").replace(",", "."));
+    return isNaN(gesamtNum) || gesamtNum <= 0;
+  }, [gesamt, modulAktiv.budget]);
 
   // Positionen-Aenderung
   const updatePosition = useCallback((idx, feld, wert) => {
@@ -203,6 +222,20 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
   const toggleModul = useCallback((key) => {
     if (MODUL_CONFIG[key]?.pflicht) return;
     setModulAktiv((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
+  const handleTypWechsel = useCallback((neuerTyp) => {
+    setDokumentTyp(neuerTyp);
+    const preset = DOKUMENTTYP_MODUL_PRESETS[neuerTyp];
+    if (!preset) return;
+    setModulAktiv((prev) => {
+      const next = { ...prev };
+      for (const [key, val] of Object.entries(preset)) {
+        if (!MODUL_CONFIG[key]?.pflicht) next[key] = val;
+      }
+      if (prev.budget && !next.budget) setBudgetHinweis(true);
+      return next;
+    });
   }, []);
 
   // ============================================================
@@ -235,7 +268,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
         beschreibung: dokBeschreibung,
         storage_pfad: dokumentPfad,
         datei_typ: datei?.type || null,
-        dokument_typ: "rechnung",
+        dokument_typ: dokumentTyp,
         meta: {
           haendler: ergebnis.lieferant?.name || ergebnis.haendler || null,
           datum: ergebnis.rechnungsdatum || ergebnis.datum || null,
@@ -340,7 +373,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
     hatPflichffehler, gesamt, datei, session, dokDateiname, dokBeschreibung,
     datum, modulAktiv, budgetBeschreibung, haendler, budgetKategorie,
     geraetName, geraetHersteller, gewaehrleistungBis, garantieBis, naechsteWartung,
-    positionen, ergebnis, success, toastError, onGespeichert,
+    positionen, ergebnis, dokumentTyp, success, toastError, onGespeichert,
   ]);
 
   // ============================================================
@@ -361,7 +394,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
         >
           <X size={20} />
         </button>
-        <h2 className="text-lg font-semibold text-dark-text-main flex-1">Rechnung pruefen</h2>
+        <h2 className="text-lg font-semibold text-dark-text-main flex-1">{dokumentTyp === "rechnung" ? "Rechnung pruefen" : "Dokument pruefen"}</h2>
         <button
           onClick={handleSpeichern}
           disabled={hatPflichffehler || speichern}
@@ -399,16 +432,33 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
 
         {/* Stammdaten */}
         <div className="bg-canvas-1 rounded-card border border-canvas-3 p-4 space-y-3">
-          <h3 className="text-sm font-semibold text-dark-text-main">Rechnungsdaten</h3>
+          <h3 className="text-sm font-semibold text-dark-text-main">Dokumentdaten</h3>
+          <SelectFeld
+            label="Dokumenttyp"
+            value={dokumentTyp}
+            onChange={handleTypWechsel}
+            optionen={DOKUMENTTYP_OPTIONEN}
+          />
           <InputFeld label="Haendler / Lieferant" value={haendler} onChange={setHaendler} placeholder="z.B. REWE, MediaMarkt" />
           <div className="grid grid-cols-2 gap-3">
-            <InputFeld label="Datum *" value={datum} onChange={setDatum} type="date" />
-            <InputFeld label="Gesamtbetrag (EUR) *" value={gesamt} onChange={setGesamt} type="number" placeholder="0.00" />
+            <InputFeld label="Datum" value={datum} onChange={setDatum} type="date" />
+            <InputFeld label={modulAktiv.budget ? "Gesamtbetrag (EUR) *" : "Gesamtbetrag (EUR)"} value={gesamt} onChange={setGesamt} type="number" placeholder="0.00" />
           </div>
           {hatPflichffehler && (
-            <p className="text-xs text-accent-danger">Datum und Betrag sind Pflichtfelder.</p>
+            <p className="text-xs text-accent-danger">Betrag ist ein Pflichtfeld bei aktivem Budget.</p>
           )}
         </div>
+
+        {/* Budget-Hinweis */}
+        {budgetHinweis && (
+          <div className="flex items-center gap-2 p-3 rounded-card-sm bg-canvas-2 border border-canvas-3 text-xs text-dark-text-secondary">
+            <Info size={13} className="shrink-0" />
+            <span>Budget wurde deaktiviert — dieser Dokumenttyp benoetigt standardmaessig keinen Budgeteintrag.</span>
+            <button onClick={() => setBudgetHinweis(false)} className="ml-auto p-0.5 hover:text-dark-text-main transition-colors">
+              <X size={13} />
+            </button>
+          </div>
+        )}
 
         {/* Modul-Auswahl */}
         <div className="bg-canvas-1 rounded-card border border-canvas-3 p-4 space-y-3">
@@ -600,7 +650,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
       </div>
 
       {/* Sticky Footer (mobil) */}
-      <div className="sticky bottom-0 bg-canvas-1 border-t border-canvas-3 px-4 py-3 flex gap-3">
+      <div className="sticky bottom-0 bg-canvas-1 border-t border-canvas-3 px-4 py-3 flex gap-3 pb-safe">
         <button
           onClick={onAbbrechen}
           className="flex-1 py-3 rounded-card-sm bg-canvas-2 hover:bg-canvas-3

@@ -220,7 +220,7 @@ const KalenderUebersicht = ({ session }) => {
     const Icon = EVENT_ICONS[event.typ] || CalendarDays;
     const farbe = EVENT_FARBEN[event.typ] || { bg: "#64748B" };
     return (
-      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-canvas-0/70 backdrop-blur-sm"
+      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 pb-safe bg-canvas-0/70 backdrop-blur-sm"
            onClick={() => setSelectedEvent(null)}>
         <div className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-3 w-full max-w-sm p-5 space-y-4"
              onClick={(e) => e.stopPropagation()}>

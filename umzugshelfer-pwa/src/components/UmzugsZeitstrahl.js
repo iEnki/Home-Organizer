@@ -1331,7 +1331,7 @@ Generiere nun das Umzugstagebuch:`;
 
       {/* API Key Modal */}
       {showApiKeyModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 pb-safe">
           <div
             className={`p-6 rounded-card shadow-elevation-3 w-full max-w-md relative border ${
               theme === "dark"

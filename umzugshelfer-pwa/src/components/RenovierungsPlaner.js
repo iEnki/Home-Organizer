@@ -217,7 +217,7 @@ const RenovierungsPlaner = ({ session }) => {
       </div>
 
       {showFormModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-3 z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-3 pb-safe z-50">
           <div className="bg-dark-card-bg p-4 rounded-lg shadow-xl w-full max-w-md relative border border-dark-border">
             <button
               onClick={resetForm}

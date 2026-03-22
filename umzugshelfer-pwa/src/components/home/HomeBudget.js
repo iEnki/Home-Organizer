@@ -79,15 +79,15 @@ const BewohnerBadge = ({ bewohner }) => {
 };
 
 const ModalWrapper = ({ title, onClose, children }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-    <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border max-h-[90vh] overflow-y-auto">
-      <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border sticky top-0 bg-light-card dark:bg-canvas-2">
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pb-safe">
+    <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border max-h-[90vh] flex flex-col">
+      <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border shrink-0">
         <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">{title}</h3>
         <button onClick={onClose} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main">
           <X size={18} />
         </button>
       </div>
-      <div className="p-4">{children}</div>
+      <div className="overflow-y-auto flex-1 p-4 pb-2">{children}</div>
     </div>
   </div>
 );
@@ -174,7 +174,7 @@ const BudgetForm = ({ initial, onSpeichern, onAbbrechen, bewohner }) => {
           </select>
         </div>
       )}
-      <div className="flex gap-2">
+      <div className="sticky bottom-0 bg-light-card dark:bg-canvas-2 border-t border-light-border dark:border-dark-border -mx-4 px-4 py-3 mt-1 flex gap-2">
         <button onClick={onAbbrechen} className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main">
           Abbrechen
         </button>
@@ -252,7 +252,7 @@ const SparzieleModal = ({ initial, onSpeichern, onAbbrechen }) => {
           ))}
         </div>
       </div>
-      <div className="flex gap-2">
+      <div className="sticky bottom-0 bg-light-card dark:bg-canvas-2 border-t border-light-border dark:border-dark-border -mx-4 px-4 py-3 mt-1 flex gap-2">
         <button onClick={onAbbrechen} className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main">
           Abbrechen
         </button>
@@ -1176,7 +1176,7 @@ const HomeBudget = ({ session }) => {
       )}
 
       {einzahlenModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pb-safe">
           <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-sm w-full border border-light-border dark:border-dark-border">
             <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">

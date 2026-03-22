@@ -76,7 +76,7 @@ const SAISON_TEMPLATES = {
 };
 
 const SaisonWahlModal = ({ onWaehle, onAbbrechen }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pb-safe">
     <div className="bg-light-card dark:bg-canvas-2 rounded-2xl shadow-2xl max-w-sm w-full border border-light-border dark:border-dark-border">
       <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
         <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">Jahreszeiten-Template</h3>
@@ -157,7 +157,7 @@ const ProjektForm = ({ initial, onSpeichern, onAbbrechen }) => {
           <input type="number" min="0" step="0.01" value={form.budget} onChange={(e) => setForm((p) => ({ ...p, budget: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none" />
         </div>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="sticky bottom-0 bg-light-card dark:bg-canvas-2 border-t border-light-border dark:border-dark-border -mx-4 px-4 py-3 mt-1 flex flex-wrap gap-2">
         <button onClick={onAbbrechen} className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main">Abbrechen</button>
         <button onClick={() => form.name.trim() && onSpeichern(form)} disabled={!form.name.trim()} className="flex-1 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50">Speichern</button>
       </div>
@@ -444,9 +444,9 @@ const HomeProjekte = ({ session }) => {
       )}
 
       {modal !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-light-card dark:bg-canvas-2 rounded-2xl shadow-2xl max-w-md w-full border border-light-border dark:border-dark-border max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border sticky top-0 bg-light-card dark:bg-canvas-2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pb-safe">
+          <div className="bg-light-card dark:bg-canvas-2 rounded-2xl shadow-2xl max-w-md w-full border border-light-border dark:border-dark-border max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border shrink-0">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
                 {modal.id ? "Projekt bearbeiten" : modal._saisonAufgaben ? `Saison-Projekt: ${modal.name}` : "Neues Projekt"}
               </h3>
@@ -459,7 +459,7 @@ const HomeProjekte = ({ session }) => {
                 </div>
               </div>
             )}
-            <div className="p-4">
+            <div className="overflow-y-auto flex-1 p-4 pb-2">
               <ProjektForm initial={modal} onSpeichern={speichere} onAbbrechen={() => setModal(null)} />
             </div>
           </div>

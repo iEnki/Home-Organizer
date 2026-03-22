@@ -684,7 +684,7 @@ const UserProfile = ({ session, householdContext }) => {
 
       {/* Bestätigungs-Modal: Mitglied entfernen */}
       {mitgliedZuEntfernen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 pb-safe">
           <div className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-4 p-6 max-w-sm w-full space-y-4">
             <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
               Mitglied entfernen

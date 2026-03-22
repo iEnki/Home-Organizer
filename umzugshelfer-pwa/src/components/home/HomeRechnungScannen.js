@@ -100,7 +100,7 @@ export default function HomeRechnungScannen({ session }) {
   return (
     <div className="min-h-screen bg-canvas-0 pb-24">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-canvas-1 border-b border-canvas-3 px-4 py-3 flex items-center gap-3">
+      <div className="sticky z-10 bg-canvas-1 border-b border-canvas-3 px-4 py-3 flex items-center gap-3" style={{ top: "var(--app-topbar-offset)" }}>
         <button
           onClick={() => window.history.back()}
           className="p-1.5 rounded-lg hover:bg-canvas-2 text-dark-text-main transition-colors"

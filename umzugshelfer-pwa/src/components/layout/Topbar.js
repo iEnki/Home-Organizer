@@ -85,9 +85,10 @@ const Topbar = ({
 
   return (
     <header
-      className="sticky top-0 z-40 flex items-center gap-3 px-4 sm:px-6 lg:pl-6 h-[72px]
+      className="fixed top-0 left-0 right-0 lg:left-20 z-40 flex items-center gap-3 px-4 sm:px-6 lg:pl-6
                  bg-light-surface-1/80 dark:bg-canvas-2/80 backdrop-blur-md
                  border-b border-light-border dark:border-dark-border shrink-0"
+      style={{ height: "var(--app-topbar-offset)", paddingTop: "var(--safe-area-top)" }}
     >
       {/* Seitentitel + Modus-Badge */}
       <div className="flex items-center gap-2 shrink-0 min-w-0">

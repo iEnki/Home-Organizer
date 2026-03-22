@@ -32,7 +32,7 @@ const DokumentVorschauModal = ({ storagePfad, dateiname, datei_typ, onSchliessen
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex flex-col bg-black/80 backdrop-blur-sm"
+      className="fixed inset-0 z-[60] flex flex-col bg-black/80 backdrop-blur-sm pb-safe"
       onClick={(e) => { if (e.target === e.currentTarget) onSchliessen(); }}
     >
       {/* Header */}

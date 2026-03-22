@@ -145,7 +145,7 @@ const DokumentenZuordnungModal = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-4 z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-4 pb-safe z-50">
       <div
         className={`relative w-full max-w-2xl p-6 rounded-lg shadow-xl border ${
           theme === "dark"

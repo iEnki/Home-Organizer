@@ -3394,7 +3394,7 @@ const PacklisteManager = ({ session }) => {
         />
       </div>
       {showScanner && (
-        <div className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-sm flex flex-col justify-center items-center p-4 z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-sm flex flex-col justify-center items-center p-4 pb-safe z-50">
           {" "}
           <div className="bg-light-card-bg dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-md relative border border-light-border dark:border-dark-border">
             {" "}
@@ -3429,7 +3429,7 @@ const PacklisteManager = ({ session }) => {
       )}
 
       {showKisteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-start py-4 px-3 z-50 overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-start py-4 px-3 pb-safe z-50 overflow-y-auto">
           <div className="bg-light-card-bg dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-lg relative my-auto border border-light-border dark:border-dark-border">
             <button
               onClick={() => {
@@ -3853,7 +3853,7 @@ const PacklisteManager = ({ session }) => {
       {/* Foto Lightbox Modal */}
       {showPhotoLightbox && lightboxImageUrl && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-md flex justify-center items-center p-4 z-[60]"
+          className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-md flex justify-center items-center p-4 pb-safe z-[60]"
           onClick={() => setShowPhotoLightbox(false)}
         >
           <div

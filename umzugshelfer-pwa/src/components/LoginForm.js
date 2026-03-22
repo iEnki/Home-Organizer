@@ -215,7 +215,7 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
       </div>
 
       {showForgotPasswordModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-sm flex items-center justify-center z-[60] p-4 pb-safe">
           {" "}
           {/* Erhöhter z-index */}
           <div className="bg-light-card-bg dark:bg-dark-card-bg p-6 sm:p-8 rounded-lg shadow-xl w-full max-w-md relative border border-light-border dark:border-dark-border">

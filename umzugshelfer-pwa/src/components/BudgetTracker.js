@@ -1249,7 +1249,7 @@ const BudgetTracker = ({ session }) => {
       </div>
 
       {showPostenModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-3 z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-3 pb-safe z-50">
           <div className="bg-light-card-bg dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-md relative border border-light-border dark:border-dark-border">
             <button
               onClick={resetForm}
@@ -1412,7 +1412,7 @@ const BudgetTracker = ({ session }) => {
         </div>
       )}
       {showTeilzahlungModalFor && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-3 z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-3 pb-safe z-50">
           <div className="bg-light-card-bg dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-sm relative border border-light-border dark:border-dark-border">
             <button
               onClick={() => setShowTeilzahlungModalFor(null)}

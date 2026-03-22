@@ -4,7 +4,7 @@ import {
   Paintbrush, Calculator, CalendarClock, FolderOpen,
   Package, ShoppingCart, Wrench, CheckSquare, ShoppingBag,
   Search, BookOpen, History, FileText,
-  Menu, X, CalendarDays, ScanLine,
+  Menu, X, CalendarDays, ScanLine, ScrollText, Shield,
 } from "lucide-react";
 
 // ── Nav-Gruppen Umzugsmodus ─────────────────────────────────────────────────────
@@ -43,10 +43,12 @@ const homeGruppen = [
   {
     label: "Haushalt",
     items: [
-      { name: "Inventar",  path: "/home/inventar",   icon: Package },
-      { name: "Vorräte",   path: "/home/vorraete",   icon: ShoppingCart },
-      { name: "Geräte",    path: "/home/geraete",    icon: Wrench },
-      { name: "Dokumente", path: "/home/dokumente",  icon: FileText },
+      { name: "Inventar",        path: "/home/inventar",       icon: Package },
+      { name: "Vorräte",         path: "/home/vorraete",       icon: ShoppingCart },
+      { name: "Geräte",          path: "/home/geraete",        icon: Wrench },
+      { name: "Dokumente",       path: "/home/dokumente",      icon: FileText },
+      { name: "Verträge",        path: "/home/vertraege",      icon: ScrollText },
+      { name: "Vers.",           path: "/home/versicherungen", icon: Shield },
     ],
   },
   {
