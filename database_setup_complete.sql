@@ -3142,3 +3142,180 @@ CREATE POLICY home_wissen_household ON public.home_wissen FOR ALL
 SELECT pg_notify('pgrst', 'reload schema');
 
 
+-- ============================================================
+-- 13. MULTISCANNER — UNIVERSELLE DOKUMENTEN-PIPELINE
+-- Idempotent — kann mehrfach ausgefuehrt werden.
+--   13a) Tabelle: vertraege
+--   13b) Tabelle: versicherungs_polizzen
+--   13c) Ergaenzungen: home_wissen (herkunft)
+--   13d) Ergaenzungen: dokumente (datei_hash, FTS)
+--   13e) Duplikat-Bereinigung (home_wissen, dokument_links)
+--   13f) UNIQUE-Index home_wissen(dokument_id)
+--   13g) Lock-Funktion: claim_doc_processing
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.vertraege (
+  id                         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id               uuid NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+  dokument_id                uuid NOT NULL REFERENCES public.dokumente(id) ON DELETE CASCADE,
+  partner                    text,
+  vertragstitel              text,
+  start_date                 date,
+  end_date                   date,
+  kuendigungsfrist_raw       text,
+  kuendigungsfrist_tage      integer,
+  kuendigbar_ab              date,
+  review_required            boolean DEFAULT false,
+  reviewed_at                timestamptz,
+  classification_confidence  numeric(4,3) CHECK (classification_confidence BETWEEN 0 AND 1),
+  extraction_confidence      numeric(4,3) CHECK (extraction_confidence BETWEEN 0 AND 1),
+  extraktion                 jsonb DEFAULT '{}'::jsonb,
+  created_at                 timestamptz DEFAULT now(),
+  updated_at                 timestamptz DEFAULT now(),
+  UNIQUE (household_id, dokument_id)
+);
+DROP TRIGGER IF EXISTS set_vertraege_updated_at ON public.vertraege;
+CREATE TRIGGER set_vertraege_updated_at BEFORE UPDATE ON public.vertraege
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+CREATE INDEX IF NOT EXISTS idx_vertraege_household     ON public.vertraege (household_id);
+CREATE INDEX IF NOT EXISTS idx_vertraege_end_date      ON public.vertraege (household_id, end_date);
+CREATE INDEX IF NOT EXISTS idx_vertraege_kuendigbar_ab ON public.vertraege (household_id, kuendigbar_ab);
+DROP POLICY IF EXISTS vertraege_household ON public.vertraege;
+ALTER TABLE public.vertraege ENABLE ROW LEVEL SECURITY;
+CREATE POLICY vertraege_household ON public.vertraege FOR ALL
+  USING (household_id = public.get_current_household_id())
+  WITH CHECK (household_id = public.get_current_household_id());
+
+CREATE TABLE IF NOT EXISTS public.versicherungs_polizzen (
+  id                         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id               uuid NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+  dokument_id                uuid NOT NULL REFERENCES public.dokumente(id) ON DELETE CASCADE,
+  versicherer                text,
+  polizzen_nummer            text,
+  versicherungsart           text,
+  deckung                    text,
+  praemie                    numeric(12,2),
+  praemien_intervall         text DEFAULT 'jaehrlich'
+    CHECK (praemien_intervall IN ('monatlich','vierteljaehrlich','halbjaehrlich','jaehrlich')),
+  naechste_faelligkeit       date,
+  waehrung                   text DEFAULT 'EUR',
+  start_date                 date,
+  end_date                   date,
+  review_required            boolean DEFAULT false,
+  reviewed_at                timestamptz,
+  classification_confidence  numeric(4,3) CHECK (classification_confidence BETWEEN 0 AND 1),
+  extraction_confidence      numeric(4,3) CHECK (extraction_confidence BETWEEN 0 AND 1),
+  extraktion                 jsonb DEFAULT '{}'::jsonb,
+  created_at                 timestamptz DEFAULT now(),
+  updated_at                 timestamptz DEFAULT now(),
+  UNIQUE (household_id, dokument_id)
+);
+DROP TRIGGER IF EXISTS set_polizzen_updated_at ON public.versicherungs_polizzen;
+CREATE TRIGGER set_polizzen_updated_at BEFORE UPDATE ON public.versicherungs_polizzen
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+CREATE INDEX IF NOT EXISTS idx_polizzen_end_date         ON public.versicherungs_polizzen (household_id, end_date);
+CREATE INDEX IF NOT EXISTS idx_polizzen_versicherungsart ON public.versicherungs_polizzen (household_id, versicherungsart);
+DROP POLICY IF EXISTS polizzen_household ON public.versicherungs_polizzen;
+ALTER TABLE public.versicherungs_polizzen ENABLE ROW LEVEL SECURITY;
+CREATE POLICY polizzen_household ON public.versicherungs_polizzen FOR ALL
+  USING (household_id = public.get_current_household_id())
+  WITH CHECK (household_id = public.get_current_household_id());
+
+ALTER TABLE public.home_wissen
+  ADD COLUMN IF NOT EXISTS herkunft text DEFAULT 'manuell'
+    CHECK (herkunft IN ('manuell','auto_stub','auto_full','auto_low_confidence'));
+
+ALTER TABLE public.dokumente
+  ADD COLUMN IF NOT EXISTS datei_hash text;
+CREATE INDEX IF NOT EXISTS idx_dokumente_datei_hash ON public.dokumente (household_id, datei_hash);
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='dokumente' AND column_name='fts'
+  ) THEN
+    ALTER TABLE public.dokumente
+      ADD COLUMN fts tsvector
+      GENERATED ALWAYS AS (
+        to_tsvector('german', coalesce(dateiname,'') || ' ' || coalesce(beschreibung,''))
+      ) STORED;
+  END IF;
+END $$;
+CREATE INDEX IF NOT EXISTS dokumente_fts_gin ON public.dokumente USING gin (fts);
+
+DELETE FROM public.home_wissen
+  WHERE id IN (
+    SELECT id FROM (
+      SELECT id,
+             row_number() OVER (
+               PARTITION BY dokument_id
+               ORDER BY
+                 CASE WHEN herkunft = 'manuell' THEN 0 ELSE 1 END,
+                 created_at DESC,
+                 id DESC
+             ) AS rn
+      FROM public.home_wissen
+      WHERE dokument_id IS NOT NULL
+    ) sub
+    WHERE rn > 1
+  );
+
+DELETE FROM public.dokument_links
+  WHERE id IN (
+    SELECT id FROM (
+      SELECT id,
+             row_number() OVER (
+               PARTITION BY household_id, dokument_id, entity_type, entity_id, role
+               ORDER BY id DESC
+             ) AS rn
+      FROM public.dokument_links
+    ) sub
+    WHERE rn > 1
+  );
+
+CREATE UNIQUE INDEX IF NOT EXISTS home_wissen_dokument_id_uniq
+  ON public.home_wissen (dokument_id);
+
+CREATE OR REPLACE FUNCTION public.claim_doc_processing(
+  p_dokument_id  uuid,
+  p_level        text,
+  p_household_id uuid,
+  p_force        boolean DEFAULT false
+) RETURNS text LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_proc    jsonb;
+  v_hh_id   uuid;
+  v_status  text;
+  v_expires timestamptz;
+BEGIN
+  SELECT meta->'processing', household_id INTO v_proc, v_hh_id
+    FROM public.dokumente WHERE id = p_dokument_id FOR UPDATE;
+  IF NOT FOUND THEN RETURN 'not_found'; END IF;
+  IF v_hh_id IS DISTINCT FROM p_household_id THEN RETURN 'forbidden'; END IF;
+  v_status  := v_proc->>'status';
+  v_expires := (v_proc->>'expires_at')::timestamptz;
+  IF v_status = 'processing' AND (v_expires IS NULL OR v_expires > now()) THEN RETURN 'busy'; END IF;
+  IF v_status = 'done' AND NOT p_force THEN RETURN 'already_done'; END IF;
+  UPDATE public.dokumente
+    SET meta = jsonb_set(
+      coalesce(meta, '{}'::jsonb), '{processing}',
+      jsonb_build_object(
+        'status', 'processing', 'level', p_level,
+        'started_at', now()::text,
+        'expires_at', (now() + interval '30 minutes')::text
+      )
+    )
+  WHERE id = p_dokument_id;
+  RETURN 'claimed';
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.claim_doc_processing(uuid, text, uuid, boolean) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.claim_doc_processing(uuid, text, uuid, boolean) FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_doc_processing(uuid, text, uuid, boolean) TO service_role;
+
+SELECT pg_notify('pgrst', 'reload schema');
+
+
