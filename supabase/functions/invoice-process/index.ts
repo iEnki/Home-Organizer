@@ -174,6 +174,12 @@ Deno.serve(async (req: Request) => {
     warnings.push(`rechnungen (exception): ${(e as Error).message}`);
   }
 
+  // Dokument-Kategorie setzen damit Filter in HomeDokumente greift
+  await supabaseAdmin
+    .from("dokumente")
+    .update({ kategorie: "Rechnung" })
+    .eq("id", dokument_id);
+
   // ── 2. rechnungs_positionen (delete + insert, idempotent) ────────────────
   if (rechnungId) {
     try {
