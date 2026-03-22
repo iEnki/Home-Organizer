@@ -27,6 +27,7 @@ import "yet-another-react-lightbox/styles.css";
 import DokumentenZuordnungModal from "./DokumentenZuordnungModal";
 import BildVorschau from "./BildVorschau";
 import useViewport from "../hooks/useViewport";
+import MobileFab from "./ui/MobileFab";
 
 const prioWerte = { Hoch: 3, Mittel: 2, Niedrig: 1 };
 const kategorieKeywords = {
@@ -1571,6 +1572,14 @@ const TodoListenManager = ({ session }) => {
             </button>
           )}
           <button
+            onClick={handleAddNewClick}
+            disabled={!userId}
+            className="hidden md:flex items-center bg-primary-500 hover:bg-primary-600 text-white px-3 py-1.5 rounded-pill transition-colors shadow-sm text-sm disabled:opacity-50"
+            title="Neue Aufgabe"
+          >
+            <PlusCircle size={18} className="mr-1.5" /> Neue Aufgabe
+          </button>
+          <button
             onClick={() => { setShowVorlagenModal(true); fetchMeineVorlagen(); }}
             disabled={!userId}
             className="flex items-center bg-indigo-500 hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white px-3 py-1.5 rounded-pill transition-colors shadow-sm text-sm disabled:opacity-50"
@@ -1872,15 +1881,9 @@ const TodoListenManager = ({ session }) => {
             {viewMode === "liste" && renderListenAnsicht()}{" "}
           </>
         )}
-      <button
-        onClick={handleAddNewClick}
-        title="Neue Aufgabe"
-        className="fixed right-4 bg-primary-500 hover:bg-primary-600 text-white p-3 rounded-full shadow-elevation-2 z-40"
-        style={{ bottom: `calc(var(--mobile-bottom-offset, 0px) + ${isMobile ? "12px" : "16px"})` }}
-      >
-        {" "}
-        <PlusCircle size={24} />{" "}
-      </button>
+      <MobileFab onClick={handleAddNewClick} title="Neue Aufgabe">
+        <PlusCircle size={24} />
+      </MobileFab>
       <Lightbox
         open={lightboxOpen}
         close={() => setLightboxOpen(false)}

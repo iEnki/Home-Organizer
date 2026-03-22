@@ -13,6 +13,7 @@ import { TOUR_STEPS } from "./tour/tourSteps";
 import useViewport from "../../hooks/useViewport";
 import MobileLocationSheet from "./inventar/MobileLocationSheet";
 import MobileFilterSheet from "./inventar/MobileFilterSheet";
+import MobileFab from "../ui/MobileFab";
 
 // --- BewohnerBadge ---
 const BewohnerBadge = ({ bewohner }) => {
@@ -608,17 +609,17 @@ const HomeInventar = ({ session }) => {
             </div>
           )}
 
-          <button
+          <MobileFab
             data-tour="tour-inventar-hinzufuegen"
+            pill
             onClick={handleObjektHinzufuegen}
-            className="md:hidden fixed right-4 px-4 py-2.5 rounded-pill bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium shadow-elevation-2 z-40"
-            style={{ bottom: "calc(var(--mobile-bottom-offset, 0px) + 12px)" }}
+            title="Objekt hinzufügen"
           >
             <span className="inline-flex items-center gap-1.5">
               <Plus size={14} />
               Objekt
             </span>
-          </button>
+          </MobileFab>
 
           <MobileLocationSheet
             open={mobileLocationSheetOpen}

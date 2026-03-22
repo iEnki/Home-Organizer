@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   FileText, FolderOpen, Upload, Download, Trash2, BookOpen,
   Search, X, Plus, CheckCircle, File, Loader2, AlertTriangle, Eye,
@@ -506,6 +507,7 @@ const HomeDokumente = ({ session }) => {
   const userId = session?.user?.id;
   const toast = useToast();
   const { active: tourAktiv, schritt, setSchritt, beenden: tourBeenden } = useTour("dokumente");
+  const [searchParams] = useSearchParams();
 
   const [dokumente, setDokumente] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -516,6 +518,12 @@ const HomeDokumente = ({ session }) => {
   const [wissenErfolgreich, setWissenErfolgreich] = useState(false);
   const [kategorieFilter, setKategorieFilter] = useState("Alle");
   const [suchbegriff, setSuchbegriff] = useState("");
+
+  // URL-Filter (z.B. von /home/vertraege oder /home/versicherungen Redirect)
+  useEffect(() => {
+    const f = searchParams.get("filter");
+    if (f === "Vertrag" || f === "Versicherung") setKategorieFilter(f);
+  }, [searchParams]);
   const [vorschauDok, setVorschauDok] = useState(null);
 
   // ── Laden ──────────────────────────────────────────────────────────────────
