@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Home, Package, ShoppingCart, Wrench, CheckSquare,
   FolderOpen, AlertTriangle, ChevronRight, Loader2, Users,
-  TrendingUp, TrendingDown, Calendar, Clock,
+  TrendingUp, TrendingDown, Calendar, Clock, FileText,
 } from "lucide-react";
 import { motion, animate, useMotionValue, useTransform } from "framer-motion";
 import { supabase } from "../../supabaseClient";
@@ -75,6 +75,7 @@ const MODUL_ICON = {
   home_einkaufliste: "🛒", home_projekte: "📋", home_vorraete: "🥫",
   todo_aufgaben: "✅", home_wissen: "📚", home_bewohner: "👥",
   home_wartungen: "🔧", home_orte: "📍",
+  dokumente: "📄",
 };
 
 // ── Animated progress bar ────────────────────────────────────────────────────
@@ -105,6 +106,7 @@ const HomeDashboard = ({ session }) => {
     aufgabenHeute: 0,
     projekteAktiv: 0,
     bewohner: 0,
+    dokumente: 0,
   });
   const [erweitert, setErweitert] = useState({
     vorraeteAmpel: { rot: 0, gelb: 0, gruen: 0 },
@@ -133,6 +135,7 @@ const HomeDashboard = ({ session }) => {
         objekteRes, orteRes, vorraeteRes, einkaufRes,
         geraeteRes, aufgabenRes, projekteRes, bewohnerRes,
         budgetRes, aufgabenTimeline, vormonatRes, nextMonthRes,
+        dokumenteRes,
       ] = await Promise.all([
         supabase.from("home_objekte").select("id", { count: "exact", head: true }).eq("user_id", userId).neq("status", "entsorgt"),
         supabase.from("home_orte").select("id", { count: "exact", head: true }).eq("user_id", userId),
@@ -146,6 +149,7 @@ const HomeDashboard = ({ session }) => {
         supabase.from("todo_aufgaben").select("id, beschreibung, faelligkeitsdatum, home_projekt_id, erledigt").eq("user_id", userId).eq("erledigt", false).in("app_modus", ["home", "beides"]).gte("faelligkeitsdatum", heute).lte("faelligkeitsdatum", in30).limit(10),
         supabase.from("budget_posten").select("typ, betrag").eq("user_id", userId).gte("datum", `${vormonat}-01`).lte("datum", `${vormonat}-31`),
         supabase.from("budget_posten").select("id, beschreibung, betrag, intervall, naechstes_datum").eq("user_id", userId).eq("wiederholen", true).gte("naechstes_datum", nextMonthStart).lte("naechstes_datum", nextMonthEnd),
+        supabase.from("dokumente").select("id", { count: "exact", head: true }).eq("user_id", userId),
       ]);
 
       // ── Basis Stats ──
@@ -166,6 +170,7 @@ const HomeDashboard = ({ session }) => {
         aufgabenHeute: aufgabenRes.count || 0,
         projekteAktiv: (projekteRes.data || []).length,
         bewohner: bewohnerRes.count || 0,
+        dokumente: dokumenteRes.count || 0,
       });
 
       // ── Vorräte-Ampel ──
@@ -324,6 +329,12 @@ const HomeDashboard = ({ session }) => {
       icon: Users, farbe: "teal", pfad: "/home/bewohner",
       tourId: "tour-dashboard-bewohner",
     },
+    {
+      titel: "Dokumente",
+      wert: stats.dokumente,
+      einheit: "gespeichert",
+      icon: FileText, farbe: "indigo", pfad: "/home/dokumente",
+    },
   ];
 
   const farbKlassen = {
@@ -334,6 +345,7 @@ const HomeDashboard = ({ session }) => {
     teal: "bg-teal-500/10 text-teal-500",
     orange: "bg-orange-500/10 text-orange-500",
     purple: "bg-purple-500/10 text-purple-500",
+    indigo: "bg-indigo-500/10 text-indigo-500",
   };
 
   if (loading) {
@@ -751,10 +763,10 @@ const HomeDashboard = ({ session }) => {
           className="grid grid-cols-2 sm:grid-cols-4 gap-3"
         >
           {[
-            { label: "Objekt suchen",    pfad: "/home/suche",    icon: "🔍" },
-            { label: "Wartungsprotokoll", pfad: "/home/geraete", icon: "🔧" },
-            { label: "Budget",           pfad: "/home/budget",   icon: "💶" },
-            { label: "Projekte",         pfad: "/home/projekte", icon: "📋" },
+            { label: "Objekt suchen", pfad: "/home/suche",      icon: "🔍" },
+            { label: "Dokumente",     pfad: "/home/dokumente",  icon: "📂" },
+            { label: "Budget",        pfad: "/home/budget",     icon: "💶" },
+            { label: "Projekte",      pfad: "/home/projekte",   icon: "📋" },
           ].map((item) => (
             <motion.button
               key={item.pfad}

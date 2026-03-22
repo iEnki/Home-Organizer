@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { Search, Package, ShoppingCart, Wrench, CheckSquare, Loader2, Sparkles, AlertTriangle, Send } from "lucide-react";
+import { Search, Package, ShoppingCart, Wrench, CheckSquare, FileText, Loader2, Sparkles, AlertTriangle, Send } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { useNavigate } from "react-router-dom";
 import OpenAI from "openai";
@@ -11,7 +11,8 @@ const QUELLEN = [
   { key: "objekte",  label: "Inventar", icon: Package,     farbe: "text-blue-500",   pfad: "/home/inventar" },
   { key: "vorraete", label: "Vorräte",  icon: ShoppingCart, farbe: "text-primary-500", pfad: "/home/vorraete" },
   { key: "geraete",  label: "Geräte",   icon: Wrench,       farbe: "text-orange-500", pfad: "/home/geraete" },
-  { key: "aufgaben", label: "Aufgaben", icon: CheckSquare,  farbe: "text-purple-500", pfad: "/home/aufgaben" },
+  { key: "aufgaben",  label: "Aufgaben",   icon: CheckSquare, farbe: "text-purple-500", pfad: "/home/aufgaben" },
+  { key: "dokumente", label: "Dokumente",  icon: FileText,    farbe: "text-indigo-500", pfad: "/home/dokumente" },
 ];
 
 // ─── Schnellsuche ────────────────────────────────────────────────────────────
@@ -28,13 +29,14 @@ const Schnellsuche = ({ session }) => {
     if (!userId || q.length < 2) { setErgebnisse({}); return; }
     setLoading(true);
     try {
-      const [objekteRes, vorraeteRes, geraeteRes, aufgabenRes] = await Promise.all([
+      const [objekteRes, vorraeteRes, geraeteRes, aufgabenRes, dokumenteRes] = await Promise.all([
         supabase.from("home_objekte").select("id, name, status, kategorie").eq("user_id", userId).ilike("name", `%${q}%`).neq("status", "entsorgt").limit(5),
         supabase.from("home_vorraete").select("id, name, kategorie, bestand, einheit").eq("user_id", userId).ilike("name", `%${q}%`).limit(5),
         supabase.from("home_geraete").select("id, name, hersteller, naechste_wartung").eq("user_id", userId).ilike("name", `%${q}%`).limit(5),
         supabase.from("todo_aufgaben").select("id, beschreibung, erledigt, kategorie").eq("user_id", userId).in("app_modus", ["home", "beides"]).ilike("beschreibung", `%${q}%`).eq("erledigt", false).limit(5),
+        supabase.from("dokumente").select("id, dateiname, kategorie").eq("user_id", userId).ilike("dateiname", `%${q}%`).limit(5),
       ]);
-      setErgebnisse({ objekte: objekteRes.data || [], vorraete: vorraeteRes.data || [], geraete: geraeteRes.data || [], aufgaben: aufgabenRes.data || [] });
+      setErgebnisse({ objekte: objekteRes.data || [], vorraete: vorraeteRes.data || [], geraete: geraeteRes.data || [], aufgaben: aufgabenRes.data || [], dokumente: dokumenteRes.data || [] });
     } finally { setLoading(false); }
   }, [userId]);
 
@@ -77,7 +79,7 @@ const Schnellsuche = ({ session }) => {
                     <button key={item.id} onClick={() => navigate(pfad)} className="w-full flex items-center gap-3 p-3 rounded-card shadow-elevation-2 bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border hover:border-primary-500/50 transition-colors text-left">
                       <Icon size={14} className={`${farbe} flex-shrink-0`} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-light-text-main dark:text-dark-text-main truncate">{item.name || item.beschreibung}</p>
+                        <p className="text-sm text-light-text-main dark:text-dark-text-main truncate">{item.name || item.dateiname || item.beschreibung}</p>
                         <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{item.kategorie || item.hersteller || (item.bestand !== undefined ? `${item.bestand} ${item.einheit}` : "")}</p>
                       </div>
                     </button>
@@ -92,7 +94,7 @@ const Schnellsuche = ({ session }) => {
       {suchbegriff.length < 2 && (
         <div className="text-center py-8 text-light-text-secondary dark:text-dark-text-secondary">
           <p className="text-sm">Mindestens 2 Zeichen eingeben</p>
-          <p className="text-xs mt-1 opacity-70">Durchsucht Inventar, Vorräte, Geräte und Aufgaben</p>
+          <p className="text-xs mt-1 opacity-70">Durchsucht Inventar, Vorräte, Geräte, Aufgaben und Dokumente</p>
         </div>
       )}
     </>

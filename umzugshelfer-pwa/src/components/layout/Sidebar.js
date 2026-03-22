@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, DollarSign, ListChecks, Archive,
   Paintbrush, Calculator, CalendarClock, FolderOpen,
   Package, ShoppingCart, Wrench, CheckSquare, ShoppingBag,
-  Search, BookOpen, History,
+  Search, BookOpen, History, FileText,
   Menu, X, CalendarDays, ScanLine,
 } from "lucide-react";
 
@@ -43,9 +43,10 @@ const homeGruppen = [
   {
     label: "Haushalt",
     items: [
-      { name: "Inventar",  path: "/home/inventar",  icon: Package },
-      { name: "Vorräte",   path: "/home/vorraete",  icon: ShoppingCart },
-      { name: "Geräte",    path: "/home/geraete",   icon: Wrench },
+      { name: "Inventar",  path: "/home/inventar",   icon: Package },
+      { name: "Vorräte",   path: "/home/vorraete",   icon: ShoppingCart },
+      { name: "Geräte",    path: "/home/geraete",    icon: Wrench },
+      { name: "Dokumente", path: "/home/dokumente",  icon: FileText },
     ],
   },
   {

@@ -21,6 +21,7 @@ import {
   UserCircle2,
   Repeat,
   ScanLine,
+  FileText,
 } from "lucide-react";
 
 const HOME_LINKS = [
@@ -29,8 +30,9 @@ const HOME_LINKS = [
   { label: "Vorräte", path: "/home/vorraete", icon: ShoppingCart },
   { label: "Einkauf", path: "/home/einkaufliste", icon: ShoppingCart },
   { label: "Aufgaben", path: "/home/aufgaben", icon: ListChecks },
-  { label: "Geräte", path: "/home/geraete", icon: Wrench },
-  { label: "Projekte",          path: "/home/projekte",         icon: FolderOpen },
+  { label: "Geräte",    path: "/home/geraete",    icon: Wrench },
+  { label: "Dokumente", path: "/home/dokumente",  icon: FileText },
+  { label: "Projekte",  path: "/home/projekte",   icon: FolderOpen },
   { label: "Rechnung scannen", path: "/home/rechnung-scannen", icon: ScanLine },
   { label: "Bewohner",         path: "/home/bewohner",         icon: Users },
   { label: "Budget", path: "/home/budget", icon: DollarSign },

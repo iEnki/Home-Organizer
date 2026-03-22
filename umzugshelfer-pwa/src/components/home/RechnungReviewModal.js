@@ -161,6 +161,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
   const [positionen, setPositionen] = useState(ergebnis.positionen || []);
   const [modulAktiv, setModulAktiv] = useState(() => initModulAktiv(ergebnis.erkannte_module || []));
   const [speichern, setSpeichern] = useState(false);
+  const [wissenId, setWissenId] = useState(null);
 
   // Budget-Felder
   const [budgetKategorie, setBudgetKategorie] = useState("Haushalt");
@@ -229,12 +230,18 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
       }
 
       // 2. Dokument-Eintrag (immer)
-      const { error: dokErr } = await supabase.from("dokumente").insert({
+      const { data: dokData, error: dokErr } = await supabase.from("dokumente").insert({
         dateiname: dokDateiname,
         beschreibung: dokBeschreibung,
         storage_pfad: dokumentPfad,
         datei_typ: datei?.type || null,
-      });
+        dokument_typ: "rechnung",
+        meta: {
+          haendler: ergebnis.lieferant?.name || ergebnis.haendler || null,
+          datum: ergebnis.rechnungsdatum || ergebnis.datum || null,
+          gesamt: ergebnis.brutto || ergebnis.gesamt || null,
+        },
+      }).select("id").single();
       if (dokErr) throw new Error(`Dokument-Speicherung fehlgeschlagen: ${dokErr.message}`);
 
       // 3. Budget (wenn aktiv)
@@ -307,6 +314,20 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
         }
       }
 
+      // invoice-process: strukturierte Daten + Wissensdatenbank-Eintrag
+      if (dokData?.id) {
+        try {
+          const { data: invoiceData } = await supabase.functions.invoke("invoice-process", {
+            body: { dokument_id: dokData.id, analyseergebnis: ergebnis },
+          });
+          if (invoiceData?.wissen_id) {
+            setWissenId(invoiceData.wissen_id);
+          }
+        } catch {
+          // Nicht-fataler Fehler — Pflichtdaten sind bereits gespeichert
+        }
+      }
+
       success("Rechnung gespeichert.");
       onGespeichert();
     } catch (err) {
@@ -319,7 +340,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
     hatPflichffehler, gesamt, datei, session, dokDateiname, dokBeschreibung,
     datum, modulAktiv, budgetBeschreibung, haendler, budgetKategorie,
     geraetName, geraetHersteller, gewaehrleistungBis, garantieBis, naechsteWartung,
-    positionen, success, toastError, onGespeichert,
+    positionen, ergebnis, success, toastError, onGespeichert,
   ]);
 
   // ============================================================

@@ -89,7 +89,7 @@ const HomeGeraete = ({ session }) => {
       const [geraeteRes, wartungenRes, dokRes] = await Promise.all([
         supabase.from("home_geraete").select("*").eq("user_id", userId).order("name"),
         supabase.from("home_wartungen").select("*").eq("user_id", userId).order("datum", { ascending: false }),
-        supabase.from("dokumente").select("id, dateiname, kategorie").eq("user_id", userId).order("dateiname"),
+        supabase.from("dokumente").select("id, dateiname, datei_typ").eq("user_id", userId).order("dateiname"),
       ]);
       setGeraete(geraeteRes.data || []);
       setWartungen(wartungenRes.data || []);
@@ -267,7 +267,7 @@ const HomeGeraete = ({ session }) => {
                               <div key={d.id} className="flex items-center gap-2 text-xs text-light-text-main dark:text-dark-text-main group">
                                 <FileText size={12} className="text-blue-500 flex-shrink-0" />
                                 <span className="flex-1 truncate">{d.dateiname}</span>
-                                {d.kategorie && <span className="text-light-text-secondary dark:text-dark-text-secondary">{d.kategorie}</span>}
+                                {d.datei_typ && <span className="text-light-text-secondary dark:text-dark-text-secondary">{d.datei_typ}</span>}
                                 <button onClick={() => toggleDokumentLink(g.id, d.id)} className="opacity-0 group-hover:opacity-100 p-0.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500 transition-opacity" title="Verknüpfung lösen">
                                   <Unlink size={11} />
                                 </button>
@@ -357,7 +357,7 @@ const HomeGeraete = ({ session }) => {
                       >
                         <FileText size={14} className={isLinked ? "text-blue-500" : "text-light-text-secondary dark:text-dark-text-secondary"} />
                         <span className="flex-1 text-left truncate">{d.dateiname}</span>
-                        {d.kategorie && <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary flex-shrink-0">{d.kategorie}</span>}
+                        {d.datei_typ && <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary flex-shrink-0">{d.datei_typ}</span>}
                         {isLinked && <Link2 size={12} className="text-blue-500 flex-shrink-0" />}
                       </button>
                     );

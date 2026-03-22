@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { BookOpen, Plus, Edit2, Trash2, X, Loader2, AlertCircle, Search, Tag } from "lucide-react";
+import { BookOpen, Plus, Edit2, Trash2, X, Loader2, AlertCircle, Search, Tag, Eye, Receipt } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { logVerlauf } from "../../utils/homeVerlauf";
+import DokumentVorschauModal from "./DokumentVorschauModal";
 
-const KATEGORIEN = ["Farben & Oberflächen", "Maße & Abmessungen", "Geräte-Info", "Kontakte & Dienste", "Anleitungen", "Rezepte", "Notizen", "Sonstiges"];
+const KATEGORIEN = ["Rechnungen & Belege", "Farben & Oberflächen", "Maße & Abmessungen", "Geräte-Info", "Kontakte & Dienste", "Anleitungen", "Rezepte", "Notizen", "Sonstiges"];
 
 const WissenForm = ({ initial, onSpeichern, onAbbrechen }) => {
   const [form, setForm] = useState({
@@ -56,6 +57,8 @@ const HomeWissen = ({ session }) => {
   const [suchbegriff, setSuchbegriff] = useState("");
   const [kategFilter, setKategFilter] = useState("");
   const [detailId, setDetailId] = useState(null);
+  const [vorschauDok, setVorschauDok] = useState(null);
+  const [vorschauLaden, setVorschauLaden] = useState(null); // dokument_id currently loading
 
   const ladeDaten = useCallback(async () => {
     if (!userId) return;
@@ -98,6 +101,23 @@ const HomeWissen = ({ session }) => {
     ladeDaten();
   };
 
+  const ladeVorschau = async (dokument_id) => {
+    if (!dokument_id) return;
+    setVorschauLaden(dokument_id);
+    try {
+      const { data } = await supabase
+        .from("dokumente")
+        .select("storage_pfad, datei_typ, dateiname")
+        .eq("id", dokument_id)
+        .single();
+      if (data?.storage_pfad) {
+        setVorschauDok({ storagePfad: data.storage_pfad, dateiname: data.dateiname, datei_typ: data.datei_typ });
+      }
+    } finally {
+      setVorschauLaden(null);
+    }
+  };
+
   const gefiltertEintraege = eintraege.filter((e) => {
     const matchKateg = !kategFilter || e.kategorie === kategFilter;
     const q = suchbegriff.toLowerCase();
@@ -133,7 +153,14 @@ const HomeWissen = ({ session }) => {
       <div className="flex flex-wrap gap-2">
         <button onClick={() => setKategFilter("")} className={`px-3 py-1.5 rounded-pill text-xs font-medium transition-colors ${!kategFilter ? "bg-amber-500 text-white" : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"}`}>Alle</button>
         {KATEGORIEN.map((k) => (
-          <button key={k} onClick={() => setKategFilter(k)} className={`px-3 py-1.5 rounded-pill text-xs font-medium transition-colors ${kategFilter === k ? "bg-amber-500 text-white" : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"}`}>{k}</button>
+          <button
+            key={k}
+            onClick={() => setKategFilter(k)}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-pill text-xs font-medium transition-colors ${kategFilter === k ? "bg-amber-500 text-white" : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"}`}
+          >
+            {k === "Rechnungen & Belege" && <Receipt size={10} />}
+            {k}
+          </button>
         ))}
       </div>
 
@@ -158,6 +185,16 @@ const HomeWissen = ({ session }) => {
               <div className="flex items-start justify-between gap-2 mb-1">
                 <h3 className="font-semibold text-sm text-light-text-main dark:text-dark-text-main line-clamp-1">{e.titel}</h3>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                  {e.dokument_id && (
+                    <button
+                      onClick={(ev) => { ev.stopPropagation(); ladeVorschau(e.dokument_id); }}
+                      disabled={vorschauLaden === e.dokument_id}
+                      className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 disabled:opacity-50"
+                      title="Dokument anzeigen"
+                    >
+                      {vorschauLaden === e.dokument_id ? <Loader2 size={12} className="animate-spin" /> : <Eye size={12} />}
+                    </button>
+                  )}
                   <button onClick={(ev) => { ev.stopPropagation(); setModal(e); }} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500"><Edit2 size={12} /></button>
                   <button onClick={(ev) => { ev.stopPropagation(); loesche(e.id, e.titel); }} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500"><Trash2 size={12} /></button>
                 </div>
@@ -200,9 +237,29 @@ const HomeWissen = ({ session }) => {
                   {detailEintrag.tags.map((t) => <span key={t} className="flex items-center gap-0.5 text-xs px-2 py-0.5 rounded-pill bg-amber-500/10 text-amber-600 dark:text-amber-400"><Tag size={10} />{t}</span>)}
                 </div>
               )}
+              {detailEintrag.dokument_id && (
+                <button
+                  onClick={() => ladeVorschau(detailEintrag.dokument_id)}
+                  disabled={vorschauLaden === detailEintrag.dokument_id}
+                  className="mt-4 flex items-center gap-1.5 px-3 py-2 text-xs rounded-card-sm bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors disabled:opacity-50"
+                >
+                  {vorschauLaden === detailEintrag.dokument_id ? <Loader2 size={12} className="animate-spin" /> : <Eye size={12} />}
+                  Originaldokument anzeigen
+                </button>
+              )}
             </div>
           </div>
         </div>
+      )}
+
+      {/* Dokument-Vorschau */}
+      {vorschauDok && (
+        <DokumentVorschauModal
+          storagePfad={vorschauDok.storagePfad}
+          dateiname={vorschauDok.dateiname}
+          datei_typ={vorschauDok.datei_typ}
+          onSchliessen={() => setVorschauDok(null)}
+        />
       )}
 
       {/* Formular-Modal */}

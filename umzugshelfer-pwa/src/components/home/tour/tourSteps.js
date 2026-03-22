@@ -247,4 +247,36 @@ export const TOUR_STEPS = {
       position: "bottom",
     },
   ],
+  dokumente: [
+    {
+      target: "tour-dokumente-header",
+      title: "Dokumentenarchiv",
+      text: "Hier speicherst du alle wichtigen Dokumente deines Haushalts: Rechnungen, Verträge, Handbücher, Garantiebelege und mehr – übersichtlich kategorisiert.",
+      position: "bottom",
+    },
+    {
+      target: "tour-dokumente-upload",
+      title: "Hochladen",
+      text: "Klicke hier, um eine neue Datei hochzuladen. Du kannst eine Kategorie und eine Beschreibung vergeben.",
+      position: "bottom",
+    },
+    {
+      target: "tour-dokumente-suche",
+      title: "Suche",
+      text: "Suche nach Dateinamen oder Beschreibungen – die Ergebnisse werden sofort in Echtzeit gefiltert.",
+      position: "bottom",
+    },
+    {
+      target: "tour-dokumente-filter",
+      title: "Kategorie-Filter",
+      text: "Filtere nach Typ: Rechnung, Vertrag, Handbuch usw. Die Zahl zeigt, wie viele Dokumente in jeder Kategorie liegen.",
+      position: "bottom",
+    },
+    {
+      target: "tour-dokumente-liste",
+      title: "Dokumentenkarten",
+      text: "Jede Karte zeigt Dateiname, Kategorie, Größe und Datum. Per Klick herunterladen, als Wissenseintrag speichern oder löschen.",
+      position: "top",
+    },
+  ],
 };

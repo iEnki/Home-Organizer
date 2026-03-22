@@ -3,7 +3,7 @@ import { useState } from "react";
 const TOUR_PAGE_KEYS = [
   "dashboard", "budget", "inventar", "vorraete",
   "geraete", "bewohner", "einkaufliste", "aufgaben",
-  "projekte", "suche",
+  "projekte", "suche", "dokumente",
 ];
 
 /**
