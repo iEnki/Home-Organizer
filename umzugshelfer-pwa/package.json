@@ -29,7 +29,9 @@
     "react-scripts": "^5.0.1",
     "react-vertical-timeline-component": "^3.5.3",
     "web-vitals": "^2.1.4",
-    "yet-another-react-lightbox": "^3.23.2"
+    "yet-another-react-lightbox": "^3.23.2",
+    "tesseract.js": "^5.1.1",
+    "pdfjs-dist": "^4.2.67"
   },
   "scripts": {
     "start": "react-scripts start",

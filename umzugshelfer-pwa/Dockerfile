@@ -1,19 +1,15 @@
+# syntax=docker/dockerfile:1
 # Stage 1: Build der React-Anwendung
 FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Kopiere package.json und package-lock.json (oder yarn.lock)
-# Es ist besser, package-lock.json zu verwenden, wenn vorhanden, für deterministische Builds.
+# Kopiere package.json und package-lock.json zuerst (Layer-Cache: npm install nur bei Änderungen)
 COPY package*.json ./
 
-# Installiere Abhängigkeiten
-# CI=true stellt sicher, dass Warnungen nicht als Fehler behandelt werden und Tests nicht interaktiv laufen.
-# Die vorherige komplexe Installationszeile wird durch `npm ci` ersetzt, 
-# was auf Basis der package-lock.json alle Abhängigkeiten (inkl. devDependencies) installiert.
-RUN npm ci
-# Oder einfach:
-# RUN npm install
+# npm ci mit persistentem Cache-Mount — verhindert erneutes Download bei unveränderter package-lock.json
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --prefer-offline
 
 # Kopiere den Rest der Anwendungsdateien
 COPY . .

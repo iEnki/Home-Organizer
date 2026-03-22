@@ -7,8 +7,10 @@
 -- Budget-Posten: 12 Monate (April 2025 – März 2026) mit
 -- monatlichen, vierteljährlichen und einmaligen Ausgaben.
 --
--- HINWEIS: Nur Home-Organizer-Tabellen werden befüllt.
--- Umzugsplaner-Daten bleiben unverändert.
+-- Szenario: Familie Müller zog am 1. März 2025 aus der alten Wohnung
+-- (Marktgasse 12, 1030 Wien) in die neue Wohnung (Musterstraße 5, 1010 Wien).
+-- Der Umzugsplaner zeigt den damaligen Umzug (fast alles erledigt).
+-- Der Home Organizer zeigt das erste Jahr in der neuen Wohnung.
 --
 -- IDEMPOTENT: Kann mehrfach ausgeführt werden – löscht vorher
 -- alle vorhandenen Home-Daten des Demo-Users.
@@ -59,6 +61,25 @@ DECLARE
   v_projekt_bad    UUID;
   v_projekt_winter UUID;
 
+  -- pack_kisten (Umzugskartons – März 2025)
+  v_kiste_kueche1    UUID;
+  v_kiste_kueche2    UUID;
+  v_kiste_wohnzi1    UUID;
+  v_kiste_wohnzi2    UUID;
+  v_kiste_wohnzi3    UUID;
+  v_kiste_schlaf1    UUID;
+  v_kiste_schlaf2    UUID;
+  v_kiste_schlaf3    UUID;
+  v_kiste_buero1     UUID;
+  v_kiste_buero2     UUID;
+  v_kiste_bad        UUID;
+  v_kiste_fragil1    UUID;
+  v_kiste_fragil2    UUID;
+  v_kiste_sonstiges1 UUID;
+  v_kiste_sonstiges2 UUID;
+  v_kiste_keller1    UUID;
+  v_kiste_keller2    UUID;
+
 BEGIN
 
   -- ============================================================
@@ -92,19 +113,27 @@ BEGIN
   -- home_orte-Cascade löscht: home_lagerorte → ort_id
   -- home_objekte.lagerort_id / ort_id werden auf NULL gesetzt
   -- ============================================================
-  DELETE FROM public.home_sparziele     WHERE user_id = v_user_id;
-  DELETE FROM public.home_budget_limits WHERE user_id = v_user_id;
-  DELETE FROM public.home_wissen        WHERE user_id = v_user_id;
-  DELETE FROM public.home_verlauf       WHERE user_id = v_user_id;
-  DELETE FROM public.home_projekte      WHERE user_id = v_user_id;
-  DELETE FROM public.home_geraete       WHERE user_id = v_user_id;
-  DELETE FROM public.home_einkaufliste  WHERE user_id = v_user_id;
-  DELETE FROM public.home_vorraete      WHERE user_id = v_user_id;
-  DELETE FROM public.home_objekte       WHERE user_id = v_user_id;
-  DELETE FROM public.home_orte          WHERE user_id = v_user_id;
-  DELETE FROM public.home_bewohner      WHERE user_id = v_user_id;
-  DELETE FROM public.budget_posten      WHERE user_id = v_user_id AND app_modus = 'home';
-  DELETE FROM public.todo_aufgaben      WHERE user_id = v_user_id AND app_modus = 'home';
+  DELETE FROM public.home_sparziele       WHERE user_id = v_user_id;
+  DELETE FROM public.home_budget_limits   WHERE user_id = v_user_id;
+  DELETE FROM public.home_wissen          WHERE user_id = v_user_id;
+  DELETE FROM public.home_verlauf         WHERE user_id = v_user_id;
+  DELETE FROM public.home_projekte        WHERE user_id = v_user_id;
+  DELETE FROM public.home_wartungen       WHERE user_id = v_user_id;
+  DELETE FROM public.home_geraete         WHERE user_id = v_user_id;
+  DELETE FROM public.home_einkaufliste    WHERE user_id = v_user_id;
+  DELETE FROM public.home_vorraete        WHERE user_id = v_user_id;
+  DELETE FROM public.home_objekte         WHERE user_id = v_user_id;
+  DELETE FROM public.home_orte            WHERE user_id = v_user_id;
+  DELETE FROM public.home_bewohner        WHERE user_id = v_user_id;
+  DELETE FROM public.budget_posten        WHERE user_id = v_user_id AND app_modus = 'home';
+  DELETE FROM public.todo_aufgaben        WHERE user_id = v_user_id AND app_modus = 'home';
+  -- Umzugsplaner-Daten
+  DELETE FROM public.pack_gegenstaende    WHERE user_id = v_user_id;
+  DELETE FROM public.pack_kisten          WHERE user_id = v_user_id;
+  DELETE FROM public.renovierungs_posten  WHERE user_id = v_user_id;
+  DELETE FROM public.kontakte             WHERE user_id = v_user_id;
+  DELETE FROM public.budget_posten        WHERE user_id = v_user_id AND app_modus = 'umzug';
+  DELETE FROM public.todo_aufgaben        WHERE user_id = v_user_id AND app_modus = 'umzug';
 
 
   -- ============================================================
@@ -1026,20 +1055,492 @@ TIPP: Einen Tag vorher machen – schmeckt aufgewärmt noch besser!$w6$,
      'Badrenovierung', 2500.00, 400.00, '2026-06-01', '#6366F1', '🛁');
 
 
+  -- ============================================================
+  -- 16. kontakte — Umzugsbeteiligte (Umzugsplaner-Modus)
+  -- ============================================================
+  INSERT INTO public.kontakte
+    (id, user_id, household_id, name, typ, telefon, adresse, notiz) VALUES
+
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'Blitz Umzüge Wien GmbH', 'Umzugsfirma',
+     '01 888 44 55',
+     'Laxenburger Str. 88, 1100 Wien',
+     'Ansprechpartner: Herr Kovacs. Auftragsbestätigung per E-Mail erhalten. Umzugstag: 01.03.2025, 08:00 Uhr. Inklusive Möbeldemontage/montage.'),
+
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'Immobilien Wagner GmbH', 'Hausverwaltung alt',
+     '01 512 34 56',
+     'Rennweg 44, 1030 Wien',
+     'Hausverwaltung alte Wohnung. Mietvertragskündigung 01.11.2024 eingeschickt. Kaution: 3.300 EUR (3 MM). Rückgabe Wohnungsschlüssel: 31.03.2025.'),
+
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'Immobilien Bauer GmbH', 'Hausverwaltung neu',
+     '01 234 56 78',
+     'Schottengasse 10, 1010 Wien',
+     'Hausverwaltung neue Wohnung. Mietbeginn: 01.03.2025. Ansprechpartnerin: Fr. Bauer. Kaution: 3.300 EUR überwiesen am 10.02.2025.'),
+
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'Wien Energie GmbH', 'Versorger',
+     '0800 500 550',
+     'Thomas-Klestil-Platz 14, 1030 Wien',
+     'Strom & Gas. Ummeldung Online am 20.02.2025 erledigt. Kundennummer: WE-7743-2025. Zählerstand bei Einzug dokumentiert.'),
+
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'Magenta Telekom', 'Internet & Telefon',
+     '0800 240 900',
+     'Rennweg 97–99, 1030 Wien',
+     'Internet & Festnetz Zuhause XL (250 Mbit/s). Ummeldung auf neue Adresse: 1010 Wien. Neue Kundennummer: MA-4477-2025. Techniker-Termin: 05.03.2025.'),
+
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'Rudolf Hofmann', 'Hausmeister',
+     '0664 123 45 67',
+     'Musterstraße 5, 1010 Wien (EG)',
+     'Hausmeister neue Wohnung. Schlüsseldeplikat hinterlegt. Zuständig für Müllraum, Tiefgarage, allgemeine Reparaturen. Notfall: direkt klingeln EG.'),
+
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'Magistrat Wien – MA 35', 'Behörde',
+     '01 4000 35000',
+     'Friedrich-Schmidt-Platz 3, 1082 Wien',
+     'Wohnsitzummeldung am 08.03.2025 erledigt (Frist: 3 Tage nach Einzug). Bringt Reisepässe und Meldezettel mit.'),
+
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'VW Autohaus Müller', 'KFZ',
+     '01 987 65 43',
+     'Hütteldorfer Str. 200, 1140 Wien',
+     'KFZ-Ummeldung Golf 8 GTI auf neue Adresse: 1010 Wien. Erledigt am 15.03.2025. Neue Zulassungsadresse eingetragen.');
+
+
+  -- ============================================================
+  -- 17. pack_kisten — 17 Umzugskartons
+  --     Stand März 2026: fast alle ausgepackt.
+  --     2 Kellerkartons noch gepackt (typisches Demo-Szenario).
+  -- ============================================================
+  v_kiste_kueche1    := gen_random_uuid();
+  v_kiste_kueche2    := gen_random_uuid();
+  v_kiste_wohnzi1    := gen_random_uuid();
+  v_kiste_wohnzi2    := gen_random_uuid();
+  v_kiste_wohnzi3    := gen_random_uuid();
+  v_kiste_schlaf1    := gen_random_uuid();
+  v_kiste_schlaf2    := gen_random_uuid();
+  v_kiste_schlaf3    := gen_random_uuid();
+  v_kiste_buero1     := gen_random_uuid();
+  v_kiste_buero2     := gen_random_uuid();
+  v_kiste_bad        := gen_random_uuid();
+  v_kiste_fragil1    := gen_random_uuid();
+  v_kiste_fragil2    := gen_random_uuid();
+  v_kiste_sonstiges1 := gen_random_uuid();
+  v_kiste_sonstiges2 := gen_random_uuid();
+  v_kiste_keller1    := gen_random_uuid();
+  v_kiste_keller2    := gen_random_uuid();
+
+  INSERT INTO public.pack_kisten
+    (id, user_id, household_id, name, raum_neu, status_kiste, notizen) VALUES
+
+    (v_kiste_kueche1, v_user_id, v_household_id,
+     'Küche 1 – Töpfe & Pfannen', 'Küche', 'Ausgepackt',
+     'Topfset WMF, 2 Pfannen, Wasserkocher, Schneidbretter. ZERBRECHLICH oben drauf!'),
+
+    (v_kiste_kueche2, v_user_id, v_household_id,
+     'Küche 2 – Gewürze & Vorräte', 'Küche', 'Ausgepackt',
+     'Gewürzregal, Nudelpackungen, Konserven, Küchenhelfer (Siebe, Schäler, Kochlöffel). Nicht mit schweren Kisten stapeln.'),
+
+    (v_kiste_wohnzi1, v_user_id, v_household_id,
+     'Wohnzimmer 1 – Bücher Fachbücher', 'Wohnzimmer', 'Ausgepackt',
+     'Informatik-Bücher (ca. 15 Stück). SCHWER – max. halbvoll beladen. Guter Griff wichtig.'),
+
+    (v_kiste_wohnzi2, v_user_id, v_household_id,
+     'Wohnzimmer 2 – Bücher Romane', 'Wohnzimmer', 'Ausgepackt',
+     'Romane und Belletristik (ca. 30 Stück). Auch SCHWER.'),
+
+    (v_kiste_wohnzi3, v_user_id, v_household_id,
+     'Wohnzimmer 3 – Deko & Rahmen', 'Wohnzimmer', 'Ausgepackt',
+     'Bilderrahmen (5 Stück) mit Zeitungspapier eingewickelt, Kerzenständer, Vasen, Kissen. Vorsicht Glas!'),
+
+    (v_kiste_schlaf1, v_user_id, v_household_id,
+     'Schlafzimmer 1 – Bettwäsche', 'Schlafzimmer', 'Ausgepackt',
+     'Bettbezüge (3 Sets), Kopfkissenbezüge, Sommerdecke, Wolldecke.'),
+
+    (v_kiste_schlaf2, v_user_id, v_household_id,
+     'Schlafzimmer 2 – Kleidung Anna', 'Schlafzimmer', 'Ausgepackt',
+     'Annas Alltagskleidung aus dem Kleiderschrank (gefaltete Sachen). Kleidungsbeutel für empfindliche Teile.'),
+
+    (v_kiste_schlaf3, v_user_id, v_household_id,
+     'Schlafzimmer 3 – Kleidung Max', 'Schlafzimmer', 'Ausgepackt',
+     'Max Alltagskleidung, Hemden, Hosen. Anzüge separat im Kleidersack transportiert.'),
+
+    (v_kiste_buero1, v_user_id, v_household_id,
+     'Arbeitszimmer 1 – Unterlagen & Dokumente', 'Arbeitszimmer', 'Ausgepackt',
+     'Dokumentenmappe, Ordner (6 Stück), Briefe, Garantieunterlagen. WICHTIG – nicht verlieren!'),
+
+    (v_kiste_buero2, v_user_id, v_household_id,
+     'Arbeitszimmer 2 – Kabel & Technik-Zubehör', 'Arbeitszimmer', 'Ausgepackt',
+     'Ladekabel, HDMI-Kabel, USB-Hub, externe Festplatte, Maus, Tastatur, Kopfhörer. In Ziploc-Beuteln sortiert.'),
+
+    (v_kiste_bad, v_user_id, v_household_id,
+     'Bad – Kosmetik & Medizin', 'Bad', 'Ausgepackt',
+     'Cremes, Shampoo, Duschgel, Hausapotheke (Verbandszeug, Schmerzmittel), Rasierer. Achtung: Flüssigkeiten senkrecht stellen!'),
+
+    (v_kiste_fragil1, v_user_id, v_household_id,
+     'FRAGIL – Gläser & Geschirr', 'Küche', 'Ausgepackt',
+     'Weingläser (6), Wassergläser (8), Sektkelche (4), Teller. Einzeln in Zeitungspapier eingewickelt. OBEN drauf stellen!'),
+
+    (v_kiste_fragil2, v_user_id, v_household_id,
+     'FRAGIL – Vasen & Deko', 'Wohnzimmer', 'Ausgepackt',
+     'Große Vase (Hochzeitsgeschenk), 2 Keramik-Tischlampen ohne Fuß, Bilderrahmen mit Erinnerungsfotos. Luftpolsterfolie.'),
+
+    (v_kiste_sonstiges1, v_user_id, v_household_id,
+     'Sonstiges 1 – Putzmittel & Haushalt', 'Abstellraum', 'Ausgepackt',
+     'Reinigungsmittel, Eimer, Wischmopp-Aufsätze, Putztücher, Müllbeutel-Vorrat. Kann gestapelt werden.'),
+
+    (v_kiste_sonstiges2, v_user_id, v_household_id,
+     'Sonstiges 2 – Sport & Outdoor', 'Keller', 'Ausgepackt',
+     'Yoga-Matte (Anna), Fahrradhelm, Sportschuhe, Rucksäcke, Taschenlampen.'),
+
+    -- Noch im Keller eingelagert – nach 1 Jahr noch nicht geöffnet (realistisch!)
+    (v_kiste_keller1, v_user_id, v_household_id,
+     'Keller – Saisondeko & Weihnachten', 'Keller', 'Gepackt',
+     'Weihnachtsdeko (aus alter Wohnung), Adventskalender-Rahmen, Lichterketten (alt). Kiste ist aus der alten Wohnung direkt in den Keller gewandert – noch nie geöffnet.'),
+
+    (v_kiste_keller2, v_user_id, v_household_id,
+     'Keller – Diverses Restposten', 'Keller', 'Gepackt',
+     'Diverses aus der alten Wohnung: alte Kabel, Ersatzteile, Schrauben-Sortiment, alte Fotoalben. Muss irgendwann ausgemistet werden.');
+
+
+  -- ============================================================
+  -- 18. pack_gegenstaende — Inhalte der Kisten
+  -- ============================================================
+  INSERT INTO public.pack_gegenstaende
+    (id, user_id, household_id, kiste_id, beschreibung, menge, kategorie, ausgepakt_am) VALUES
+
+    -- Küche 1
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_kueche1, 'WMF Topfset (4-teilig)', 1, 'Küche', '2025-03-02'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_kueche1, 'Teflon-Bratpfanne 28cm', 1, 'Küche', '2025-03-02'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_kueche1, 'Gusseisen-Pfanne 26cm', 1, 'Küche', '2025-03-02'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_kueche1, 'Wasserkocher Philips', 1, 'Küche', '2025-03-02'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_kueche1, 'Schneidbretter (Holz + Kunststoff)', 2, 'Küche', '2025-03-02'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_kueche1, 'Küchensieb', 2, 'Küche', '2025-03-02'),
+
+    -- Küche 2
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_kueche2, 'Gewürzregal mit 12 Gewürzen', 1, 'Küche', '2025-03-02'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_kueche2, 'Pasta-Vorrat (Spaghetti, Penne, Rigatoni)', 5, 'Lebensmittel', '2025-03-02'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_kueche2, 'Tomaten-Dosen (Mutti)', 6, 'Lebensmittel', '2025-03-02'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_kueche2, 'Olivenöl (1 L Flasche)', 1, 'Lebensmittel', '2025-03-02'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_kueche2, 'Kochlöffel-Set & Backzubehör', 1, 'Küche', '2025-03-02'),
+
+    -- Wohnzimmer 1
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_wohnzi1, 'Fachbücher Informatik (Clean Code, DDD, uvm.)', 15, 'Bücher', '2025-03-03'),
+
+    -- Wohnzimmer 2
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_wohnzi2, 'Romane & Belletristik (Klassiker, Thriller)', 30, 'Bücher', '2025-03-03'),
+
+    -- Wohnzimmer 3
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_wohnzi3, 'Bilderrahmen verschiedene Größen', 5, 'Deko', '2025-03-04'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_wohnzi3, 'Kerzenständer Messing', 2, 'Deko', '2025-03-04'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_wohnzi3, 'Dekovasen (klein)', 3, 'Deko', '2025-03-04'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_wohnzi3, 'Deko-Kissen (Couch)', 4, 'Textilien', '2025-03-04'),
+
+    -- Schlafzimmer 1
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_schlaf1, 'Bettbezug-Set (Doppelbett)', 3, 'Textilien', '2025-03-03'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_schlaf1, 'Kopfkissenbezüge', 6, 'Textilien', '2025-03-03'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_schlaf1, 'Sommerdecke', 1, 'Textilien', '2025-03-03'),
+
+    -- Schlafzimmer 2 + 3
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_schlaf2, 'Alltagskleidung Anna (T-Shirts, Jeans, Pullover)', 1, 'Kleidung', '2025-03-03'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_schlaf3, 'Alltagskleidung Max (Hemden, Hosen)', 1, 'Kleidung', '2025-03-03'),
+
+    -- Arbeitszimmer
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_buero1, 'Dokumentenmappe A4', 1, 'Dokumente', '2025-03-04'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_buero1, 'Aktenordner mit Unterlagen', 6, 'Dokumente', '2025-03-04'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_buero1, 'Briefablage & Büromaterial', 1, 'Büro', '2025-03-04'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_buero2, 'Laptopkabel & Ladegeräte', 5, 'Elektronik', '2025-03-04'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_buero2, 'HDMI-Kabel & USB-Hub', 3, 'Elektronik', '2025-03-04'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_buero2, 'Externe Festplatte WD 2 TB', 1, 'Elektronik', '2025-03-04'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_buero2, 'Logitech Maus + Tastatur', 1, 'Elektronik', '2025-03-04'),
+
+    -- Bad
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_bad, 'Kosmetik-Tasche Anna', 1, 'Kosmetik', '2025-03-02'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_bad, 'Hausapotheke', 1, 'Medizin', '2025-03-02'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_bad, 'Shampoo & Duschgel Vorrat', 4, 'Hygiene', '2025-03-02'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_bad, 'Handtücher (4 Stück)', 4, 'Textilien', '2025-03-02'),
+
+    -- Fragil 1
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_fragil1, 'Weingläser (Riedel)', 6, 'Küche', '2025-03-05'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_fragil1, 'Wassergläser (Duralex)', 8, 'Küche', '2025-03-05'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_fragil1, 'Sektkelche', 4, 'Küche', '2025-03-05'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_fragil1, 'Suppenteller & Essteller', 8, 'Küche', '2025-03-05'),
+
+    -- Fragil 2
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_fragil2, 'Große Vase (Hochzeitsgeschenk)', 1, 'Deko', '2025-03-05'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_fragil2, 'Keramik-Tischlampen', 2, 'Elektronik', '2025-03-05'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_fragil2, 'Erinnerungsfotos in Rahmen', 3, 'Deko', '2025-03-05'),
+
+    -- Sonstiges
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_sonstiges1, 'Reinigungsmittel-Vorrat', 6, 'Haushalt', '2025-03-02'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_sonstiges1, 'Wischmopp & Eimer', 1, 'Haushalt', '2025-03-02'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_sonstiges1, 'Müllbeutel-Vorrat (3 Rollen)', 3, 'Haushalt', '2025-03-02'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_sonstiges2, 'Yoga-Matte (Lululemon, Anna)', 1, 'Sport', '2025-03-06'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_sonstiges2, 'Fahrradhelm & Handschuhe', 2, 'Sport', '2025-03-06'),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_sonstiges2, 'Wanderrucksäcke (2x)', 2, 'Sport', '2025-03-06'),
+
+    -- Keller 1 + 2 – noch nicht ausgepackt (NULL = nicht ausgepackt)
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_keller1, 'Weihnachtsdeko (Lichterketten alt)', 3, 'Deko', NULL),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_keller1, 'Adventskranz-Rahmen', 1, 'Deko', NULL),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_keller1, 'Kerzenhalter Advent', 2, 'Deko', NULL),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_keller2, 'Alte Kabel (gemischt)', 1, 'Elektronik', NULL),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_keller2, 'Schrauben & Dübel-Sortiment', 1, 'Werkzeug', NULL),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_keller2, 'Fotoalben (alte)', 3, 'Erinnerungen', NULL),
+    (gen_random_uuid(), v_user_id, v_household_id, v_kiste_keller2, 'Alte Ladegeräte & Elektronik-Schrott', 1, 'Elektronik', NULL);
+
+
+  -- ============================================================
+  -- 19. budget_posten (app_modus = 'umzug') — Umzugskosten 2025
+  -- ============================================================
+  INSERT INTO public.budget_posten
+    (id, user_id, household_id, app_modus, beschreibung, betrag, datum,
+     kategorie, typ, wiederholen, intervall, naechstes_datum) VALUES
+
+    -- Vor-Umzug (Jänner–Februar 2025)
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Umzugskartons & Verpackungsmaterial', -78.00, '2025-01-15',
+     'Packmaterial', 'ausgabe', false, NULL, NULL),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Kaution neue Wohnung (3 Monatsmieten)', -3300.00, '2025-02-10',
+     'Kaution', 'ausgabe', false, NULL, NULL),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Erste Miete März 2025 (neue Wohnung)', -1100.00, '2025-02-28',
+     'Miete', 'ausgabe', false, NULL, NULL),
+
+    -- Umzugstag (März 2025)
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Blitz Umzüge Wien GmbH – Komplettservice', -890.00, '2025-03-01',
+     'Umzugsfirma', 'ausgabe', false, NULL, NULL),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Trinkgeld Umzugsteam (3 Personen)', -60.00, '2025-03-01',
+     'Umzugsfirma', 'ausgabe', false, NULL, NULL),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Verpflegung Umzugshelfer (Pizza + Getränke)', -45.00, '2025-03-01',
+     'Sonstiges', 'ausgabe', false, NULL, NULL),
+
+    -- Einzug & Einrichten (März–April 2025)
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'IKEA – KALLAX Regal + PAX Kleiderschrank', -680.00, '2025-03-08',
+     'Einrichtung', 'ausgabe', false, NULL, NULL),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'IKEA – Bettgestell MALM + Lattenrost', -249.00, '2025-03-08',
+     'Einrichtung', 'ausgabe', false, NULL, NULL),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Vorhänge & Verdunkelungsrollo Schlafzimmer', -189.00, '2025-03-12',
+     'Einrichtung', 'ausgabe', false, NULL, NULL),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Steckdosenleisten & Kabelkanäle', -85.00, '2025-03-14',
+     'Technik', 'ausgabe', false, NULL, NULL),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Schlüsselkopien (4 Stück)', -28.00, '2025-03-03',
+     'Wohnung', 'ausgabe', false, NULL, NULL),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Endreinigung alte Wohnung (Profireinigung)', -150.00, '2025-03-28',
+     'Alte Wohnung', 'ausgabe', false, NULL, NULL),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Wandlöcher schließen & Malerarbeiten (alte Whg.)', -120.00, '2025-03-25',
+     'Alte Wohnung', 'ausgabe', false, NULL, NULL),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Anschlussgebühr Strom & Gas (Wien Energie)', -120.00, '2025-03-10',
+     'Versorger', 'ausgabe', false, NULL, NULL),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Nachhilfe Regal-Montage (Freund Michael)', -0.00, '2025-03-09',
+     'Sonstiges', 'ausgabe', false, NULL, NULL),
+
+    -- Einnahmen
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Kaution-Rückgabe alte Wohnung (Immobilien Wagner)', 2750.00, '2025-04-15',
+     'Kaution', 'einnahme', false, NULL, NULL),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Verkauf alter Möbel (Willhaben: Couch, Regal)', 350.00, '2025-02-20',
+     'Verkauf', 'einnahme', false, NULL, NULL);
+
+
+  -- ============================================================
+  -- 20. todo_aufgaben (app_modus = 'umzug') — Umzugs-Checkliste
+  --     Stand März 2026: fast alles erledigt, 1 offene Aufgabe
+  -- ============================================================
+  INSERT INTO public.todo_aufgaben
+    (id, user_id, household_id, app_modus, beschreibung, kategorie, prioritaet,
+     erledigt, faelligkeitsdatum, wiederholung_typ) VALUES
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Mietvertrag alte Wohnung kündigen (3 Monate Frist)', 'Verträge', 'Hoch',
+     true, '2024-11-30', 'Keine'),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Umzugsfirma Blitz Umzüge buchen & Termin fixieren', 'Umzugstag', 'Hoch',
+     true, '2025-01-20', 'Keine'),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Umzugskartons & Verpackungsmaterial besorgen', 'Umzugstag', 'Mittel',
+     true, '2025-01-31', 'Keine'),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Kaution neue Wohnung überweisen', 'Finanzen', 'Hoch',
+     true, '2025-02-10', 'Keine'),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Vorräte aufbrauchen (Kühlschrank & Gefriertruhe)', 'Sonstiges', 'Mittel',
+     true, '2025-02-28', 'Keine'),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Alte Möbel auf Willhaben verkaufen (Couch, Regal)', 'Ausmisten', 'Mittel',
+     true, '2025-02-25', 'Keine'),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Zählerstände alte Wohnung ablesen & fotografieren', 'Wohnung', 'Hoch',
+     true, '2025-03-01', 'Keine'),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Umzug durchführen – Tag des Einzugs', 'Umzugstag', 'Hoch',
+     true, '2025-03-01', 'Keine'),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Schlüssel neue Wohnung übernehmen & Übergabeprotokoll erstellen', 'Wohnung', 'Hoch',
+     true, '2025-03-01', 'Keine'),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Wohnsitz ummelden beim Magistrat Wien (MA 35)', 'Behörde', 'Hoch',
+     true, '2025-03-08', 'Keine'),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Internet-Ummeldung Magenta – Techniker-Termin vereinbaren', 'Versorger', 'Hoch',
+     true, '2025-03-05', 'Keine'),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Strom & Gas ummelden (Wien Energie Online-Portal)', 'Versorger', 'Hoch',
+     true, '2025-02-20', 'Keine'),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Nachsendeauftrag bei der Post einrichten (6 Monate)', 'Organisation', 'Hoch',
+     true, '2025-02-28', 'Keine'),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Adressänderung bei Bank Austria & Volksbank melden', 'Organisation', 'Hoch',
+     true, '2025-03-15', 'Keine'),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Adressänderung bei Versicherungen (Generali, Zurich)', 'Organisation', 'Hoch',
+     true, '2025-03-15', 'Keine'),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'KFZ-Ummeldung Golf 8 GTI (Autohaus Müller)', 'Behörde', 'Mittel',
+     true, '2025-03-15', 'Keine'),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Endreinigung alte Wohnung beauftragen', 'Wohnung', 'Mittel',
+     true, '2025-03-28', 'Keine'),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Schlüsselübergabe alte Wohnung (Immobilien Wagner)', 'Wohnung', 'Hoch',
+     true, '2025-03-31', 'Keine'),
+
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Amazon Prime & Online-Shop Adresse aktualisieren', 'Organisation', 'Mittel',
+     true, '2025-03-20', 'Keine'),
+
+    -- NOCH OFFEN: Die zwei Kellerkartons sind noch nie ausgepackt worden
+    (gen_random_uuid(), v_user_id, v_household_id, 'umzug',
+     'Kellerkartons auspacken & Saisondeko sortieren (Keller 1 + 2)', 'Ausmisten', 'Niedrig',
+     false, NULL, 'Keine');
+
+
+  -- ============================================================
+  -- 21. renovierungs_posten — Materialplanung neue Wohnung
+  -- ============================================================
+  INSERT INTO public.renovierungs_posten
+    (id, user_id, household_id, beschreibung, raum, kategorie,
+     menge_einheit, geschaetzter_preis, status) VALUES
+
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'Wandfarbe Alpina "Stilles Wasser" (Graubeige)', 'Wohnzimmer + Flur',
+     'Malerarbeiten', '2 × 2,5 L Eimer', 45.00, 'Erledigt'),
+
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'Wandfarbe Alpina "Sanfter Abend" (Hellgrau)', 'Schlafzimmer',
+     'Malerarbeiten', '1 × 2,5 L Eimer', 24.00, 'Erledigt'),
+
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'Malerrolle 18 cm + Teleskopstange + Abdeckfolie', 'Alle Räume',
+     'Malerarbeiten', '1 Set', 28.00, 'Erledigt'),
+
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'Fliesenlack Bad (Weiß Matt) für Oberfliesen', 'Bad',
+     'Fliesen & Boden', '1 × 750 ml Dose', 35.00, 'Erledigt'),
+
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'Wandregal IKEA LACK (Arbeitszimmer, 110 cm)', 'Arbeitszimmer',
+     'Möbel & Einrichtung', '2 Stück', 30.00, 'Erledigt'),
+
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'Dübel + Schrauben Set für Wandmontage', 'Alle Räume',
+     'Werkzeug & Zubehör', '1 Sortimentbox', 12.00, 'Erledigt'),
+
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'Hakenleiste Flur (Garderobe, 5 Haken, Holz)', 'Flur',
+     'Möbel & Einrichtung', '1 Stück', 45.00, 'Erledigt'),
+
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'Spiegel mit Ablage für Flur (60 × 80 cm)', 'Flur',
+     'Möbel & Einrichtung', '1 Stück', 79.00, 'Erledigt'),
+
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'Outdoor-Teppich Balkon (200 × 90 cm, grau)', 'Balkon',
+     'Deko & Textilien', '1 Stück', 55.00, 'Erledigt'),
+
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'Fugenmasse Silikon Bad (weiß, schimmelresistent)', 'Bad',
+     'Fliesen & Boden', '2 × 300 ml Kartuschen', 16.00, 'Erledigt'),
+
+    -- Noch geplant (für Badrenovierung 2026)
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'Fliesenlack Boden Bad (hellgrau) für Bodenfliesen', 'Bad',
+     'Fliesen & Boden', '1 × 1 L Dose', 42.00, 'Geplant'),
+
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'Grohe Waschtisch-Armatur (Eurostyle)', 'Bad',
+     'Sanitär & Armaturen', '1 Stück', 189.00, 'Geplant'),
+
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'LED-Spiegel Bad mit Beleuchtung (70 × 50 cm)', 'Bad',
+     'Möbel & Einrichtung', '1 Stück', 220.00, 'Geplant');
+
+
   RAISE NOTICE '✅ Demo-Daten erfolgreich eingefügt für User: %', v_user_id;
   RAISE NOTICE '   Haushalt-ID: %', v_household_id;
+  RAISE NOTICE '--- HOME ORGANIZER (April 2025 – März 2026) ---';
   RAISE NOTICE '   → 3 Orte, 9 Lagerorte';
   RAISE NOTICE '   → 2 Bewohner (Anna, Max)';
   RAISE NOTICE '   → 18 Objekte (alle Status + Kategorien)';
   RAISE NOTICE '   → 12 Vorräte (4 unter Mindestmenge), 8 Einkaufszettel';
   RAISE NOTICE '   → 7 Geräte (1 Wartung überfällig), 6 Wartungsprotokolle';
-  RAISE NOTICE '   → 3 Projekte, 12 Aufgaben (4 erledigt)';
-  RAISE NOTICE '   → 140+ Budget-Posten (April 2025 – März 2026, 12 Monate)';
-  RAISE NOTICE '     Monatlich: Miete, Strom, Fitness, Abos, Lebensmittel';
-  RAISE NOTICE '     Vierteljährlich: Kfz + Haushaltsversicherung (nächste: April 2026!)';
-  RAISE NOTICE '     Jährlich: Amazon Prime (nächste: April 2026!)';
-  RAISE NOTICE '     Einmalig: KFZ-Inspektion, Urlaub, Kaffeemaschine, uvm.';
+  RAISE NOTICE '   → 3 Projekte, 12 Home-Aufgaben';
+  RAISE NOTICE '   → 140+ Budget-Posten Home (12 Monate + wiederkehrende)';
   RAISE NOTICE '   → 6 Budget-Limits, 2 Sparziele';
   RAISE NOTICE '   → 12 Verlaufeinträge, 6 Wissenseinträge';
+  RAISE NOTICE '--- UMZUGSPLANER (Umzug März 2025) ---';
+  RAISE NOTICE '   → 8 Kontakte (Umzugsfirma, Hausverwaltungen, Versorger, ...)';
+  RAISE NOTICE '   → 17 Pack-Kisten (15 ausgepackt, 2 noch im Keller)';
+  RAISE NOTICE '   → ~50 Pack-Gegenstände in den Kisten';
+  RAISE NOTICE '   → 17 Budget-Posten Umzug (Kosten + 2 Einnahmen, ~8.300 EUR brutto)';
+  RAISE NOTICE '   → 20 To-Do-Aufgaben Umzug (19 erledigt, 1 offen: Kellerkartons)';
+  RAISE NOTICE '   → 13 Renovierungs-Posten (10 erledigt, 3 geplant für Badrenovierung)';
 
 END $$;
