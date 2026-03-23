@@ -47,6 +47,14 @@ function jahrAusDate(datum: string | null): string | null {
   return datum.slice(0, 4);
 }
 
+// ISO-Date → DD.MM.YYYY
+function formatDateDE(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return iso;
+  return `${m[3]}.${m[2]}.${m[1]}`;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -127,13 +135,34 @@ Deno.serve(async (req: Request) => {
   const warnings: string[] = [];
   const ergebnis = (analyseergebnis || {}) as Record<string, unknown>;
 
-  // Felder normalisieren
-  const lieferantName =
-    (ergebnis.lieferant as Record<string, unknown>)?.name as string ||
+  // Felder normalisieren — rückwärtskompatibel: alte (haendler, gesamt, datum) + neue (merchant_name, total_amount, purchase_date)
+  const lieferantName: string =
+    ((ergebnis.lieferant as Record<string, unknown>)?.name as string) ||
     (ergebnis.haendler as string) ||
+    (ergebnis.merchant_name as string) ||
+    "";
+  const rechnungsdatum: string | null =
+    (ergebnis.rechnungsdatum as string) ||
+    (ergebnis.datum as string) ||
+    (ergebnis.purchase_date as string) ||
     null;
-  const rechnungsdatum = (ergebnis.rechnungsdatum as string) || (ergebnis.datum as string) || null;
-  const brutto = (ergebnis.brutto as number) || (ergebnis.gesamt as number) || null;
+  const brutto: number | null =
+    (ergebnis.brutto as number) ||
+    (ergebnis.gesamt as number) ||
+    (ergebnis.total_amount as number) ||
+    null;
+  const waehrung: string =
+    (ergebnis.waehrung as string) ||
+    (ergebnis.currency as string) ||
+    "EUR";
+  const rechnungsnummer: string | null =
+    (ergebnis.rechnungsnummer as string) ||
+    (ergebnis.invoice_number as string) ||
+    null;
+  const purchaseType: string =
+    (ergebnis.purchase_type as string) || "Sonstiges";
+  const keyItems: string[] =
+    Array.isArray(ergebnis.key_items) ? (ergebnis.key_items as string[]) : [];
   const confidence = (ergebnis.confidence as number) || null;
 
   // ── 1. rechnungen upsert ─────────────────────────────────────────────────
@@ -146,12 +175,12 @@ Deno.serve(async (req: Request) => {
         {
           household_id:      householdId,
           dokument_id,
-          lieferant_name:    lieferantName,
-          rechnungsnummer:   (ergebnis.rechnungsnummer as string) || null,
-          rechnungsdatum:    rechnungsdatum,
+          lieferant_name:    lieferantName || null,
+          rechnungsnummer,
+          rechnungsdatum,
           leistungsdatum:    (ergebnis.leistungsdatum as string) || null,
           faellig_am:        (ergebnis.faellig_am as string) || null,
-          waehrung:          (ergebnis.waehrung as string) || "EUR",
+          waehrung,
           netto:             (ergebnis.netto as number) || null,
           ust:               (ergebnis.ust as number) || null,
           brutto,
@@ -227,28 +256,28 @@ Deno.serve(async (req: Request) => {
   let wissenId: string | null = null;
 
   try {
-    const datum = rechnungsdatum || new Date().toISOString().slice(0, 10);
-    const titel = [
-      "Rechnung:",
-      lieferantName || "Unbekannt",
-      datum ? `– ${datum}` : "",
-      brutto != null ? `– ${Number(brutto).toFixed(2)} EUR` : "",
-    ].filter(Boolean).join(" ");
+    const haendlerAnzeige = lieferantName || "Unbekannt";
+    const dateFormatted   = formatDateDE(rechnungsdatum);
+    const titel = dateFormatted
+      ? `${haendlerAnzeige} – ${dateFormatted}`
+      : `${haendlerAnzeige} – Rechnung`;
 
-    const inhalt = [
-      lieferantName ? `Lieferant: ${lieferantName}` : null,
-      ergebnis.rechnungsnummer ? `Rechnungs-Nr.: ${ergebnis.rechnungsnummer}` : null,
-      rechnungsdatum ? `Rechnungsdatum: ${rechnungsdatum}` : null,
-      ergebnis.faellig_am ? `Zahlbar bis: ${ergebnis.faellig_am}` : null,
-      ergebnis.netto != null ? `Netto: ${Number(ergebnis.netto).toFixed(2)} EUR` : null,
-      ergebnis.ust != null ? `MwSt: ${Number(ergebnis.ust).toFixed(2)} EUR` : null,
-      brutto != null ? `Brutto: ${Number(brutto).toFixed(2)} EUR` : null,
-    ].filter(Boolean).join("\n");
+    const summaryLine = (ergebnis.summary as string) || null;
+    const inhaltZeilen: string[] = [
+      ...(summaryLine ? [summaryLine, ""] : []),
+      `Händler: ${haendlerAnzeige}`,
+      ...(dateFormatted ? [`Datum: ${dateFormatted}`] : []),
+      ...(brutto != null ? [`Betrag: ${brutto} ${waehrung}`] : []),
+      `Art: ${purchaseType}`,
+      ...(rechnungsnummer ? [`Rechnungsnummer: ${rechnungsnummer}`] : []),
+      ...(keyItems.length > 0 ? [`Enthält: ${keyItems.join(", ")}`] : []),
+    ];
+    const inhalt = inhaltZeilen.join("\n");
 
     const jahr = jahrAusDate(rechnungsdatum);
     const tags = [
       "rechnung",
-      lieferantName?.toLowerCase().replace(/\s+/g, "_") || null,
+      lieferantName ? lieferantName.toLowerCase().replace(/\s+/g, "_") : null,
       jahr,
       `betrag:${betragRange(brutto as number)}`,
     ].filter(Boolean) as string[];

@@ -559,6 +559,7 @@ ${klassiText}`;
   await updateProcessing(supabaseAdmin, dokument_id, { last_step: `extract_${docType}` });
 
   let entityId: string | null = null;
+  let summaryData: Record<string, unknown> | null = null;
 
   // ── 10a: invoice ──────────────────────────────────────────────────────────
   if (docType === "invoice") {
@@ -574,6 +575,8 @@ ${klassiText}`;
           total_amount:   strukturierteDaten.brutto,
           currency:       "EUR",
           invoice_number: strukturierteDaten.rechnungsnummer,
+          purchase_type:  "Sonstiges",
+          key_items:      [],
           summary:        lieferant ? `Rechnung von ${lieferant}.` : "Rechnung.",
         };
       } else if (extrahierterText) {
@@ -590,9 +593,11 @@ ${klassiText}`;
                 total_amount:   { type: ["number", "null"] },
                 currency:       { type: "string" },
                 invoice_number: { type: ["string", "null"] },
+                purchase_type:  { type: "string" },
+                key_items:      { type: "array", items: { type: "string" } },
                 summary:        { type: "string" },
               },
-              required:             ["merchant_name", "purchase_date", "total_amount", "currency", "invoice_number", "summary"],
+              required:             ["merchant_name", "purchase_date", "total_amount", "currency", "invoice_number", "purchase_type", "key_items", "summary"],
               additionalProperties: false,
             },
           },
@@ -605,6 +610,8 @@ purchase_date: Rechnungsdatum als ISO-Date (YYYY-MM-DD) oder null.
 total_amount: Gesamtbetrag inkl. MwSt. als Zahl oder null.
 currency: Währung (Standard "EUR").
 invoice_number: Rechnungsnummer oder null.
+purchase_type: Kategorie des Einkaufs — einer von: Lebensmittel, Tankstelle, Restaurant, Elektronik, Baumarkt, Apotheke, Kleidung, Sonstiges.
+key_items: Array mit 2–4 herausragenden Produkten oder Posten (kurze Namen, kein Preis). Leeres Array wenn nichts erkennbar.
 summary: 1 vollständiger Satz auf Deutsch, der beschreibt was gekauft/geleistet wurde — gerne mit Produktnamen wenn erkennbar.
 
 Text:
@@ -636,6 +643,8 @@ ${smartTruncate(extrahierterText)}`;
       const totalAmount    = (parsed.total_amount as number) || null;
       const currency       = (parsed.currency as string) || "EUR";
       const invoiceNumber  = (parsed.invoice_number as string) || null;
+      const purchaseType   = (parsed.purchase_type as string) || "Sonstiges";
+      const keyItems       = Array.isArray(parsed.key_items) ? (parsed.key_items as string[]) : [];
       const summary        = (parsed.summary as string) || `Rechnung von ${merchantName}.`;
 
       // Titelregel: {merchant_name} – {DD.MM.YYYY} | Fallback: {merchant_name} – Rechnung
@@ -643,6 +652,27 @@ ${smartTruncate(extrahierterText)}`;
       const titel = dateFormatted
         ? `${merchantName} – ${dateFormatted}`
         : `${merchantName} – Rechnung`;
+
+      // summary_data für Frontend (Budget-Import etc.)
+      summaryData = {
+        merchant:      merchantName,
+        amount:        totalAmount,
+        currency,
+        purchase_type: purchaseType,
+      };
+
+      // Strukturierter home_wissen-Inhalt
+      const inhaltZeilen = [
+        summary,
+        "",
+        `Händler: ${merchantName}`,
+        ...(dateFormatted ? [`Datum: ${dateFormatted}`] : []),
+        ...(totalAmount != null ? [`Betrag: ${totalAmount} ${currency}`] : []),
+        `Art: ${purchaseType}`,
+        ...(invoiceNumber ? [`Rechnungsnummer: ${invoiceNumber}`] : []),
+        ...(keyItems.length > 0 ? [`Enthält: ${keyItems.join(", ")}`] : []),
+      ];
+      const inhalt = inhaltZeilen.join("\n");
 
       // Kategorie auf Dokument setzen
       await supabaseAdmin.from("dokumente").update({ kategorie: "Rechnung" }).eq("id", dokument_id);
@@ -679,7 +709,7 @@ ${smartTruncate(extrahierterText)}`;
         household_id: householdId,
         user_id:      null,
         titel,
-        inhalt:       summary,
+        inhalt,
         kategorie:    "Rechnungen & Belege",
         tags:         ["rechnung", ...(merchantTag ? [merchantTag] : []), ...tags].filter(Boolean),
         dokument_id,
@@ -716,14 +746,17 @@ ${smartTruncate(extrahierterText)}`;
             properties: {
               counterparty_name:  { type: "string" },
               subject_or_product: { type: "string" },
+              contract_type:      { type: "string" },
               start_date:         { type: ["string", "null"] },
               end_date:           { type: ["string", "null"] },
               duration_text:      { type: ["string", "null"] },
+              monthly_amount:     { type: ["number", "null"] },
+              notice_period_days: { type: ["number", "null"] },
               key_points:         { type: "array", items: { type: "string" } },
               confidence:         { type: "number" },
               summary:            { type: "string" },
             },
-            required:             ["counterparty_name", "subject_or_product", "start_date", "end_date", "duration_text", "key_points", "confidence", "summary"],
+            required:             ["counterparty_name", "subject_or_product", "contract_type", "start_date", "end_date", "duration_text", "monthly_amount", "notice_period_days", "key_points", "confidence", "summary"],
             additionalProperties: false,
           },
         },
@@ -733,9 +766,12 @@ ${smartTruncate(extrahierterText)}`;
 
 counterparty_name: Name des Vertragspartners (Pflicht).
 subject_or_product: Vertragsgegenstand, z.B. "Mobilfunkvertrag", "Mietvertrag", "Strom" (Pflicht).
+contract_type: Normalisierter Vertragstyp — einer von: Mobilfunkvertrag, Internetvertrag, Strom, Gas, Mietvertrag, KFZ, Finanzierung, Sonstiges.
 start_date: Vertragsbeginn als ISO-Date oder null.
 end_date: Vertragsende als ISO-Date oder null.
 duration_text: Laufzeit als Text oder null.
+monthly_amount: Monatlicher Betrag als Zahl (nur Zahl) oder null.
+notice_period_days: Kündigungsfrist in Tagen als Zahl oder null.
 key_points: 2–4 kurze Stichpunkte zu den wichtigsten Vertragsinhalten.
 confidence: Extraktionssicherheit 0.0–1.0.
 summary: 1–2 Sätze auf Deutsch, die den Vertrag verständlich zusammenfassen (Vertragspartner, Gegenstand, Laufzeit).
@@ -762,13 +798,38 @@ ${smartTruncate(extrahierterText)}`;
         const conf = parseFloat(String(parsed.confidence ?? "0"));
         extractionConfidence = isFinite(conf) && conf >= 0 && conf <= 1 ? conf : 0;
 
-        const counterparty   = (parsed.counterparty_name as string) || dateiname;
-        const subject        = (parsed.subject_or_product as string) || "Vertrag";
-        const summary        = (parsed.summary as string) || `Vertrag mit ${counterparty}.`;
-        const counterpartyTag = normalisiereTag(counterparty);
+        const counterparty      = (parsed.counterparty_name as string) || dateiname;
+        const subject           = (parsed.subject_or_product as string) || "Vertrag";
+        const contractType      = (parsed.contract_type as string) || "Sonstiges";
+        const monthlyAmount     = typeof parsed.monthly_amount === "number" ? parsed.monthly_amount as number : null;
+        const noticePeriodDays  = typeof parsed.notice_period_days === "number" ? parsed.notice_period_days as number : null;
+        const keyPoints         = Array.isArray(parsed.key_points) ? (parsed.key_points as string[]) : [];
+        const summary           = (parsed.summary as string) || `Vertrag mit ${counterparty}.`;
+        const counterpartyTag   = normalisiereTag(counterparty);
 
-        // Titelregel: {counterparty} – {subject} | Fallback: {counterparty} – Vertrag
-        const titel = subject ? `${counterparty} – ${subject}` : `${counterparty} – Vertrag`;
+        // Titelregel: {contract_type || subject || "Vertrag"} – {counterparty || dateiname}
+        const titel = `${contractType || subject || "Vertrag"} – ${counterparty || dateiname}`;
+
+        // Strukturierter home_wissen-Inhalt
+        const startStr     = formatDateDE(parsed.start_date as string | null);
+        const endStr       = formatDateDE(parsed.end_date as string | null);
+        const durationText = (parsed.duration_text as string) || null;
+        const inhaltZeilen: string[] = [
+          summary,
+          "",
+          `Vertragspartner: ${counterparty}`,
+          `Vertragsart: ${contractType}`,
+          ...(startStr ? [`Beginn: ${startStr}`] : []),
+          ...(endStr ? [`Ende: ${endStr}`] : []),
+          ...(durationText ? [`Laufzeit: ${durationText}`] : []),
+          ...(monthlyAmount != null ? [`Monatlicher Betrag: ${monthlyAmount} EUR`] : []),
+          ...(noticePeriodDays != null ? [`Kündigungsfrist: ${noticePeriodDays} Tage`] : []),
+        ];
+        if (keyPoints.length > 0) {
+          inhaltZeilen.push("", "Wichtige Punkte:");
+          keyPoints.forEach((p: string) => inhaltZeilen.push(`• ${p}`));
+        }
+        const inhalt = inhaltZeilen.join("\n");
 
         if (extractionConfidence >= 0.50) {
           // Reprocess-Schutz: reviewed_at gesetzt → manuell korrigiert
@@ -796,6 +857,7 @@ ${smartTruncate(extrahierterText)}`;
                 start_date:                (parsed.start_date as string) || null,
                 end_date:                  (parsed.end_date as string) || null,
                 kuendigungsfrist_raw:      (parsed.duration_text as string) || null,
+                kuendigungsfrist_tage:     noticePeriodDays,
                 review_required:           reviewRequired,
                 classification_confidence: classificationConfidence,
                 extraction_confidence:     extractionConfidence,
@@ -814,7 +876,7 @@ ${smartTruncate(extrahierterText)}`;
               household_id: householdId,
               user_id:      null,
               titel,
-              inhalt:       summary,
+              inhalt,
               kategorie:    "Verträge",
               tags:         ["vertrag", ...(counterpartyTag ? [counterpartyTag] : []), ...tags].filter(Boolean),
               dokument_id,
@@ -836,7 +898,7 @@ ${smartTruncate(extrahierterText)}`;
             household_id: householdId,
             user_id:      null,
             titel,
-            inhalt:       summary,
+            inhalt,
             kategorie:    "Verträge",
             tags:         ["vertrag", ...(counterpartyTag ? [counterpartyTag] : []), ...tags].filter(Boolean),
             dokument_id,
@@ -868,16 +930,18 @@ ${smartTruncate(extrahierterText)}`;
             properties: {
               insurer_name:     { type: "string" },
               policy_type:      { type: "string" },
+              policy_number:    { type: ["string", "null"] },
               start_date:       { type: ["string", "null"] },
               end_date:         { type: ["string", "null"] },
               coverage_sum:     { type: ["number", "null"] },
               premium:          { type: ["number", "null"] },
               premium_interval: { type: ["string", "null"] },
               deductible:       { type: ["number", "null"] },
+              coverage_summary: { type: "string" },
               confidence:       { type: "number" },
               summary:          { type: "string" },
             },
-            required:             ["insurer_name", "policy_type", "start_date", "end_date", "coverage_sum", "premium", "premium_interval", "deductible", "confidence", "summary"],
+            required:             ["insurer_name", "policy_type", "policy_number", "start_date", "end_date", "coverage_sum", "premium", "premium_interval", "deductible", "coverage_summary", "confidence", "summary"],
             additionalProperties: false,
           },
         },
@@ -887,12 +951,14 @@ ${smartTruncate(extrahierterText)}`;
 
 insurer_name: Name des Versicherers (Pflicht).
 policy_type: Art der Versicherung, z.B. "Haushaltsversicherung", "Kfz-Haftpflicht", "Lebensversicherung" (Pflicht).
+policy_number: Versicherungsnummer oder Polizzennummer als Text oder null.
 start_date: Versicherungsbeginn als ISO-Date oder null.
 end_date: Versicherungsende als ISO-Date oder null.
 coverage_sum: Deckungssumme als Zahl oder null.
 premium: Prämie als Zahl oder null.
 premium_interval: Prämienintervall (monatlich/vierteljaehrlich/halbjaehrlich/jaehrlich) oder null.
 deductible: Selbstbehalt als Zahl oder null.
+coverage_summary: 1 Satz auf Deutsch — was ist konkret versichert (z.B. "Haushaltsinhalt inkl. Einbruch und Wasserschäden").
 confidence: Extraktionssicherheit 0.0–1.0.
 summary: 1–2 Sätze auf Deutsch mit allen relevanten Infos: Versicherer, Art, Laufzeit, Deckungssumme, Prämie, Selbstbehalt.
 
@@ -918,13 +984,36 @@ ${smartTruncate(extrahierterText)}`;
         const conf = parseFloat(String(parsed.confidence ?? "0"));
         extractionConfidence = isFinite(conf) && conf >= 0 && conf <= 1 ? conf : 0;
 
-        const insurer     = (parsed.insurer_name as string) || dateiname;
-        const policyType  = (parsed.policy_type as string) || "Versicherung";
-        const summary     = (parsed.summary as string) || `Versicherung bei ${insurer}.`;
-        const insurerTag  = normalisiereTag(insurer);
+        const insurer          = (parsed.insurer_name as string) || dateiname;
+        const policyType       = (parsed.policy_type as string) || "Versicherung";
+        const polizzenNummer   = (parsed.policy_number as string) ?? (parsed.polizzen_nummer as string) ?? null;
+        const coverageSummary  = (parsed.coverage_summary as string) || null;
+        const summary          = (parsed.summary as string) || `Versicherung bei ${insurer}.`;
+        const insurerTag       = normalisiereTag(insurer);
 
         // Titelregel: {insurer} – {policyType} | Fallback: {insurer} – Versicherung
         const titel = policyType ? `${insurer} – ${policyType}` : `${insurer} – Versicherung`;
+
+        // Strukturierter home_wissen-Inhalt
+        const pStartStr = formatDateDE(parsed.start_date as string | null);
+        const pEndStr   = formatDateDE(parsed.end_date as string | null);
+        const praemie   = typeof parsed.premium === "number" ? parsed.premium as number : null;
+        const deckung   = typeof parsed.coverage_sum === "number" ? parsed.coverage_sum as number : null;
+        const selbst    = typeof parsed.deductible === "number" ? parsed.deductible as number : null;
+        const intervall = normalisierePraemienIntervall(parsed.premium_interval as string);
+        const pInhaltZeilen: string[] = [
+          summary,
+          "",
+          `Versicherer: ${insurer}`,
+          `Versicherungstyp: ${policyType}`,
+          ...(polizzenNummer ? [`Versicherungsnummer: ${polizzenNummer}`] : []),
+          ...((pStartStr || pEndStr) ? [`Laufzeit: ${pStartStr ?? "?"} – ${pEndStr ?? "?"}`] : []),
+          ...(praemie != null ? [`Prämie: ${praemie} EUR / ${intervall}`] : []),
+          ...(deckung != null ? [`Deckungssumme: ${deckung} EUR`] : []),
+          ...(selbst != null ? [`Selbstbehalt: ${selbst} EUR`] : []),
+          ...(coverageSummary ? ["", `Deckung: ${coverageSummary}`] : []),
+        ];
+        const inhalt = pInhaltZeilen.join("\n");
 
         const rawVersicherungsart = policyType;
         const normiertArt = normalisiereVersicherungsart(rawVersicherungsart);
@@ -952,7 +1041,8 @@ ${smartTruncate(extrahierterText)}`;
                 dokument_id,
                 versicherer:               insurer,
                 versicherungsart:          normiertArt,
-                deckung:                   summary,
+                polizzen_nummer:           polizzenNummer,
+                deckung:                   coverageSummary || summary,
                 praemie:                   (parsed.premium as number) || null,
                 praemien_intervall:        normalisierePraemienIntervall(parsed.premium_interval as string),
                 start_date:                (parsed.start_date as string) || null,
@@ -976,7 +1066,7 @@ ${smartTruncate(extrahierterText)}`;
               household_id: householdId,
               user_id:      null,
               titel,
-              inhalt:       summary,
+              inhalt,
               kategorie:    "Versicherungen",
               tags:         ["versicherung", ...(insurerTag ? [insurerTag] : []), normiertArt, ...tags].filter(Boolean),
               dokument_id,
@@ -998,7 +1088,7 @@ ${smartTruncate(extrahierterText)}`;
             household_id: householdId,
             user_id:      null,
             titel,
-            inhalt:       summary,
+            inhalt,
             kategorie:    "Versicherungen",
             tags:         ["versicherung", ...(insurerTag ? [insurerTag] : []), ...tags].filter(Boolean),
             dokument_id,
@@ -1077,10 +1167,11 @@ ${smartTruncate(extrahierterText || dateiname, 2000)}`;
   });
 
   return jsonResponse({
-    status:    "ok",
-    doc_type:  docType,
-    wissen_id: wissenId,
-    entity_id: entityId,
+    status:       "ok",
+    doc_type:     docType,
+    wissen_id:    wissenId,
+    entity_id:    entityId,
+    summary_data: summaryData,
     warnings,
   });
   } catch (err: unknown) {
