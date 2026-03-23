@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { BookOpen, Plus, Edit2, Trash2, X, Loader2, AlertCircle, Search, Tag, Eye, Receipt } from "lucide-react";
-import { supabase } from "../../supabaseClient";
+import { BookOpen, Plus, Edit2, Trash2, X, Loader2, AlertCircle, Search, Tag, Eye, Receipt, ScanLine, FileText, Shield } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { supabase, getActiveHouseholdId } from "../../supabaseClient";
 import { logVerlauf } from "../../utils/homeVerlauf";
 import DokumentVorschauModal from "./DokumentVorschauModal";
 
-const KATEGORIEN = ["Rechnungen & Belege", "Farben & Oberflächen", "Maße & Abmessungen", "Geräte-Info", "Kontakte & Dienste", "Anleitungen", "Rezepte", "Notizen", "Sonstiges"];
+const KATEGORIEN = [
+  "Rechnungen & Belege", "Verträge", "Versicherungen",
+  "Farben & Oberflächen", "Maße & Abmessungen", "Geräte-Info",
+  "Kontakte & Dienste", "Anleitungen", "Rezepte", "Notizen", "Sonstiges",
+];
 
 const WissenForm = ({ initial, onSpeichern, onAbbrechen }) => {
   const [form, setForm] = useState({
@@ -50,6 +55,8 @@ const WissenForm = ({ initial, onSpeichern, onAbbrechen }) => {
 
 const HomeWissen = ({ session }) => {
   const userId = session?.user?.id;
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [eintraege, setEintraege] = useState([]);
   const [modal, setModal] = useState(null);
@@ -58,17 +65,27 @@ const HomeWissen = ({ session }) => {
   const [kategFilter, setKategFilter] = useState("");
   const [detailId, setDetailId] = useState(null);
   const [vorschauDok, setVorschauDok] = useState(null);
-  const [vorschauLaden, setVorschauLaden] = useState(null); // dokument_id currently loading
+  const [vorschauLaden, setVorschauLaden] = useState(null);
+
+  // URL-Parameter ?category= vorauswählen
+  useEffect(() => {
+    const c = searchParams.get("category");
+    if (c) setKategFilter(c);
+  }, [searchParams]);
 
   const ladeDaten = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("home_wissen")
-        .select("*")
-        .eq("user_id", userId)
-        .order("updated_at", { ascending: false });
+      // Explizit household_id nutzen damit auto-erzeugte Einträge (user_id=null) sichtbar sind
+      const householdId = getActiveHouseholdId();
+      let query = supabase.from("home_wissen").select("*");
+      if (householdId) {
+        query = query.eq("household_id", householdId);
+      } else {
+        query = query.eq("user_id", userId);
+      }
+      const { data, error } = await query.order("updated_at", { ascending: false });
       if (error) throw error;
       setEintraege(data || []);
     } catch {
@@ -81,7 +98,8 @@ const HomeWissen = ({ session }) => {
   useEffect(() => { ladeDaten(); }, [ladeDaten]);
 
   const speichere = async (daten) => {
-    const payload = { ...daten, user_id: userId };
+    const householdId = getActiveHouseholdId();
+    const payload = { ...daten, user_id: userId, ...(householdId ? { household_id: householdId } : {}) };
     if (modal?.id) {
       await supabase.from("home_wissen").update(daten).eq("id", modal.id);
       await logVerlauf(supabase, userId, "home_wissen", daten.titel, "geaendert");
@@ -136,9 +154,14 @@ const HomeWissen = ({ session }) => {
           <BookOpen size={22} className="text-amber-500" />
           <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">Wissensdatenbank</h1>
         </div>
-        <button onClick={() => setModal({})} className="flex items-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-pill text-sm font-medium">
-          <Plus size={14} />Eintrag
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => navigate("/home/rechnung-scannen")} className="flex items-center gap-1.5 px-3 py-2 bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border hover:border-amber-500/60 text-light-text-main dark:text-dark-text-main rounded-pill text-sm font-medium">
+            <ScanLine size={14} className="text-amber-500" />Scannen
+          </button>
+          <button onClick={() => setModal({})} className="flex items-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-pill text-sm font-medium">
+            <Plus size={14} />Eintrag
+          </button>
+        </div>
       </div>
 
       {fehler && <div className="p-3 rounded-card bg-red-500/10 border border-red-500/30 flex items-center gap-2 text-sm text-red-600 dark:text-red-400"><AlertCircle size={16} />{fehler}</div>}

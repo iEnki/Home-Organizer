@@ -46,7 +46,6 @@ const homeGruppen = [
       { name: "Inventar",        path: "/home/inventar",       icon: Package },
       { name: "Vorräte",         path: "/home/vorraete",       icon: ShoppingCart },
       { name: "Geräte",          path: "/home/geraete",        icon: Wrench },
-      { name: "Dokumente",       path: "/home/dokumente",      icon: FileText },
     ],
   },
   {
@@ -55,7 +54,7 @@ const homeGruppen = [
       { name: "Einkauf",          path: "/home/einkaufliste",     icon: ShoppingBag },
       { name: "Aufgaben",         path: "/home/aufgaben",         icon: CheckSquare },
       { name: "Projekte",         path: "/home/projekte",         icon: FolderOpen },
-      { name: "Rechnung scannen", path: "/home/rechnung-scannen", icon: ScanLine },
+      { name: "Dokument scannen", path: "/home/rechnung-scannen", icon: ScanLine },
     ],
   },
   {

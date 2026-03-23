@@ -244,6 +244,7 @@ const HomeInventar = ({ session }) => {
   const [mobileLocationSheetOpen, setMobileLocationSheetOpen] = useState(false);
   const [mobileFilterSheetOpen, setMobileFilterSheetOpen] = useState(false);
   const [offenesObjektMenue, setOffenesObjektMenue] = useState(null);
+  const [addMenuOffen, setAddMenuOffen] = useState(false);
 
   const ladeDaten = useCallback(async () => {
     if (!userId) return;
@@ -409,13 +410,33 @@ const HomeInventar = ({ session }) => {
             <Sparkles size={15} />
             <span className="hidden sm:inline">KI</span>
           </button>
-          <button
-            onClick={() => setModal({ typ: "ort", daten: null })}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-pill text-sm font-medium transition-colors"
-          >
-            <Plus size={15} />
-            Neuer Standort
-          </button>
+          <div className="relative hidden sm:block">
+            <button
+              onClick={() => setAddMenuOffen((v) => !v)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-pill text-sm font-medium transition-colors"
+            >
+              {addMenuOffen ? <X size={15} /> : <Plus size={15} />}
+              Hinzufügen
+            </button>
+            {addMenuOffen && (
+              <div className="absolute right-0 top-full mt-1.5 w-44 bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border rounded-card-sm shadow-lg z-[50] overflow-hidden">
+                <button
+                  onClick={() => { setAddMenuOffen(false); handleObjektHinzufuegen(); }}
+                  className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-light-text-main dark:text-dark-text-main hover:bg-primary-500/10 transition-colors"
+                >
+                  <Package size={15} className="text-primary-500" />
+                  Objekt hinzufügen
+                </button>
+                <button
+                  onClick={() => { setAddMenuOffen(false); setModal({ typ: "ort", daten: null }); }}
+                  className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-light-text-main dark:text-dark-text-main hover:bg-primary-500/10 transition-colors border-t border-light-border dark:border-dark-border"
+                >
+                  <MapPin size={15} className="text-primary-500" />
+                  Neuer Standort
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -611,12 +632,12 @@ const HomeInventar = ({ session }) => {
           <MobileFab
             data-tour="tour-inventar-hinzufuegen"
             pill
-            onClick={handleObjektHinzufuegen}
-            title="Objekt hinzufügen"
+            onClick={() => setAddMenuOffen((v) => !v)}
+            title="Hinzufügen"
           >
             <span className="inline-flex items-center gap-1.5">
-              <Plus size={14} />
-              Objekt
+              {addMenuOffen ? <X size={14} /> : <Plus size={14} />}
+              {addMenuOffen ? "Schließen" : "Neu"}
             </span>
           </MobileFab>
 
@@ -677,6 +698,32 @@ const HomeInventar = ({ session }) => {
             }}
           />
         </>
+      )}
+
+      {/* Backdrop + mobile mini-menu for unified add button (outside isMobile block so desktop also gets backdrop) */}
+      {addMenuOffen && (
+        <div className="fixed inset-0 z-[49]" onClick={() => setAddMenuOffen(false)} />
+      )}
+      {addMenuOffen && isMobile && (
+        <div
+          className="fixed z-[51] flex flex-col gap-2 items-end"
+          style={{ right: "1rem", bottom: "calc(var(--mobile-bottom-offset, 0px) + 72px)" }}
+        >
+          <button
+            onClick={() => { setAddMenuOffen(false); setModal({ typ: "ort", daten: null }); }}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-pill bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border shadow-lg text-sm font-medium text-light-text-main dark:text-dark-text-main"
+          >
+            <MapPin size={15} className="text-primary-500" />
+            Neuer Standort
+          </button>
+          <button
+            onClick={() => { setAddMenuOffen(false); handleObjektHinzufuegen(); }}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-pill bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border shadow-lg text-sm font-medium text-light-text-main dark:text-dark-text-main"
+          >
+            <Package size={15} className="text-primary-500" />
+            Objekt hinzufügen
+          </button>
+        </div>
       )}
 
       {!isMobile && <div className="flex gap-5">
