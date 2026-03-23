@@ -47,6 +47,8 @@ Deno.serve(async (req: Request) => {
   const messages = (payload?.messages ?? []) as ChatMessage[];
   const requestedModel = typeof payload?.model === "string" ? payload.model : undefined;
   const temperature = typeof payload?.temperature === "number" ? payload.temperature : 0.2;
+  // response_format wird nur an OpenAI weitergegeben (Ollama nicht kompatibel)
+  const response_format = payload?.response_format ?? undefined;
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return new Response(
@@ -140,6 +142,7 @@ Deno.serve(async (req: Request) => {
         model: openaiModel,
         messages,
         temperature,
+        ...(response_format ? { response_format } : {}),
       }),
     });
 

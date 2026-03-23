@@ -97,6 +97,36 @@ function smartTruncate(text: string, max = 3500): string {
   return text.slice(0, firstPart) + "\n…\n" + text.slice(-lastPart);
 }
 
+// ── JSON-Strip-Fallback (wie cleanKiJsonResponse im Frontend) ─────────────────
+
+function stripJsonFences(raw: string): string {
+  return raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+}
+
+function parseKiJson(raw: string): Record<string, unknown> {
+  try {
+    return JSON.parse(stripJsonFences(raw)) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+// ── Tag-Normalisierung ────────────────────────────────────────────────────────
+
+function normalisiereTag(name: string | null | undefined): string | null {
+  if (!name) return null;
+  return name.toLowerCase().trim().replace(/\s+/g, "_");
+}
+
+// ── Datumsformatierung für Titel (ISO → DD.MM.YYYY) ──────────────────────────
+
+function formatDateDE(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return iso;
+  return `${m[3]}.${m[2]}.${m[1]}`;
+}
+
 // ── SAFE UPSERT home_wissen (kapselt manuell-Guard) ──────────────────────────
 // Gibt wissen_id zurück oder null bei Fehler.
 
@@ -156,6 +186,7 @@ async function updateProcessing(
 // ── Hauptfunktion ─────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
+  try {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -374,11 +405,22 @@ Deno.serve(async (req: Request) => {
     }
 
     try {
-      const base64 = btoa(fileBytes.reduce((s, b) => s + String.fromCharCode(b), ""));
+      // Chunked base64 — verhindert O(n²)-Stringkonkatenation bei grossen Dateien
+      const CHUNK = 8192;
+      const parts: string[] = [];
+      for (let i = 0; i < fileBytes.length; i += CHUNK) {
+        parts.push(String.fromCharCode(...fileBytes.subarray(i, i + CHUNK)));
+      }
+      const base64 = btoa(parts.join(""));
       const visionResp = await fetch(`${FUNCTIONS_URL}/ki-vision`, {
         method:  "POST",
         headers: fnHeaders,
-        body:    JSON.stringify({ base64, mimeType: dateiTyp, modus }),
+        body:    JSON.stringify({
+          mode:        modus,
+          file_base64: base64,
+          mime_type:   dateiTyp,
+          file_name:   (dokument as { dateiname?: string }).dateiname,
+        }),
       });
 
       if (visionResp.ok) {
@@ -521,17 +563,49 @@ ${klassiText}`;
   // ── 10a: invoice ──────────────────────────────────────────────────────────
   if (docType === "invoice") {
     try {
-      let analyseergebnis: Record<string, unknown> = strukturierteDaten ?? {};
+      let parsed: Record<string, unknown> = {};
 
-      // Falls kein strukturiertes Format: KI-Extraktion
-      if (!strukturierteDaten && extrahierterText) {
-        const EXTRAKTION_PROMPT = `Extrahiere alle Rechnungsfelder aus diesem Text.
+      if (strukturierteDaten) {
+        // Strukturiertes XML: Felder direkt mappen
+        const lieferant = (strukturierteDaten.lieferant as Record<string, unknown> | null)?.name as string | null;
+        parsed = {
+          merchant_name:  lieferant,
+          purchase_date:  strukturierteDaten.rechnungsdatum,
+          total_amount:   strukturierteDaten.brutto,
+          currency:       "EUR",
+          invoice_number: strukturierteDaten.rechnungsnummer,
+          summary:        lieferant ? `Rechnung von ${lieferant}.` : "Rechnung.",
+        };
+      } else if (extrahierterText) {
+        const INVOICE_SCHEMA = {
+          type: "json_schema",
+          json_schema: {
+            name:   "invoice_result",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                merchant_name:  { type: "string" },
+                purchase_date:  { type: ["string", "null"] },
+                total_amount:   { type: ["number", "null"] },
+                currency:       { type: "string" },
+                invoice_number: { type: ["string", "null"] },
+                summary:        { type: "string" },
+              },
+              required:             ["merchant_name", "purchase_date", "total_amount", "currency", "invoice_number", "summary"],
+              additionalProperties: false,
+            },
+          },
+        };
 
-Antworte AUSSCHLIESSLICH mit validem JSON ohne Markdown.
+        const EXTRAKTION_PROMPT = `Extrahiere die wichtigsten Felder aus dieser Rechnung.
 
-Felder: lieferant.name, rechnungsnummer, rechnungsdatum (ISO date), leistungsdatum, faellig_am,
-waehrung, netto, ust, brutto, positionen (Array: name, menge, einheit, einzelpreis, gesamtpreis),
-confidence (0.0-1.0).
+merchant_name: Name des Händlers/Lieferanten (Pflicht).
+purchase_date: Rechnungsdatum als ISO-Date (YYYY-MM-DD) oder null.
+total_amount: Gesamtbetrag inkl. MwSt. als Zahl oder null.
+currency: Währung (Standard "EUR").
+invoice_number: Rechnungsnummer oder null.
+summary: 1 vollständiger Satz auf Deutsch, der beschreibt was gekauft/geleistet wurde — gerne mit Produktnamen wenn erkennbar.
 
 Text:
 ${smartTruncate(extrahierterText)}`;
@@ -540,45 +614,91 @@ ${smartTruncate(extrahierterText)}`;
           method:  "POST",
           headers: fnHeaders,
           body:    JSON.stringify({
-            messages:    [{ role: "user", content: EXTRAKTION_PROMPT }],
-            temperature: 0.1,
-            max_tokens:  1500,
+            messages:        [{ role: "user", content: EXTRAKTION_PROMPT }],
+            temperature:     0.1,
+            max_tokens:      400,
+            response_format: INVOICE_SCHEMA,
           }),
         });
 
         if (resp.ok) {
           const data = await resp.json() as { choices?: Array<{ message?: { content?: string } }> };
           const raw  = data.choices?.[0]?.message?.content ?? "";
-          try {
-            const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-            analyseergebnis = JSON.parse(cleaned) as Record<string, unknown>;
-          } catch {
-            warnings.push("invoice Extraktion: JSON-Parse fehlgeschlagen.");
-          }
+          parsed = parseKiJson(raw);
+          if (!parsed.merchant_name) warnings.push("invoice Extraktion: merchant_name fehlt.");
         } else {
           warnings.push(`ki-chat (invoice Extraktion): HTTP ${resp.status}`);
         }
       }
 
-      // invoice-process aufrufen (idempotent, erstellt auch home_wissen)
-      const invResp = await fetch(`${FUNCTIONS_URL}/invoice-process`, {
-        method:  "POST",
-        headers: fnHeaders,
-        body:    JSON.stringify({ dokument_id, analyseergebnis }),
+      const merchantName   = (parsed.merchant_name as string) || dateiname;
+      const purchaseDate   = (parsed.purchase_date as string) || null;
+      const totalAmount    = (parsed.total_amount as number) || null;
+      const currency       = (parsed.currency as string) || "EUR";
+      const invoiceNumber  = (parsed.invoice_number as string) || null;
+      const summary        = (parsed.summary as string) || `Rechnung von ${merchantName}.`;
+
+      // Titelregel: {merchant_name} – {DD.MM.YYYY} | Fallback: {merchant_name} – Rechnung
+      const dateFormatted = formatDateDE(purchaseDate);
+      const titel = dateFormatted
+        ? `${merchantName} – ${dateFormatted}`
+        : `${merchantName} – Rechnung`;
+
+      // Kategorie auf Dokument setzen
+      await supabaseAdmin.from("dokumente").update({ kategorie: "Rechnung" }).eq("id", dokument_id);
+
+      // rechnungen upsert (keine Positionen)
+      try {
+        const { data: rechnungData, error: rechnungErr } = await supabaseAdmin
+          .from("rechnungen")
+          .upsert({
+            household_id:    householdId,
+            dokument_id,
+            lieferant_name:  merchantName,
+            rechnungsnummer: invoiceNumber,
+            rechnungsdatum:  purchaseDate,
+            waehrung:        currency,
+            brutto:          totalAmount,
+            extraktion:      parsed,
+          }, { onConflict: "household_id,dokument_id" })
+          .select("id")
+          .single();
+
+        if (rechnungErr) {
+          warnings.push(`rechnungen upsert: ${rechnungErr.message}`);
+        } else {
+          entityId = (rechnungData as { id: string })?.id ?? null;
+        }
+      } catch (e) {
+        warnings.push(`rechnungen (exception): ${(e as Error).message}`);
+      }
+
+      // home_wissen
+      const merchantTag = normalisiereTag(merchantName);
+      wissenId = await safeUpsertHomeWissen(supabaseAdmin, {
+        household_id: householdId,
+        user_id:      null,
+        titel,
+        inhalt:       summary,
+        kategorie:    "Rechnungen & Belege",
+        tags:         ["rechnung", ...(merchantTag ? [merchantTag] : []), ...tags].filter(Boolean),
+        dokument_id,
+        herkunft:     "auto_full",
       });
 
-      if (invResp.ok) {
-        const invData = await invResp.json() as { rechnung_id?: string; warnings?: string[] };
-        entityId = invData.rechnung_id ?? null;
-        if (invData.warnings?.length) warnings.push(...invData.warnings);
-      } else {
-        warnings.push(`invoice-process: HTTP ${invResp.status}`);
+      // dokument_links
+      const links = [];
+      if (entityId) links.push({ household_id: householdId, dokument_id, entity_type: "rechnung", entity_id: entityId, role: "original" });
+      if (wissenId) links.push({ household_id: householdId, dokument_id, entity_type: "home_wissen", entity_id: wissenId, role: "quelle" });
+      if (links.length > 0) {
+        await supabaseAdmin.from("dokument_links").upsert(links, {
+          onConflict:      "household_id,dokument_id,entity_type,entity_id,role",
+          ignoreDuplicates: true,
+        });
       }
     } catch (e) {
       warnings.push(`invoice (exception): ${(e as Error).message}`);
     }
-
-    // home_wissen wird von invoice-process verwaltet — kein safeUpsertHomeWissen hier
   }
 
   // ── 10b: contract ─────────────────────────────────────────────────────────
@@ -586,13 +706,39 @@ ${smartTruncate(extrahierterText)}`;
     let extractionConfidence = 0;
 
     try {
-      const EXTRAKTION_PROMPT = `Extrahiere alle Vertragsfelder aus diesem Text.
+      const CONTRACT_SCHEMA = {
+        type: "json_schema",
+        json_schema: {
+          name:   "contract_result",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              counterparty_name:  { type: "string" },
+              subject_or_product: { type: "string" },
+              start_date:         { type: ["string", "null"] },
+              end_date:           { type: ["string", "null"] },
+              duration_text:      { type: ["string", "null"] },
+              key_points:         { type: "array", items: { type: "string" } },
+              confidence:         { type: "number" },
+              summary:            { type: "string" },
+            },
+            required:             ["counterparty_name", "subject_or_product", "start_date", "end_date", "duration_text", "key_points", "confidence", "summary"],
+            additionalProperties: false,
+          },
+        },
+      };
 
-Antworte AUSSCHLIESSLICH mit validem JSON ohne Markdown.
+      const EXTRAKTION_PROMPT = `Extrahiere die wichtigsten Felder aus diesem Vertrag.
 
-Felder: partner (Vertragspartner), vertragstitel, start_date (ISO date), end_date (ISO date),
-kuendigungsfrist_raw (Originaltext), kuendigungsfrist_tage (Integer), kuendigbar_ab (ISO date),
-confidence (0.0-1.0, Extraktionssicherheit).
+counterparty_name: Name des Vertragspartners (Pflicht).
+subject_or_product: Vertragsgegenstand, z.B. "Mobilfunkvertrag", "Mietvertrag", "Strom" (Pflicht).
+start_date: Vertragsbeginn als ISO-Date oder null.
+end_date: Vertragsende als ISO-Date oder null.
+duration_text: Laufzeit als Text oder null.
+key_points: 2–4 kurze Stichpunkte zu den wichtigsten Vertragsinhalten.
+confidence: Extraktionssicherheit 0.0–1.0.
+summary: 1–2 Sätze auf Deutsch, die den Vertrag verständlich zusammenfassen (Vertragspartner, Gegenstand, Laufzeit).
 
 Text:
 ${smartTruncate(extrahierterText)}`;
@@ -601,29 +747,31 @@ ${smartTruncate(extrahierterText)}`;
         method:  "POST",
         headers: fnHeaders,
         body:    JSON.stringify({
-          messages:    [{ role: "user", content: EXTRAKTION_PROMPT }],
-          temperature: 0.1,
-          max_tokens:  600,
+          messages:        [{ role: "user", content: EXTRAKTION_PROMPT }],
+          temperature:     0.1,
+          max_tokens:      500,
+          response_format: CONTRACT_SCHEMA,
         }),
       });
 
       if (resp.ok) {
         const data = await resp.json() as { choices?: Array<{ message?: { content?: string } }> };
         const raw  = data.choices?.[0]?.message?.content ?? "";
-        let parsed: Record<string, unknown> = {};
-
-        try {
-          const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-          parsed = JSON.parse(cleaned) as Record<string, unknown>;
-        } catch {
-          warnings.push("contract Extraktion: JSON-Parse fehlgeschlagen.");
-        }
+        const parsed = parseKiJson(raw);
 
         const conf = parseFloat(String(parsed.confidence ?? "0"));
         extractionConfidence = isFinite(conf) && conf >= 0 && conf <= 1 ? conf : 0;
 
+        const counterparty   = (parsed.counterparty_name as string) || dateiname;
+        const subject        = (parsed.subject_or_product as string) || "Vertrag";
+        const summary        = (parsed.summary as string) || `Vertrag mit ${counterparty}.`;
+        const counterpartyTag = normalisiereTag(counterparty);
+
+        // Titelregel: {counterparty} – {subject} | Fallback: {counterparty} – Vertrag
+        const titel = subject ? `${counterparty} – ${subject}` : `${counterparty} – Vertrag`;
+
         if (extractionConfidence >= 0.50) {
-          // Reprocess-Schutz: reviewed_at gesetzt → manuell korrigiert, nicht überschreiben
+          // Reprocess-Schutz: reviewed_at gesetzt → manuell korrigiert
           const { data: vorhandenerVertrag } = await supabaseAdmin
             .from("vertraege")
             .select("id, reviewed_at")
@@ -638,25 +786,21 @@ ${smartTruncate(extrahierterText)}`;
             const reviewRequired = extractionConfidence < 0.75;
             const herkunft = reviewRequired ? "auto_low_confidence" : "auto_full";
 
-            const vertragPayload = {
-              household_id:             householdId,
-              dokument_id,
-              partner:                  (parsed.partner as string) || null,
-              vertragstitel:            (parsed.vertragstitel as string) || null,
-              start_date:               (parsed.start_date as string) || null,
-              end_date:                 (parsed.end_date as string) || null,
-              kuendigungsfrist_raw:     (parsed.kuendigungsfrist_raw as string) || null,
-              kuendigungsfrist_tage:    (parsed.kuendigungsfrist_tage as number) || null,
-              kuendigbar_ab:            (parsed.kuendigbar_ab as string) || null,
-              review_required:          reviewRequired,
-              classification_confidence: classificationConfidence,
-              extraction_confidence:    extractionConfidence,
-              extraktion:               parsed,
-            };
-
             const { data: upsertData, error: upsertErr } = await supabaseAdmin
               .from("vertraege")
-              .upsert(vertragPayload, { onConflict: "household_id,dokument_id" })
+              .upsert({
+                household_id:              householdId,
+                dokument_id,
+                partner:                   counterparty,
+                vertragstitel:             subject,
+                start_date:                (parsed.start_date as string) || null,
+                end_date:                  (parsed.end_date as string) || null,
+                kuendigungsfrist_raw:      (parsed.duration_text as string) || null,
+                review_required:           reviewRequired,
+                classification_confidence: classificationConfidence,
+                extraction_confidence:     extractionConfidence,
+                extraktion:                parsed,
+              }, { onConflict: "household_id,dokument_id" })
               .select("id")
               .single();
 
@@ -666,19 +810,17 @@ ${smartTruncate(extrahierterText)}`;
               entityId = (upsertData as { id: string })?.id ?? null;
             }
 
-            // home_wissen
-            const partner = (parsed.partner as string) || dateiname;
             wissenId = await safeUpsertHomeWissen(supabaseAdmin, {
               household_id: householdId,
               user_id:      null,
-              titel:        `Vertrag: ${partner}`,
+              titel,
+              inhalt:       summary,
               kategorie:    "Verträge",
-              tags:         ["vertrag", ...tags],
+              tags:         ["vertrag", ...(counterpartyTag ? [counterpartyTag] : []), ...tags].filter(Boolean),
               dokument_id,
               herkunft,
             });
 
-            // dokument_links
             if (entityId) {
               await supabaseAdmin.from("dokument_links").upsert([
                 { household_id: householdId, dokument_id, entity_type: "vertrag", entity_id: entityId, role: "original" },
@@ -687,16 +829,16 @@ ${smartTruncate(extrahierterText)}`;
             }
           }
         } else {
-          // Extraktion zu unsicher: nur auto_stub
           warnings.push(`Extraktions-Konfidenz zu niedrig (${extractionConfidence.toFixed(2)}), kein Vertrag-Eintrag.`);
           await updateProcessing(supabaseAdmin, dokument_id, { downgraded: true });
 
           wissenId = await safeUpsertHomeWissen(supabaseAdmin, {
             household_id: householdId,
             user_id:      null,
-            titel:        dateiname,
+            titel,
+            inhalt:       summary,
             kategorie:    "Verträge",
-            tags:         ["vertrag", ...tags],
+            tags:         ["vertrag", ...(counterpartyTag ? [counterpartyTag] : []), ...tags].filter(Boolean),
             dokument_id,
             herkunft:     "auto_stub",
           });
@@ -708,9 +850,7 @@ ${smartTruncate(extrahierterText)}`;
       warnings.push(`contract (exception): ${(e as Error).message}`);
     }
 
-    await updateProcessing(supabaseAdmin, dokument_id, {
-      extraction_confidence: extractionConfidence,
-    });
+    await updateProcessing(supabaseAdmin, dokument_id, { extraction_confidence: extractionConfidence });
   }
 
   // ── 10c: policy ───────────────────────────────────────────────────────────
@@ -718,14 +858,43 @@ ${smartTruncate(extrahierterText)}`;
     let extractionConfidence = 0;
 
     try {
-      const EXTRAKTION_PROMPT = `Extrahiere alle Felder aus dieser Versicherungspolizze.
+      const POLICY_SCHEMA = {
+        type: "json_schema",
+        json_schema: {
+          name:   "policy_result",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              insurer_name:     { type: "string" },
+              policy_type:      { type: "string" },
+              start_date:       { type: ["string", "null"] },
+              end_date:         { type: ["string", "null"] },
+              coverage_sum:     { type: ["number", "null"] },
+              premium:          { type: ["number", "null"] },
+              premium_interval: { type: ["string", "null"] },
+              deductible:       { type: ["number", "null"] },
+              confidence:       { type: "number" },
+              summary:          { type: "string" },
+            },
+            required:             ["insurer_name", "policy_type", "start_date", "end_date", "coverage_sum", "premium", "premium_interval", "deductible", "confidence", "summary"],
+            additionalProperties: false,
+          },
+        },
+      };
 
-Antworte AUSSCHLIESSLICH mit validem JSON ohne Markdown.
+      const EXTRAKTION_PROMPT = `Extrahiere die wichtigsten Felder aus dieser Versicherungspolizze.
 
-Felder: versicherer, polizzen_nummer, versicherungsart (z.B. haftpflicht/hausrat/kfz/kranken),
-deckung (kurze Beschreibung), praemie (Zahl), praemien_intervall (monatlich/vierteljaehrlich/halbjaehrlich/jaehrlich),
-naechste_faelligkeit (ISO date), start_date (ISO date), end_date (ISO date), waehrung,
-confidence (0.0-1.0, Extraktionssicherheit).
+insurer_name: Name des Versicherers (Pflicht).
+policy_type: Art der Versicherung, z.B. "Haushaltsversicherung", "Kfz-Haftpflicht", "Lebensversicherung" (Pflicht).
+start_date: Versicherungsbeginn als ISO-Date oder null.
+end_date: Versicherungsende als ISO-Date oder null.
+coverage_sum: Deckungssumme als Zahl oder null.
+premium: Prämie als Zahl oder null.
+premium_interval: Prämienintervall (monatlich/vierteljaehrlich/halbjaehrlich/jaehrlich) oder null.
+deductible: Selbstbehalt als Zahl oder null.
+confidence: Extraktionssicherheit 0.0–1.0.
+summary: 1–2 Sätze auf Deutsch mit allen relevanten Infos: Versicherer, Art, Laufzeit, Deckungssumme, Prämie, Selbstbehalt.
 
 Text:
 ${smartTruncate(extrahierterText)}`;
@@ -734,26 +903,31 @@ ${smartTruncate(extrahierterText)}`;
         method:  "POST",
         headers: fnHeaders,
         body:    JSON.stringify({
-          messages:    [{ role: "user", content: EXTRAKTION_PROMPT }],
-          temperature: 0.1,
-          max_tokens:  600,
+          messages:        [{ role: "user", content: EXTRAKTION_PROMPT }],
+          temperature:     0.1,
+          max_tokens:      500,
+          response_format: POLICY_SCHEMA,
         }),
       });
 
       if (resp.ok) {
         const data = await resp.json() as { choices?: Array<{ message?: { content?: string } }> };
         const raw  = data.choices?.[0]?.message?.content ?? "";
-        let parsed: Record<string, unknown> = {};
-
-        try {
-          const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-          parsed = JSON.parse(cleaned) as Record<string, unknown>;
-        } catch {
-          warnings.push("policy Extraktion: JSON-Parse fehlgeschlagen.");
-        }
+        const parsed = parseKiJson(raw);
 
         const conf = parseFloat(String(parsed.confidence ?? "0"));
         extractionConfidence = isFinite(conf) && conf >= 0 && conf <= 1 ? conf : 0;
+
+        const insurer     = (parsed.insurer_name as string) || dateiname;
+        const policyType  = (parsed.policy_type as string) || "Versicherung";
+        const summary     = (parsed.summary as string) || `Versicherung bei ${insurer}.`;
+        const insurerTag  = normalisiereTag(insurer);
+
+        // Titelregel: {insurer} – {policyType} | Fallback: {insurer} – Versicherung
+        const titel = policyType ? `${insurer} – ${policyType}` : `${insurer} – Versicherung`;
+
+        const rawVersicherungsart = policyType;
+        const normiertArt = normalisiereVersicherungsart(rawVersicherungsart);
 
         if (extractionConfidence >= 0.50) {
           // Reprocess-Schutz
@@ -771,34 +945,24 @@ ${smartTruncate(extrahierterText)}`;
             const reviewRequired = extractionConfidence < 0.75;
             const herkunft = reviewRequired ? "auto_low_confidence" : "auto_full";
 
-            const rawVersicherungsart = (parsed.versicherungsart as string) || null;
-            const normiertArt = normalisiereVersicherungsart(rawVersicherungsart);
-
-            const polizzePayload = {
-              household_id:              householdId,
-              dokument_id,
-              versicherer:               (parsed.versicherer as string) || null,
-              polizzen_nummer:           (parsed.polizzen_nummer as string) || null,
-              versicherungsart:          normiertArt,
-              deckung:                   (parsed.deckung as string) || null,
-              praemie:                   (parsed.praemie as number) || null,
-              praemien_intervall:        normalisierePraemienIntervall(parsed.praemien_intervall as string),
-              naechste_faelligkeit:      (parsed.naechste_faelligkeit as string) || null,
-              start_date:                (parsed.start_date as string) || null,
-              end_date:                  (parsed.end_date as string) || null,
-              waehrung:                  (parsed.waehrung as string) || "EUR",
-              review_required:           reviewRequired,
-              classification_confidence: classificationConfidence,
-              extraction_confidence:     extractionConfidence,
-              extraktion:                {
-                ...parsed,
-                raw_versicherungsart: rawVersicherungsart !== normiertArt ? rawVersicherungsart : undefined,
-              },
-            };
-
             const { data: upsertData, error: upsertErr } = await supabaseAdmin
               .from("versicherungs_polizzen")
-              .upsert(polizzePayload, { onConflict: "household_id,dokument_id" })
+              .upsert({
+                household_id:              householdId,
+                dokument_id,
+                versicherer:               insurer,
+                versicherungsart:          normiertArt,
+                deckung:                   summary,
+                praemie:                   (parsed.premium as number) || null,
+                praemien_intervall:        normalisierePraemienIntervall(parsed.premium_interval as string),
+                start_date:                (parsed.start_date as string) || null,
+                end_date:                  (parsed.end_date as string) || null,
+                waehrung:                  "EUR",
+                review_required:           reviewRequired,
+                classification_confidence: classificationConfidence,
+                extraction_confidence:     extractionConfidence,
+                extraktion:                { ...parsed, raw_policy_type: rawVersicherungsart !== normiertArt ? rawVersicherungsart : undefined },
+              }, { onConflict: "household_id,dokument_id" })
               .select("id")
               .single();
 
@@ -808,19 +972,17 @@ ${smartTruncate(extrahierterText)}`;
               entityId = (upsertData as { id: string })?.id ?? null;
             }
 
-            // home_wissen
-            const versicherer = (parsed.versicherer as string) || dateiname;
             wissenId = await safeUpsertHomeWissen(supabaseAdmin, {
               household_id: householdId,
               user_id:      null,
-              titel:        `Versicherung: ${versicherer}`,
+              titel,
+              inhalt:       summary,
               kategorie:    "Versicherungen",
-              tags:         ["versicherung", normiertArt, ...tags].filter(Boolean),
+              tags:         ["versicherung", ...(insurerTag ? [insurerTag] : []), normiertArt, ...tags].filter(Boolean),
               dokument_id,
               herkunft,
             });
 
-            // dokument_links
             if (entityId) {
               await supabaseAdmin.from("dokument_links").upsert([
                 { household_id: householdId, dokument_id, entity_type: "polizze", entity_id: entityId, role: "original" },
@@ -835,9 +997,10 @@ ${smartTruncate(extrahierterText)}`;
           wissenId = await safeUpsertHomeWissen(supabaseAdmin, {
             household_id: householdId,
             user_id:      null,
-            titel:        dateiname,
+            titel,
+            inhalt:       summary,
             kategorie:    "Versicherungen",
-            tags:         ["versicherung", ...tags],
+            tags:         ["versicherung", ...(insurerTag ? [insurerTag] : []), ...tags].filter(Boolean),
             dokument_id,
             herkunft:     "auto_stub",
           });
@@ -849,9 +1012,7 @@ ${smartTruncate(extrahierterText)}`;
       warnings.push(`policy (exception): ${(e as Error).message}`);
     }
 
-    await updateProcessing(supabaseAdmin, dokument_id, {
-      extraction_confidence: extractionConfidence,
-    });
+    await updateProcessing(supabaseAdmin, dokument_id, { extraction_confidence: extractionConfidence });
   }
 
   // ── 10d: other ────────────────────────────────────────────────────────────
@@ -922,4 +1083,8 @@ ${smartTruncate(extrahierterText || dateiname, 2000)}`;
     entity_id: entityId,
     warnings,
   });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return jsonResponse({ status: "failed", error: msg, warnings: [msg] }, 500);
+  }
 });
