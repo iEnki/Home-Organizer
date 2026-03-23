@@ -98,7 +98,7 @@ const ROUTE_TITLES = {
   "/home/projekte":     "Projekte",
   "/home/verlauf":      "Verlauf",
   "/home/wissen":            "Wissensdatenbank",
-  "/home/rechnung-scannen": "Rechnung scannen",
+  "/home/rechnung-scannen": "Dokument scannen",
   "/home/dokumente":        "Dokumentenarchiv",
 };
 
@@ -254,16 +254,18 @@ const AuthenticatedShell = ({
       try {
         const ergebnisse = [];
         if (appMode === "home") {
-          const [objRes, vorratRes, geraetRes, todoRes] = await Promise.all([
+          const [objRes, vorratRes, geraetRes, todoRes, wissenRes] = await Promise.all([
             supabase.from("home_objekte").select("id, name, status").eq("user_id", userId).ilike("name", `%${q}%`).limit(3),
             supabase.from("home_vorraete").select("id, name, kategorie").eq("user_id", userId).ilike("name", `%${q}%`).limit(3),
             supabase.from("home_geraete").select("id, name, hersteller").eq("user_id", userId).ilike("name", `%${q}%`).limit(3),
             supabase.from("todo_aufgaben").select("id, beschreibung, kategorie").eq("user_id", userId).in("app_modus", ["home", "beides"]).ilike("beschreibung", `%${q}%`).limit(3),
+            supabase.from("home_wissen").select("id, titel, kategorie").eq("user_id", userId).or(`titel.ilike.%${q}%,inhalt.ilike.%${q}%`).limit(3),
           ]);
           (objRes.data    || []).forEach((o) => ergebnisse.push({ modul: "Inventar", text: o.name,        sub: o.status,      link: "/home/inventar" }));
           (vorratRes.data || []).forEach((v) => ergebnisse.push({ modul: "Vorrat",   text: v.name,        sub: v.kategorie,   link: "/home/vorraete" }));
           (geraetRes.data || []).forEach((g) => ergebnisse.push({ modul: "Gerät",    text: g.name,        sub: g.hersteller,  link: "/home/geraete" }));
           (todoRes.data   || []).forEach((t) => ergebnisse.push({ modul: "Aufgabe",  text: t.beschreibung,sub: t.kategorie,   link: "/home/aufgaben" }));
+          (wissenRes.data || []).forEach((w) => ergebnisse.push({ modul: "Wissen",   text: w.titel,       sub: w.kategorie,   link: "/home/wissen" }));
         } else {
           const [kontakteRes, todosRes, kistenRes, dokRes, kistenInhaltRes] = await Promise.all([
             supabase.from("kontakte").select("id, name, typ").eq("user_id", userId).ilike("name", `%${q}%`).limit(4),
@@ -588,8 +590,8 @@ function App() {
               <Route path="/home/wissen"            element={<HomeWissen session={session} />} />
               <Route path="/home/rechnung-scannen" element={<HomeRechnungScannen session={session} />} />
               <Route path="/home/dokumente"        element={<HomeDokumente session={session} />} />
-              <Route path="/home/vertraege"        element={<Navigate to="/home/dokumente?filter=Vertrag" replace />} />
-              <Route path="/home/versicherungen"   element={<Navigate to="/home/dokumente?filter=Versicherung" replace />} />
+              <Route path="/home/vertraege"        element={<Navigate to="/home/wissen?category=Vertr%C3%A4ge" replace />} />
+              <Route path="/home/versicherungen"   element={<Navigate to="/home/wissen?category=Versicherungen" replace />} />
 
               {/* Übergreifend */}
               <Route path="/kalender" element={<KalenderUebersicht session={session} />} />
