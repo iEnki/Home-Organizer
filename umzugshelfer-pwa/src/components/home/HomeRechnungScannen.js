@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Camera, Upload, FileText, ChevronLeft, Zap,
-  CheckCircle, BookOpen, ScanLine, AlertTriangle,
+  CheckCircle, BookOpen, ScanLine, AlertTriangle, PiggyBank,
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { useToast } from "../../hooks/useToast";
@@ -20,6 +20,10 @@ export default function HomeRechnungScannen({ session }) {
   const [statusText, setStatusText] = useState("");
   const [wissenEintrag, setWissenEintrag] = useState(null);
   const [fehler, setFehler] = useState(null);
+  const [docType, setDocType] = useState(null);
+  const [summaryData, setSummaryData] = useState(null);
+  const [budgetKategorie, setBudgetKategorie] = useState("Haushalt");
+  const [budgetGespeichert, setBudgetGespeichert] = useState(false);
 
   const bildInputRef = useRef(null);
   const dateiInputRef = useRef(null);
@@ -91,7 +95,11 @@ export default function HomeRechnungScannen({ session }) {
         throw new Error(result.error || result.warnings?.[0] || "Analyse fehlgeschlagen.");
       }
 
-      // Schritt 4: Wissenseintrag nachladen
+      // Schritt 4: doc_type + summary_data für Frontend
+      setDocType(result?.doc_type ?? null);
+      setSummaryData(result?.summary_data ?? null);
+
+      // Schritt 5: Wissenseintrag nachladen
       const wissenId = result?.wissen_id;
       if (wissenId) {
         const { data: wissen } = await supabase
@@ -117,8 +125,27 @@ export default function HomeRechnungScannen({ session }) {
     setVorschau(null);
     setWissenEintrag(null);
     setFehler(null);
+    setDocType(null);
+    setSummaryData(null);
+    setBudgetGespeichert(false);
+    setBudgetKategorie("Haushalt");
     setSchritt("upload");
   }, []);
+
+  const handleBudgetImport = useCallback(async () => {
+    if (!summaryData?.amount || !userId) return;
+    const { error } = await supabase.from("budget_posten").insert({
+      user_id:      userId,
+      beschreibung: `${summaryData.merchant} (Scan)`,
+      kategorie:    budgetKategorie,
+      betrag:       Math.abs(summaryData.amount),
+      typ:          "ausgabe",
+      datum:        new Date().toISOString().split("T")[0],
+      app_modus:    "home",
+    });
+    if (!error) setBudgetGespeichert(true);
+    else toastError("Budget-Eintrag fehlgeschlagen.");
+  }, [summaryData, budgetKategorie, userId, toastError]);
 
   // ── Kategorie-Badge-Farbe ─────────────────────────────────────────────────
   const kategoriefarbe = (kat) => {
@@ -128,6 +155,8 @@ export default function HomeRechnungScannen({ session }) {
     if (kat.includes("Versicher")) return "bg-green-500/15 text-green-600 dark:text-green-400";
     return "bg-amber-500/15 text-amber-600 dark:text-amber-400";
   };
+
+  const ergebnisHeadline = { invoice: "Rechnung erkannt", contract: "Vertrag erkannt", policy: "Versicherung erkannt" }[docType] ?? "Dokument analysiert";
 
   return (
     <div className="min-h-screen bg-light-bg dark:bg-canvas-0 pb-24">
@@ -284,7 +313,7 @@ export default function HomeRechnungScannen({ session }) {
             <div className="flex items-center gap-2 text-green-500">
               <CheckCircle size={20} />
               <span className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
-                Dokument analysiert
+                {ergebnisHeadline}
               </span>
             </div>
 
@@ -301,9 +330,9 @@ export default function HomeRechnungScannen({ session }) {
                   )}
                 </div>
                 {wissenEintrag.inhalt && (
-                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary leading-relaxed">
+                  <pre className="text-sm text-light-text-secondary dark:text-dark-text-secondary leading-relaxed whitespace-pre-wrap font-sans">
                     {wissenEintrag.inhalt}
-                  </p>
+                  </pre>
                 )}
               </div>
             ) : (
@@ -312,6 +341,37 @@ export default function HomeRechnungScannen({ session }) {
                   Das Dokument wurde gespeichert. Die Wissensdatenbank wird im Hintergrund aktualisiert.
                 </p>
               </div>
+            )}
+
+            {docType === "invoice" && summaryData?.amount > 0 && (
+              budgetGespeichert ? (
+                <p className="text-sm text-green-500 flex items-center gap-1.5">
+                  <CheckCircle size={14} /> Budgeteintrag gespeichert.
+                </p>
+              ) : (
+                <div className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-4 space-y-3">
+                  <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">In Budget übernehmen</p>
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+                    {summaryData.merchant} · {summaryData.amount} {summaryData.currency}
+                  </p>
+                  <select
+                    value={budgetKategorie}
+                    onChange={e => setBudgetKategorie(e.target.value)}
+                    className="w-full text-sm rounded-card-sm border border-light-border dark:border-canvas-3 bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main px-3 py-2"
+                  >
+                    {["Haushalt", "Lebensmittel", "Transport", "Freizeit", "Sonstiges"].map(k => (
+                      <option key={k}>{k}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={handleBudgetImport}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-card-sm bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold transition-colors"
+                  >
+                    <PiggyBank size={16} />
+                    Als Ausgabe speichern
+                  </button>
+                </div>
+              )
             )}
 
             <div className="flex flex-col gap-3">
