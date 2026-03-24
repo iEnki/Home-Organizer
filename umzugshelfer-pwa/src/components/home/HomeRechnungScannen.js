@@ -18,6 +18,7 @@ export default function HomeRechnungScannen({ session }) {
   const [schritt, setSchritt] = useState("upload"); // "upload" | "analyse" | "review"
   const [datei, setDatei] = useState(null);
   const [vorschau, setVorschau] = useState(null); // data-URL fuer Bildvorschau
+  const [vorschauSichtbar, setVorschauSichtbar] = useState(true);
   const [analyseStatus, setAnalyseStatus] = useState("");
   const [ergebnis, setErgebnis] = useState(null);
   const [bildanalyseModus, setBildanalyseModus] = useState("chatgpt_vision");
@@ -55,10 +56,14 @@ export default function HomeRechnungScannen({ session }) {
 
     if (file.type.startsWith("image/")) {
       const reader = new FileReader();
-      reader.onload = (e) => setVorschau(e.target.result);
+      reader.onload = (e) => {
+        setVorschau(e.target.result);
+        setVorschauSichtbar(true);
+      };
       reader.readAsDataURL(file);
     } else {
       setVorschau(null);
+      setVorschauSichtbar(false);
     }
   }, [toastError]);
 
@@ -93,6 +98,7 @@ export default function HomeRechnungScannen({ session }) {
   const handleReviewGespeichert = useCallback(() => {
     setDatei(null);
     setVorschau(null);
+    setVorschauSichtbar(true);
     setErgebnis(null);
     setSchritt("upload");
   }, []);
@@ -143,12 +149,27 @@ export default function HomeRechnungScannen({ session }) {
             >
               {datei ? (
                 <>
-                  {vorschau ? (
+                  {vorschau && vorschauSichtbar ? (
                     <img
                       src={vorschau}
                       alt="Vorschau"
                       className="max-h-48 max-w-full rounded-card-sm object-contain mb-3"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setVorschauSichtbar(false);
+                      }}
                     />
+                  ) : vorschau ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setVorschauSichtbar(true);
+                      }}
+                      className="mb-3 px-3 py-2 rounded-card-sm border border-canvas-3 bg-canvas-2 hover:bg-canvas-3 text-xs text-dark-text-secondary"
+                    >
+                      Vorschau anzeigen
+                    </button>
                   ) : (
                     <FileText size={48} className="text-primary-500 mb-3" />
                   )}
@@ -164,6 +185,7 @@ export default function HomeRechnungScannen({ session }) {
                       e.stopPropagation();
                       setDatei(null);
                       setVorschau(null);
+                      setVorschauSichtbar(true);
                     }}
                   >
                     Entfernen

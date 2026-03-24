@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Search, Bell, Home, Truck, ChevronDown, Settings, LogOut, Crown, Users } from "lucide-react";
 import ThemeSwitch from "../ThemeSwitch";
 import { useAppMode } from "../../contexts/AppModeContext";
@@ -35,15 +35,26 @@ const Topbar = ({
 
   const userId   = session?.user?.id;
   const email   = session?.user?.email || "";
-  const name    = session?.user?.user_metadata?.full_name || email.split("@")[0] || "Nutzer";
+  const fallbackName = session?.user?.user_metadata?.full_name || email.split("@")[0] || "Nutzer";
+  const aktuellesMitglied = mitglieder.find((m) => m?.is_current_user) || null;
+  const name = aktuellesMitglied?.display_name || fallbackName;
+  const avatarUrl = aktuellesMitglied?.avatar_url || null;
   const initiale = name.charAt(0).toUpperCase();
 
-  useEffect(() => {
+  const ladeMitglieder = useCallback(async () => {
     if (!userId) return;
-    supabase.rpc("get_household_members_overview").then(({ data }) => {
-      if (Array.isArray(data)) setMitglieder(data);
-    });
+    const { data } = await supabase.rpc("get_household_members_overview");
+    if (Array.isArray(data)) setMitglieder(data);
   }, [userId]);
+
+  useEffect(() => {
+    ladeMitglieder();
+  }, [ladeMitglieder]);
+
+  useEffect(() => {
+    if (!avatarMenuOffen) return;
+    ladeMitglieder();
+  }, [avatarMenuOffen, ladeMitglieder]);
 
   // Dropdown öffnen/schließen basierend auf Ergebnissen
   useEffect(() => {
@@ -214,12 +225,20 @@ const Topbar = ({
                        hover:opacity-80 transition-opacity duration-150 cursor-pointer"
             title="Benutzermenue"
           >
-            <div
-              className="w-9 h-9 rounded-full bg-primary-500 flex items-center justify-center
-                         text-white text-sm font-semibold shadow-glow-primary shrink-0"
-            >
-              {initiale}
-            </div>
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={name}
+                className="w-9 h-9 rounded-full object-cover shadow-glow-primary shrink-0"
+              />
+            ) : (
+              <div
+                className="w-9 h-9 rounded-full bg-primary-500 flex items-center justify-center
+                           text-white text-sm font-semibold shadow-glow-primary shrink-0"
+              >
+                {initiale}
+              </div>
+            )}
             <div className="hidden lg:block text-left">
               <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main leading-none">
                 {name}
@@ -243,7 +262,15 @@ const Topbar = ({
                        text-white text-sm font-semibold shrink-0 hover:opacity-80 transition-opacity duration-150"
             title="Benutzermenue"
           >
-            {initiale}
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={name}
+                className="w-9 h-9 rounded-full object-cover shrink-0"
+              />
+            ) : (
+              initiale
+            )}
           </button>
 
           {avatarMenuOffen && (

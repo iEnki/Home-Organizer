@@ -26,7 +26,7 @@ ChartJS.register(
 // ─────────────── Constants ───────────────
 const HOME_KATEGORIEN = [
   "Lebensmittel", "Haushalt", "Reparaturen", "Abonnements",
-  "Versicherungen", "Einrichtung", "Rücklagen", "Sonstiges",
+  "Versicherungen", "Einrichtung", "Tanken", "Rücklagen", "Sonstiges",
 ];
 const MONATE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
 const INTERVALL_OPTIONEN = ["Täglich", "Wöchentlich", "Monatlich", "Vierteljährlich", "Jährlich"];
@@ -34,6 +34,7 @@ const INTERVALL_OPTIONEN = ["Täglich", "Wöchentlich", "Monatlich", "Vierteljä
 const KATEGORIE_FARBEN = {
   "Lebensmittel": "#10B981", "Haushalt": "#3B82F6", "Reparaturen": "#F59E0B",
   "Abonnements": "#8B5CF6", "Versicherungen": "#EC4899", "Einrichtung": "#14B8A6",
+  "Tanken": "#0EA5E9",
   "Rücklagen": "#F97316", "Sonstiges": "#6B7280",
 };
 const EMOJI_OPTIONEN = ["🎯", "🏠", "✈️", "🚗", "💻", "📱", "🎓", "💍", "🛋️", "🎸", "🌴", "💰"];
@@ -1260,3 +1261,4 @@ const HomeBudget = ({ session }) => {
 };
 
 export default HomeBudget;
+

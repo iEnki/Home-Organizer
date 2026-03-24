@@ -3,8 +3,10 @@ import {
   FileText, FolderOpen, Upload, Download, Trash2, BookOpen,
   Search, X, Plus, CheckCircle, File, Loader2, AlertTriangle,
 } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
 import { logVerlauf } from "../../utils/homeVerlauf";
+import { deleteInvoiceCascade } from "../../utils/invoiceCascadeDelete";
 import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
@@ -38,8 +40,14 @@ const extrahiereKategorieHinweis = (beschreibung) => {
 };
 
 // Gibt effektive Kategorie zurück: DB-Spalte hat Vorrang, dann Legacy-Parsing
-const effektiveKategorie = (dok) =>
-  dok.kategorie || extrahiereKategorieHinweis(dok.beschreibung);
+const istRechnungTyp = (dok) =>
+  (dok?.dokument_typ || "").trim().toLowerCase() === "rechnung";
+
+const effektiveKategorie = (dok) => {
+  if (dok?.kategorie) return dok.kategorie;
+  if (istRechnungTyp(dok)) return "Rechnung";
+  return extrahiereKategorieHinweis(dok.beschreibung);
+};
 
 // ── Upload-Modal ──────────────────────────────────────────────────────────────
 const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
@@ -81,6 +89,7 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
         beschreibung: beschreibung || null,
         groesse_kb: Math.round(datei.size / 1024),
         kategorie,
+        dokument_typ: kategorie === "Rechnung" ? "rechnung" : null,
       });
       if (dbErr) throw dbErr;
 
@@ -300,7 +309,7 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
 };
 
 // ── Dokument-Karte ─────────────────────────────────────────────────────────────
-const DokumentKarte = ({ dok, onDownload, onLoeschen, onWissen, laedtDownload }) => {
+const DokumentKarte = ({ dok, onDownload, onLoeschen, onWissen, laedtDownload, highlighted }) => {
   const kat = effektiveKategorie(dok);
   const katFarbe = KATEGORIE_FARBEN[kat] || KATEGORIE_FARBEN.Sonstiges;
   const beschreibungOhneHinweis = dok.beschreibung?.replace(/\s*\[[^\]]+\]$/, "") || "";
@@ -312,7 +321,14 @@ const DokumentKarte = ({ dok, onDownload, onLoeschen, onWissen, laedtDownload })
   };
 
   return (
-    <div className="p-4 rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border hover:border-primary-500/30 transition-colors">
+    <div
+      data-dokument-id={dok.id}
+      className={`p-4 rounded-card bg-light-card dark:bg-canvas-2 border transition-colors ${
+        highlighted
+          ? "border-primary-500 ring-2 ring-primary-500/30"
+          : "border-light-border dark:border-dark-border hover:border-primary-500/30"
+      }`}
+    >
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 rounded-lg bg-light-border dark:bg-canvas-3 flex items-center justify-center flex-shrink-0">
           {dateiIcon()}
@@ -374,6 +390,8 @@ const DokumentKarte = ({ dok, onDownload, onLoeschen, onWissen, laedtDownload })
 // ── Hauptkomponente ────────────────────────────────────────────────────────────
 const HomeDokumente = ({ session }) => {
   const userId = session?.user?.id;
+  const location = useLocation();
+  const navigate = useNavigate();
   const { active: tourAktiv, schritt, setSchritt, beenden: tourBeenden } = useTour("dokumente");
 
   const [dokumente, setDokumente] = useState([]);
@@ -385,6 +403,9 @@ const HomeDokumente = ({ session }) => {
   const [wissenErfolgreich, setWissenErfolgreich] = useState(false);
   const [kategorieFilter, setKategorieFilter] = useState("Alle");
   const [suchbegriff, setSuchbegriff] = useState("");
+  const [highlightedDokumentId, setHighlightedDokumentId] = useState(null);
+  const handledFocusRef = useRef(null);
+  const focusDokumentId = location.state?.focusDokumentId || null;
 
   // ── Laden ──────────────────────────────────────────────────────────────────
   const ladeDaten = useCallback(async () => {
@@ -393,7 +414,7 @@ const HomeDokumente = ({ session }) => {
     try {
       const { data, error } = await supabase
         .from("dokumente")
-        .select("id, dateiname, datei_typ, storage_pfad, beschreibung, groesse_kb, kategorie, erstellt_am")
+        .select("id, dateiname, datei_typ, storage_pfad, beschreibung, groesse_kb, kategorie, dokument_typ, erstellt_am")
         .eq("user_id", userId)
         .order("erstellt_am", { ascending: false });
       if (error) throw error;
@@ -406,6 +427,26 @@ const HomeDokumente = ({ session }) => {
   }, [userId]);
 
   useEffect(() => { ladeDaten(); }, [ladeDaten]);
+
+  useEffect(() => {
+    if (!focusDokumentId || loading) return;
+    if (handledFocusRef.current === focusDokumentId) return;
+
+    if (kategorieFilter !== "Alle") setKategorieFilter("Alle");
+    if (suchbegriff) setSuchbegriff("");
+
+    const zielEl = document.querySelector(`[data-dokument-id="${focusDokumentId}"]`);
+    if (!zielEl) return;
+
+    handledFocusRef.current = focusDokumentId;
+    setHighlightedDokumentId(focusDokumentId);
+
+    zielEl.scrollIntoView({ behavior: "smooth", block: "center" });
+    const timer = window.setTimeout(() => setHighlightedDokumentId(null), 2500);
+    navigate(location.pathname, { replace: true, state: {} });
+
+    return () => window.clearTimeout(timer);
+  }, [focusDokumentId, kategorieFilter, loading, location.pathname, navigate, suchbegriff]);
 
   // ── Download ────────────────────────────────────────────────────────────────
   const handleDownload = async (storagePfad, dateiname) => {
@@ -434,13 +475,11 @@ const HomeDokumente = ({ session }) => {
   const handleLoeschen = async (id, storagePfad, dateiname) => {
     if (!window.confirm(`"${dateiname}" wirklich löschen?`)) return;
     try {
-      await supabase.storage.from("user-dokumente").remove([storagePfad]);
-      const { error } = await supabase
-        .from("dokumente")
-        .delete()
-        .eq("id", id)
-        .eq("user_id", userId);
-      if (error) throw error;
+      await deleteInvoiceCascade({
+        supabase,
+        dokumentId: id,
+        fallbackStoragePfad: storagePfad,
+      });
       await logVerlauf(supabase, userId, "dokumente", dateiname, "geloescht");
       setDokumente((prev) => prev.filter((d) => d.id !== id));
     } catch (err) {
@@ -583,6 +622,7 @@ const HomeDokumente = ({ session }) => {
               onLoeschen={handleLoeschen}
               onWissen={setWissenModalDok}
               laedtDownload={laedtDownload}
+              highlighted={highlightedDokumentId === dok.id}
             />
           ))}
         </div>
