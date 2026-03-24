@@ -3,7 +3,7 @@ import { BookOpen, Plus, Edit2, Trash2, X, Loader2, AlertCircle, Search, Tag } f
 import { supabase } from "../../supabaseClient";
 import { logVerlauf } from "../../utils/homeVerlauf";
 
-const KATEGORIEN = ["Farben & Oberflächen", "Maße & Abmessungen", "Geräte-Info", "Kontakte & Dienste", "Anleitungen", "Rezepte", "Notizen", "Sonstiges"];
+const KATEGORIEN = ["Rechnungen & Belege", "Farben & Oberflächen", "Maße & Abmessungen", "Geräte-Info", "Kontakte & Dienste", "Anleitungen", "Rezepte", "Notizen", "Sonstiges"];
 
 const WissenForm = ({ initial, onSpeichern, onAbbrechen }) => {
   const [form, setForm] = useState({

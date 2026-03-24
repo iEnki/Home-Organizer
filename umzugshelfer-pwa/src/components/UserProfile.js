@@ -86,6 +86,7 @@ const UserProfile = ({ session, householdContext }) => {
   const [bildanalyseOpenaiKeySet,  setBildanalyseOpenaiKeySet]  = useState(false);
   const [loescheOpenaiKey,         setLoescheOpenaiKey]         = useState(false);
   const [bildanalyseStatus,        setBildanalyseStatus]        = useState(null);
+  const [ollamaVisionModel,        setOllamaVisionModel]        = useState("");
 
   // Push
   const {
@@ -159,11 +160,12 @@ const UserProfile = ({ session, householdContext }) => {
     if (!userId) return;
     supabase
       .from("household_settings")
-      .select("bildanalyse_modus, bildanalyse_openai_key_set")
+      .select("bildanalyse_modus, bildanalyse_openai_key_set, ollama_vision_model")
       .maybeSingle()
       .then(({ data }) => {
         if (data?.bildanalyse_modus) setBildanalyseModus(data.bildanalyse_modus);
         if (data?.bildanalyse_openai_key_set !== undefined) setBildanalyseOpenaiKeySet(!!data.bildanalyse_openai_key_set);
+        if (data?.ollama_vision_model) setOllamaVisionModel(data.ollama_vision_model);
       });
   }, [userId]);
 
@@ -269,6 +271,7 @@ const UserProfile = ({ session, householdContext }) => {
     const { error } = await supabase.rpc("set_household_bildanalyse_settings", {
       p_modus: bildanalyseModus,
       p_bildanalyse_openai_api_key: bildanalyseOpenaiKey.trim() || null,
+      p_ollama_vision_model: bildanalyseModus === "ocr_ollama" ? (ollamaVisionModel.trim() || null) : null,
     });
     if (!error) {
       if (bildanalyseOpenaiKey.trim()) setBildanalyseOpenaiKeySet(true);
@@ -1107,6 +1110,30 @@ const UserProfile = ({ session, householdContext }) => {
                 />
                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
                   Unabhaengig von den KI-Einstellungen. Wird nur fuer die Rechnungsanalyse verwendet.
+                </p>
+              </div>
+            )}
+
+            {/* Ollama Vision-Modell (nur wenn Modus = ocr_ollama) */}
+            {bildanalyseModus === "ocr_ollama" && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">
+                  Ollama Vision-Modell
+                </p>
+                <input
+                  type="text"
+                  value={ollamaVisionModel}
+                  onChange={(e) => setOllamaVisionModel(e.target.value)}
+                  placeholder="z.B. llava, llama3.2-vision, bakllava"
+                  className={`w-full px-3 py-2.5 rounded-card-sm border text-sm
+                              bg-light-surface-1 dark:bg-canvas-2
+                              border-light-border dark:border-dark-border
+                              text-light-text-main dark:text-dark-text-main
+                              placeholder-light-text-secondary dark:placeholder-dark-text-secondary
+                              focus:outline-none focus:border-secondary-500 transition-colors`}
+                />
+                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  Separates Modell fuer die Bildanalyse (muss Vision-Faehigkeiten haben). Leer lassen um das Standard-KI-Modell zu verwenden.
                 </p>
               </div>
             )}

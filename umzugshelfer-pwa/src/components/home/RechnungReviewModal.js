@@ -48,18 +48,7 @@ const MODUL_CONFIG = {
   },
 };
 
-const OBERGRUPPE_OPTIONEN = [
-  "lebensmittel", "getraenke", "koerperpflege", "hygieneartikel",
-  "haushaltsreiniger", "waschmittel", "geschirrspuelmittel", "papierprodukte",
-  "moebel", "dekoration", "beleuchtung", "aufbewahrung", "textilien",
-  "geschirr_besteck", "kochutensilien", "wohnaccessoires",
-  "grossgeraet_kueche", "grossgeraet_wasche", "unterhaltungselektronik",
-  "computer_technik", "haushaltsgeraet_elektrisch", "reinigungsgeraet_elektrisch",
-  "therme_heizung", "smart_home_geraet", "drucker_scanner", "werkzeug_klein",
-  "sonstiges",
-];
-
-const MODUL_OPTIONEN = ["vorraete", "inventar", "geraete", "sonstiges"];
+const MODUL_OPTIONEN = ["vorraete", "inventar", "geraete", "keine_zuordnung"];
 
 const BUDGET_KATEGORIEN = [
   "Lebensmittel", "Haushalt", "Elektronik", "Moebel & Einrichtung",
@@ -161,6 +150,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
   const [positionen, setPositionen] = useState(ergebnis.positionen || []);
   const [modulAktiv, setModulAktiv] = useState(() => initModulAktiv(ergebnis.erkannte_module || []));
   const [speichern, setSpeichern] = useState(false);
+  const [zusammenfassung, setZusammenfassung] = useState(ergebnis.summary_text || "");
 
   // Budget-Felder
   const [budgetKategorie, setBudgetKategorie] = useState("Haushalt");
@@ -210,7 +200,10 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
 
   const handleSpeichern = useCallback(async () => {
     if (hatPflichffehler) return;
+    if (!session?.user?.id) { toastError("Keine gueltige Sitzung vorhanden."); return; }
     setSpeichern(true);
+
+    const userId = session.user.id;
 
     try {
       const gesamtNum = parseFloat(gesamt.replace(",", "."));
@@ -219,8 +212,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
       let dokumentPfad = null;
       if (datei) {
         const ts = Date.now();
-        const ext = datei.name.split(".").pop();
-        const pfad = `${session.user.id}/${ts}_${dokDateiname || datei.name}`;
+        const pfad = `${userId}/${ts}_${dokDateiname || datei.name}`;
         const { data: uploadData, error: uploadErr } = await supabase.storage
           .from("user-dokumente")
           .upload(pfad, datei, { upsert: false, contentType: datei.type });
@@ -228,86 +220,135 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
         dokumentPfad = uploadData?.path;
       }
 
-      // 2. Dokument-Eintrag (immer)
-      const { error: dokErr } = await supabase.from("dokumente").insert({
-        dateiname: dokDateiname,
-        beschreibung: dokBeschreibung,
-        storage_pfad: dokumentPfad,
-        datei_typ: datei?.type || null,
-      });
-      if (dokErr) throw new Error(`Dokument-Speicherung fehlgeschlagen: ${dokErr.message}`);
+      // 2. Dokument-Eintrag (user_id ergaenzt) + id fuer Rueckverlinkung
+      const { data: dokData, error: dokErr } = await supabase
+        .from("dokumente")
+        .insert({
+          user_id:      userId,
+          dateiname:    dokDateiname,
+          beschreibung: dokBeschreibung,
+          storage_pfad: dokumentPfad,
+          datei_typ:    datei?.type || null,
+        })
+        .select("id")
+        .single();
 
-      // 3. Budget (wenn aktiv)
+      if (dokErr) {
+        if (dokumentPfad) {
+          try {
+            await supabase.storage.from("user-dokumente").remove([dokumentPfad]);
+          } catch (e) { console.warn("Storage-Rollback fehlgeschlagen:", e); }
+        }
+        throw new Error(`Dokument-Speicherung fehlgeschlagen: ${dokErr.message}`);
+      }
+      const dokDatenbankId = dokData?.id ?? null;
+
+      const warnings = [];
+
+      // 3. home_wissen INSERT
+      if (zusammenfassung.trim()) {
+        try {
+          const titelTeile = [
+            "Rechnung",
+            haendler || null,
+            datum
+              ? new Date(datum).toLocaleDateString("de-AT", { day: "2-digit", month: "2-digit", year: "numeric" })
+              : null,
+          ].filter(Boolean);
+          const { error: wissenErr } = await supabase.from("home_wissen").insert({
+            user_id:     userId,
+            titel:       titelTeile.join(" \u2013 "),
+            inhalt:      zusammenfassung.trim(),
+            kategorie:   "Rechnungen & Belege",
+            tags:        ["rechnung", ...(haendler ? [haendler.toLowerCase().split(" ")[0]] : [])],
+            dokument_id: dokDatenbankId,
+          });
+          if (wissenErr) warnings.push("Wissens-Eintrag konnte nicht gespeichert werden.");
+        } catch { warnings.push("Wissens-Eintrag fehlgeschlagen."); }
+      }
+
+      // 4. Budget (wenn aktiv)
       if (modulAktiv.budget) {
-        const { error: budgetErr } = await supabase.from("budget_posten").insert({
-          beschreibung: budgetBeschreibung || `Einkauf ${haendler}`,
-          betrag: gesamtNum,
-          datum: datum || null,
-          kategorie: budgetKategorie,
-          app_modus: "home",
-        });
-        if (budgetErr) throw new Error(`Budget-Speicherung fehlgeschlagen: ${budgetErr.message}`);
+        try {
+          const { error: budgetErr } = await supabase.from("budget_posten").insert({
+            beschreibung: budgetBeschreibung || `Einkauf ${haendler}`,
+            betrag:       gesamtNum,
+            datum:        datum || null,
+            kategorie:    budgetKategorie,
+            app_modus:    "home",
+          });
+          if (budgetErr) warnings.push("Budget konnte nicht gespeichert werden.");
+        } catch { warnings.push("Budget fehlgeschlagen."); }
       }
 
-      // 4. Geraete (wenn aktiv)
+      // 5. Geraete (wenn aktiv)
       if (modulAktiv.geraete && geraetName) {
-        const { data: geraetData, error: geraetErr } = await supabase
-          .from("home_geraete")
-          .insert({
-            name: geraetName,
-            hersteller: geraetHersteller || null,
-            kaufdatum: datum || null,
-            kaufpreis: gesamtNum,
-            garantie_bis: garantieBis || null,
-          })
-          .select("id")
-          .single();
+        try {
+          const { data: geraetData, error: geraetErr } = await supabase
+            .from("home_geraete")
+            .insert({
+              name:        geraetName,
+              hersteller:  geraetHersteller || null,
+              kaufdatum:   datum || null,
+              kaufpreis:   gesamtNum,
+              garantie_bis: garantieBis || null,
+            })
+            .select("id")
+            .single();
 
-        if (geraetErr) throw new Error(`Geraet-Speicherung fehlgeschlagen: ${geraetErr.message}`);
-
-        // Wartung anlegen wenn gesetzt
-        if (naechsteWartung && geraetData?.id) {
-          await supabase.from("home_wartungen").insert({
-            geraet_id: geraetData.id,
-            naechste_faelligkeit: naechsteWartung,
-            beschreibung: "Wartung",
-          });
-        }
+          if (geraetErr) {
+            warnings.push("Geraet konnte nicht gespeichert werden.");
+          } else if (naechsteWartung && geraetData?.id) {
+            try {
+              await supabase.from("home_wartungen").insert({
+                geraet_id:           geraetData.id,
+                naechste_faelligkeit: naechsteWartung,
+                beschreibung:        "Wartung",
+              });
+            } catch { warnings.push("Wartung konnte nicht gespeichert werden."); }
+          }
+        } catch { warnings.push("Geraet fehlgeschlagen."); }
       }
 
-      // 5. Vorraete (wenn aktiv)
+      // 6. Vorraete (wenn aktiv)
       if (modulAktiv.vorraete) {
-        const vorraetePositionen = positionen.filter(
-          (p) => p.modul_vorschlag === "vorraete"
-        );
-        for (const pos of vorraetePositionen) {
-          await supabase.from("home_vorraete").insert({
-            name: pos.name,
-            bestand: pos.menge || 1,
-            einheit: "Stueck",
-            kategorie: pos.obergruppe || "sonstiges",
-            mindestmenge: 1,
-          });
-        }
+        try {
+          const vorraetePositionen = positionen.filter((p) => p.modul_vorschlag === "vorraete");
+          for (const pos of vorraetePositionen) {
+            const { error: vErr } = await supabase.from("home_vorraete").insert({
+              name:         pos.name,
+              bestand:      pos.menge || 1,
+              einheit:      "Stueck",
+              kategorie:    pos.obergruppe || "keine_zuordnung",
+              mindestmenge: 1,
+            });
+            if (vErr) { warnings.push("Vorrat konnte nicht gespeichert werden."); break; }
+          }
+        } catch { warnings.push("Vorraete fehlgeschlagen."); }
       }
 
-      // 6. Inventar (wenn aktiv)
+      // 7. Inventar (wenn aktiv)
       if (modulAktiv.inventar) {
-        const inventarPositionen = positionen.filter(
-          (p) => p.modul_vorschlag === "inventar"
-        );
-        for (const pos of inventarPositionen) {
-          await supabase.from("home_objekte").insert({
-            name: pos.name,
-            kategorie: pos.obergruppe || "sonstiges",
-            status: "vorhanden",
-            kaufpreis: pos.gesamtpreis || null,
-            kaufdatum: datum || null,
-          });
-        }
+        try {
+          const inventarPositionen = positionen.filter((p) => p.modul_vorschlag === "inventar");
+          for (const pos of inventarPositionen) {
+            const { error: iErr } = await supabase.from("home_objekte").insert({
+              name:      pos.name,
+              kategorie: pos.obergruppe || "keine_zuordnung",
+              status:    "vorhanden",
+              kaufpreis: pos.gesamtpreis || null,
+              kaufdatum: datum || null,
+            });
+            if (iErr) { warnings.push("Inventar konnte nicht gespeichert werden."); break; }
+          }
+        } catch { warnings.push("Inventar fehlgeschlagen."); }
       }
 
-      success("Rechnung gespeichert.");
+      if (warnings.length > 0) {
+        toastError("Rechnung gespeichert, aber: " + warnings.join("; "));
+      } else {
+        success("Rechnung gespeichert.");
+      }
       onGespeichert();
     } catch (err) {
       console.error("Speicher-Fehler:", err);
@@ -318,8 +359,8 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
   }, [
     hatPflichffehler, gesamt, datei, session, dokDateiname, dokBeschreibung,
     datum, modulAktiv, budgetBeschreibung, haendler, budgetKategorie,
-    geraetName, geraetHersteller, gewaehrleistungBis, garantieBis, naechsteWartung,
-    positionen, success, toastError, onGespeichert,
+    geraetName, geraetHersteller, garantieBis, naechsteWartung,
+    positionen, zusammenfassung, success, toastError, onGespeichert,
   ]);
 
   // ============================================================
@@ -387,6 +428,23 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
           {hatPflichffehler && (
             <p className="text-xs text-accent-danger">Datum und Betrag sind Pflichtfelder.</p>
           )}
+        </div>
+
+        {/* Zusammenfassung */}
+        <div className="bg-canvas-1 rounded-card border border-canvas-3 p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-dark-text-main">Zusammenfassung</h3>
+          <p className="text-xs text-dark-text-secondary">
+            Wird in deiner Wissensdatenbank gespeichert. Du kannst den Text anpassen.
+          </p>
+          <textarea
+            value={zusammenfassung}
+            onChange={(e) => setZusammenfassung(e.target.value)}
+            rows={3}
+            className="w-full px-3 py-2 rounded-card-sm bg-canvas-2 border border-canvas-3
+                       text-sm text-dark-text-main focus:outline-none focus:border-primary-500
+                       transition-colors resize-none"
+            placeholder="Automatisch generierte Zusammenfassung..."
+          />
         </div>
 
         {/* Modul-Auswahl */}
@@ -473,33 +531,18 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-xs text-dark-text-secondary">Obergruppe</label>
-                    <select
-                      value={pos.obergruppe || "sonstiges"}
-                      onChange={(e) => updatePosition(idx, "obergruppe", e.target.value)}
-                      className="w-full mt-1 px-2 py-1.5 rounded bg-canvas-1 border border-canvas-3
-                                 text-xs text-dark-text-main focus:outline-none focus:border-primary-500"
-                    >
-                      {OBERGRUPPE_OPTIONEN.map((o) => (
-                        <option key={o} value={o}>{o}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-dark-text-secondary">Modul</label>
-                    <select
-                      value={pos.modul_vorschlag || "sonstiges"}
-                      onChange={(e) => updatePosition(idx, "modul_vorschlag", e.target.value)}
-                      className="w-full mt-1 px-2 py-1.5 rounded bg-canvas-1 border border-canvas-3
-                                 text-xs text-dark-text-main focus:outline-none focus:border-primary-500"
-                    >
-                      {MODUL_OPTIONEN.map((o) => (
-                        <option key={o} value={o}>{o}</option>
-                      ))}
-                    </select>
-                  </div>
+                <div>
+                  <label className="text-xs text-dark-text-secondary">Modul</label>
+                  <select
+                    value={pos.modul_vorschlag || "keine_zuordnung"}
+                    onChange={(e) => updatePosition(idx, "modul_vorschlag", e.target.value)}
+                    className="w-full mt-1 px-2 py-1.5 rounded bg-canvas-1 border border-canvas-3
+                               text-xs text-dark-text-main focus:outline-none focus:border-primary-500"
+                  >
+                    {MODUL_OPTIONEN.map((o) => (
+                      <option key={o} value={o}>{o}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
             ))}
