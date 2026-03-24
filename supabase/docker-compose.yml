@@ -88,6 +88,26 @@ services:
     # https://unix.stackexchange.com/a/294837
     entrypoint: bash -c 'eval "echo \"$$(cat ~/temp.yml)\"" > ~/kong.yml && /docker-entrypoint.sh kong docker-start'
 
+  mail-templates:
+    container_name: supabase-mail-templates
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./templates:/usr/share/nginx/html:ro,z
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost/invite.html"
+        ]
+      timeout: 5s
+      interval: 10s
+      retries: 3
+
   auth:
     container_name: supabase-auth
     image: supabase/gotrue:v2.184.0
@@ -111,6 +131,8 @@ services:
         condition: service_healthy
       analytics:
         condition: service_healthy
+      mail-templates:
+        condition: service_started
     environment:
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_API_PORT: 9999
@@ -148,6 +170,7 @@ services:
       GOTRUE_MAILER_URLPATHS_CONFIRMATION: ${MAILER_URLPATHS_CONFIRMATION}
       GOTRUE_MAILER_URLPATHS_RECOVERY: ${MAILER_URLPATHS_RECOVERY}
       GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: ${MAILER_URLPATHS_EMAIL_CHANGE}
+      GOTRUE_MAILER_TEMPLATES_INVITE: http://mail-templates/invite.html
 
       GOTRUE_EXTERNAL_PHONE_ENABLED: ${ENABLE_PHONE_SIGNUP}
       GOTRUE_SMS_AUTOCONFIRM: ${ENABLE_PHONE_AUTOCONFIRM}
