@@ -220,6 +220,37 @@ const HAENDLER_HINTS = {
   zalando: ["textilien"],
 };
 
+const FUEL_POSITION_KEYWORDS = [
+  "diesel",
+  "benzin",
+  "kraftstoff",
+  "treibstoff",
+  "super",
+  "super e5",
+  "super e10",
+  "eurosuper",
+  "adblue",
+  "autogas",
+  "lpg",
+  "cng",
+];
+
+const FUEL_MERCHANT_KEYWORDS = [
+  "shell",
+  "omv",
+  "bp",
+  "aral",
+  "eni",
+  "esso",
+  "jet",
+  "avanti",
+  "agip",
+  "turmoil",
+  "tankstelle",
+  "tankautomat",
+  "tank",
+];
+
 // ============================================================
 // KI-Prompts fuer Vision- und Text-Analyse
 // ============================================================
@@ -394,6 +425,24 @@ function generiereZusammenfassung(haendler, datum, gesamt, positionen) {
   }
 
   return `Du hast am ${datumText} bei ${haendlerText} eingekauft und insgesamt ${gesamtText} ausgegeben.`;
+}
+
+function istTankPosition(position) {
+  const nameNorm = normalisieren(position?.name || "");
+  if (!nameNorm) return false;
+  return FUEL_POSITION_KEYWORDS.some((kw) => nameNorm.includes(normalisieren(kw)));
+}
+
+function istTankHaendler(haendler) {
+  const haendlerNorm = normalisieren(haendler || "");
+  if (!haendlerNorm) return false;
+  return FUEL_MERCHANT_KEYWORDS.some((kw) => haendlerNorm.includes(normalisieren(kw)));
+}
+
+function ermittleBudgetKategorieVorschlag(haendler, positionen) {
+  const hatTankPosition = (positionen || []).some((p) => istTankPosition(p));
+  if (hatTankPosition || istTankHaendler(haendler)) return "Tanken";
+  return null;
 }
 
 /**
@@ -910,6 +959,10 @@ export async function starteAnalyse(file, modus, { kiClient, session } = {}) {
   );
 
   const erkannteModule = ermittleErkannteModule(positionen);
+  const budgetKategorieVorschlag = ermittleBudgetKategorieVorschlag(
+    roherAnalyse.haendler,
+    positionen
+  );
 
   return {
     haendler: roherAnalyse.haendler,
@@ -919,6 +972,7 @@ export async function starteAnalyse(file, modus, { kiClient, session } = {}) {
     roher_text: roherAnalyse.roher_text || "",
     confidence: roherAnalyse.confidence || 0.5,
     erkannte_module: erkannteModule,
+    budget_kategorie_vorschlag: budgetKategorieVorschlag,
     summary_text: generiereZusammenfassung(
       roherAnalyse.haendler,
       roherAnalyse.datum,
