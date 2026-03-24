@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   DollarSign, Plus, Edit2, Trash2, X, Loader2, AlertCircle,
   Calendar, ChevronLeft, ChevronRight, Sparkles, RefreshCw,
-  Target, TrendingUp, BarChart2, PiggyBank, Wallet, Check,
+  Target, TrendingUp, BarChart2, PiggyBank, Wallet, Check, FileText,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Doughnut, Bar, Line } from "react-chartjs-2";
@@ -16,6 +16,7 @@ import KiHomeAssistent from "./KiHomeAssistent";
 import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
+import { deleteInvoiceCascade } from "../../utils/invoiceCascadeDelete";
 
 ChartJS.register(
   ArcElement, Tooltip, Legend,
@@ -65,6 +66,11 @@ const calcNaechstesDatum = (datum, intervallStr) => {
 };
 
 const fmt = (n) => Number(n || 0).toFixed(2) + " €";
+const istRechnungsDokument = (dok) => {
+  const kategorie = String(dok?.kategorie || "").trim().toLowerCase();
+  const dokumentTyp = String(dok?.dokument_typ || "").trim().toLowerCase();
+  return kategorie === "rechnung" || dokumentTyp === "rechnung";
+};
 
 // ─────────────── Sub-Components ───────────────
 const BewohnerBadge = ({ bewohner }) => {
@@ -290,6 +296,10 @@ const HomeBudget = ({ session }) => {
   const [einzahlenModal, setEinzahlenModal] = useState(null);
   const [einzahlenBetrag, setEinzahlenBetrag] = useState("");
   const [kiOffen, setKiOffen] = useState(false);
+  const [budgetRechnungMap, setBudgetRechnungMap] = useState({});
+  const [rechnungVorschau, setRechnungVorschau] = useState(null);
+  const [rechnungsLoeschDialog, setRechnungsLoeschDialog] = useState(null);
+  const [loeschenLaeuft, setLoeschenLaeuft] = useState(false);
 
   // Filters
   const [kategFilter, setKategFilter] = useState("");
@@ -303,6 +313,55 @@ const HomeBudget = ({ session }) => {
 
   // Limit inline editing
   const [limitsEdit, setLimitsEdit] = useState({});
+
+  const ladeBudgetRechnungen = useCallback(async (budgetPosten) => {
+    const ids = (budgetPosten || []).map((p) => p.id).filter(Boolean);
+    if (ids.length === 0) {
+      setBudgetRechnungMap({});
+      return;
+    }
+
+    const { data: linkRows, error: linkErr } = await supabase
+      .from("dokument_links")
+      .select("id, dokument_id, entity_id, created_at")
+      .eq("entity_type", "budget_posten")
+      .in("entity_id", ids);
+    if (linkErr) throw linkErr;
+
+    const dokumentIds = Array.from(new Set((linkRows || []).map((l) => l.dokument_id).filter(Boolean)));
+    if (dokumentIds.length === 0) {
+      setBudgetRechnungMap({});
+      return;
+    }
+
+    const { data: dokumentRows, error: dokErr } = await supabase
+      .from("dokumente")
+      .select("id, dateiname, datei_typ, storage_pfad, kategorie, dokument_typ")
+      .in("id", dokumentIds);
+    if (dokErr) throw dokErr;
+
+    const dokumenteById = new Map((dokumentRows || []).map((d) => [d.id, d]));
+    const nextMap = {};
+
+    for (const link of (linkRows || [])) {
+      const dok = dokumenteById.get(link.dokument_id);
+      if (!dok || !istRechnungsDokument(dok)) continue;
+      if (!nextMap[link.entity_id]) nextMap[link.entity_id] = [];
+      nextMap[link.entity_id].push({
+        link_id: link.id,
+        dokument_id: dok.id,
+        dateiname: dok.dateiname,
+        datei_typ: dok.datei_typ,
+        storage_pfad: dok.storage_pfad,
+        created_at: link.created_at || null,
+      });
+    }
+
+    Object.keys(nextMap).forEach((entityId) => {
+      nextMap[entityId].sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+    });
+    setBudgetRechnungMap(nextMap);
+  }, []);
 
   // ─── Data Loading ───
   const ladeDaten = useCallback(async () => {
@@ -337,6 +396,7 @@ const HomeBudget = ({ session }) => {
       const fetchedData = postenData || [];
       const todayStr = new Date().toISOString().split("T")[0];
       const faellige = fetchedData.filter(p => p.wiederholen && p.naechstes_datum && p.naechstes_datum <= todayStr);
+      let finalPosten = fetchedData;
 
       for (const p of faellige) {
         const neuesDatum = calcNaechstesDatum(p.naechstes_datum, p.intervall);
@@ -359,20 +419,48 @@ const HomeBudget = ({ session }) => {
       if (faellige.length > 0) {
         const { data: refreshed } = await supabase.from("budget_posten").select("*").eq("user_id", userId)
           .in("app_modus", ["home", "beides"]).order("datum", { ascending: false });
-        setPosten(refreshed || []);
-      } else {
-        setPosten(fetchedData);
+        finalPosten = refreshed || [];
       }
+
+      setPosten(finalPosten);
+      await ladeBudgetRechnungen(finalPosten);
     } catch (e) {
       setFehler("Fehler beim Laden.");
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [ladeBudgetRechnungen, userId]);
 
   useEffect(() => { ladeDaten(); }, [ladeDaten]);
 
   // ─── CRUD ───
+  const oeffneRechnungsVorschau = async (eintrag) => {
+    const rechnungen = budgetRechnungMap[eintrag?.id] || [];
+    if (rechnungen.length === 0) return;
+
+    const erste = rechnungen[0];
+    setRechnungVorschau({
+      dokument_id: erste.dokument_id,
+      dateiname: erste.dateiname,
+      datei_typ: erste.datei_typ,
+      url: null,
+      loading: true,
+      fehler: null,
+    });
+
+    try {
+      const { data, error } = await supabase.storage
+        .from("user-dokumente")
+        .createSignedUrl(erste.storage_pfad, 60 * 30);
+      if (error || !data?.signedUrl) {
+        throw new Error("Signed URL konnte nicht erstellt werden.");
+      }
+      setRechnungVorschau((prev) => (prev ? { ...prev, url: data.signedUrl, loading: false } : prev));
+    } catch (err) {
+      setRechnungVorschau((prev) => (prev ? { ...prev, loading: false, fehler: err.message } : prev));
+    }
+  };
+
   const speichere = async (daten) => {
     const payload = { ...daten, user_id: userId };
     if (modal?.id) {
@@ -384,10 +472,63 @@ const HomeBudget = ({ session }) => {
     ladeDaten();
   };
 
-  const loesche = async (id) => {
-    if (!window.confirm("Eintrag löschen?")) return;
-    await supabase.from("budget_posten").delete().eq("id", id);
-    ladeDaten();
+  const loesche = async (eintrag) => {
+    const id = eintrag?.id;
+    if (!id) return;
+
+    const verknuepfteRechnungen = budgetRechnungMap[id] || [];
+    if (verknuepfteRechnungen.length === 0) {
+      if (!window.confirm("Eintrag löschen?")) return;
+      await supabase.from("budget_posten").delete().eq("id", id);
+      ladeDaten();
+      return;
+    }
+
+    setRechnungsLoeschDialog({ eintrag, rechnungen: verknuepfteRechnungen });
+  };
+
+  const loescheNurBudget = async () => {
+    if (!rechnungsLoeschDialog?.eintrag?.id) return;
+    setLoeschenLaeuft(true);
+    try {
+      const budgetId = rechnungsLoeschDialog.eintrag.id;
+      const { error: budgetErr } = await supabase.from("budget_posten").delete().eq("id", budgetId);
+      if (budgetErr) throw budgetErr;
+
+      const { error: linkErr } = await supabase
+        .from("dokument_links")
+        .delete()
+        .eq("entity_type", "budget_posten")
+        .eq("entity_id", budgetId);
+      if (linkErr) throw linkErr;
+
+      setRechnungsLoeschDialog(null);
+      await ladeDaten();
+    } catch (err) {
+      setFehler(`Löschen fehlgeschlagen: ${err.message}`);
+    } finally {
+      setLoeschenLaeuft(false);
+    }
+  };
+
+  const loescheKomplett = async () => {
+    if (!rechnungsLoeschDialog?.rechnungen?.length) return;
+    setLoeschenLaeuft(true);
+    try {
+      const dokumentIds = Array.from(
+        new Set(rechnungsLoeschDialog.rechnungen.map((r) => r.dokument_id).filter(Boolean)),
+      );
+      for (const dokumentId of dokumentIds) {
+        await deleteInvoiceCascade({ supabase, dokumentId });
+      }
+
+      setRechnungsLoeschDialog(null);
+      await ladeDaten();
+    } catch (err) {
+      setFehler(`Komplett-Löschung fehlgeschlagen: ${err.message}`);
+    } finally {
+      setLoeschenLaeuft(false);
+    }
   };
 
   const speichereLimit = async (kategorie, wert) => {
@@ -759,11 +900,14 @@ const HomeBudget = ({ session }) => {
             </div>
           ) : (
             <div className="space-y-2">
-              {gefiltertPosten.map(p => (
-                <div
-                  key={p.id}
-                  className="flex items-center gap-3 bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-3 group"
-                >
+              {gefiltertPosten.map(p => {
+                const verknuepfteRechnungen = budgetRechnungMap[p.id] || [];
+                const hatRechnung = verknuepfteRechnungen.length > 0;
+                return (
+                  <div
+                    key={p.id}
+                    className="flex items-center gap-3 bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-3 group"
+                  >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <p className="text-sm text-light-text-main dark:text-dark-text-main truncate">{p.beschreibung}</p>
@@ -780,16 +924,26 @@ const HomeBudget = ({ session }) => {
                   <span className="font-semibold flex-shrink-0 tabular-nums text-light-text-main dark:text-dark-text-main">
                     −{Math.abs(Number(p.betrag)).toFixed(2)} €
                   </span>
+                  {hatRechnung && (
+                    <button
+                      onClick={() => oeffneRechnungsVorschau(p)}
+                      className="flex items-center gap-1 px-2 py-1 text-xs rounded-card-sm border border-primary-500/40 bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors"
+                    >
+                      <FileText size={12} />
+                      Rechnung
+                    </button>
+                  )}
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={() => setModal(p)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500">
                       <Edit2 size={13} />
                     </button>
-                    <button onClick={() => loesche(p.id)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500">
+                    <button onClick={() => loesche(p)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500">
                       <Trash2 size={13} />
                     </button>
                   </div>
-                </div>
-              ))}
+                  </div>
+                );
+              })}
             </div>
           )}
         </>
@@ -1157,6 +1311,94 @@ const HomeBudget = ({ session }) => {
       )}
 
       {/* ════════════ MODALS ════════════ */}
+      {rechnungVorschau && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 flex items-center justify-center"
+          onClick={() => setRechnungVorschau(null)}
+        >
+          <div
+            className="w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 shadow-elevation-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
+              <h3 className="font-semibold text-light-text-main dark:text-dark-text-main truncate pr-2">
+                Rechnungsvorschau: {rechnungVorschau.dateiname || "Dokument"}
+              </h3>
+              <button onClick={() => setRechnungVorschau(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-4 h-[70vh] overflow-auto">
+              {rechnungVorschau.loading ? (
+                <div className="h-full flex items-center justify-center">
+                  <Loader2 size={28} className="animate-spin text-light-text-secondary dark:text-dark-text-secondary" />
+                </div>
+              ) : rechnungVorschau.fehler ? (
+                <div className="h-full flex items-center justify-center text-sm text-red-500">
+                  {rechnungVorschau.fehler}
+                </div>
+              ) : rechnungVorschau.url ? (
+                rechnungVorschau.datei_typ === "application/pdf" ? (
+                  <iframe
+                    src={rechnungVorschau.url}
+                    title={rechnungVorschau.dateiname || "Rechnung"}
+                    className="w-full h-full rounded-card-sm border border-light-border dark:border-dark-border bg-white"
+                  />
+                ) : (
+                  <img
+                    src={rechnungVorschau.url}
+                    alt={rechnungVorschau.dateiname || "Rechnung"}
+                    className="w-full h-full object-contain rounded-card-sm"
+                  />
+                )
+              ) : (
+                <div className="h-full flex items-center justify-center text-sm text-light-text-secondary dark:text-dark-text-secondary">
+                  Keine Vorschau verfügbar.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rechnungsLoeschDialog && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 flex items-center justify-center">
+          <div className="w-full max-w-md rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 shadow-elevation-3">
+            <div className="p-4 border-b border-light-border dark:border-dark-border">
+              <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
+                Rechnung verknüpft
+              </h3>
+              <p className="text-xs mt-1 text-light-text-secondary dark:text-dark-text-secondary">
+                Soll nur der Budgeteintrag entfernt werden oder die komplette Rechnung aus der Datenbank?
+              </p>
+            </div>
+            <div className="p-4 flex flex-col gap-2">
+              <button
+                onClick={() => setRechnungsLoeschDialog(null)}
+                disabled={loeschenLaeuft}
+                className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:bg-light-hover dark:hover:bg-canvas-3"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={loescheNurBudget}
+                disabled={loeschenLaeuft}
+                className="w-full px-3 py-2 text-sm rounded-card-sm bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25"
+              >
+                {loeschenLaeuft ? "Bitte warten..." : "Nur aus Budget löschen"}
+              </button>
+              <button
+                onClick={loescheKomplett}
+                disabled={loeschenLaeuft}
+                className="w-full px-3 py-2 text-sm rounded-pill bg-red-500 text-white hover:bg-red-600"
+              >
+                {loeschenLaeuft ? "Bitte warten..." : "Komplett aus DB löschen"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {modal !== null && (
         <ModalWrapper title={modal.id ? "Eintrag bearbeiten" : "Neuer Eintrag"} onClose={() => setModal(null)}>
           <BudgetForm initial={modal.id ? modal : null} onSpeichern={speichere} onAbbrechen={() => setModal(null)} bewohner={bewohner} />

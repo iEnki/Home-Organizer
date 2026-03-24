@@ -4,7 +4,7 @@ import {
   Search, X, Plus, CheckCircle, File, Loader2, AlertTriangle,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { supabase } from "../../supabaseClient";
+import { supabase, getActiveHouseholdId } from "../../supabaseClient";
 import { logVerlauf } from "../../utils/homeVerlauf";
 import { deleteInvoiceCascade } from "../../utils/invoiceCascadeDelete";
 import TourOverlay from "./tour/TourOverlay";
@@ -31,6 +31,17 @@ const KATEGORIE_FARBEN = {
 const WISSEN_KATEGORIEN = [
   "Farben & Oberflächen", "Maße & Abmessungen", "Geräte-Info",
   "Kontakte & Dienste", "Anleitungen", "Rezepte", "Notizen", "Sonstiges",
+];
+
+const BUDGET_KATEGORIEN = [
+  "Lebensmittel", "Haushalt", "Reparaturen", "Abonnements",
+  "Versicherungen", "Einrichtung", "Tanken", "Rücklagen", "Sonstiges",
+];
+
+const BUDGET_INSERT_VARIANTEN = [
+  ["user_id", "household_id", "beschreibung", "betrag", "datum", "kategorie", "typ", "app_modus"],
+  ["user_id", "beschreibung", "betrag", "datum", "kategorie", "typ", "app_modus"],
+  ["user_id", "beschreibung", "betrag", "datum", "kategorie"],
 ];
 
 // Legacy: Extrahiert den [kategorie_hinweis] aus der alten Beschreibung
@@ -316,8 +327,119 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
   );
 };
 
+const BudgetZuordnungModal = ({ dok, initial, onSchliessen, onSpeichern, speichern }) => {
+  const [beschreibung, setBeschreibung] = useState(initial?.beschreibung || "");
+  const [betrag, setBetrag] = useState(initial?.betrag || "");
+  const [datum, setDatum] = useState(initial?.datum || new Date().toISOString().split("T")[0]);
+  const [kategorie, setKategorie] = useState(initial?.kategorie || "Haushalt");
+
+  const handleSpeichern = () => {
+    const nummer = Number.parseFloat(String(betrag).replace(",", "."));
+    if (!beschreibung.trim() || !Number.isFinite(nummer) || nummer <= 0) return;
+    onSpeichern({
+      beschreibung: beschreibung.trim(),
+      betrag: nummer,
+      datum: datum || null,
+      kategorie,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
+            <Plus size={16} className="text-primary-500" /> Zum Budget hinzufügen
+          </h2>
+          <button
+            onClick={onSchliessen}
+            className="w-8 h-8 flex items-center justify-center rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">
+          Dokument: {dok?.dateiname}
+        </p>
+
+        <div>
+          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Beschreibung*</label>
+          <input
+            value={beschreibung}
+            onChange={(e) => setBeschreibung(e.target.value)}
+            placeholder="z. B. Rechnung Supermarkt"
+            className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Betrag (€)*</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={betrag}
+              onChange={(e) => setBetrag(e.target.value)}
+              placeholder="0,00"
+              className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Datum</label>
+            <input
+              type="date"
+              value={datum || ""}
+              onChange={(e) => setDatum(e.target.value)}
+              className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Kategorie</label>
+          <select
+            value={kategorie}
+            onChange={(e) => setKategorie(e.target.value)}
+            className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
+          >
+            {BUDGET_KATEGORIEN.map((kat) => <option key={kat}>{kat}</option>)}
+          </select>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={onSchliessen}
+            disabled={speichern}
+            className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main disabled:opacity-60"
+          >
+            Abbrechen
+          </button>
+          <button
+            onClick={handleSpeichern}
+            disabled={speichern || !beschreibung.trim() || !betrag}
+            className="flex-1 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {speichern ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+            Speichern
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── Dokument-Karte ─────────────────────────────────────────────────────────────
-const DokumentKarte = ({ dok, onDownload, onLoeschen, onWissen, laedtDownload, highlighted }) => {
+const DokumentKarte = ({
+  dok,
+  onDownload,
+  onLoeschen,
+  onWissen,
+  onZumBudget,
+  laedtDownload,
+  highlighted,
+}) => {
   const kat = effektiveKategorie(dok);
   const katFarbe = KATEGORIE_FARBEN[kat] || KATEGORIE_FARBEN.Sonstiges;
   const beschreibungOhneHinweis = dok.beschreibung?.replace(/\s*\[[^\]]+\]$/, "") || "";
@@ -426,6 +548,20 @@ const DokumentKarte = ({ dok, onDownload, onLoeschen, onWissen, laedtDownload, h
         >
           <BookOpen size={12} /> Als Wissen
         </button>
+        {istRechnungKategorie(dok) && (
+          dok.im_budget ? (
+            <span className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-green-500/10 text-green-600 dark:text-green-400">
+              <CheckCircle size={12} /> Im Budget
+            </span>
+          ) : (
+            <button
+              onClick={() => onZumBudget(dok)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors"
+            >
+              <Plus size={12} /> Zum Budget hinzufügen
+            </button>
+          )
+        )}
         <button
           onClick={() => onLoeschen(dok.id, dok.storage_pfad, dok.dateiname)}
           className="ml-auto flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm text-red-500 hover:bg-red-500/10 transition-colors"
@@ -451,6 +587,9 @@ const HomeDokumente = ({ session }) => {
   const [uploadModalOffen, setUploadModalOffen] = useState(false);
   const [wissenModalDok, setWissenModalDok] = useState(null);
   const [wissenErfolgreich, setWissenErfolgreich] = useState(false);
+  const [budgetModalDok, setBudgetModalDok] = useState(null);
+  const [budgetModalInitial, setBudgetModalInitial] = useState(null);
+  const [budgetSpeichern, setBudgetSpeichern] = useState(false);
   const [kategorieFilter, setKategorieFilter] = useState("Alle");
   const [suchbegriff, setSuchbegriff] = useState("");
   const [highlightedDokumentId, setHighlightedDokumentId] = useState(null);
@@ -474,6 +613,57 @@ const HomeDokumente = ({ session }) => {
     return Object.fromEntries(vorschauEintraege);
   }, []);
 
+  const resolveHouseholdId = useCallback(async () => {
+    const aktiveHouseholdId = getActiveHouseholdId();
+    if (aktiveHouseholdId) return aktiveHouseholdId;
+    if (!userId) return null;
+
+    const { data, error } = await supabase
+      .from("household_members")
+      .select("household_id")
+      .eq("user_id", userId)
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      throw new Error(`Haushalt konnte nicht ermittelt werden: ${error.message}`);
+    }
+    return data?.household_id || null;
+  }, [userId]);
+
+  const insertBudgetPostenRobust = useCallback(async (payloadBase) => {
+    let lastError = null;
+
+    for (const variante of BUDGET_INSERT_VARIANTEN) {
+      const payload = {};
+      for (const feld of variante) {
+        if (payloadBase[feld] !== undefined) payload[feld] = payloadBase[feld];
+      }
+
+      const { data, error } = await supabase
+        .from("budget_posten")
+        .insert(payload)
+        .select("id, household_id")
+        .single();
+
+      if (!error) return { data, error: null };
+      lastError = error;
+
+      const msg = String(error.message || "").toLowerCase();
+      const details = String(error.details || "").toLowerCase();
+      const hint = String(error.hint || "").toLowerCase();
+      const combined = `${msg} ${details} ${hint}`;
+      const istSpaltenfehler =
+        error.code === "PGRST204" ||
+        combined.includes("column") ||
+        combined.includes("could not find") ||
+        combined.includes("does not exist");
+
+      if (!istSpaltenfehler) break;
+    }
+
+    return { data: null, error: lastError };
+  }, []);
+
   // ── Laden ──────────────────────────────────────────────────────────────────
   const ladeDaten = useCallback(async () => {
     if (!userId) return;
@@ -487,16 +677,43 @@ const HomeDokumente = ({ session }) => {
       if (error) throw error;
       const doks = data || [];
       const vorschauUrls = await baueVorschauUrls(doks);
+      const dokIds = doks.map((dok) => dok.id).filter(Boolean);
+      const householdId = await resolveHouseholdId().catch(() => null);
+
+      let budgetLinkedSet = new Set();
+      let rechnungByDokId = new Map();
+
+      if (dokIds.length > 0) {
+        let linksQuery = supabase
+          .from("dokument_links")
+          .select("dokument_id")
+          .eq("entity_type", "budget_posten")
+          .in("dokument_id", dokIds);
+        if (householdId) linksQuery = linksQuery.eq("household_id", householdId);
+        const { data: linkRows } = await linksQuery;
+        budgetLinkedSet = new Set((linkRows || []).map((row) => row.dokument_id));
+
+        let rechnungQuery = supabase
+          .from("rechnungen")
+          .select("dokument_id, lieferant_name, brutto, rechnungsdatum")
+          .in("dokument_id", dokIds);
+        if (householdId) rechnungQuery = rechnungQuery.eq("household_id", householdId);
+        const { data: rechnungRows } = await rechnungQuery;
+        rechnungByDokId = new Map((rechnungRows || []).map((row) => [row.dokument_id, row]));
+      }
+
       setDokumente(doks.map((dok) => ({
         ...dok,
         vorschau_url: vorschauUrls[dok.id] || null,
+        im_budget: budgetLinkedSet.has(dok.id),
+        rechnung_info: rechnungByDokId.get(dok.id) || null,
       })));
     } catch (err) {
       setFehler("Dokumente konnten nicht geladen werden.");
     } finally {
       setLoading(false);
     }
-  }, [baueVorschauUrls, userId]);
+  }, [baueVorschauUrls, resolveHouseholdId, userId]);
 
   useEffect(() => { ladeDaten(); }, [ladeDaten]);
 
@@ -564,6 +781,75 @@ const HomeDokumente = ({ session }) => {
     setWissenModalDok(null);
     setWissenErfolgreich(true);
     setTimeout(() => setWissenErfolgreich(false), 3000);
+  };
+
+  const oeffneBudgetModal = (dok) => {
+    if (!dok || dok.im_budget || !istRechnungKategorie(dok)) return;
+    const brutto = Number(dok?.rechnung_info?.brutto);
+    const rechnungsDatum = dok?.rechnung_info?.rechnungsdatum || null;
+    const erstelltAm = dok?.erstellt_am ? String(dok.erstellt_am).slice(0, 10) : null;
+    const beschreibung = dok?.rechnung_info?.lieferant_name
+      ? `Rechnung ${dok.rechnung_info.lieferant_name}`
+      : `Rechnung ${dok.dateiname?.replace(/\.[^.]+$/, "") || ""}`.trim();
+
+    setBudgetModalDok(dok);
+    setBudgetModalInitial({
+      beschreibung: beschreibung || "Rechnung",
+      betrag: Number.isFinite(brutto) && brutto > 0 ? brutto.toFixed(2) : "",
+      datum: rechnungsDatum || erstelltAm || new Date().toISOString().split("T")[0],
+      kategorie: "Haushalt",
+    });
+  };
+
+  const handleZumBudgetSpeichern = async (payload) => {
+    if (!budgetModalDok?.id) return;
+    setBudgetSpeichern(true);
+    setFehler(null);
+
+    try {
+      const householdId = await resolveHouseholdId();
+      const budgetPayload = {
+        user_id: userId,
+        household_id: householdId || undefined,
+        beschreibung: payload.beschreibung,
+        betrag: Math.abs(Number(payload.betrag)),
+        datum: payload.datum,
+        kategorie: payload.kategorie || "Haushalt",
+        typ: "ausgabe",
+        app_modus: "home",
+      };
+
+      const { data: budgetData, error: budgetErr } = await insertBudgetPostenRobust(budgetPayload);
+      if (budgetErr || !budgetData?.id) {
+        throw new Error(budgetErr?.message || "Budgeteintrag konnte nicht erstellt werden.");
+      }
+
+      const linkHouseholdId = budgetData.household_id || householdId;
+      if (!linkHouseholdId) {
+        throw new Error("Haushalt für Dokument-Link konnte nicht ermittelt werden.");
+      }
+
+      const { error: linkErr } = await supabase
+        .from("dokument_links")
+        .insert({
+          household_id: linkHouseholdId,
+          dokument_id: budgetModalDok.id,
+          entity_type: "budget_posten",
+          entity_id: budgetData.id,
+          role: "expense",
+        });
+      if (linkErr) throw new Error(`Dokument-Link fehlgeschlagen: ${linkErr.message}`);
+
+      setDokumente((prev) => prev.map((dok) => (
+        dok.id === budgetModalDok.id ? { ...dok, im_budget: true } : dok
+      )));
+      setBudgetModalDok(null);
+      setBudgetModalInitial(null);
+    } catch (err) {
+      setFehler(`Budget-Zuordnung fehlgeschlagen: ${err.message}`);
+    } finally {
+      setBudgetSpeichern(false);
+    }
   };
 
   // ── Gefilterte Dokumente ───────────────────────────────────────────────────
@@ -693,6 +979,7 @@ const HomeDokumente = ({ session }) => {
               onDownload={handleDownload}
               onLoeschen={handleLoeschen}
               onWissen={setWissenModalDok}
+              onZumBudget={oeffneBudgetModal}
               laedtDownload={laedtDownload}
               highlighted={highlightedDokumentId === dok.id}
             />
@@ -714,6 +1001,19 @@ const HomeDokumente = ({ session }) => {
           userId={userId}
           onSchliessen={() => setWissenModalDok(null)}
           onErfolgreich={handleWissensErfolg}
+        />
+      )}
+      {budgetModalDok && (
+        <BudgetZuordnungModal
+          dok={budgetModalDok}
+          initial={budgetModalInitial}
+          speichern={budgetSpeichern}
+          onSchliessen={() => {
+            if (budgetSpeichern) return;
+            setBudgetModalDok(null);
+            setBudgetModalInitial(null);
+          }}
+          onSpeichern={handleZumBudgetSpeichern}
         />
       )}
 
