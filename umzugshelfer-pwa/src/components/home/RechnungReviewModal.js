@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   X, Check, AlertTriangle, ChevronDown, ChevronUp,
   Package, Box, Cpu, Wallet, FileText, Info,
@@ -55,6 +55,13 @@ const BUDGET_KATEGORIEN = [
   "Kleidung", "Gesundheit", "Freizeit", "Tanken", "Sonstiges",
 ];
 
+const BUDGET_INSERT_VARIANTEN = [
+  ["user_id", "household_id", "beschreibung", "betrag", "datum", "kategorie", "app_modus", "typ"],
+  ["user_id", "household_id", "beschreibung", "betrag", "datum", "kategorie", "app_modus"],
+  ["user_id", "household_id", "beschreibung", "betrag", "datum", "kategorie", "typ"],
+  ["user_id", "household_id", "beschreibung", "betrag", "datum", "kategorie"],
+];
+
 // ============================================================
 // Hilfsfunktionen
 // ============================================================
@@ -76,6 +83,45 @@ function initModulAktiv(erkannteModule) {
     aktiv[key] = cfg.pflicht || cfg.defaultAktiv || erkannteModule.includes(key);
   }
   return aktiv;
+}
+
+function normalizeFilePart(input) {
+  const base = String(input || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return base || "rechnung";
+}
+
+function extFromFilename(name) {
+  const match = String(name || "").match(/\.([a-zA-Z0-9]{1,8})$/);
+  return match ? match[1].toLowerCase() : "";
+}
+
+function extFromMime(mime) {
+  if (!mime) return "";
+  if (mime === "application/pdf") return "pdf";
+  if (mime === "image/jpeg") return "jpg";
+  if (mime === "image/png") return "png";
+  if (mime === "image/webp") return "webp";
+  if (mime === "image/gif") return "gif";
+  return "";
+}
+
+function buildInvoiceFilename({ haendler, datum, originalName, mimeType }) {
+  const ext = extFromFilename(originalName) || extFromMime(mimeType) || "pdf";
+  const vendor = normalizeFilePart(haendler || "rechnung");
+  const datePart = /^\d{4}-\d{2}-\d{2}$/.test(datum || "") ? datum : "ohne-datum";
+  return `rechnung_${vendor}_${datePart}.${ext}`;
+}
+
+function sanitizeStorageFilename(name) {
+  const safe = String(name || "rechnung.pdf")
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, "_")
+    .replace(/\s+/g, "_");
+  return safe || "rechnung.pdf";
 }
 
 // ============================================================
@@ -177,10 +223,30 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
   const [naechsteWartung, setNaechsteWartung] = useState("");
 
   // Dokument-Felder
-  const [dokDateiname, setDokDateiname] = useState(datei?.name || "rechnung.pdf");
+  const [dokDateiname, setDokDateiname] = useState(() =>
+    buildInvoiceFilename({
+      haendler: ergebnis.haendler || "",
+      datum: ergebnis.datum || "",
+      originalName: datei?.name || "",
+      mimeType: datei?.type || "",
+    })
+  );
+  const [dokDateinameManuell, setDokDateinameManuell] = useState(false);
   const [dokBeschreibung, setDokBeschreibung] = useState(
     `Rechnung ${ergebnis.haendler ? "von " + ergebnis.haendler : ""} ${ergebnis.datum || ""}`.trim()
   );
+
+  useEffect(() => {
+    if (dokDateinameManuell) return;
+    setDokDateiname(
+      buildInvoiceFilename({
+        haendler,
+        datum,
+        originalName: datei?.name || "",
+        mimeType: datei?.type || "",
+      })
+    );
+  }, [datei?.name, datei?.type, datum, dokDateinameManuell, haendler]);
 
   const normalizeNumber = useCallback((val) => {
     if (val == null || val === "") return null;
@@ -204,6 +270,41 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
       throw new Error(`Haushalt konnte nicht ermittelt werden: ${error.message}`);
     }
     return data?.household_id || null;
+  }, []);
+
+  const insertBudgetPostenRobust = useCallback(async (payloadBase) => {
+    let lastError = null;
+
+    for (const variante of BUDGET_INSERT_VARIANTEN) {
+      const payload = {};
+      for (const feld of variante) {
+        if (payloadBase[feld] !== undefined) payload[feld] = payloadBase[feld];
+      }
+
+      const { data, error } = await supabase
+        .from("budget_posten")
+        .insert(payload)
+        .select("id")
+        .single();
+
+      if (!error) return { data, error: null };
+      lastError = error;
+
+      const msg = String(error.message || "").toLowerCase();
+      const details = String(error.details || "").toLowerCase();
+      const hint = String(error.hint || "").toLowerCase();
+      const combined = `${msg} ${details} ${hint}`;
+
+      const istSpaltenfehler =
+        error.code === "PGRST204" ||
+        combined.includes("column") ||
+        combined.includes("could not find") ||
+        combined.includes("does not exist");
+
+      if (!istSpaltenfehler) break;
+    }
+
+    return { data: null, error: lastError };
   }, []);
 
   const hatPflichffehler = useMemo(() => {
@@ -239,6 +340,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
     let rechnungId = null;
     let wissenId = null;
     let budgetId = null;
+    const finalDateiname = sanitizeStorageFilename(dokDateiname || datei?.name || "rechnung.pdf");
 
     try {
       const householdId = await resolveHouseholdId(userId);
@@ -253,7 +355,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
       // 1. Datei hochladen (immer)
       if (datei) {
         const ts = Date.now();
-        const pfad = `${userId}/${ts}_${dokDateiname || datei.name}`;
+        const pfad = `${userId}/${ts}_${finalDateiname}`;
         const { data: uploadData, error: uploadErr } = await supabase.storage
           .from("user-dokumente")
           .upload(pfad, datei, { upsert: false, contentType: datei.type });
@@ -267,7 +369,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
         .insert({
           user_id:       userId,
           household_id:  householdId,
-          dateiname:     dokDateiname,
+          dateiname:     finalDateiname,
           beschreibung:  dokBeschreibung,
           storage_pfad:  dokumentPfad,
           datei_typ:     datei?.type || null,
@@ -373,26 +475,25 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
       // 6. Budget (wenn aktiv)
       if (modulAktiv.budget) {
         try {
-          const { data: budgetData, error: budgetErr } = await supabase
-            .from("budget_posten")
-            .insert({
-              user_id:      userId,
-              household_id: householdId,
-              beschreibung: budgetBeschreibung || `Einkauf ${haendler}`,
-              betrag:       Math.abs(gesamtNum),
-              datum:        datum || null,
-              kategorie:    budgetKategorie,
-              app_modus:    "home",
-              typ:          "ausgabe",
-            })
-            .select("id")
-            .single();
+          const budgetPayload = {
+            user_id:      userId,
+            household_id: householdId,
+            beschreibung: budgetBeschreibung || `Einkauf ${haendler}`,
+            betrag:       Math.abs(gesamtNum),
+            datum:        datum || null,
+            kategorie:    budgetKategorie,
+            app_modus:    "home",
+            typ:          "ausgabe",
+          };
+          const { data: budgetData, error: budgetErr } = await insertBudgetPostenRobust(budgetPayload);
           if (budgetErr) {
-            warnings.push("Budget konnte nicht gespeichert werden.");
+            warnings.push(`Budget konnte nicht gespeichert werden (${budgetErr.message || "unbekannter Fehler"}).`);
           } else {
             budgetId = budgetData?.id ?? null;
           }
-        } catch { warnings.push("Budget fehlgeschlagen."); }
+        } catch (budgetCatchErr) {
+          warnings.push(`Budget fehlgeschlagen (${budgetCatchErr?.message || "unbekannter Fehler"}).`);
+        }
       }
 
       // 7. Dokumentverknuepfungen speichern
@@ -525,7 +626,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
     datum, modulAktiv, budgetBeschreibung, haendler, budgetKategorie,
     geraetName, geraetHersteller, garantieBis, naechsteWartung, ergebnis,
     positionen, zusammenfassung, success, toastError, onGespeichert,
-    normalizeNumber, resolveHouseholdId,
+    normalizeNumber, resolveHouseholdId, insertBudgetPostenRobust,
   ]);
 
   // ============================================================
@@ -776,7 +877,14 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
           defaultOffen={false}
           kinder={
             <>
-              <InputFeld label="Dateiname" value={dokDateiname} onChange={setDokDateiname} />
+              <InputFeld
+                label="Dateiname"
+                value={dokDateiname}
+                onChange={(value) => {
+                  setDokDateinameManuell(true);
+                  setDokDateiname(value);
+                }}
+              />
               <InputFeld label="Beschreibung" value={dokBeschreibung} onChange={setDokBeschreibung} />
             </>
           }
