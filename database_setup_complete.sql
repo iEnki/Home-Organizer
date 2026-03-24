@@ -2877,12 +2877,18 @@ ALTER TABLE public.household_settings
 REVOKE SELECT (bildanalyse_openai_api_key) ON TABLE public.household_settings FROM anon, authenticated;
 REVOKE UPDATE (bildanalyse_openai_api_key) ON TABLE public.household_settings FROM anon, authenticated;
 
+-- ollama_vision_model: separates Vision-Modell fuer Ollama-Bildanalyse
+ALTER TABLE public.household_settings
+  ADD COLUMN IF NOT EXISTS ollama_vision_model text;
+
 -- RPC: Bildanalyse-Einstellungen setzen (Admin-only)
--- DROP alte 3-Parameter-Version explizit (CREATE OR REPLACE ersetzt nur gleiche Signatur)
+-- DROP alte Versionen explizit (CREATE OR REPLACE ersetzt nur gleiche Signatur)
 DROP FUNCTION IF EXISTS public.set_household_bildanalyse_settings(text, text, text);
+DROP FUNCTION IF EXISTS public.set_household_bildanalyse_settings(text, text);
 CREATE OR REPLACE FUNCTION public.set_household_bildanalyse_settings(
   p_modus                      text,
-  p_bildanalyse_openai_api_key text DEFAULT NULL
+  p_bildanalyse_openai_api_key text DEFAULT NULL,
+  p_ollama_vision_model        text DEFAULT NULL
 )
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = ''
@@ -2899,8 +2905,8 @@ BEGIN
     RAISE EXCEPTION 'Nur Admin darf Bildanalyse-Einstellungen aendern.';
   END IF;
 
-  INSERT INTO public.household_settings (household_id, bildanalyse_modus, bildanalyse_openai_api_key)
-  VALUES (v_household_id, p_modus, p_bildanalyse_openai_api_key)
+  INSERT INTO public.household_settings (household_id, bildanalyse_modus, bildanalyse_openai_api_key, ollama_vision_model)
+  VALUES (v_household_id, p_modus, p_bildanalyse_openai_api_key, p_ollama_vision_model)
   ON CONFLICT (household_id) DO UPDATE
   SET bildanalyse_modus              = EXCLUDED.bildanalyse_modus,
       bildanalyse_openai_api_key     = CASE
@@ -2908,6 +2914,7 @@ BEGIN
         WHEN p_bildanalyse_openai_api_key = ''    THEN NULL
         ELSE p_bildanalyse_openai_api_key
       END,
+      ollama_vision_model            = COALESCE(p_ollama_vision_model, public.household_settings.ollama_vision_model),
       updated_at                     = NOW();
 END;
 $$;
