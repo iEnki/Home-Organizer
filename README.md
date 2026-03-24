@@ -1,11 +1,11 @@
-DEMO: https://umzug.enkination.de/ · Login: demo@demo.com · PW: Demo123
+DEMO: https://umzug.enkination.de/ Â· Login: demo@demo.com Â· PW: Demo123
 
 # Umzugsplaner & Home Organizer PWA
 
 Eine Progressive Web Application mit zwei Modi:
 
-- **Umzugsmodus** – Planung, Organisation und Durchführung eines Umzugs
-- **Home Organizer** – dauerhafter Haushaltsmanager nach dem Umzug
+- **Umzugsmodus** â€” Planung, Organisation und DurchfÃ¼hrung eines Umzugs
+- **Home Organizer** â€” dauerhafter Haushaltsmanager nach dem Umzug
 
 ---
 
@@ -15,7 +15,6 @@ Eine Progressive Web Application mit zwei Modi:
 2. [Technologie-Stack](#technologie-stack)
 3. [Voraussetzungen](#voraussetzungen)
 4. [Installation](#installation)
-   - [manage.sh – Zentrales Verwaltungsskript](#managesh--zentrales-verwaltungsskript)
    - [Schnellinstallation mit install.sh](#schnellinstallation-mit-installsh)
    - [Manuelle Installation](#manuelle-installation)
    - [Lokale Entwicklung](#lokale-entwicklung)
@@ -33,39 +32,32 @@ Eine Progressive Web Application mit zwei Modi:
 ## Funktionen
 
 ### Umzugsmodus
-
-- Dashboard mit Aufgaben- und Terminübersicht
+- Dashboard mit Aufgaben- und TerminÃ¼bersicht
 - Packliste mit QR-Codes, Fotos und KI-Assistent
 - Budget Tracker (Ausgaben, Kategorien, Teilzahlungen)
-- To-Do-Listen mit Prioritäten, Fälligkeitsdaten und KI-Assistent
-- Bedarfsrechner: Farbe, Tapete, Bodenbelag, Dämmstoff, Kartons, Volumen, Transportkosten
+- To-Do Listen mit PrioritÃ¤ten, FÃ¤lligkeitsdaten und KI-Assistent
+- Bedarfsrechner: Farbe, Tapete, Bodenbelag, DÃ¤mmstoff, Kartons, Volumen, Transport
 - Renovierungsplaner
 - Dokumente-Manager
 
 ### Home Organizer
-
-- Dashboard mit Schnellübersicht aller Module
+- Dashboard mit SchnellÃ¼bersicht aller Module
 - Inventar mit QR-Codes und Standortverwaltung
 - Vorratsverwaltung mit Mindestmengen-Warnungen
-- Geräteverwaltung mit Wartungsplanung
+- GerÃ¤teverwaltung mit Wartungsplanung
 - Bewohnerverwaltung
 - Einkaufsliste
-- Haushaltsaufgaben mit Kategorien und Wiederholungen
+- Haushaltsaufgaben mit Kategorien und Wiederholung
 - Projekte mit Deadlines und Statusverfolgung
-- Finanzmanager (Budget, Ausgaben, Kategorien, Sparziele, Statistiken)
-- Dokumentenarchiv (Kategorien, Upload, Download, Verknüpfung mit Wissensdatenbank)
-- Wissensdatenbank
-- Globale Suche über alle Module
-- KI-Assistent (Chat, Vorschläge, Spracheingabe)
-- Interaktive Schritt-für-Schritt-Anleitungen (Tour) für jedes Modul
+- Finanzmanager (Budget, Ausgaben, Kategorien)
+- Globale Suche Ã¼ber alle Module
+- Interaktive Schritt-fÃ¼r-Schritt Anleitungen (Tour) fÃ¼r jedes Modul
 
-### Übergreifend
-
-- Multi-Haushalt-Unterstützung (Mitglieder einladen, geteilte Daten in Echtzeit)
-- Push-Benachrichtigungen (Web Push) für Erinnerungen, Vorrats-Warnungen, Wartungen und Deadlines
+### Ãœbergreifend
+- Push-Benachrichtigungen (Web Push) fÃ¼r Erinnerungen, Vorrats-Warnungen, Wartungen, Deadlines
 - Dark/Light Mode
-- PWA – installierbar auf iOS, Android und Desktop
-- Vollständige Mobiloptimierung
+- PWA â€” installierbar auf iOS, Android und Desktop
+- VollstÃ¤ndige Mobiloptimierung
 
 ---
 
@@ -78,7 +70,7 @@ Eine Progressive Web Application mit zwei Modi:
 | Backend & Datenbank | Supabase (PostgreSQL, Auth, Storage, Edge Functions) |
 | Push Notifications | Web Push API, VAPID, Deno Edge Functions |
 | Cron Jobs | pg_cron (Supabase Extension) |
-| KI | OpenAI API (optional: Ollama – lokaler LLM-Server) |
+| KI | OpenAI API (optional: Ollama â€” lokaler LLM-Server) |
 | Deployment | Docker, Docker Compose, Nginx |
 
 ---
@@ -102,15 +94,15 @@ curl -fsSL https://get.docker.com | sh
 sudo usermod -aG docker $USER
 newgrp docker
 
-# Node.js installieren (für Schlüsselgenerierung via install.sh)
+# Node.js installieren (fÃ¼r SchlÃ¼sselgenerierung via install.sh)
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt-get install -y nodejs
 
-# openssl prüfen (meist vorinstalliert)
+# openssl prÃ¼fen (meist vorinstalliert)
 openssl version
 ```
 
-Versionen prüfen:
+Versionen prÃ¼fen:
 ```bash
 docker --version          # >= 24.0
 docker compose version    # >= 2.20
@@ -128,36 +120,9 @@ cd umzughelfer
 
 ## Installation
 
-### manage.sh – Zentrales Verwaltungsskript
-
-`manage.sh` ist das zentrale Tool für alle Verwaltungsaufgaben – von der Erstinstallation bis zu Backups und Updates:
-
-```bash
-chmod +x scripts/manage.sh
-./scripts/manage.sh
-```
-
-**Menü:**
-
-| Option | Funktion |
-|---|---|
-| `[1]` Installation | Vollstack oder App-only einrichten |
-| `[2]` Update | Updates einspielen, Container neu starten |
-| `[3]` Deinstallation | Container, Volumes oder alles entfernen |
-| `[4]` Backup | Datenbank + Konfiguration sichern |
-| `[5]` Wiederherstellung | Backup importieren / Daten wiederherstellen |
-| `[6]` SMTP | E-Mail-Einstellungen konfigurieren |
-| `[7]` Ollama | KI-Assistent konfigurieren |
-| `[8]` Konfiguration | App-URL / Port / Admin-E-Mail anpassen |
-| `[9]` Status | Laufende Container und Logs anzeigen |
-
-> **Empfehlung:** Für regelmäßige Updates und Wartungsaufgaben immer `manage.sh` verwenden, statt Docker-Befehle direkt einzugeben.
-
----
-
 ### Schnellinstallation mit install.sh
 
-Der Installer richtet alles automatisch ein und unterstützt zwei Modi:
+Der Installer richtet alles automatisch ein und unterstÃ¼tzt zwei Modi:
 
 ```bash
 chmod +x scripts/install.sh
@@ -166,13 +131,13 @@ chmod +x scripts/install.sh
 
 ---
 
-#### Modus 1 – Vollstack (Supabase + App)
+#### Modus 1 â€” Vollstack (Supabase + App)
 
-Installiert Supabase und die React-App gemeinsam via Docker. Empfohlen für neue Server ohne bestehende Supabase-Instanz.
+Installiert Supabase und die React-App gemeinsam via Docker. Empfohlen fÃ¼r neue Server.
 
 Der Installer:
-- Generiert alle kryptografischen Schlüssel automatisch
-- Lädt Supabase-Initialisierungsdateien von GitHub herunter
+- Generiert alle kryptografischen SchlÃ¼ssel automatisch
+- LÃ¤dt Supabase-Initialisierungsdateien von GitHub herunter
 - Erstellt `.env` und startet alle Container via `docker-compose.full.yml`
 - Erstellt `CREDENTIALS.txt` mit allen Zugangsdaten
 
@@ -180,11 +145,11 @@ Der Installer:
 
 | Eingabe | Beispiel | Beschreibung |
 |---|---|---|
-| App-URL | `https://umzug.meine-domain.de` | Öffentliche URL der React-App |
-| E-Mail | `admin@meine-domain.de` | Für VAPID-Signatur (Push-Notifications) |
+| App-URL | `https://umzug.meine-domain.de` | Ã–ffentliche URL der React-App |
+| E-Mail | `admin@meine-domain.de` | FÃ¼r VAPID-Signatur (Push-Notifications) |
 | App-Port | `3000` | Externer Port der React-App |
 | Supabase-URL | `https://supa.meine-domain.de` | URL des Supabase-Gateways |
-| Studio-Passwort | *(min. 8 Zeichen)* | Passwort für Supabase Admin-UI |
+| Studio-Passwort | *(min. 8 Zeichen)* | Passwort fÃ¼r Supabase Admin-UI |
 | Ollama | `1` / `2` / `3` | KI-Assistent-Option (siehe [KI-Einstellungen](#ki-einstellungen-openai--ollama)) |
 
 **Ausgabe:**
@@ -195,19 +160,19 @@ Der Installer:
 ```
 
 **Nächste Schritte nach Vollstack-Installation:**
-1. `install.sh` fragt optional: `Schema jetzt anwenden? [J/n]` (empfohlen: `J`)
+1. `install.sh` fragt nach DB-Readiness optional: `Schema jetzt anwenden? [J/n]` (empfohlen: `J`)
 2. Bei manueller Ausführung im SQL Editor zuerst `database_setup_complete.sql`, danach `umzugshelfer-pwa/haushalt_multiuser_setup.sql`
 3. App aufrufen und ersten Account registrieren
 4. Nach Erstlogin: Haushalt erstellen oder per Invite-Link beitreten
 
 ---
 
-#### Modus 2 – App only (bestehende Supabase)
+#### Modus 2 â€” App only (bestehende Supabase)
 
-Installiert nur die React-App. Supabase läuft bereits woanders (Supabase Cloud oder eigener Server).
+Installiert nur die React-App. Supabase lÃ¤uft bereits woanders (Supabase Cloud, eigener Server).
 
 Der Installer:
-- Generiert nur VAPID-Keys (für Push-Notifications)
+- Generiert nur VAPID-Keys (fÃ¼r Push-Notifications)
 - Erstellt eine minimale `.env` mit deinen Supabase-Zugangsdaten
 - Baut und startet nur den App-Container via `docker-compose.yml`
 
@@ -215,12 +180,12 @@ Der Installer:
 
 | Eingabe | Beispiel | Beschreibung |
 |---|---|---|
-| App-URL | `https://umzug.meine-domain.de` | Öffentliche URL der React-App |
-| E-Mail | `admin@meine-domain.de` | Für VAPID-Signatur |
+| App-URL | `https://umzug.meine-domain.de` | Ã–ffentliche URL der React-App |
+| E-Mail | `admin@meine-domain.de` | FÃ¼r VAPID-Signatur |
 | App-Port | `3000` | Externer Port der React-App |
 | Supabase URL | `https://supa.enkination.de` | URL deiner bestehenden Supabase-Instanz |
-| Anon Key | `eyJhbGci...` | Aus Project Settings → API |
-| Service Role Key | `eyJhbGci...` | Aus Project Settings → API (geheim!) |
+| Anon Key | `eyJhbGci...` | Aus Project Settings â†’ API |
+| Service Role Key | `eyJhbGci...` | Aus Project Settings â†’ API (geheim!) |
 | Ollama | `1` / `2` / `3` | KI-Assistent-Option |
 
 **Ausgabe:**
@@ -235,7 +200,7 @@ Der Installer:
 2. App aufrufen und ersten Account registrieren
 3. Nach Erstlogin: Haushalt erstellen oder per Invite-Link beitreten
 
-> `CREDENTIALS.txt` enthält alle generierten Keys und VAPID-Secrets. Sicher verwahren, niemals ins Git-Repository committen.
+> `CREDENTIALS.txt` enthÃ¤lt alle generierten Keys und VAPID-Secrets. Sicher verwahren, niemals ins Git-Repository committen.
 
 ---
 
@@ -243,15 +208,15 @@ Der Installer:
 
 Falls `install.sh` nicht verwendet werden soll.
 
-#### Schritt 1 – Schlüssel generieren
+#### Schritt 1 â€” SchlÃ¼ssel generieren
 
 ```bash
 node scripts/generate-keys.js
 ```
 
-Ausgabe ist JSON mit allen benötigten Werten. In `.env` übertragen.
+Ausgabe ist JSON mit allen benÃ¶tigten Werten. In `.env` Ã¼bertragen.
 
-#### Schritt 2 – Konfigurationsdatei erstellen
+#### Schritt 2 â€” Konfigurationsdatei erstellen
 
 ```bash
 # Vollstack:
@@ -263,7 +228,7 @@ cp env.example .env
 nano .env
 ```
 
-Mindestens diese Werte ausfüllen (Vollstack):
+Mindestens diese Werte ausfÃ¼llen (Vollstack):
 
 ```env
 SITE_URL=https://umzug.meine-domain.de
@@ -290,7 +255,7 @@ VAPID_PUBLIC_KEY=<vapid-public-key>
 VAPID_PRIVATE_KEY=<vapid-private-key>
 ```
 
-#### Schritt 3 – Supabase-Initialisierungsdateien herunterladen (nur Vollstack)
+#### Schritt 3 â€” Supabase-Initialisierungsdateien herunterladen (nur Vollstack)
 
 ```bash
 mkdir -p volumes/db volumes/logs volumes/pooler volumes/storage volumes/functions volumes/snippets volumes/db/data
@@ -310,7 +275,7 @@ curl -fsSL ${SUPABASE_RAW}/volumes/pooler/pooler.exs -o volumes/pooler/pooler.ex
 sed -i "s/your-super-secret-jwt-token-with-at-least-32-characters-long/DEIN_JWT_SECRET/g" volumes/db/jwt.sql
 ```
 
-#### Schritt 4 – Edge Functions kopieren (nur Vollstack)
+#### Schritt 4 — Edge Functions kopieren (nur Vollstack, dynamisch)
 
 ```bash
 find supabase/functions -mindepth 2 -maxdepth 2 -type f -name 'index.ts' | while read -r fn; do
@@ -320,7 +285,7 @@ find supabase/functions -mindepth 2 -maxdepth 2 -type f -name 'index.ts' | while
 done
 ```
 
-#### Schritt 5 – Starten
+#### Schritt 5 â€” Starten
 
 ```bash
 # Vollstack:
@@ -338,11 +303,11 @@ docker compose up -d
 
 ```bash
 cp env.example umzugshelfer-pwa/.env
-# umzugshelfer-pwa/.env mit Supabase-URL und Keys befüllen
+# umzugshelfer-pwa/.env mit Supabase-URL und Keys befÃ¼llen
 cd umzugshelfer-pwa
 npm install
 npm start
-# → http://localhost:3000
+# â†’ http://localhost:3000
 ```
 
 ---
@@ -351,11 +316,11 @@ npm start
 
 Nach dem ersten Start muss das Datenbankschema eingerichtet werden.
 
-### Über Supabase Studio
+### Ãœber Supabase Studio
 
-1. Studio öffnen: `http://localhost:8000` (Vollstack) oder deine Supabase-URL
+1. Studio Ã¶ffnen: `http://localhost:8000` (Vollstack) oder deine Supabase-URL
 2. Anmelden: Benutzername `supabase`, Passwort aus `CREDENTIALS.txt` / `.env`
-3. **SQL Editor** → **New query**
+3. **SQL Editor** â†’ **New query**
 4. Inhalt von `database_setup_complete.sql` einfügen → **Run**
 5. Danach `umzugshelfer-pwa/haushalt_multiuser_setup.sql` einfügen → **Run**
 
@@ -366,7 +331,7 @@ docker exec -i supabase-db psql -U postgres -d postgres < database_setup_complet
 docker exec -i supabase-db psql -U postgres -d postgres < umzugshelfer-pwa/haushalt_multiuser_setup.sql
 ```
 
-### pg_cron für Push-Notifications einrichten
+### pg_cron fÃ¼r Push-Notifications einrichten
 
 Im SQL Editor nach dem Datenbanksetup:
 
@@ -393,9 +358,9 @@ Den **Service Role Key** findest du in `CREDENTIALS.txt` oder `.env` unter `SERV
 
 ## Push-Benachrichtigungen
 
-Bei Verwendung von `install.sh` oder `manage.sh` werden VAPID-Keys automatisch generiert und konfiguriert. Bei manueller Installation sind folgende Schritte nötig:
+Bei Verwendung von `install.sh` werden VAPID-Keys automatisch generiert und konfiguriert. Bei manueller Installation sind folgende Schritte nÃ¶tig:
 
-### Schritt 1 – VAPID-Keys generieren
+### Schritt 1 â€” VAPID-Keys generieren
 
 ```bash
 npx web-push generate-vapid-keys
@@ -403,7 +368,7 @@ npx web-push generate-vapid-keys
 node scripts/generate-keys.js
 ```
 
-### Schritt 2 – Edge Functions deployen
+### Schritt 2 â€” Edge Functions deployen
 
 **Self-hosted Supabase:**
 
@@ -412,6 +377,7 @@ node scripts/generate-keys.js
 mkdir -p ~/supabase-project/volumes/functions/send-push
 mkdir -p ~/supabase-project/volumes/functions/check-reminders
 
+# Funktionsdateien kopieren:
 cp supabase/functions/send-push/index.ts ~/supabase-project/volumes/functions/send-push/index.ts
 cp supabase/functions/check-reminders/index.ts ~/supabase-project/volumes/functions/check-reminders/index.ts
 ```
@@ -424,11 +390,11 @@ supabase functions deploy send-push
 supabase functions deploy check-reminders
 ```
 
-### Schritt 3 – VAPID-Secrets in Supabase eintragen
+### Schritt 3 â€” VAPID-Secrets in Supabase eintragen
 
-> **Wichtig (self-hosted):** Die `.env`-Datei in `volumes/functions/` wird vom Edge-Runtime-Container **nicht** geladen. Secrets müssen direkt als Umgebungsvariablen im Container gesetzt werden.
+> **Wichtig (self-hosted):** Die `.env`-Datei in `volumes/functions/` wird vom Edge-Runtime-Container **nicht** geladen. Secrets mÃ¼ssen direkt als Umgebungsvariablen im Container gesetzt werden.
 
-In `~/supabase-project/docker-compose.yml` den Service `supabase-edge-functions` suchen und ergänzen:
+In `~/supabase-project/docker-compose.yml` den Service `supabase-edge-functions` suchen und ergÃ¤nzen:
 
 ```yaml
   supabase-edge-functions:
@@ -451,9 +417,9 @@ supabase secrets set VAPID_PUBLIC_KEY=<key>
 supabase secrets set VAPID_PRIVATE_KEY=<key>
 ```
 
-### Schritt 4 – VAPID Public Key in der App
+### Schritt 4 â€” VAPID Public Key in der App
 
-In `.env` (Root-Verzeichnis für Docker):
+In `.env` (Root-Verzeichnis fÃ¼r Docker):
 ```env
 REACT_APP_VAPID_PUBLIC_KEY=<dein-public-key>
 ```
@@ -462,9 +428,9 @@ App neu bauen: `docker compose build --no-cache umzugsplaner-app`
 
 ### Aktivierung in der App
 
-1. App im Browser öffnen (HTTPS erforderlich)
-2. **Profil → Push-Benachrichtigungen → Aktivieren**
-3. Browser-Berechtigungsdialog bestätigen
+1. App im Browser Ã¶ffnen (HTTPS erforderlich)
+2. **Profil â†’ Push-Benachrichtigungen â†’ Aktivieren**
+3. Browser-Berechtigungsdialog bestÃ¤tigen
 
 ### Push-Delivery testen
 
@@ -476,36 +442,35 @@ curl -s -X POST https://supa.meine-domain.de/functions/v1/send-push \
 # Erwartete Antwort: {"sent":1,"removed":0}
 ```
 
-### Bekannte Einschränkungen
+### Bekannte EinschrÃ¤nkungen
 
-- Push auf **iOS** erfordert die App als PWA (zum Home-Bildschirm hinzugefügt), ab iOS 16.4
-- Push funktioniert **nicht** über HTTP (nur HTTPS oder localhost)
-- Desktop-Browser: Falls "permission denied" → Browser-Einstellungen → Benachrichtigungen für Domain zurücksetzen
+- Push auf **iOS** erfordert die App als PWA (zum Home-Bildschirm hinzugefÃ¼gt), ab iOS 16.4
+- Push funktioniert **nicht** Ã¼ber HTTP (nur HTTPS oder localhost)
+- Desktop-Browser: Falls "permission denied" â†’ Browser-Einstellungen â†’ Benachrichtigungen fÃ¼r Domain zurÃ¼cksetzen
 
 ---
 
 ## KI-Einstellungen (OpenAI / Ollama)
 
 ### OpenAI (Standard)
-
-Profil → KI-Einstellungen → **OpenAI** → API-Key eingeben. Der Key wird pro Haushalt in der Datenbank gespeichert und nie im Browser zwischengespeichert – alle Anfragen laufen über eine serverseitige Supabase Edge Function.
+Profil â†’ KI-Einstellungen â†’ **OpenAI** â†’ API-Key eingeben. Der Key wird pro Benutzer in der Datenbank gespeichert.
 
 ### Ollama (lokaler LLM-Server)
 
-Wer einen eigenen Ollama-Server betreibt, kann diesen als Alternative zu OpenAI nutzen – ohne API-Kosten.
+Wer einen eigenen Ollama-Server betreibt, kann diesen als Alternative zu OpenAI nutzen â€” ohne API-Kosten.
 
-#### Option A – Bestehenden Ollama-Server nutzen
+#### Option A â€” Bestehenden Ollama-Server nutzen
 
-Keine Installation nötig. URL direkt in der App eintragen:
+Keine Installation nÃ¶tig. URL direkt in der App eintragen:
 
-1. Profil → **KI-Einstellungen** → Provider: **Ollama**
+1. Profil â†’ **KI-Einstellungen** â†’ Provider: **Ollama**
 2. **Server-URL** eintragen: `http://DEINE-SERVER-IP:11434`
-3. **Modell** wählen: z.B. `llama3.2`, `mistral`, `qwen2.5`
-4. **Verbindung testen** → **Speichern**
+3. **Modell** wÃ¤hlen: z.B. `llama3.2`, `mistral`, `qwen2.5`
+4. **Verbindung testen** â†’ **Speichern**
 
-#### Option B – Ollama mit Docker mitinstallieren
+#### Option B â€” Ollama mit Docker mitinstallieren
 
-Bei `install.sh` Wahl `1` auswählen, oder manuell:
+Bei `install.sh` Wahl `1` auswÃ¤hlen, oder manuell:
 
 ```bash
 # Starten (Docker Compose Profil)
@@ -520,7 +485,7 @@ docker exec ollama ollama pull llama3.2
 # docker exec ollama ollama pull gemma3
 ```
 
-Danach in der App: Ollama-URL → `http://localhost:11434`
+Danach in der App: Ollama-URL â†’ `http://localhost:11434`
 
 #### Nvidia GPU aktivieren
 
@@ -538,13 +503,13 @@ deploy:
 
 Voraussetzung: [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) installiert.
 
-> **Hinweis:** Im Ollama-Modus wird Spracheingabe über die Browser Web Speech API verarbeitet (kein Whisper). Chrome/Edge erforderlich.
+> **Hinweis:** Im Ollama-Modus wird Spracheingabe Ã¼ber die Browser Web Speech API verarbeitet (kein Whisper). Chrome/Edge erforderlich.
 
 ---
 
 ## SMTP konfigurieren
 
-Ohne SMTP können Nutzer ihre E-Mail nicht bestätigen und kein Passwort zurücksetzen.
+Ohne SMTP kÃ¶nnen Nutzer ihre E-Mail nicht bestÃ¤tigen und kein Passwort zurÃ¼cksetzen.
 
 In `.env` anpassen:
 
@@ -562,15 +527,13 @@ Auth-Container neu starten:
 docker compose -f docker-compose.full.yml restart supabase-auth
 ```
 
-SMTP kann auch interaktiv über `manage.sh` → `[6] SMTP` konfiguriert werden.
-
 **Empfohlene SMTP-Anbieter:** Mailgun (kostenlos bis 100/Tag), SendGrid, Amazon SES, eigener Postfix
 
 ---
 
 ## Nginx Reverse Proxy
 
-Für Produktionsbetrieb mit HTTPS.
+FÃ¼r Produktionsbetrieb mit HTTPS.
 
 **App** (`/etc/nginx/sites-available/umzug`):
 ```nginx
@@ -623,16 +586,7 @@ sudo certbot --nginx -d umzug.meine-domain.de -d supa.meine-domain.de
 
 ## Aktualisierungen
 
-### Empfohlen: manage.sh
-
-```bash
-./scripts/manage.sh
-# → [2] Update
-```
-
-Das Update-Menü zieht aktuelle Git-Änderungen und baut die App-Container neu.
-
-### Manuell
+### App aktualisieren
 
 ```bash
 git pull
@@ -661,45 +615,39 @@ docker exec ollama ollama pull llama3.2
 
 ```
 umzughelfer/
-├── scripts/
-│   ├── manage.sh               # Zentrales Verwaltungsskript (Update, Backup, Status …)
-│   ├── install.sh              # Auto-Installer (Vollstack oder App only)
-│   └── generate-keys.js        # Kryptografische Schlüssel generieren
-├── supabase/
-│   └── functions/
-│       ├── ki-chat/            # Edge Function: KI-Chat-Proxy (OpenAI/Ollama)
-│       ├── send-push/          # Edge Function: Push-Nachricht senden
-│       ├── check-reminders/    # Edge Function: Fällige Erinnerungen prüfen
-│       ├── send-invite/        # Edge Function: Einladungs-E-Mail versenden
-│       └── send-household-invite/  # Edge Function: Haushalt-Einladung
-├── umzugshelfer-pwa/           # React-Frontend
-│   ├── public/                 # manifest.json, service-worker.js
-│   └── src/
-│       ├── components/
-│       │   ├── home/           # Home-Organizer-Komponenten
-│       │   │   └── tour/       # Tour-System (TourOverlay, useTour, tourSteps)
-│       │   ├── haushalt/       # Multi-Haushalt-Verwaltung
-│       │   ├── featurepages/   # Öffentliche Feature-Landingpages
-│       │   ├── layout/         # Sidebar, Topbar, Mobile-Navigation
-│       │   └── ...             # Umzugs-Module
-│       ├── contexts/
-│       │   ├── AppModeContext.js    # Umzug/Home-Modus-Verwaltung
-│       │   ├── HaushaltsContext.js  # Multi-Haushalt-State
-│       │   └── ThemeContext.js      # Dark/Light Mode
-│       ├── hooks/
-│       │   ├── usePushSubscription.js  # Web Push Subscription
-│       │   └── useViewport.js          # Responsive-Breakpoints
-│       ├── utils/
-│       │   └── kiClient.js     # KI-Client (OpenAI + Ollama)
-│       ├── App.js              # Routing & Auth
-│       ├── supabaseClient.js   # Supabase-Client (mit Haushalt-Proxy)
-│       └── index.js            # Einstiegspunkt
-├── database_setup_complete.sql             # Komplettes Datenbank-Setup
-├── umzugshelfer-pwa/haushalt_multiuser_setup.sql  # Multi-Haushalt-Schema
-├── docker-compose.yml                      # App only (externer Supabase)
-├── docker-compose.full.yml                 # Vollstack (Supabase + App + optionaler Ollama)
-├── .env.full.example                       # Alle Variablen dokumentiert (Vollstack)
-└── env.example                             # Minimale Variablen (App only)
+â”œâ”€â”€ scripts/
+â”‚   â”œâ”€â”€ install.sh              # Auto-Installer (Vollstack oder App only)
+â”‚   â””â”€â”€ generate-keys.js        # Kryptografische SchlÃ¼ssel generieren
+â”œâ”€â”€ supabase/
+â”‚   â””â”€â”€ functions/
+â”‚       â”œâ”€â”€ send-push/          # Edge Function: Push-Nachricht senden
+â”‚       â””â”€â”€ check-reminders/    # Edge Function: FÃ¤llige Erinnerungen prÃ¼fen
+â”œâ”€â”€ umzugshelfer-pwa/           # React-Frontend
+â”‚   â”œâ”€â”€ public/                 # manifest.json, service-worker.js
+â”‚   â””â”€â”€ src/
+â”‚       â”œâ”€â”€ components/
+â”‚       â”‚   â”œâ”€â”€ home/           # Home-Organizer-Komponenten
+â”‚       â”‚   â”‚   â””â”€â”€ tour/       # Tour-System (TourOverlay, useTour, tourSteps)
+â”‚       â”‚   â”œâ”€â”€ featurepages/   # Ã–ffentliche Feature-Landingpages
+â”‚       â”‚   â”œâ”€â”€ layout/         # Sidebar, Topbar, Mobile-Navigation
+â”‚       â”‚   â””â”€â”€ ...             # Umzugs-Module
+â”‚       â”œâ”€â”€ contexts/
+â”‚       â”‚   â”œâ”€â”€ AppModeContext.js   # Umzug/Home-Modus-Verwaltung
+â”‚       â”‚   â””â”€â”€ ThemeContext.js     # Dark/Light Mode
+â”‚       â”œâ”€â”€ hooks/
+â”‚       â”‚   â”œâ”€â”€ usePushSubscription.js  # Web Push Subscription
+â”‚       â”‚   â””â”€â”€ useViewport.js          # Responsive-Breakpoints
+â”‚       â”œâ”€â”€ utils/
+â”‚       â”‚   â””â”€â”€ kiClient.js     # KI-Client (OpenAI + Ollama)
+â”‚       â”œâ”€â”€ App.js              # Routing & Auth
+â”‚       â”œâ”€â”€ supabaseClient.js   # Supabase-Client
+â”‚       â””â”€â”€ index.js            # Einstiegspunkt
+â”œâ”€â”€ database_setup_complete.sql # Komplettes Datenbank-Setup (alle Tabellen + Seed)
+â”œâ”€â”€ docker-compose.yml          # App only (externer Supabase)
+â”œâ”€â”€ docker-compose.full.yml     # Vollstack (Supabase + App + optionaler Ollama)
+â”œâ”€â”€ .env.full.example           # Alle Variablen dokumentiert (Vollstack)
+â”œâ”€â”€ env.example                 # Minimale Variablen (App only)
+â””â”€â”€ INSTALL.md                  # Detaillierte Installationsanleitung
 ```
 
 ---
@@ -716,37 +664,35 @@ docker compose -f docker-compose.full.yml logs -f supabase-edge-functions
 docker compose -f docker-compose.full.yml logs -f umzugsplaner-pwa-container
 ```
 
-Oder interaktiv über `manage.sh` → `[9] Status`.
-
-### Häufige Probleme
+### HÃ¤ufige Probleme
 
 **App zeigt "VAPID Public Key fehlt"**
-→ `REACT_APP_VAPID_PUBLIC_KEY` fehlt in `.env` oder die App wurde ohne diesen Wert gebaut.
-→ `.env` prüfen, dann: `docker compose -f docker-compose.full.yml build --no-cache umzugsplaner-app`
+â†’ `REACT_APP_VAPID_PUBLIC_KEY` fehlt in `.env` oder die App wurde ohne diesen Wert gebaut.
+â†’ `.env` prÃ¼fen, dann: `docker compose -f docker-compose.full.yml build --no-cache umzugsplaner-app`
 
 **Push-Notifications: "No subject set in vapidDetails.subject."**
-→ VAPID-Secrets sind nicht als Umgebungsvariablen im Edge-Functions-Container gesetzt.
-→ In `docker-compose.full.yml` beim Service `supabase-edge-functions` unter `environment` die drei VAPID-Variablen eintragen. Container neu starten: `docker restart supabase-edge-functions`
+â†’ VAPID-Secrets sind nicht als Umgebungsvariablen im Edge-Functions-Container gesetzt.
+â†’ In `docker-compose.full.yml` (oder der Supabase-eigenen `docker-compose.yml`) beim Service `supabase-edge-functions` unter `environment` die drei VAPID-Variablen eintragen. Container neu starten: `docker restart supabase-edge-functions`
 
 **Push-Notifications: "Registration failed - permission denied" im Browser**
-→ Browser-Einstellungen → Benachrichtigungen → Domain zurücksetzen → Seite neu laden.
+â†’ Browser-Einstellungen â†’ Benachrichtigungen â†’ Domain zurÃ¼cksetzen â†’ Seite neu laden.
 
 **Supabase Studio nicht erreichbar**
-→ `docker compose -f docker-compose.full.yml ps` – ist `supabase-analytics` healthy?
-→ `docker compose -f docker-compose.full.yml logs supabase-analytics`
+â†’ `docker compose -f docker-compose.full.yml ps` â€” ist `supabase-analytics` healthy?
+â†’ `docker compose -f docker-compose.full.yml logs supabase-analytics`
 
 **Datenbank startet nicht**
-→ `cat volumes/db/jwt.sql | grep "your-super-secret"` – falls gefunden, JWT-Secret noch nicht ersetzt.
-→ `docker compose -f docker-compose.full.yml down && docker compose -f docker-compose.full.yml up -d`
+â†’ `cat volumes/db/jwt.sql | grep "your-super-secret"` â€” falls gefunden, JWT-Secret noch nicht ersetzt.
+â†’ `docker compose -f docker-compose.full.yml down && docker compose -f docker-compose.full.yml up -d`
 
 **E-Mails werden nicht versendet**
-→ SMTP-Konfiguration in `.env` prüfen.
-→ `docker compose -f docker-compose.full.yml logs supabase-auth | grep -i smtp`
+â†’ SMTP-Konfiguration in `.env` prÃ¼fen.
+â†’ `docker compose -f docker-compose.full.yml logs supabase-auth | grep -i smtp`
 
 **Ollama antwortet nicht**
-→ `docker ps | grep ollama` – läuft der Container?
-→ `curl http://localhost:11434/api/tags` – API erreichbar?
-→ CORS-Problem im Browser: `OLLAMA_ORIGINS=*` muss in `docker-compose.full.yml` gesetzt sein (bereits vorkonfiguriert).
+â†’ `docker ps | grep ollama` â€” lÃ¤uft der Container?
+â†’ `curl http://localhost:11434/api/tags` â€” API erreichbar?
+â†’ CORS-Problem im Browser: `OLLAMA_ORIGINS=*` muss in `docker-compose.full.yml` gesetzt sein (bereits vorkonfiguriert).
 
 ### Neustart / Reset
 
@@ -755,7 +701,7 @@ Oder interaktiv über `manage.sh` → `[9] Status`.
 docker compose -f docker-compose.full.yml down
 docker compose -f docker-compose.full.yml up -d
 
-# Neuinstallation (ACHTUNG: löscht alle Daten)
+# Neuinstallation (ACHTUNG: lÃ¶scht alle Daten)
 docker compose -f docker-compose.full.yml down -v
 rm -rf volumes/db/data volumes/storage
 ./scripts/install.sh
@@ -767,11 +713,12 @@ rm -rf volumes/db/data volumes/storage
 
 1. Fork erstellen
 2. Feature-Branch anlegen: `git checkout -b feature/mein-feature`
-3. Änderungen committen
+3. Ã„nderungen committen
 4. Pull Request erstellen
 
 ---
 
 ## Lizenz
 
-MIT – siehe `LICENSE`-Datei.
+MIT â€” siehe `LICENSE`-Datei.
+

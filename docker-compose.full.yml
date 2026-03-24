@@ -311,8 +311,7 @@ services:
       test: ["CMD", "curl", "http://localhost:4000/health"]
       timeout: 5s
       interval: 5s
-      retries: 20
-      start_period: 120s
+      retries: 10
     depends_on:
       db:
         condition: service_healthy
