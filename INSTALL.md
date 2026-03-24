@@ -418,6 +418,50 @@ docker compose -f docker-compose.full.yml restart supabase-auth
 
 ---
 
+## Invite-Link über App-Domain
+
+Wenn Einladungs-Mails den Host `umzug.meine-domain.de` statt `supa.meine-domain.de` zeigen sollen, stelle nur den Auth-External-Link um (ohne kompletten API-Umbau):
+
+```env
+# nur fuer Mail-/Verify-Links
+API_EXTERNAL_URL=https://umzug.meine-domain.de
+
+# unveraendert lassen (weiter Supabase-Domain fuer App/API)
+SUPABASE_PUBLIC_URL=https://supa.meine-domain.de
+REACT_APP_SUPABASE_URL=https://supa.meine-domain.de
+MAILER_URLPATHS_INVITE=/auth/v1/verify
+```
+
+Im Nginx-Serverblock der **App-Domain** (`umzug.meine-domain.de`) zusaetzlich:
+
+```nginx
+location ^~ /auth/v1/ {
+    proxy_pass http://localhost:8000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+}
+```
+
+Danach:
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+./scripts/manage.sh   # [8] Konfiguration -> Invite-Link auf App-Domain umstellen
+```
+
+Wenn du zusaetzlich neue Templates/Functions auf den Server kopiert hast:
+
+```bash
+./scripts/manage.sh   # [2] Update -> [5] Server-Sync komplett
+```
+
+---
+
 ## 8. Nginx Reverse Proxy
 
 Für den Produktionsbetrieb sollte ein Reverse Proxy vor dem Stack laufen, der HTTPS terminiert.
