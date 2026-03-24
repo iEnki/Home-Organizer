@@ -97,7 +97,9 @@ Deno.serve(async (req: Request) => {
   try {
     if (provider === "ollama" && settings.ollama_base_url) {
       const base = settings.ollama_base_url.replace(/\/$/, "");
-      const ollamaModel = requestedModel || settings.ollama_model || "llama3.2";
+      // Wichtig: Bei Ollama niemals blind das vom Client angeforderte Modell nutzen.
+      // Der Frontend-Default ist oft "gpt-4o" und fuehrt sonst zu "model not found".
+      const ollamaModel = (settings.ollama_model || "llama3.2").trim();
       const ollamaRes = await fetch(`${base}/v1/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -161,4 +163,3 @@ Deno.serve(async (req: Request) => {
     );
   }
 });
-
