@@ -85,126 +85,144 @@ Deno.serve(async (req: Request) => {
       householdRecipients.get(row.household_id)!.push(row.user_id);
     }
 
-    const messages: PushMessage[] = [];
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-    for (const [householdId, rawRecipients] of householdRecipients.entries()) {
-      const recipients = [...new Set(rawRecipients)];
-      if (!recipients.length) continue;
+    // 3–7) Alle Haushalte parallel abfragen – pro Haushalt alle 6 Queries gleichzeitig
+    const profileUpdates: string[] = [];
 
-      // 3) Due tasks in next 15 minutes
-      const { data: dueTasks } = await supabase
-        .from("todo_aufgaben")
-        .select("id, beschreibung")
-        .eq("household_id", householdId)
-        .eq("erledigt", false)
-        .not("erinnerungs_datum", "is", null)
-        .gte("erinnerungs_datum", before1MinIso)
-        .lte("erinnerungs_datum", in15MinIso);
+    const householdMessages = await Promise.all(
+      [...householdRecipients.entries()].map(async ([householdId, rawRecipients]) => {
+        const recipients = [...new Set(rawRecipients)];
+        if (!recipients.length) return [] as PushMessage[];
 
-      for (const task of dueTasks ?? []) {
-        addMessageForRecipients(messages, recipients, {
-          title: "Aufgaben-Erinnerung",
-          body: task.beschreibung,
-          url: "/home/aufgaben",
-          tag: `aufgabe-${task.id}`,
-        });
-      }
+        const [
+          { data: dueTasks },
+          { data: inventoryRows },
+          { data: maintenanceRows },
+          { data: deadlineRows },
+          { data: reminderProfiles },
+          { data: openShoppingItems },
+        ] = await Promise.all([
+          supabase
+            .from("todo_aufgaben")
+            .select("id, beschreibung")
+            .eq("household_id", householdId)
+            .eq("erledigt", false)
+            .not("erinnerungs_datum", "is", null)
+            .gte("erinnerungs_datum", before1MinIso)
+            .lte("erinnerungs_datum", in15MinIso),
+          supabase
+            .from("vorraete")
+            .select("id, name, menge, mindest_menge, einheit")
+            .eq("household_id", householdId)
+            .not("mindest_menge", "is", null)
+            .gt("mindest_menge", 0),
+          supabase
+            .from("geraete")
+            .select("id, name, naechste_wartung")
+            .eq("household_id", householdId)
+            .not("naechste_wartung", "is", null)
+            .gte("naechste_wartung", today)
+            .lte("naechste_wartung", in7Days),
+          supabase
+            .from("projekte")
+            .select("id, name, deadline, status")
+            .eq("household_id", householdId)
+            .not("deadline", "is", null)
+            .neq("status", "abgeschlossen")
+            .gte("deadline", today)
+            .lte("deadline", in1Day),
+          supabase
+            .from("user_profile")
+            .select("id, einkauf_reminder_zeit, einkauf_reminder_letzter_versand")
+            .eq("einkauf_reminder_aktiv", true)
+            .not("einkauf_reminder_zeit", "is", null)
+            .in("id", recipients),
+          supabase
+            .from("home_einkaufliste")
+            .select("name")
+            .eq("household_id", householdId)
+            .eq("erledigt", false)
+            .limit(5),
+        ]);
 
-      // 4) Inventory below minimum
-      const { data: inventoryRows } = await supabase
-        .from("vorraete")
-        .select("id, name, menge, mindest_menge, einheit")
-        .eq("household_id", householdId)
-        .not("mindest_menge", "is", null)
-        .gt("mindest_menge", 0);
+        const msgs: PushMessage[] = [];
 
-      for (const row of (inventoryRows ?? []).filter((item: any) => Number(item.menge) <= Number(item.mindest_menge))) {
-        addMessageForRecipients(messages, recipients, {
-          title: "Vorrat unter Mindestmenge",
-          body: `${row.name}: noch ${row.menge} ${row.einheit ?? ""} (Minimum: ${row.mindest_menge})`.trim(),
-          url: "/home/vorraete",
-          tag: `vorrat-${row.id}`,
-        });
-      }
+        for (const task of dueTasks ?? []) {
+          addMessageForRecipients(msgs, recipients, {
+            title: "Aufgaben-Erinnerung",
+            body: task.beschreibung,
+            url: "/home/aufgaben",
+            tag: `aufgabe-${task.id}`,
+          });
+        }
 
-      // 5) Device maintenance in next 7 days
-      const { data: maintenanceRows } = await supabase
-        .from("geraete")
-        .select("id, name, naechste_wartung")
-        .eq("household_id", householdId)
-        .not("naechste_wartung", "is", null)
-        .gte("naechste_wartung", today)
-        .lte("naechste_wartung", in7Days);
+        for (const row of (inventoryRows ?? []).filter((item: any) => Number(item.menge) <= Number(item.mindest_menge))) {
+          addMessageForRecipients(msgs, recipients, {
+            title: "Vorrat unter Mindestmenge",
+            body: `${row.name}: noch ${row.menge} ${row.einheit ?? ""} (Minimum: ${row.mindest_menge})`.trim(),
+            url: "/home/vorraete",
+            tag: `vorrat-${row.id}`,
+          });
+        }
 
-      for (const row of maintenanceRows ?? []) {
-        addMessageForRecipients(messages, recipients, {
-          title: "Wartung faellig",
-          body: `${row.name} - Wartung am ${row.naechste_wartung}`,
-          url: "/home/geraete",
-          tag: `geraet-${row.id}`,
-        });
-      }
+        for (const row of maintenanceRows ?? []) {
+          addMessageForRecipients(msgs, recipients, {
+            title: "Wartung faellig",
+            body: `${row.name} - Wartung am ${row.naechste_wartung}`,
+            url: "/home/geraete",
+            tag: `geraet-${row.id}`,
+          });
+        }
 
-      // 6) Project deadlines in next day
-      const { data: deadlineRows } = await supabase
-        .from("projekte")
-        .select("id, name, deadline, status")
-        .eq("household_id", householdId)
-        .not("deadline", "is", null)
-        .neq("status", "abgeschlossen")
-        .gte("deadline", today)
-        .lte("deadline", in1Day);
+        for (const row of deadlineRows ?? []) {
+          addMessageForRecipients(msgs, recipients, {
+            title: "Projekt-Deadline morgen",
+            body: `"${row.name}" ist am ${row.deadline} faellig.`,
+            url: "/home/projekte",
+            tag: `projekt-${row.id}`,
+          });
+        }
 
-      for (const row of deadlineRows ?? []) {
-        addMessageForRecipients(messages, recipients, {
-          title: "Projekt-Deadline morgen",
-          body: `"${row.name}" ist am ${row.deadline} faellig.`,
-          url: "/home/projekte",
-          tag: `projekt-${row.id}`,
-        });
-      }
+        for (const profile of (reminderProfiles ?? []) as UserProfileReminder[]) {
+          if (!profile.einkauf_reminder_zeit) continue;
+          if (profile.einkauf_reminder_letzter_versand === today) continue;
 
-      // 7) Personal shopping-list reminder time, household-wide open list
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
-      const { data: reminderProfiles } = await supabase
-        .from("user_profile")
-        .select("id, einkauf_reminder_zeit, einkauf_reminder_letzter_versand")
-        .eq("einkauf_reminder_aktiv", true)
-        .not("einkauf_reminder_zeit", "is", null)
-        .in("id", recipients);
+          const [hours, minutes] = profile.einkauf_reminder_zeit.split(":").map((x) => Number(x));
+          const reminderMinutes = hours * 60 + minutes;
+          if (Math.abs(currentMinutes - reminderMinutes) > 15) continue;
+          if (!openShoppingItems?.length) continue;
 
-      const { data: openShoppingItems } = await supabase
-        .from("home_einkaufliste")
-        .select("name")
-        .eq("household_id", householdId)
-        .eq("erledigt", false)
-        .limit(5);
+          const preview = openShoppingItems.slice(0, 3).map((item: any) => item.name).join(", ");
+          const rest = openShoppingItems.length > 3 ? ` +${openShoppingItems.length - 3} weitere` : "";
 
-      for (const profile of (reminderProfiles ?? []) as UserProfileReminder[]) {
-        if (!profile.einkauf_reminder_zeit) continue;
-        if (profile.einkauf_reminder_letzter_versand === today) continue;
+          msgs.push({
+            user_id: profile.id,
+            title: "Einkaufsliste",
+            body: `${openShoppingItems.length} Artikel offen: ${preview}${rest}`,
+            url: "/home/einkaufliste",
+            tag: `einkauf-reminder-${householdId}`,
+          });
 
-        const [hours, minutes] = profile.einkauf_reminder_zeit.split(":").map((x) => Number(x));
-        const reminderMinutes = hours * 60 + minutes;
-        if (Math.abs(currentMinutes - reminderMinutes) > 15) continue;
-        if (!openShoppingItems?.length) continue;
+          profileUpdates.push(profile.id);
+        }
 
-        const preview = openShoppingItems.slice(0, 3).map((item: any) => item.name).join(", ");
-        const rest = openShoppingItems.length > 3 ? ` +${openShoppingItems.length - 3} weitere` : "";
+        return msgs;
+      })
+    );
 
-        messages.push({
-          user_id: profile.id,
-          title: "Einkaufsliste",
-          body: `${openShoppingItems.length} Artikel offen: ${preview}${rest}`,
-          url: "/home/einkaufliste",
-          tag: `einkauf-reminder-${householdId}`,
-        });
+    const messages = householdMessages.flat();
 
-        await supabase
-          .from("user_profile")
-          .update({ einkauf_reminder_letzter_versand: today })
-          .eq("id", profile.id);
-      }
+    // Einkaufs-Reminder-Zeitstempel für alle betroffenen Profile parallel aktualisieren
+    if (profileUpdates.length > 0) {
+      await Promise.all(
+        profileUpdates.map((profileId) =>
+          supabase
+            .from("user_profile")
+            .update({ einkauf_reminder_letzter_versand: today })
+            .eq("id", profileId)
+        )
+      );
     }
 
     // 8) Fan-out via send-push edge function
