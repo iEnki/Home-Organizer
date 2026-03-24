@@ -8,9 +8,13 @@
  *   3. User-Kontrolle (Review, PFLICHT) → finale Bestaetigung
  *
  * Unterstuetzte Modi:
- *   - chatgpt_vision  : direkte Bildanalyse via GPT-4o Vision
+ *   - chatgpt_vision  : Bildanalyse via GPT-4o Vision (ki-vision Edge Function)
  *   - ocr_regeln      : Tesseract.js OCR + regelbasierte Auswertung
- *   - ocr_ollama      : OCR-Text + Ollama Textanalyse
+ *   - ocr_ollama      : Bildanalyse via Ollama Vision (ki-vision Edge Function)
+ *
+ * PDF-Handling (alle Modi):
+ *   PDF mit extrahierbarem Text → analyzeTextWithKiChat (KI-Assistent-Konfiguration)
+ *   Bild-PDF (kein Text) → Fehlermeldung mit Hinweis Foto hochladen
  */
 
 import { cleanKiJsonResponse } from "./kiClient";
@@ -217,12 +221,10 @@ const HAENDLER_HINTS = {
 };
 
 // ============================================================
-// KI-Prompt fuer Vision / Text-Analyse
+// KI-Prompts fuer Vision- und Text-Analyse
 // ============================================================
 
-const KI_RECHNUNG_PROMPT = `Du bist ein Rechnungs-Analyse-Assistent. Extrahiere alle Daten aus dieser Rechnung und gib ausschliesslich ein JSON-Objekt zurueck (kein Markdown, keine Erklaerungen):
-
-{
+const RECHNUNG_JSON_SCHEMA = `{
   "haendler": "Name des Haendlers oder null",
   "datum": "YYYY-MM-DD oder null",
   "gesamt": 49.99,
@@ -230,15 +232,29 @@ const KI_RECHNUNG_PROMPT = `Du bist ein Rechnungs-Analyse-Assistent. Extrahiere 
     {
       "name": "Produktname wie auf Rechnung",
       "menge": 1,
+      "einheit": "Stueck",
       "einzelpreis": 9.99,
       "gesamtpreis": 9.99,
-      "obergruppe": "eine der folgenden: lebensmittel | getraenke | koerperpflege | hygieneartikel | haushaltsreiniger | waschmittel | geschirrspuelmittel | papierprodukte | moebel | dekoration | beleuchtung | aufbewahrung | textilien | geschirr_besteck | kochutensilien | wohnaccessoires | grossgeraet_kueche | grossgeraet_wasche | unterhaltungselektronik | computer_technik | haushaltsgeraet_elektrisch | reinigungsgeraet_elektrisch | therme_heizung | smart_home_geraet | drucker_scanner | werkzeug_klein | sonstiges",
+      "obergruppe": "lebensmittel | getraenke | reinigung | drogerie | elektronik | moebel | kleidung | baumarkt | keine_zuordnung",
       "confidence": 0.91
     }
   ]
-}
+}`;
 
-Verwende Dezimalpunkte fuer Zahlen. Setze unbekannte Felder auf null.`;
+const RECHNUNG_REGELN = `Wichtige Regeln:
+- einzelpreis = Preis pro Einheit (NICHT der Zeilengesamtpreis)
+  Kraftstoff-Beispiel: menge=33.43, einheit="Liter", einzelpreis=1.439, gesamtpreis=48.11
+  Stueckware-Beispiel: menge=2, einheit="Stueck", einzelpreis=4.99, gesamtpreis=9.98
+- einheit: "Liter", "Stueck", "kg", "Pack", "Flasche", "m" etc.
+- gesamtpreis = einzelpreis x menge
+- Dezimalpunkte fuer Zahlen (kein Komma). Unbekannte Felder auf null.`;
+
+// Fuer Bildanalyse (chatgpt_vision, ocr_ollama)
+// WICHTIG: Muss identisch mit KI_RECHNUNG_PROMPT_SERVER in ki-vision/index.ts gehalten werden!
+const KI_RECHNUNG_PROMPT_VISION = `Du bist ein Rechnungs-Analyse-Assistent. Analysiere das Bild dieser Rechnung und gib ausschliesslich ein JSON-Objekt zurueck (kein Markdown, keine Erklaerungen):\n\n${RECHNUNG_JSON_SCHEMA}\n\n${RECHNUNG_REGELN}`;
+
+// Fuer PDF-Textanalyse via ki-chat
+const KI_RECHNUNG_PROMPT_TEXT = `Du bist ein Rechnungs-Analyse-Assistent. Hier ist der extrahierte Text einer Rechnung. Gib ausschliesslich ein JSON-Objekt zurueck (kein Markdown, keine Erklaerungen):\n\n${RECHNUNG_JSON_SCHEMA}\n\n${RECHNUNG_REGELN}`;
 
 // ============================================================
 // Hilfsfunktionen
@@ -258,6 +274,126 @@ export function fileToBase64(file) {
     reader.onerror = () => reject(new Error("Datei konnte nicht gelesen werden."));
     reader.readAsDataURL(file);
   });
+}
+
+/**
+ * Komprimiert ein Bild auf maxPx Pixel (laengste Seite) via Canvas.
+ * PDFs und nicht-Bild-Dateien werden unveraendert zurueckgegeben.
+ * HEIC-Unterstuetzung ist browserabhaengig (Safari/iOS: nativ; Chrome/Firefox: nicht garantiert).
+ */
+async function compressImage(file, maxPx = 1200) {
+  if (!file.type.startsWith("image/")) return file;
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width <= maxPx && height <= maxPx) { resolve(file); return; }
+      const ratio = Math.min(maxPx / width, maxPx / height);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(width * ratio);
+      canvas.height = Math.round(height * ratio);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { resolve(file); return; }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        if (!blob) { resolve(file); return; }
+        resolve(new File([blob], file.name.replace(/\.\w+$/, ".jpg"), { type: "image/jpeg" }));
+      }, "image/jpeg", 0.85);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
+/**
+ * Normalisiert einen Zahlenwert aus KI-Antworten.
+ * Behandelt deutsche Zahlenformate: "1,439" → 1.439, "1.000,50" → 1000.50
+ * Entscheidungsregel: das rechteste Trennzeichen ist der Dezimaltrenner.
+ */
+function normalizeNumber(val) {
+  if (val == null) return null;
+  let s = String(val).trim().replace(/[€$£\s]/g, "");
+
+  const hasComma = s.includes(",");
+  const hasDot   = s.includes(".");
+
+  if (hasComma && hasDot) {
+    if (s.lastIndexOf(",") > s.lastIndexOf(".")) {
+      // z.B. "1.000,50" → "1000.50"
+      s = s.replace(/\./g, "").replace(",", ".");
+    } else {
+      // z.B. "1,000.50" → "1000.50"
+      s = s.replace(/,/g, "");
+    }
+  } else if (hasComma) {
+    // z.B. "1,439" → "1.439"
+    s = s.replace(",", ".");
+  }
+  // Nur Punkt → unveraendert lassen (z.B. "1.439" bleibt "1.439")
+
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Validiert und berechnet fehlende Preiswerte in Positionen.
+ * Normalisiert deutsche Zahlenformate, prueft Plausibilitaet.
+ */
+function validierePositionen(positionen) {
+  return (positionen || []).map((pos) => {
+    let menge       = normalizeNumber(pos.menge)       ?? 1;
+    let einzelpreis = normalizeNumber(pos.einzelpreis);
+    let gesamtpreis = normalizeNumber(pos.gesamtpreis);
+
+    // Fehlende Werte berechnen
+    if (einzelpreis != null && menge != null && gesamtpreis == null) {
+      gesamtpreis = parseFloat((einzelpreis * menge).toFixed(2));
+    } else if (gesamtpreis != null && menge != null && menge > 0 && einzelpreis == null) {
+      einzelpreis = parseFloat((gesamtpreis / menge).toFixed(3));
+    }
+
+    // Plausibilitaetspruefung: einzelpreis x menge ≈ gesamtpreis (Toleranz 2% + 1 Cent)
+    if (einzelpreis != null && menge != null && menge > 0 && gesamtpreis != null) {
+      const erwartet = einzelpreis * menge;
+      if (Math.abs(erwartet - gesamtpreis) > 0.02 * gesamtpreis + 0.01) {
+        einzelpreis = parseFloat((gesamtpreis / menge).toFixed(3));
+      }
+    }
+
+    return { ...pos, menge, einzelpreis, gesamtpreis };
+  });
+}
+
+/**
+ * Generiert einen lesbaren Fliesstext aus den Rechnungsdaten.
+ */
+function generiereZusammenfassung(haendler, datum, gesamt, positionen) {
+  const haendlerText = haendler || "einem unbekannten Händler";
+  const datumText = datum
+    ? new Date(datum).toLocaleDateString("de-AT", { day: "2-digit", month: "2-digit", year: "numeric" })
+    : "einem unbekannten Datum";
+  const gesamtText = gesamt != null ? gesamt.toFixed(2) + " €" : "einem unbekannten Betrag";
+
+  // Kraftstoff-Sonderfall
+  const tankPos = (positionen || []).find((p) =>
+    /kraftstoff|benzin|diesel|eurosuper|super\s*95|super\s*e5|e10|heizoel|treibstoff/i.test(p.name || "")
+  );
+  if (tankPos && tankPos.einheit === "Liter" && tankPos.einzelpreis != null) {
+    return `Du hast am ${datumText} bei ${haendlerText} ${tankPos.menge?.toFixed(2) ?? "?"} Liter ${tankPos.name} getankt. Der Preis pro Liter betrug ${tankPos.einzelpreis.toFixed(3)} € und der Gesamtbetrag belief sich auf ${gesamtText}.`;
+  }
+
+  // Standard: bis 3 Positionen namentlich
+  const pos = (positionen || []).filter((p) => p.name);
+  if (pos.length > 0 && pos.length <= 3) {
+    const liste = pos
+      .map((p) => `${p.name}${p.gesamtpreis != null ? ` (${p.gesamtpreis.toFixed(2)} €)` : ""}`)
+      .join(", ");
+    return `Du hast am ${datumText} bei ${haendlerText} gekauft: ${liste}. Gesamtbetrag: ${gesamtText}.`;
+  }
+
+  return `Du hast am ${datumText} bei ${haendlerText} eingekauft und insgesamt ${gesamtText} ausgegeben.`;
 }
 
 /**
@@ -284,10 +420,6 @@ function normalisiereHaendler(haendler) {
 
 /**
  * Bestimmt Obergruppe und Confidence fuer ein Produkt (4-stufige Regel-Ebene).
- * Stufe 1: KI-Vorschlag (confidence >= 0.75)
- * Stufe 2: Keyword-Matching
- * Stufe 3: Haendler-Kontext als Bonus
- * Stufe 4: Fallback "sonstiges"
  */
 function bestimmeObergruppe(position, haendlerNormiert) {
   const nameNorm = normalisieren(position.name || "");
@@ -295,13 +427,13 @@ function bestimmeObergruppe(position, haendlerNormiert) {
   // Stufe 1: KI-Vorschlag uebernehmen wenn confidence ausreichend
   if (
     position.obergruppe &&
+    position.obergruppe !== "keine_zuordnung" &&
     position.obergruppe !== "sonstiges" &&
     typeof position.confidence === "number" &&
     position.confidence >= 0.75 &&
     OBERGRUPPE_TO_MODUL[position.obergruppe]
   ) {
     let conf = position.confidence;
-    // Haendler-Bonus
     const hints = HAENDLER_HINTS[haendlerNormiert] || [];
     if (hints.includes(position.obergruppe)) {
       conf = Math.min(1.0, conf + 0.1);
@@ -317,7 +449,6 @@ function bestimmeObergruppe(position, haendlerNormiert) {
     for (const kw of keywords) {
       const kwNorm = normalisieren(kw);
       if (nameNorm.includes(kwNorm)) {
-        // Laengeres Keyword = spezifischer = hoeher gewichten
         const score = kwNorm.length;
         if (score > bestScore) {
           bestScore = score;
@@ -329,7 +460,6 @@ function bestimmeObergruppe(position, haendlerNormiert) {
 
   if (bestObergruppe) {
     let conf = 0.7 + Math.min(0.15, bestScore * 0.01);
-    // Haendler-Bonus
     const hints = HAENDLER_HINTS[haendlerNormiert] || [];
     if (hints.includes(bestObergruppe)) {
       conf = Math.min(1.0, conf + 0.1);
@@ -344,7 +474,7 @@ function bestimmeObergruppe(position, haendlerNormiert) {
   }
 
   // Stufe 4: Fallback
-  return { obergruppe: "sonstiges", confidence: 0.2, quelle: "fallback" };
+  return { obergruppe: "keine_zuordnung", confidence: 0.2, quelle: "fallback" };
 }
 
 /**
@@ -354,25 +484,26 @@ function klassifizierePositionen(positionen, haendler) {
   const haendlerNorm = normalisiereHaendler(haendler);
   return positionen.map((pos) => {
     const { obergruppe, confidence, quelle } = bestimmeObergruppe(pos, haendlerNorm);
-    const modul = OBERGRUPPE_TO_MODUL[obergruppe] || "sonstiges";
+    const modul = OBERGRUPPE_TO_MODUL[obergruppe] || "keine_zuordnung";
     return {
       ...pos,
       obergruppe,
       modul_vorschlag: modul,
       confidence,
       klassifikation_quelle: quelle,
-      review_noetig: confidence < 0.75 || modul === "sonstiges",
+      review_noetig: confidence < 0.75 || modul === "keine_zuordnung",
     };
   });
 }
 
 /**
  * Erkennt welche Module fuer diese Rechnung relevant sind.
+ * "keine_zuordnung" wird herausgefiltert — kein Modul-Toggle dafuer.
  */
 function ermittleErkannteModule(positionen) {
   const module = new Set(["budget", "dokumente"]);
   for (const pos of positionen) {
-    if (pos.modul_vorschlag && pos.modul_vorschlag !== "sonstiges") {
+    if (pos.modul_vorschlag && pos.modul_vorschlag !== "keine_zuordnung") {
       module.add(pos.modul_vorschlag);
     }
   }
@@ -385,10 +516,8 @@ function ermittleErkannteModule(positionen) {
 function normalisiereDatum(datumText) {
   if (!datumText) return null;
 
-  // ISO-Format bereits korrekt
   if (/^\d{4}-\d{2}-\d{2}$/.test(datumText)) return datumText;
 
-  // DD.MM.YYYY oder DD/MM/YYYY oder DD-MM-YYYY
   const match = datumText.match(/(\d{1,2})[.\/\-](\d{1,2})[.\/\-](\d{2,4})/);
   if (match) {
     let [, tag, monat, jahr] = match;
@@ -403,13 +532,11 @@ function normalisiereDatum(datumText) {
 
 /**
  * Parst strukturierten Rechnungstext mit Regex-Regeln.
- * Wird nach OCR oder LlamaParse verwendet.
  */
 function parseRechnungsText(text, roherText) {
   if (typeof text !== "string") text = String(text ?? "");
   const lines = text.split(/\n/).map((l) => l.trim()).filter(Boolean);
 
-  // Datum ermitteln
   let datum = null;
   for (const line of lines) {
     const m = line.match(/(\d{1,2})[.\/\-](\d{1,2})[.\/\-](\d{2,4})/);
@@ -419,7 +546,6 @@ function parseRechnungsText(text, roherText) {
     }
   }
 
-  // Gesamtbetrag: letzter Euro-Betrag in der Datei
   let gesamt = null;
   const betraege = text.matchAll(/(\d{1,6}[,\.]\d{2})\s*€?/g);
   for (const m of betraege) {
@@ -427,10 +553,8 @@ function parseRechnungsText(text, roherText) {
     if (!isNaN(val)) gesamt = val;
   }
 
-  // Haendler: erste nicht-leere Zeile (oft Firmenname)
   const haendler = lines[0] || null;
 
-  // Einfache Positions-Erkennung: Zeilen mit Betrag am Ende
   const positionen = [];
   for (const line of lines) {
     const posMatch = line.match(/^(.+?)\s+(\d{1,6}[,\.]\d{2})\s*€?$/);
@@ -440,9 +564,10 @@ function parseRechnungsText(text, roherText) {
         positionen.push({
           name: posMatch[1].trim(),
           menge: 1,
+          einheit: "Stueck",
           einzelpreis: preis,
           gesamtpreis: preis,
-          obergruppe: "sonstiges",
+          obergruppe: "keine_zuordnung",
           confidence: 0.4,
         });
       }
@@ -465,8 +590,7 @@ function parseRechnungsText(text, roherText) {
 
 /**
  * Extrahiert Text aus einer Datei (Bild oder PDF).
- * Gibt { base64, text, mimeType } zurueck.
- * Bei PDFs wird zuerst Textextraktion versucht, dann OCR-Fallback.
+ * Bei PDFs: Textextraktion via pdfjs-dist (CDN-Import, alle Seiten).
  */
 export async function extractTextFromFile(file) {
   const mimeType = file.type;
@@ -493,7 +617,7 @@ export async function extractTextFromFile(file) {
         return { base64, text: fullText, mimeType, isPdf: true, hasText: true };
       }
     } catch {
-      // PDF-Textextraktion fehlgeschlagen -> OCR-Fallback
+      // PDF-Textextraktion fehlgeschlagen
     }
     return { base64, text: null, mimeType, isPdf: true, hasText: false };
   }
@@ -502,8 +626,7 @@ export async function extractTextFromFile(file) {
 }
 
 /**
- * Analysiert eine Rechnung mit ChatGPT Vision (GPT-4o) via ki-vision Edge Function.
- * Verwendet einen eigenen bildanalyse_openai_api_key, unabhaengig von den KI-Einstellungen.
+ * Analysiert ein Bild mit ChatGPT Vision (GPT-4o) via ki-vision Edge Function.
  */
 async function analyzeWithChatGptVision(base64, mimeType, session) {
   const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
@@ -513,29 +636,118 @@ async function analyzeWithChatGptVision(base64, mimeType, session) {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${session.access_token}`,
     },
-    body: JSON.stringify({ mode: "chatgpt_vision", file_base64: base64, mime_type: mimeType, prompt: KI_RECHNUNG_PROMPT }),
+    body: JSON.stringify({
+      mode: "chatgpt_vision",
+      file_base64: base64,
+      mime_type: mimeType,
+      prompt: KI_RECHNUNG_PROMPT_VISION,
+    }),
   });
 
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json?.error || `Vision-Analyse fehlgeschlagen (${res.status})`);
 
-  const rawText = json?.choices?.[0]?.message?.content || "";
+  const rawText = json?.text ?? json?.choices?.[0]?.message?.content ?? "";
   const cleaned = cleanKiJsonResponse(rawText, "object");
 
   let parsed;
   try {
     parsed = JSON.parse(cleaned);
-  } catch {
-    return { haendler: null, datum: null, gesamt: null, positionen: [], roher_text: rawText, confidence: 0.3 };
+  } catch (e) {
+    console.warn("ChatGPT Vision: JSON-Parse fehlgeschlagen.", rawText?.slice?.(0, 200));
+    throw new Error("KI-Antwort konnte nicht verarbeitet werden.");
   }
 
   return {
     haendler: parsed.haendler || null,
     datum: normalisiereDatum(parsed.datum),
-    gesamt: typeof parsed.gesamt === "number" ? parsed.gesamt : null,
+    gesamt: normalizeNumber(parsed.gesamt),
     positionen: Array.isArray(parsed.positionen) ? parsed.positionen : [],
     roher_text: rawText,
     confidence: 0.9,
+  };
+}
+
+/**
+ * Analysiert ein Bild mit Ollama Vision via ki-vision Edge Function.
+ */
+async function analyzeWithOllamaVision(base64, mimeType, session) {
+  const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
+  const res = await fetch(`${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/ki-vision`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({
+      mode: "ocr_ollama",
+      file_base64: base64,
+      mime_type: mimeType,
+      prompt: KI_RECHNUNG_PROMPT_VISION,
+    }),
+  });
+
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json?.error || `Ollama Vision fehlgeschlagen (${res.status})`);
+
+  const rawText = json?.text ?? "";
+  const cleaned = cleanKiJsonResponse(rawText, "object");
+
+  let parsed;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch (e) {
+    console.warn("Ollama Vision: JSON-Parse fehlgeschlagen.", rawText?.slice?.(0, 200));
+    throw new Error("KI-Antwort konnte nicht verarbeitet werden.");
+  }
+
+  return {
+    haendler: parsed.haendler || null,
+    datum: normalisiereDatum(parsed.datum),
+    gesamt: normalizeNumber(parsed.gesamt),
+    positionen: Array.isArray(parsed.positionen) ? parsed.positionen : [],
+    roher_text: rawText,
+    confidence: 0.85,
+  };
+}
+
+/**
+ * Analysiert extrahierten PDF-Text via ki-chat (KI-Assistent-Konfiguration).
+ * Wird fuer alle Modi bei PDF-Uploads verwendet (unabhaengig vom Bildanalyse-Modus).
+ */
+async function analyzeTextWithKiChat(text, kiClient) {
+  if (!kiClient?.client) {
+    throw new Error(
+      "PDF-Analyse benötigt eine konfigurierte KI-Assistent-Verbindung. " +
+      "Bitte richte im Profil OpenAI oder Ollama für den KI-Assistenten ein, " +
+      "oder lade die Rechnung als Bild hoch."
+    );
+  }
+
+  const prompt = `${KI_RECHNUNG_PROMPT_TEXT}\n\nRechnungstext:\n${text}`;
+  const response = await kiClient.client.chat.completions.create({
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.1,
+  });
+
+  const rawText = response?.choices?.[0]?.message?.content ?? "";
+  const cleaned = cleanKiJsonResponse(rawText, "object");
+
+  let parsed;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch (e) {
+    console.warn("PDF ki-chat: JSON-Parse fehlgeschlagen.", rawText?.slice?.(0, 200));
+    throw new Error("KI-Antwort konnte nicht verarbeitet werden.");
+  }
+
+  return {
+    haendler: parsed.haendler || null,
+    datum: normalisiereDatum(parsed.datum),
+    gesamt: normalizeNumber(parsed.gesamt),
+    positionen: Array.isArray(parsed.positionen) ? parsed.positionen : [],
+    roher_text: text,
+    confidence: 0.85,
   };
 }
 
@@ -582,7 +794,8 @@ async function analyzeWithOCRRules(base64OrText, hatText) {
 }
 
 /**
- * Analysiert eine Rechnung mit OCR + Ollama (Text-Modus).
+ * Analysiert mit OCR + Ollama (Text-Modus, Legacy — wird nicht mehr aus starteAnalyse aufgerufen).
+ * Bleibt als Funktion erhalten fuer eventuelle Direktnutzung.
  */
 async function analyzeWithOCROllama(file, kiClient) {
   const { base64, text: pdfText, hasText } = await extractTextFromFile(file);
@@ -604,7 +817,7 @@ async function analyzeWithOCROllama(file, kiClient) {
     ocrText = text;
   }
 
-  const prompt = `${KI_RECHNUNG_PROMPT}\n\nRechnungstext:\n${ocrText}`;
+  const prompt = `${KI_RECHNUNG_PROMPT_TEXT}\n\nRechnungstext:\n${ocrText}`;
   const response = await kiClient.client.chat.completions.create({
     messages: [{ role: "user", content: prompt }],
     temperature: 0.1,
@@ -623,7 +836,7 @@ async function analyzeWithOCROllama(file, kiClient) {
   return {
     haendler: parsed.haendler || null,
     datum: normalisiereDatum(parsed.datum),
-    gesamt: typeof parsed.gesamt === "number" ? parsed.gesamt : null,
+    gesamt: normalizeNumber(parsed.gesamt),
     positionen: Array.isArray(parsed.positionen) ? parsed.positionen : [],
     roher_text: ocrText,
     confidence: 0.8,
@@ -637,48 +850,65 @@ async function analyzeWithOCROllama(file, kiClient) {
 /**
  * Startet die Rechnungsanalyse im konfigurierten Modus.
  *
+ * PDF-Handling (alle Modi):
+ *   - PDFs mit extrahierbarem Text → analyzeTextWithKiChat (KI-Assistent-Konfiguration)
+ *   - Bild-PDFs (kein Text) → Fehlermeldung
+ *   - ocr_regeln + PDF → analyzeWithOCRRules (regelbasiert, kein KI noetig)
+ *
  * @param {File} file - Hochgeladene Datei (Bild oder PDF)
  * @param {string} modus - "chatgpt_vision" | "ocr_regeln" | "ocr_ollama"
  * @param {{ kiClient: object, session: object }} opts
  * @returns {Promise<RechnungResult>}
  */
 export async function starteAnalyse(file, modus, { kiClient, session } = {}) {
-  const base64 = await fileToBase64(file);
-  const mimeType = file.type;
-  const fileName = file.name;
+  const isPDF = file.type === "application/pdf";
 
   let roherAnalyse;
 
-  switch (modus) {
-    case "chatgpt_vision":
-      roherAnalyse = await analyzeWithChatGptVision(base64, mimeType, session);
-      break;
+  if (isPDF) {
+    const { text, hasText } = await extractTextFromFile(file);
 
-    case "ocr_regeln": {
-      const { text: pdfText, hasText } = await extractTextFromFile(file);
-      if (hasText && pdfText) {
-        roherAnalyse = await analyzeWithOCRRules(pdfText, true);
-      } else {
-        roherAnalyse = await analyzeWithOCRRules(base64, false);
-      }
-      break;
+    if (!hasText || !text?.trim()) {
+      throw new Error(
+        "Dieses PDF enthält keinen lesbaren Text. Bitte mache ein Foto der Rechnung und lade es als Bild hoch."
+      );
     }
 
-    case "ocr_ollama":
-      roherAnalyse = await analyzeWithOCROllama(file, kiClient);
-      break;
+    if (modus === "ocr_regeln") {
+      roherAnalyse = await analyzeWithOCRRules(text, true);
+    } else {
+      // chatgpt_vision und ocr_ollama: PDF-Text via ki-chat (KI-Assistent-Konfiguration)
+      roherAnalyse = await analyzeTextWithKiChat(text, kiClient);
+    }
+  } else {
+    // Bild: zuerst komprimieren
+    const compressedFile = await compressImage(file, 1200);
+    const base64 = await fileToBase64(compressedFile);
+    const mimeType = compressedFile.type;
 
-    default:
-      throw new Error(`Unbekannter Analyse-Modus: ${modus}`);
+    switch (modus) {
+      case "chatgpt_vision":
+        roherAnalyse = await analyzeWithChatGptVision(base64, mimeType, session);
+        break;
+
+      case "ocr_regeln":
+        roherAnalyse = await analyzeWithOCRRules(base64, false);
+        break;
+
+      case "ocr_ollama":
+        roherAnalyse = await analyzeWithOllamaVision(base64, mimeType, session);
+        break;
+
+      default:
+        throw new Error(`Unbekannter Analyse-Modus: ${modus}`);
+    }
   }
 
-  // Regel-Ebene: Positionen klassifizieren
-  const positionen = klassifizierePositionen(
-    roherAnalyse.positionen || [],
-    roherAnalyse.haendler
+  // Regel-Ebene: Positionen klassifizieren + validieren
+  const positionen = validierePositionen(
+    klassifizierePositionen(roherAnalyse.positionen || [], roherAnalyse.haendler)
   );
 
-  // Erkannte Module bestimmen
   const erkannteModule = ermittleErkannteModule(positionen);
 
   return {
@@ -689,5 +919,11 @@ export async function starteAnalyse(file, modus, { kiClient, session } = {}) {
     roher_text: roherAnalyse.roher_text || "",
     confidence: roherAnalyse.confidence || 0.5,
     erkannte_module: erkannteModule,
+    summary_text: generiereZusammenfassung(
+      roherAnalyse.haendler,
+      roherAnalyse.datum,
+      roherAnalyse.gesamt,
+      positionen
+    ),
   };
 }
