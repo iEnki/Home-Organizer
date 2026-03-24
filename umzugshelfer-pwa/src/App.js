@@ -136,7 +136,7 @@ const HomeModusSyncer = ({ session, householdContext }) => {
 
     const data = householdContext;
     const umzugPfade = ["/dashboard", "/packliste", "/todo", "/budget",
-      "/contacts", "/dokumente", "/kalender", "/rechner", "/planung", "/zeitstrahl"];
+      "/contacts", "/dokumente", "/rechner", "/planung", "/zeitstrahl"];
     setIsAdmin(!!data?.is_admin);
 
     if (modusGeladen) {
