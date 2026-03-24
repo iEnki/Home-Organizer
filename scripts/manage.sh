@@ -525,6 +525,89 @@ modus_config() {
     warn ".env nicht gefunden. Bitte zuerst eine Installation durchführen."
     weiter; return 0
   fi
+  echo ""
+  echo -e "  ${BOLD}Was moechtest du konfigurieren?${NC}"
+  echo ""
+  echo -e "  ${BOLD}[1]${NC} Allgemein (App-URL, Port, Admin-E-Mail)"
+  echo -e "  ${BOLD}[2]${NC} Invite-Link auf App-Domain umstellen"
+  echo "  [0] Zurueck"
+  echo ""
+  read -p "  -> Wahl [1]: " CONFIG_CHOICE
+  [[ -z "$CONFIG_CHOICE" ]] && CONFIG_CHOICE=1
+  [[ "$CONFIG_CHOICE" == "0" ]] && return 0
+
+  if [[ "$CONFIG_CHOICE" == "2" ]]; then
+    header "Invite-Link auf App-Domain"
+    echo ""
+
+    if [[ "$IS_VOLLSTACK" != "true" ]]; then
+      warn "Nur fuer Vollstack-Installation verfuegbar."
+      warn "In App-only muss API_EXTERNAL_URL in der externen Supabase gesetzt werden."
+      weiter; return 0
+    fi
+
+    local SITE_URL_NOW API_EXTERNAL_NOW SUPABASE_PUBLIC_NOW REACT_SUPA_NOW
+    SITE_URL_NOW="$(env_get "SITE_URL")"
+    API_EXTERNAL_NOW="$(env_get "API_EXTERNAL_URL")"
+    SUPABASE_PUBLIC_NOW="$(env_get "SUPABASE_PUBLIC_URL")"
+    REACT_SUPA_NOW="$(env_get "REACT_APP_SUPABASE_URL")"
+
+    if [[ -z "$SITE_URL_NOW" ]]; then
+      warn "SITE_URL fehlt in .env. Bitte zuerst Option [1] ausfuehren."
+      weiter; return 0
+    fi
+
+    echo "  Ziel:"
+    echo "    API_EXTERNAL_URL -> ${SITE_URL_NOW}"
+    echo ""
+    echo "  Aktuell:"
+    echo "    SITE_URL:               ${SITE_URL_NOW}"
+    echo "    API_EXTERNAL_URL:       ${API_EXTERNAL_NOW}"
+    echo "    SUPABASE_PUBLIC_URL:    ${SUPABASE_PUBLIC_NOW}"
+    echo "    REACT_APP_SUPABASE_URL: ${REACT_SUPA_NOW}"
+    echo ""
+    read -p "  Umstellen? [J/n]: " DO_SWITCH
+    if [[ "${DO_SWITCH,,}" == "n" ]]; then
+      echo "  Abgebrochen."
+      weiter; return 0
+    fi
+
+    env_set "API_EXTERNAL_URL" "$SITE_URL_NOW"
+    local MAILER_INVITE_NOW
+    MAILER_INVITE_NOW="$(env_get "MAILER_URLPATHS_INVITE")"
+    if [[ -z "$MAILER_INVITE_NOW" ]]; then
+      env_set "MAILER_URLPATHS_INVITE" "/auth/v1/verify"
+    fi
+
+    success "API_EXTERNAL_URL auf App-Domain gesetzt."
+    echo ""
+    read -p "  auth + mail-templates jetzt neu laden? [J/n]: " DO_RELOAD_AUTH
+    if [[ "${DO_RELOAD_AUTH,,}" != "n" ]]; then
+      mit_spinner "auth + mail-templates werden neu geladen" \
+        docker compose -f "$COMPOSE_FILE" up -d --force-recreate mail-templates auth || {
+        warn "Neustart fehlgeschlagen. Bitte Status pruefen: docker compose -f ${COMPOSE_FILE} ps"
+        weiter; return 0
+      }
+      success "auth + mail-templates neu geladen."
+    else
+      warn "Aenderung aktiv nach manuellem Neustart von auth/mail-templates."
+    fi
+
+    echo ""
+    warn "Wichtig: Nginx auf der App-Domain muss /auth/v1/ nach :8000 weiterleiten."
+    echo "  Danach auf dem Host ausfuehren:"
+    echo "    sudo nginx -t && sudo systemctl reload nginx"
+    echo ""
+    echo "  Fuer komplettes Nachladen nach Datei-Updates:"
+    echo "    manage.sh -> [2] Update -> [5] Server-Sync komplett"
+    weiter
+    return 0
+  fi
+
+  if [[ "$CONFIG_CHOICE" != "1" ]]; then
+    warn "Ungueltige Auswahl."
+    weiter; return 0
+  fi
 
   echo ""
   echo -e "  ${DIM}Aktuelle Werte aus .env werden als Vorschlag angezeigt.${NC}"
@@ -740,6 +823,7 @@ modus_update() {
     echo -e "  ${BOLD}[2]${NC} Nur App neu bauen   — ohne git pull (nach lokalen Änderungen)"
     echo -e "  ${BOLD}[3]${NC} Edge Functions      — supabase/functions/ deployen + neu starten"
     echo -e "  ${BOLD}[4]${NC} Docker-Images       — alle Images aktualisieren + neu starten"
+    echo -e "  ${BOLD}[5]${NC} Server-Sync komplett — App + Invite-Template + Functions neu laden"
     echo "  [0] Zurück zum Hauptmenü"
     echo ""
     read -p "  → Wahl [1]: " UPDATE_CHOICE
@@ -899,6 +983,59 @@ modus_update() {
         fi
 
         success "Docker-Images aktualisiert und Container neu gestartet."
+        weiter
+        ;;
+
+      5)
+        header "Server-Sync komplett"
+        echo ""
+        if [[ "$IS_VOLLSTACK" != "true" ]]; then
+          warn "Nur für Vollstack-Installation verfügbar."
+          weiter; continue
+        fi
+        echo "  Dieser Ablauf lädt nach Datei-Kopie alle relevanten Komponenten neu:"
+        echo "    1) Edge Functions deployen"
+        echo "    2) App neu bauen + neu starten"
+        echo "    3) mail-templates + auth force-recreate"
+        echo "    4) functions neu starten"
+        echo ""
+        read -p "  Fortfahren? [J/n]: " CONFIRM
+        if [[ "${CONFIRM,,}" == "n" ]]; then echo "  Abgebrochen."; weiter; continue; fi
+
+        echo ""
+        info "Aktualisiere Edge Functions..."
+        DEPLOYED=0
+        deploy_edge_functions_to_volumes
+        [[ $DEPLOYED -gt 0 ]] && success "${DEPLOYED} Function(s) aktualisiert." || warn "Keine Functions-Dateien gefunden."
+
+        echo ""
+        mit_spinner "App-Container wird gebaut (kann 2-5 Min dauern)" \
+          docker compose -f "$COMPOSE_FILE" build umzugsplaner-app || {
+          warn "Build fehlgeschlagen. Logs prüfen: docker compose logs umzugsplaner-app"
+          weiter; continue
+        }
+        mit_spinner "App-Container wird neu gestartet" \
+          docker compose -f "$COMPOSE_FILE" up -d --force-recreate umzugsplaner-app || {
+          warn "Neustart fehlgeschlagen. Status prüfen: docker compose ps"
+          weiter; continue
+        }
+
+        echo ""
+        mit_spinner "mail-templates + auth werden neu geladen" \
+          docker compose -f "$COMPOSE_FILE" up -d --force-recreate mail-templates auth || {
+          warn "auth/mail-templates Neustart fehlgeschlagen. Status prüfen: docker compose ps"
+          weiter; continue
+        }
+
+        echo ""
+        mit_spinner "Functions-Container wird neu gestartet" \
+          docker compose -f "$COMPOSE_FILE" restart functions 2>/dev/null || \
+          warn "Functions-Container konnte nicht neu gestartet werden."
+
+        echo ""
+        success "Server-Sync komplett abgeschlossen."
+        APP_URL_NOW="$(env_get "SITE_URL")"
+        [[ -n "$APP_URL_NOW" ]] && echo -e "  App erreichbar: ${CYAN}${APP_URL_NOW}${NC}"
         weiter
         ;;
 
