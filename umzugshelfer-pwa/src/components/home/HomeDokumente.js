@@ -43,6 +43,14 @@ const extrahiereKategorieHinweis = (beschreibung) => {
 const istRechnungTyp = (dok) =>
   (dok?.dokument_typ || "").trim().toLowerCase() === "rechnung";
 
+const istRechnungKategorie = (dok) =>
+  istRechnungTyp(dok) || (dok?.kategorie || "").trim() === "Rechnung";
+
+const istBildDatei = (dok) => (dok?.datei_typ || "").startsWith("image/");
+
+const hatRechnungsBildVorschau = (dok) =>
+  istRechnungKategorie(dok) && istBildDatei(dok) && !!dok?.storage_pfad;
+
 const effektiveKategorie = (dok) => {
   if (dok?.kategorie) return dok.kategorie;
   if (istRechnungTyp(dok)) return "Rechnung";
@@ -313,6 +321,8 @@ const DokumentKarte = ({ dok, onDownload, onLoeschen, onWissen, laedtDownload, h
   const kat = effektiveKategorie(dok);
   const katFarbe = KATEGORIE_FARBEN[kat] || KATEGORIE_FARBEN.Sonstiges;
   const beschreibungOhneHinweis = dok.beschreibung?.replace(/\s*\[[^\]]+\]$/, "") || "";
+  const [vorschauOffen, setVorschauOffen] = useState(false);
+  const hatBildVorschau = hatRechnungsBildVorschau(dok) && !!dok.vorschau_url;
 
   const dateiIcon = () => {
     if (dok.datei_typ?.startsWith("image/")) return <File size={20} className="text-blue-500" />;
@@ -362,6 +372,46 @@ const DokumentKarte = ({ dok, onDownload, onLoeschen, onWissen, laedtDownload, h
         </div>
       </div>
 
+      {hatBildVorschau && (
+        <div className="mt-3 pt-3 border-t border-light-border dark:border-dark-border space-y-2">
+          <button
+            type="button"
+            onClick={() => setVorschauOffen((prev) => !prev)}
+            className="w-full flex items-center gap-2 rounded-card-sm border border-light-border dark:border-dark-border p-2 text-left hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors"
+          >
+            <img
+              src={dok.vorschau_url}
+              alt={`Vorschau von ${dok.dateiname}`}
+              className="w-14 h-14 rounded-card-sm object-cover border border-light-border dark:border-dark-border flex-shrink-0"
+              loading="lazy"
+            />
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-light-text-main dark:text-dark-text-main">
+                Rechnungsvorschau
+              </p>
+              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                {vorschauOffen ? "Zum Schliessen erneut klicken" : "Zum Oeffnen klicken"}
+              </p>
+            </div>
+          </button>
+
+          {vorschauOffen && (
+            <button
+              type="button"
+              onClick={() => setVorschauOffen(false)}
+              className="w-full rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 p-2 hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors"
+            >
+              <img
+                src={dok.vorschau_url}
+                alt={`Rechnung ${dok.dateiname}`}
+                className="w-full max-h-72 object-contain rounded-card-sm"
+                loading="lazy"
+              />
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-light-border dark:border-dark-border">
         <button
           onClick={() => onDownload(dok.storage_pfad, dok.dateiname)}
@@ -407,6 +457,23 @@ const HomeDokumente = ({ session }) => {
   const handledFocusRef = useRef(null);
   const focusDokumentId = location.state?.focusDokumentId || null;
 
+  const baueVorschauUrls = useCallback(async (doks) => {
+    const zielDoks = doks.filter((dok) => hatRechnungsBildVorschau(dok));
+    if (zielDoks.length === 0) return {};
+
+    const vorschauEintraege = await Promise.all(
+      zielDoks.map(async (dok) => {
+        const { data, error } = await supabase.storage
+          .from("user-dokumente")
+          .createSignedUrl(dok.storage_pfad, 60 * 60);
+        if (error || !data?.signedUrl) return [dok.id, null];
+        return [dok.id, data.signedUrl];
+      })
+    );
+
+    return Object.fromEntries(vorschauEintraege);
+  }, []);
+
   // ── Laden ──────────────────────────────────────────────────────────────────
   const ladeDaten = useCallback(async () => {
     if (!userId) return;
@@ -418,13 +485,18 @@ const HomeDokumente = ({ session }) => {
         .eq("user_id", userId)
         .order("erstellt_am", { ascending: false });
       if (error) throw error;
-      setDokumente(data || []);
+      const doks = data || [];
+      const vorschauUrls = await baueVorschauUrls(doks);
+      setDokumente(doks.map((dok) => ({
+        ...dok,
+        vorschau_url: vorschauUrls[dok.id] || null,
+      })));
     } catch (err) {
       setFehler("Dokumente konnten nicht geladen werden.");
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [baueVorschauUrls, userId]);
 
   useEffect(() => { ladeDaten(); }, [ladeDaten]);
 
