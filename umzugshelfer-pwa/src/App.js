@@ -311,7 +311,7 @@ const AuthenticatedShell = ({
   const pageTitle = ROUTE_TITLES[location.pathname] ?? "";
 
   return (
-    <div className="flex min-h-screen bg-light-bg dark:bg-canvas-1">
+    <div className="flex min-h-dvh bg-light-bg dark:bg-canvas-1">
       <Sidebar
         activeRoute={location.pathname}
         onNavigate={navigate}
@@ -322,7 +322,7 @@ const AuthenticatedShell = ({
       />
 
       {/* Haupt-Content-Spalte — auf Desktop um Sidebar versetzt */}
-      <div className="flex flex-col flex-1 min-h-screen lg:ml-20">
+      <div className="flex flex-col flex-1 min-h-dvh min-h-0 lg:ml-20">
         <Topbar
           pageTitle={pageTitle}
           session={session}
@@ -335,7 +335,7 @@ const AuthenticatedShell = ({
           onLogout={handleLogout}
         />
         <main
-          className="flex-grow relative z-[1]"
+          className="flex-grow relative z-[1] min-h-0"
           style={{
             paddingBottom: isDesktop ? 0 : Math.max(mobileBottomOffsetPx, 72),
           }}
