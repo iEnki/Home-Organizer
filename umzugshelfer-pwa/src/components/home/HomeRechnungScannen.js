@@ -104,7 +104,7 @@ export default function HomeRechnungScannen({ session }) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-canvas-0 pb-24">
+    <div className="min-h-dvh bg-canvas-0 pb-24">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-canvas-1 border-b border-canvas-3 px-4 py-3 flex items-center gap-3">
         <button

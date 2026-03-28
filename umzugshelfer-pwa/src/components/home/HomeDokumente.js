@@ -122,9 +122,11 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4">
-        <div className="flex items-center justify-between">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)] bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 max-h-[calc(100dvh-var(--safe-area-bottom)-2rem)] lg:max-h-[90vh] flex flex-col">
+
+        {/* Header — immer sichtbar */}
+        <div className="shrink-0 flex items-center justify-between px-5 pt-5 pb-4 border-b border-light-border dark:border-dark-border">
           <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
             <Upload size={16} className="text-primary-500" /> Dokument hochladen
           </h2>
@@ -136,73 +138,77 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
           </button>
         </div>
 
-        {/* Dropzone */}
-        <div
-          onDrop={handleDrop}
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-          onDragLeave={() => setDragOver(false)}
-          onClick={() => fileRef.current?.click()}
-          className={`border-2 border-dashed rounded-card-sm p-6 text-center cursor-pointer transition-colors ${
-            dragOver
-              ? "border-primary-500 bg-primary-500/5"
-              : "border-light-border dark:border-dark-border hover:border-primary-500/60"
-          }`}
-        >
-          <input
-            ref={fileRef}
-            type="file"
-            className="hidden"
-            onChange={(e) => verarbeiteAuswahl(e.target.files)}
-          />
-          <Upload size={28} className="mx-auto mb-2 text-light-text-secondary dark:text-dark-text-secondary" />
-          {datei ? (
-            <p className="text-sm font-medium text-primary-500 truncate">{datei.name}</p>
-          ) : (
-            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-              Datei hierher ziehen oder klicken
-            </p>
-          )}
-          {datei && (
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1">
-              {Math.round(datei.size / 1024)} KB
-            </p>
-          )}
-        </div>
-
-        {/* Kategorie */}
-        <div>
-          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-            Kategorie
-          </label>
-          <select
-            value={kategorie}
-            onChange={(e) => setKategorie(e.target.value)}
-            className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
+        {/* Body — scrollbar */}
+        <div className="flex-1 overflow-y-auto px-5 pt-4 pb-2 space-y-4">
+          {/* Dropzone */}
+          <div
+            onDrop={handleDrop}
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onClick={() => fileRef.current?.click()}
+            className={`border-2 border-dashed rounded-card-sm p-6 text-center cursor-pointer transition-colors ${
+              dragOver
+                ? "border-primary-500 bg-primary-500/5"
+                : "border-light-border dark:border-dark-border hover:border-primary-500/60"
+            }`}
           >
-            {KATEGORIEN.map((k) => <option key={k}>{k}</option>)}
-          </select>
-        </div>
-
-        {/* Beschreibung */}
-        <div>
-          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-            Beschreibung (optional)
-          </label>
-          <input
-            value={beschreibung}
-            onChange={(e) => setBeschreibung(e.target.value)}
-            placeholder="z.B. Mietvertrag Neue Str. 5"
-            className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
-          />
-        </div>
-
-        {fehler && (
-          <div className="p-3 rounded-card-sm bg-red-500/10 border border-red-500/30 flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
-            <AlertTriangle size={14} /> {fehler}
+            <input
+              ref={fileRef}
+              type="file"
+              className="hidden"
+              onChange={(e) => verarbeiteAuswahl(e.target.files)}
+            />
+            <Upload size={28} className="mx-auto mb-2 text-light-text-secondary dark:text-dark-text-secondary" />
+            {datei ? (
+              <p className="text-sm font-medium text-primary-500 truncate">{datei.name}</p>
+            ) : (
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+                Datei hierher ziehen oder klicken
+              </p>
+            )}
+            {datei && (
+              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1">
+                {Math.round(datei.size / 1024)} KB
+              </p>
+            )}
           </div>
-        )}
 
-        <div className="flex gap-2">
+          {/* Kategorie */}
+          <div>
+            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
+              Kategorie
+            </label>
+            <select
+              value={kategorie}
+              onChange={(e) => setKategorie(e.target.value)}
+              className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
+            >
+              {KATEGORIEN.map((k) => <option key={k}>{k}</option>)}
+            </select>
+          </div>
+
+          {/* Beschreibung */}
+          <div>
+            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
+              Beschreibung (optional)
+            </label>
+            <input
+              value={beschreibung}
+              onChange={(e) => setBeschreibung(e.target.value)}
+              placeholder="z.B. Mietvertrag Neue Str. 5"
+              className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
+            />
+          </div>
+
+          {fehler && (
+            <div className="p-3 rounded-card-sm bg-red-500/10 border border-red-500/30 flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+              <AlertTriangle size={14} /> {fehler}
+            </div>
+          )}
+        </div>
+
+        {/* Footer — immer sichtbar */}
+        <div className="shrink-0 flex gap-2 px-5 py-4 border-t border-light-border dark:border-dark-border">
           <button
             onClick={onSchliessen}
             className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main"
@@ -257,8 +263,8 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)] bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4 max-h-[calc(100dvh-var(--safe-area-bottom)-2rem)] overflow-y-auto lg:max-h-[90vh]">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
             <BookOpen size={16} className="text-amber-500" /> Als Wissenseintrag speichern
@@ -345,8 +351,8 @@ const BudgetZuordnungModal = ({ dok, initial, onSchliessen, onSpeichern, speiche
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)] bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4 max-h-[calc(100dvh-var(--safe-area-bottom)-2rem)] overflow-y-auto lg:max-h-[90vh]">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
             <Plus size={16} className="text-primary-500" /> Zum Budget hinzufügen

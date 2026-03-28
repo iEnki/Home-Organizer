@@ -96,10 +96,12 @@ const Topbar = ({
 
   return (
     <header
-      className="sticky top-0 z-40 flex items-center gap-3 px-4 sm:px-6 lg:pl-6 h-[72px]
+      className="sticky top-0 z-40 min-h-[72px]
                  bg-light-surface-1/80 dark:bg-canvas-2/80 backdrop-blur-md
                  border-b border-light-border dark:border-dark-border shrink-0"
+      style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
+      <div className="flex items-center gap-3 px-4 sm:px-6 lg:pl-6 h-[72px]">
       {/* Seitentitel + Modus-Badge */}
       <div className="flex items-center gap-2 shrink-0 min-w-0">
         <h1 className="text-base sm:text-xl font-semibold text-light-text-main dark:text-dark-text-main truncate">
@@ -372,6 +374,7 @@ const Topbar = ({
           )}
         </div>
       </div>
+      </div>{/* Ende innerer Content-Wrapper */}
     </header>
   );
 };

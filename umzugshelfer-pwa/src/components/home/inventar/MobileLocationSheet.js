@@ -102,10 +102,9 @@ const MobileLocationSheet = ({
       <section
         className="absolute inset-x-0 bottom-0 bg-light-card dark:bg-canvas-2
                    rounded-t-2xl border-t border-light-border dark:border-dark-border
-                   max-h-[90dvh] overflow-y-auto shadow-elevation-3"
-        style={{ paddingBottom: "calc(var(--safe-area-bottom) + 0.75rem)" }}
+                   max-h-[90dvh] flex flex-col shadow-elevation-3"
       >
-        <div className="sticky top-0 z-10 px-4 py-3 border-b border-light-border dark:border-dark-border bg-light-card/95 dark:bg-canvas-2/95 backdrop-blur">
+        <div className="shrink-0 px-4 py-3 border-b border-light-border dark:border-dark-border bg-light-card/95 dark:bg-canvas-2/95 backdrop-blur">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <MapPin size={16} className="text-primary-500" />
@@ -146,6 +145,7 @@ const MobileLocationSheet = ({
           </div>
         </div>
 
+        <div className="flex-1 overflow-y-auto" style={{ paddingBottom: "calc(var(--safe-area-bottom) + 0.75rem)" }}>
         <div className="p-3">
           <button
             onClick={handleSelectAll}
@@ -323,6 +323,7 @@ const MobileLocationSheet = ({
               </div>
             );
           })}
+        </div>
         </div>
       </section>
     </div>

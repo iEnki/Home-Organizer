@@ -86,8 +86,8 @@ const BewohnerBadge = ({ bewohner }) => {
 };
 
 const ModalWrapper = ({ title, onClose, children }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-    <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border max-h-[90vh] overflow-y-auto">
+  <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)]">
+    <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border max-h-[calc(100dvh-var(--safe-area-bottom)-2rem)] lg:max-h-[90vh] overflow-y-auto">
       <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border sticky top-0 bg-light-card dark:bg-canvas-2">
         <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">{title}</h3>
         <button onClick={onClose} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main">
@@ -743,7 +743,7 @@ const HomeBudget = ({ session }) => {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4">
+    <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4 overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
@@ -906,40 +906,51 @@ const HomeBudget = ({ session }) => {
                 return (
                   <div
                     key={p.id}
-                    className="flex items-center gap-3 bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-3 group"
+                    className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-3 group"
                   >
+                  {/* Textblock: Beschreibung + Metadaten */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-sm text-light-text-main dark:text-dark-text-main truncate">{p.beschreibung}</p>
-                      {p.wiederholen && (
-                        <RefreshCw size={12} className="text-secondary-400 flex-shrink-0" title={`Wiederkehrend: ${p.intervall}`} />
-                      )}
+                    <div className="flex items-center justify-between sm:justify-start gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <p className="text-sm text-light-text-main dark:text-dark-text-main truncate">{p.beschreibung}</p>
+                        {p.wiederholen && (
+                          <RefreshCw size={12} className="text-secondary-400 flex-shrink-0" title={`Wiederkehrend: ${p.intervall}`} />
+                        )}
+                      </div>
+                      {/* Betrag auf Mobile (inline rechts neben Beschreibung) */}
+                      <span className="sm:hidden font-semibold flex-shrink-0 tabular-nums text-sm text-light-text-main dark:text-dark-text-main">
+                        −{Math.abs(Number(p.betrag)).toFixed(2)} €
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-light-text-secondary dark:text-dark-text-secondary flex-wrap">
+                    <div className="flex items-center gap-2 text-xs text-light-text-secondary dark:text-dark-text-secondary flex-wrap mt-0.5">
                       <span>{p.kategorie}</span>
                       <span>{p.datum}</span>
                       <BewohnerBadge bewohner={bewohner.find(b => b.id === p.bewohner_id)} />
                     </div>
                   </div>
-                  <span className="font-semibold flex-shrink-0 tabular-nums text-light-text-main dark:text-dark-text-main">
-                    −{Math.abs(Number(p.betrag)).toFixed(2)} €
-                  </span>
-                  {hatRechnung && (
-                    <button
-                      onClick={() => oeffneRechnungsVorschau(p)}
-                      className="flex items-center gap-1 px-2 py-1 text-xs rounded-card-sm border border-primary-500/40 bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors"
-                    >
-                      <FileText size={12} />
-                      Rechnung
-                    </button>
-                  )}
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => setModal(p)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500">
-                      <Edit2 size={13} />
-                    </button>
-                    <button onClick={() => loesche(p)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500">
-                      <Trash2 size={13} />
-                    </button>
+                  {/* Aktionsbereich: Betrag (Desktop) + Rechnung + Edit/Löschen */}
+                  <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end">
+                    {/* Betrag auf Desktop */}
+                    <span className="hidden sm:block font-semibold flex-shrink-0 tabular-nums text-light-text-main dark:text-dark-text-main">
+                      −{Math.abs(Number(p.betrag)).toFixed(2)} €
+                    </span>
+                    {hatRechnung && (
+                      <button
+                        onClick={() => oeffneRechnungsVorschau(p)}
+                        className="flex items-center gap-1 px-2 py-1 text-xs rounded-card-sm border border-primary-500/40 bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors flex-shrink-0"
+                      >
+                        <FileText size={12} />
+                        <span className="hidden sm:inline">Rechnung</span>
+                      </button>
+                    )}
+                    <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex-shrink-0">
+                      <button onClick={() => setModal(p)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500">
+                        <Edit2 size={13} />
+                      </button>
+                      <button onClick={() => loesche(p)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
                   </div>
                 );
@@ -993,7 +1004,7 @@ const HomeBudget = ({ session }) => {
                 {kategAusgaben.length === 0 ? (
                   <p className="text-sm text-center text-light-text-secondary dark:text-dark-text-secondary py-8">Keine Ausgaben im Zeitraum</p>
                 ) : (
-                  <div className="h-52">
+                  <div className="h-40 sm:h-52">
                     <Doughnut data={doughnutData} options={{
                       ...CHART_OPTS_BASE,
                       plugins: {
@@ -1008,7 +1019,7 @@ const HomeBudget = ({ session }) => {
               {/* Bar: Ausgaben nach Monat */}
               <div className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-4">
                 <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-3 uppercase tracking-wider">Ausgaben nach Monat {selJahr}</p>
-                <div className="h-52">
+                <div className="h-40 sm:h-52">
                   <Bar data={barData} options={{
                     ...CHART_OPTS_BASE,
                     scales: {
@@ -1026,7 +1037,7 @@ const HomeBudget = ({ session }) => {
               {/* Line: Kumulierte Ausgaben */}
               <div className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-4">
                 <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-3 uppercase tracking-wider">Kumulierte Ausgaben {selJahr}</p>
-                <div className="h-48">
+                <div className="h-36 sm:h-48">
                   <Line data={lineData} options={{
                     ...CHART_OPTS_BASE,
                     scales: {
@@ -1081,7 +1092,7 @@ const HomeBudget = ({ session }) => {
                   {/* Doughnut: Kategorie-Verteilung */}
                   <div className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-4">
                     <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-3 uppercase tracking-wider">Verteilung nach Kategorie</p>
-                    <div className="h-52">
+                    <div className="h-40 sm:h-52">
                       <Doughnut data={doughnutDataMonat} options={{
                         ...CHART_OPTS_BASE,
                         plugins: {
@@ -1313,14 +1324,14 @@ const HomeBudget = ({ session }) => {
       {/* ════════════ MODALS ════════════ */}
       {rechnungVorschau && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 flex items-center justify-center"
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)] flex items-center justify-center"
           onClick={() => setRechnungVorschau(null)}
         >
           <div
-            className="w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 shadow-elevation-3"
+            className="w-full max-w-4xl max-h-[calc(100dvh-var(--safe-area-top)-var(--safe-area-bottom)-2rem)] lg:max-h-[90vh] flex flex-col rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 shadow-elevation-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
+            <div className="shrink-0 flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main truncate pr-2">
                 Rechnungsvorschau: {rechnungVorschau.dateiname || "Dokument"}
               </h3>
@@ -1328,7 +1339,7 @@ const HomeBudget = ({ session }) => {
                 <X size={18} />
               </button>
             </div>
-            <div className="p-4 h-[70vh] overflow-auto">
+            <div className="flex-1 min-h-0 overflow-auto p-4">
               {rechnungVorschau.loading ? (
                 <div className="h-full flex items-center justify-center">
                   <Loader2 size={28} className="animate-spin text-light-text-secondary dark:text-dark-text-secondary" />
@@ -1362,7 +1373,7 @@ const HomeBudget = ({ session }) => {
       )}
 
       {rechnungsLoeschDialog && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 flex items-center justify-center">
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)] flex items-center justify-center">
           <div className="w-full max-w-md rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 shadow-elevation-3">
             <div className="p-4 border-b border-light-border dark:border-dark-border">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
@@ -1419,7 +1430,7 @@ const HomeBudget = ({ session }) => {
       )}
 
       {einzahlenModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)]">
           <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-sm w-full border border-light-border dark:border-dark-border">
             <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">

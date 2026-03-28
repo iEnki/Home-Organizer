@@ -290,7 +290,7 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.15 }}
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-canvas-0/70 backdrop-blur-sm"
+      className="fixed inset-0 z-[200] flex items-center justify-center pt-4 px-4 pb-[calc(var(--safe-area-bottom)+1rem)] bg-canvas-0/70 backdrop-blur-sm"
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 12 }}
@@ -298,7 +298,7 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
         exit={{ opacity: 0, scale: 0.95, y: 8 }}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
         className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-3 w-full max-w-lg
-                      flex flex-col max-h-[90vh] overflow-hidden"
+                      flex flex-col max-h-[calc(100dvh-var(--safe-area-bottom)-2rem)] lg:max-h-[90vh] overflow-hidden"
       >
 
         {/* Header */}

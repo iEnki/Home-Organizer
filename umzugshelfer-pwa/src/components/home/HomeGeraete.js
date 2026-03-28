@@ -104,9 +104,22 @@ const HomeGeraete = ({ session }) => {
   useEffect(() => { ladeDaten(); }, [ladeDaten]);
 
   const speichere = async (daten) => {
-    const payload = { ...daten, user_id: userId };
+    const str2null = (v) => (v === "" ? null : v);
+    const cleanDaten = {
+      ...daten,
+      kaufdatum: str2null(daten.kaufdatum),
+      garantie_bis: str2null(daten.garantie_bis),
+      naechste_wartung: str2null(daten.naechste_wartung),
+      kaufpreis: daten.kaufpreis === "" ? null : parseFloat(daten.kaufpreis) || null,
+      wartungsintervall_monate: daten.wartungsintervall_monate === "" ? null : parseInt(daten.wartungsintervall_monate, 10) || null,
+      hersteller: str2null(daten.hersteller),
+      modell: str2null(daten.modell),
+      seriennummer: str2null(daten.seriennummer),
+      notizen: str2null(daten.notizen),
+    };
+    const payload = { ...cleanDaten, user_id: userId };
     if (modal?.id) {
-      await supabase.from("home_geraete").update(daten).eq("id", modal.id);
+      await supabase.from("home_geraete").update(cleanDaten).eq("id", modal.id);
     } else {
       await supabase.from("home_geraete").insert(payload);
     }
@@ -293,8 +306,8 @@ const HomeGeraete = ({ session }) => {
 
       {/* Gerät-Formular-Modal */}
       {modal !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)]">
+          <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border max-h-[calc(100dvh-var(--safe-area-bottom)-2rem)] lg:max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border sticky top-0 bg-light-card dark:bg-canvas-2">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">{modal.id ? "Gerät bearbeiten" : "Neues Gerät"}</h3>
               <button onClick={() => setModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary"><X size={18} /></button>
@@ -335,8 +348,8 @@ const HomeGeraete = ({ session }) => {
 
       {/* Dokumenten-Picker-Modal */}
       {dokuModal !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-sm w-full border border-light-border dark:border-dark-border max-h-[80vh] flex flex-col">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)]">
+          <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-sm w-full border border-light-border dark:border-dark-border max-h-[calc(100dvh-var(--safe-area-bottom)-2rem)] lg:max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
               <h3 className="font-semibold text-sm text-light-text-main dark:text-dark-text-main">Dokument verknüpfen</h3>
               <button onClick={() => setDokuModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary"><X size={18} /></button>

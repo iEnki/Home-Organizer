@@ -637,7 +637,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
   const reviewNoetigCount = positionen.filter((p) => p.review_noetig).length;
 
   return (
-    <div className="fixed inset-0 z-50 bg-canvas-0 overflow-y-auto">
+    <div className="fixed inset-0 z-[100] bg-canvas-0 overflow-y-auto">
       {/* Sticky Header */}
       <div className="sticky top-0 z-10 bg-canvas-1 border-b border-canvas-3 px-4 py-3 flex items-center gap-3">
         <button
@@ -664,7 +664,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
         </button>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 py-5 space-y-5">
+      <div className="max-w-lg mx-auto px-4 pt-5 pb-[calc(var(--safe-area-bottom)+2rem)] space-y-5">
         {/* Warnungen */}
         {niedrigeConfidence && (
           <div className="flex items-start gap-3 p-3 rounded-card-sm bg-accent-danger/10 border border-accent-danger/30">

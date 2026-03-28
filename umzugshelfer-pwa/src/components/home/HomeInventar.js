@@ -891,8 +891,8 @@ const HomeInventar = ({ session }) => {
 
       {/* Modals */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center py-4 px-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center pt-4 pb-[calc(var(--safe-area-bottom)+1rem)] px-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border max-h-[calc(100dvh-var(--safe-area-bottom)-2rem)] lg:max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border sticky top-0 bg-light-card dark:bg-canvas-2">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
                 {modal.typ === "ort" && (modal.daten?.id ? "Standort bearbeiten" : "Neuer Standort")}
