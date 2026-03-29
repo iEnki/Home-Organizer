@@ -1144,6 +1144,7 @@ CREATE TABLE IF NOT EXISTS public.home_geraete (
   kaufdatum                date,
   kaufpreis                numeric(10,2),
   garantie_bis             date,
+  gewaehrleistung_bis      date,
   naechste_wartung         date,
   wartungsintervall_monate integer,
   notizen                  text,
@@ -1595,6 +1596,10 @@ END $$;
 -- home_projekte: deadline-Spalte sicherstellen
 ALTER TABLE public.home_projekte
   ADD COLUMN IF NOT EXISTS deadline date;
+
+-- home_geraete: Gewährleistung-Spalte sicherstellen
+ALTER TABLE public.home_geraete
+  ADD COLUMN IF NOT EXISTS gewaehrleistung_bis date;
 
 
 -- ============================================================
