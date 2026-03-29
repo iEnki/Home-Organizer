@@ -14,6 +14,7 @@ const GeraetForm = ({ initial, onSpeichern, onAbbrechen }) => {
     seriennummer: initial?.seriennummer || "",
     kaufdatum: initial?.kaufdatum || "",
     kaufpreis: initial?.kaufpreis || "",
+    gewaehrleistung_bis: initial?.gewaehrleistung_bis || "",
     garantie_bis: initial?.garantie_bis || "",
     naechste_wartung: initial?.naechste_wartung || "",
     wartungsintervall_monate: initial?.wartungsintervall_monate || "",
@@ -36,13 +37,17 @@ const GeraetForm = ({ initial, onSpeichern, onAbbrechen }) => {
           <input value={form.modell} onChange={(e) => setForm((p) => ({ ...p, modell: e.target.value }))} placeholder="z.B. WAX32K42" className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none" />
         </div>
       </div>
+      <div>
+        <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Kaufdatum</label>
+        <input type="date" value={form.kaufdatum} onChange={(e) => setForm((p) => ({ ...p, kaufdatum: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none" />
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Kaufdatum</label>
-          <input type="date" value={form.kaufdatum} onChange={(e) => setForm((p) => ({ ...p, kaufdatum: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none" />
+          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Gewährleistung bis</label>
+          <input type="date" value={form.gewaehrleistung_bis} onChange={(e) => setForm((p) => ({ ...p, gewaehrleistung_bis: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Garantie bis</label>
+          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Herstellergarantie bis</label>
           <input type="date" value={form.garantie_bis} onChange={(e) => setForm((p) => ({ ...p, garantie_bis: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none" />
         </div>
       </div>
@@ -108,6 +113,7 @@ const HomeGeraete = ({ session }) => {
     const cleanDaten = {
       ...daten,
       kaufdatum: str2null(daten.kaufdatum),
+      gewaehrleistung_bis: str2null(daten.gewaehrleistung_bis),
       garantie_bis: str2null(daten.garantie_bis),
       naechste_wartung: str2null(daten.naechste_wartung),
       kaufpreis: daten.kaufpreis === "" ? null : parseFloat(daten.kaufpreis) || null,
@@ -195,6 +201,7 @@ const HomeGeraete = ({ session }) => {
         <div data-tour="tour-geraete-liste" className="space-y-3">
           {geraete.map((g) => {
             const wartungFaellig = g.naechste_wartung && g.naechste_wartung <= heute;
+            const gewaehrleistungAbgelaufen = g.gewaehrleistung_bis && g.gewaehrleistung_bis < heute;
             const garantieAbgelaufen = g.garantie_bis && g.garantie_bis < heute;
             const geraetWartungen = wartungen.filter((w) => w.geraet_id === g.id);
             const isOffen = ausgeklappt[g.id];
@@ -213,14 +220,26 @@ const HomeGeraete = ({ session }) => {
                       <h3 className="font-medium text-sm text-light-text-main dark:text-dark-text-main">{g.name}</h3>
                       {g.hersteller && <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{g.hersteller}</span>}
                       {wartungFaellig && <span className="flex items-center gap-0.5 text-xs text-orange-500 rounded-pill"><AlertTriangle size={11} />Wartung fällig</span>}
+                      {gewaehrleistungAbgelaufen && <span className="text-xs text-orange-400 rounded-pill">Gewährleistung abgelaufen</span>}
                       {garantieAbgelaufen && <span className="text-xs text-gray-400 rounded-pill">Garantie abgelaufen</span>}
                       {verknuepftIds.length > 0 && (
                         <span className="flex items-center gap-0.5 text-xs text-blue-500"><FileText size={11} />{verknuepftIds.length}</span>
                       )}
                     </div>
-                    <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
-                      {g.naechste_wartung && <span>Nächste Wartung: {g.naechste_wartung}</span>}
-                      {g.garantie_bis && !garantieAbgelaufen && <span className="ml-3">Garantie bis: {g.garantie_bis}</span>}
+                    <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5 space-y-0.5">
+                      {g.naechste_wartung && (
+                        <div>Nächste Wartung: {new Date(g.naechste_wartung).toLocaleDateString("de-DE")}</div>
+                      )}
+                      {g.gewaehrleistung_bis && (
+                        <div className={gewaehrleistungAbgelaufen ? "line-through" : ""}>
+                          Gewährleistung bis: {new Date(g.gewaehrleistung_bis).toLocaleDateString("de-DE")}
+                        </div>
+                      )}
+                      {g.garantie_bis && (
+                        <div className={garantieAbgelaufen ? "line-through" : ""}>
+                          Herstellergarantie bis: {new Date(g.garantie_bis).toLocaleDateString("de-DE")}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">

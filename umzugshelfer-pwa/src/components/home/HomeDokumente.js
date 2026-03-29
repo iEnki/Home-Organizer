@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   FileText, FolderOpen, Upload, Download, Trash2, BookOpen,
-  Search, X, Plus, CheckCircle, File, Loader2, AlertTriangle,
+  Search, X, Plus, CheckCircle, File, Loader2, AlertTriangle, Pencil, ZoomIn, ZoomOut,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase, getActiveHouseholdId } from "../../supabaseClient";
@@ -44,6 +44,19 @@ const BUDGET_INSERT_VARIANTEN = [
   ["user_id", "beschreibung", "betrag", "datum", "kategorie"],
 ];
 
+const guessMimeFromName = (name) => {
+  const n = (name || "").toLowerCase();
+  if (n.endsWith(".jpg") || n.endsWith(".jpeg")) return "image/jpeg";
+  if (n.endsWith(".png"))  return "image/png";
+  if (n.endsWith(".webp")) return "image/webp";
+  if (n.endsWith(".gif"))  return "image/gif";
+  if (n.endsWith(".bmp"))  return "image/bmp";
+  if (n.endsWith(".heic")) return "image/heic";
+  if (n.endsWith(".heif")) return "image/heif";
+  if (n.endsWith(".pdf"))  return "application/pdf";
+  return "";
+};
+
 // Legacy: Extrahiert den [kategorie_hinweis] aus der alten Beschreibung
 const extrahiereKategorieHinweis = (beschreibung) => {
   const match = beschreibung?.match(/\[([^\]]+)\]$/);
@@ -61,6 +74,22 @@ const istBildDatei = (dok) => (dok?.datei_typ || "").startsWith("image/");
 
 const hatRechnungsBildVorschau = (dok) =>
   istRechnungKategorie(dok) && istBildDatei(dok) && !!dok?.storage_pfad;
+
+
+const hatBildDateiExtension = (dok) =>
+  /\.(png|jpe?g|webp|gif|bmp|heic|heif)$/i.test(
+    dok?.dateiname || dok?.storage_pfad || ""
+  );
+
+const hatBildVorschauCheck = (dok) =>
+  !!dok?.storage_pfad && (istBildDatei(dok) || hatBildDateiExtension(dok));
+
+const istPdfDatei = (dok) =>
+  (dok?.datei_typ || "").includes("pdf") ||
+  /\.pdf$/i.test(dok?.dateiname || dok?.storage_pfad || "");
+
+const hatVorschauCheck = (dok) =>
+  !!dok?.storage_pfad && (hatBildVorschauCheck(dok) || istPdfDatei(dok));
 
 const effektiveKategorie = (dok) => {
   if (dok?.kategorie) return dok.kategorie;
@@ -103,7 +132,7 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
       const { error: dbErr } = await supabase.from("dokumente").insert({
         user_id: userId,
         dateiname: datei.name,
-        datei_typ: datei.type,
+        datei_typ: datei.type || guessMimeFromName(datei.name) || null,
         storage_pfad: filePath,
         beschreibung: beschreibung || null,
         groesse_kb: Math.round(datei.size / 1024),
@@ -436,6 +465,125 @@ const BudgetZuordnungModal = ({ dok, initial, onSchliessen, onSpeichern, speiche
   );
 };
 
+// ── Bearbeiten-Modal ──────────────────────────────────────────────────────────
+const BearbeitenModal = ({ dok, onSchliessen, onGespeichert }) => {
+  const [dateiname, setDateiname] = useState(dok.dateiname || "");
+  const [beschreibung, setBeschreibung] = useState(
+    dok.beschreibung?.replace(/\s*\[[^\]]+\]$/, "") || ""
+  );
+  const [kategorie, setKategorie] = useState(effektiveKategorie(dok) || "Sonstiges");
+  const [speichern, setSpeichern] = useState(false);
+  const [fehler, setFehler] = useState("");
+
+  const handleSpeichern = async () => {
+    if (!dateiname.trim()) return;
+    setSpeichern(true);
+    setFehler("");
+    try {
+      const neuerDokumentTyp =
+        kategorie === "Rechnung" ? "rechnung" : dok.dokument_typ;
+      const updated = {
+        dateiname: dateiname.trim(),
+        beschreibung: beschreibung.trim() || null,
+        kategorie,
+        dokument_typ: neuerDokumentTyp,
+      };
+      const { error } = await supabase
+        .from("dokumente")
+        .update(updated)
+        .eq("id", dok.id);
+      if (error) throw error;
+      onGespeichert(updated);
+    } catch (err) {
+      setFehler(`Fehler: ${err.message}`);
+      setSpeichern(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)] bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 max-h-[calc(100dvh-var(--safe-area-bottom)-2rem)] lg:max-h-[90vh] flex flex-col">
+
+        {/* Header */}
+        <div className="shrink-0 flex items-center justify-between px-5 pt-5 pb-4 border-b border-light-border dark:border-dark-border">
+          <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
+            <Pencil size={16} className="text-primary-500" /> Dokument bearbeiten
+          </h2>
+          <button
+            onClick={onSchliessen}
+            className="w-8 h-8 flex items-center justify-center rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 pt-4 pb-2 space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
+              Dateiname
+            </label>
+            <input
+              value={dateiname}
+              onChange={(e) => setDateiname(e.target.value)}
+              className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
+              Beschreibung (optional)
+            </label>
+            <input
+              value={beschreibung}
+              onChange={(e) => setBeschreibung(e.target.value)}
+              placeholder="z.B. Mietvertrag Neue Str. 5"
+              className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
+              Kategorie
+            </label>
+            <select
+              value={kategorie}
+              onChange={(e) => setKategorie(e.target.value)}
+              className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
+            >
+              {KATEGORIEN.map((k) => <option key={k}>{k}</option>)}
+            </select>
+          </div>
+
+          {fehler && (
+            <div className="p-3 rounded-card-sm bg-red-500/10 border border-red-500/30 flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+              <AlertTriangle size={14} /> {fehler}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="shrink-0 flex gap-2 px-5 py-4 border-t border-light-border dark:border-dark-border">
+          <button
+            onClick={onSchliessen}
+            className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main"
+          >
+            Abbrechen
+          </button>
+          <button
+            onClick={handleSpeichern}
+            disabled={!dateiname.trim() || speichern}
+            className="flex-1 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {speichern ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+            Speichern
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── Dokument-Karte ─────────────────────────────────────────────────────────────
 const DokumentKarte = ({
   dok,
@@ -443,6 +591,7 @@ const DokumentKarte = ({
   onLoeschen,
   onWissen,
   onZumBudget,
+  onBearbeiten,
   laedtDownload,
   highlighted,
 }) => {
@@ -450,7 +599,11 @@ const DokumentKarte = ({
   const katFarbe = KATEGORIE_FARBEN[kat] || KATEGORIE_FARBEN.Sonstiges;
   const beschreibungOhneHinweis = dok.beschreibung?.replace(/\s*\[[^\]]+\]$/, "") || "";
   const [vorschauOffen, setVorschauOffen] = useState(false);
-  const hatBildVorschau = hatRechnungsBildVorschau(dok) && !!dok.vorschau_url;
+  const [zoom, setZoom] = useState(1);
+  const istPdf = istPdfDatei(dok);
+  const hatBildVorschau = hatBildVorschauCheck(dok) && !!dok.vorschau_url;
+  const hatPdfVorschau = istPdf && !!dok.vorschau_url && !hatBildVorschau;
+  const hatVorschau = hatBildVorschau || hatPdfVorschau;
 
   const dateiIcon = () => {
     if (dok.datei_typ?.startsWith("image/")) return <File size={20} className="text-blue-500" />;
@@ -500,22 +653,28 @@ const DokumentKarte = ({
         </div>
       </div>
 
-      {hatBildVorschau && (
+      {hatVorschau && (
         <div className="mt-3 pt-3 border-t border-light-border dark:border-dark-border space-y-2">
           <button
             type="button"
-            onClick={() => setVorschauOffen((prev) => !prev)}
+            onClick={() => { setVorschauOffen((prev) => !prev); setZoom(1); }}
             className="w-full flex items-center gap-2 rounded-card-sm border border-light-border dark:border-dark-border p-2 text-left hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors"
           >
-            <img
-              src={dok.vorschau_url}
-              alt={`Vorschau von ${dok.dateiname}`}
-              className="w-14 h-14 rounded-card-sm object-cover border border-light-border dark:border-dark-border flex-shrink-0"
-              loading="lazy"
-            />
+            {hatBildVorschau ? (
+              <img
+                src={dok.vorschau_url}
+                alt={`Vorschau von ${dok.dateiname}`}
+                className="w-14 h-14 rounded-card-sm object-cover border border-light-border dark:border-dark-border flex-shrink-0"
+                loading="lazy"
+              />
+            ) : (
+              <div className="w-14 h-14 rounded-card-sm border border-light-border dark:border-dark-border flex-shrink-0 flex items-center justify-center bg-red-500/10">
+                <FileText size={24} className="text-red-500" />
+              </div>
+            )}
             <div className="min-w-0">
               <p className="text-xs font-medium text-light-text-main dark:text-dark-text-main">
-                Rechnungsvorschau
+                {hatPdfVorschau ? "PDF Vorschau" : istRechnungKategorie(dok) ? "Rechnungsvorschau" : "Bildvorschau"}
               </p>
               <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
                 {vorschauOffen ? "Zum Schliessen erneut klicken" : "Zum Oeffnen klicken"}
@@ -524,18 +683,52 @@ const DokumentKarte = ({
           </button>
 
           {vorschauOffen && (
-            <button
-              type="button"
-              onClick={() => setVorschauOffen(false)}
-              className="w-full rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 p-2 hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors"
-            >
-              <img
+            hatBildVorschau ? (
+              <div className="rounded-card-sm border border-light-border dark:border-dark-border overflow-hidden">
+                <div className="flex items-center justify-between px-2 py-1 bg-light-bg dark:bg-canvas-1 border-b border-light-border dark:border-dark-border">
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.5).toFixed(1)))}
+                      className="w-6 h-6 flex items-center justify-center rounded hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary"
+                    >
+                      <ZoomOut size={12} />
+                    </button>
+                    <button
+                      onClick={() => setZoom(1)}
+                      className="px-1.5 text-[10px] text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 min-w-[36px] text-center"
+                    >
+                      {Math.round(zoom * 100)}%
+                    </button>
+                    <button
+                      onClick={() => setZoom((z) => Math.min(4, +(z + 0.5).toFixed(1)))}
+                      className="w-6 h-6 flex items-center justify-center rounded hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary"
+                    >
+                      <ZoomIn size={12} />
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => { setVorschauOffen(false); setZoom(1); }}
+                    className="w-6 h-6 flex items-center justify-center rounded hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+                <div className="overflow-auto max-h-72 bg-light-bg dark:bg-canvas-1 cursor-grab active:cursor-grabbing">
+                  <img
+                    src={dok.vorschau_url}
+                    alt={`Rechnung ${dok.dateiname}`}
+                    style={{ width: `${zoom * 100}%`, display: 'block' }}
+                    loading="lazy"
+                  />
+                </div>
+              </div>
+            ) : (
+              <iframe
                 src={dok.vorschau_url}
-                alt={`Rechnung ${dok.dateiname}`}
-                className="w-full max-h-72 object-contain rounded-card-sm"
-                loading="lazy"
+                title={`PDF: ${dok.dateiname}`}
+                className="w-full h-72 rounded-card-sm border border-light-border dark:border-dark-border"
               />
-            </button>
+            )
           )}
         </div>
       )}
@@ -569,8 +762,14 @@ const DokumentKarte = ({
           )
         )}
         <button
+          onClick={() => onBearbeiten(dok)}
+          className="ml-auto flex items-center px-2.5 py-1.5 text-xs rounded-card-sm bg-light-hover dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main transition-colors"
+        >
+          <Pencil size={12} />
+        </button>
+        <button
           onClick={() => onLoeschen(dok.id, dok.storage_pfad, dok.dateiname)}
-          className="ml-auto flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm text-red-500 hover:bg-red-500/10 transition-colors"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm text-red-500 hover:bg-red-500/10 transition-colors"
         >
           <Trash2 size={12} />
         </button>
@@ -596,6 +795,7 @@ const HomeDokumente = ({ session }) => {
   const [budgetModalDok, setBudgetModalDok] = useState(null);
   const [budgetModalInitial, setBudgetModalInitial] = useState(null);
   const [budgetSpeichern, setBudgetSpeichern] = useState(false);
+  const [bearbeitenModalDok, setBearbeitenModalDok] = useState(null);
   const [kategorieFilter, setKategorieFilter] = useState("Alle");
   const [suchbegriff, setSuchbegriff] = useState("");
   const [highlightedDokumentId, setHighlightedDokumentId] = useState(null);
@@ -603,7 +803,7 @@ const HomeDokumente = ({ session }) => {
   const focusDokumentId = location.state?.focusDokumentId || null;
 
   const baueVorschauUrls = useCallback(async (doks) => {
-    const zielDoks = doks.filter((dok) => hatRechnungsBildVorschau(dok));
+    const zielDoks = doks.filter((dok) => hatVorschauCheck(dok));
     if (zielDoks.length === 0) return {};
 
     const vorschauEintraege = await Promise.all(
@@ -787,6 +987,12 @@ const HomeDokumente = ({ session }) => {
     setWissenModalDok(null);
     setWissenErfolgreich(true);
     setTimeout(() => setWissenErfolgreich(false), 3000);
+  };
+
+  // ── Bearbeiten-Erfolg ──────────────────────────────────────────────────────
+  const handleBearbeitenGespeichert = (id, updated) => {
+    setDokumente((prev) => prev.map((d) => (d.id === id ? { ...d, ...updated } : d)));
+    setBearbeitenModalDok(null);
   };
 
   const oeffneBudgetModal = (dok) => {
@@ -986,6 +1192,7 @@ const HomeDokumente = ({ session }) => {
               onLoeschen={handleLoeschen}
               onWissen={setWissenModalDok}
               onZumBudget={oeffneBudgetModal}
+              onBearbeiten={setBearbeitenModalDok}
               laedtDownload={laedtDownload}
               highlighted={highlightedDokumentId === dok.id}
             />
@@ -1023,6 +1230,15 @@ const HomeDokumente = ({ session }) => {
         />
       )}
 
+      {bearbeitenModalDok && (
+        <BearbeitenModal
+          dok={bearbeitenModalDok}
+          onSchliessen={() => setBearbeitenModalDok(null)}
+          onGespeichert={(updated) =>
+            handleBearbeitenGespeichert(bearbeitenModalDok.id, updated)
+          }
+        />
+      )}
       {/* Tour */}
       {tourAktiv && TOUR_STEPS.dokumente && (
         <TourOverlay

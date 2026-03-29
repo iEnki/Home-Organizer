@@ -536,22 +536,35 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
               name:        geraetName,
               hersteller:  geraetHersteller || null,
               kaufdatum:   datum || null,
-              kaufpreis:   gesamtNum,
-              garantie_bis: garantieBis || null,
+              kaufpreis:           gesamtNum,
+              gewaehrleistung_bis: gewaehrleistungBis || null,
+              garantie_bis:        garantieBis        || null,
             })
             .select("id")
             .single();
 
           if (geraetErr) {
             warnings.push("Geraet konnte nicht gespeichert werden.");
-          } else if (naechsteWartung && geraetData?.id) {
+          } else if (geraetData?.id) {
             try {
-              await supabase.from("home_wartungen").insert({
-                geraet_id:           geraetData.id,
-                naechste_faelligkeit: naechsteWartung,
-                beschreibung:        "Wartung",
+              await supabase.from("dokument_links").insert({
+                household_id: householdId,
+                dokument_id:  dokDatenbankId,
+                entity_type:  "home_geraet",
+                entity_id:    geraetData.id,
+                role:         "source",
               });
-            } catch { warnings.push("Wartung konnte nicht gespeichert werden."); }
+            } catch { warnings.push("Dokument-Verknüpfung konnte nicht gespeichert werden."); }
+
+            if (naechsteWartung) {
+              try {
+                await supabase.from("home_wartungen").insert({
+                  geraet_id:           geraetData.id,
+                  naechste_faelligkeit: naechsteWartung,
+                  beschreibung:        "Wartung",
+                });
+              } catch { warnings.push("Wartung konnte nicht gespeichert werden."); }
+            }
           }
         } catch { warnings.push("Geraet fehlgeschlagen."); }
       }
