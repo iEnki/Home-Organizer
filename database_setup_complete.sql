@@ -2882,6 +2882,10 @@ ALTER TABLE public.household_settings
 REVOKE SELECT (bildanalyse_openai_api_key) ON TABLE public.household_settings FROM anon, authenticated;
 REVOKE UPDATE (bildanalyse_openai_api_key) ON TABLE public.household_settings FROM anon, authenticated;
 
+-- openai_api_key: Column-Level Security (wie bildanalyse_openai_api_key)
+REVOKE SELECT (openai_api_key) ON TABLE public.household_settings FROM anon, authenticated;
+REVOKE UPDATE (openai_api_key) ON TABLE public.household_settings FROM anon, authenticated;
+
 -- ollama_vision_model: separates Vision-Modell fuer Ollama-Bildanalyse
 ALTER TABLE public.household_settings
   ADD COLUMN IF NOT EXISTS ollama_vision_model text;
@@ -2922,6 +2926,33 @@ BEGIN
       ollama_vision_model            = COALESCE(p_ollama_vision_model, public.household_settings.ollama_vision_model),
       updated_at                     = NOW();
 END;
+$$;
+
+-- RPC: KI-Status fuer Nicht-Admin-Mitglieder
+-- SECURITY DEFINER liest openai_api_key intern, gibt nur Booleans zurueck.
+CREATE OR REPLACE FUNCTION public.get_household_ki_status()
+RETURNS TABLE (
+  ki_provider             text,
+  ki_konfiguriert         boolean,
+  bildanalyse_modus       text,
+  bildanalyse_key_gesetzt boolean
+)
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = ''
+AS $$
+  WITH hh AS (
+    SELECT public.get_current_household_id() AS household_id
+  )
+  SELECT
+    COALESCE(hs.ki_provider,    'openai')                                     AS ki_provider,
+    COALESCE(
+      hs.openai_api_key IS NOT NULL OR hs.ollama_base_url IS NOT NULL,
+      false
+    )                                                                          AS ki_konfiguriert,
+    COALESCE(hs.bildanalyse_modus, 'chatgpt_vision')                          AS bildanalyse_modus,
+    COALESCE(hs.bildanalyse_openai_key_set, false)                            AS bildanalyse_key_gesetzt
+  FROM hh
+  LEFT JOIN public.household_settings hs ON hs.household_id = hh.household_id;
 $$;
 
 -- ============================================================
