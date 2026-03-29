@@ -11,6 +11,7 @@
 #   [7] Ollama            — KI-Assistent konfigurieren
 #   [8] Konfiguration     — App-URL / Port / Admin-E-Mail anpassen
 #   [9] Status            — Laufende Container und Logs anzeigen
+#   [10] Docker bereinigen — Ungenutzte Container, Images + Volumes löschen
 #   [0] Beenden
 #
 # Verwendung: chmod +x scripts/manage.sh && ./scripts/manage.sh
@@ -1899,6 +1900,46 @@ APPONLY_CREDS
 }
 
 # ============================================================
+# DOCKER BEREINIGEN
+# ============================================================
+modus_docker_cleanup() {
+  header "Docker bereinigen"
+  echo ""
+  echo -e "  ${BOLD}Was wird gelöscht:${NC}"
+  echo "  • Alle gestoppten Container"
+  echo "  • Alle nicht verwendeten Images (auch tagged)"
+  echo "  • Alle nicht verwendeten Volumes"
+  echo "  • Alle nicht verwendeten Netzwerke"
+  echo "  • Build-Cache"
+  echo ""
+  warn "Laufende Container und deren Daten werden NICHT gelöscht."
+  warn "Supabase-Datenvolumes bleiben erhalten, solange der Stack läuft."
+  echo ""
+
+  # Vorher: belegten Speicher anzeigen
+  echo -e "  ${DIM}Aktueller Docker-Speicherverbrauch:${NC}"
+  docker system df 2>/dev/null || true
+  echo ""
+
+  read -rp "  Wirklich bereinigen? Nicht rückgängig zu machen! [j/N]: " CONFIRM
+  if [[ "$CONFIRM" != "j" && "$CONFIRM" != "J" ]]; then
+    info "Abgebrochen."
+    weiter
+    return
+  fi
+
+  echo ""
+  info "Bereinige Docker-Ressourcen..."
+  docker system prune -a --volumes -f
+  echo ""
+  success "Docker bereinigt."
+  echo ""
+  echo -e "  ${DIM}Speicherverbrauch nach Bereinigung:${NC}"
+  docker system df 2>/dev/null || true
+  weiter
+}
+
+# ============================================================
 # HAUPTSCHLEIFE
 # ============================================================
 while true; do
@@ -1956,6 +1997,7 @@ while true; do
   echo -e "  ${BOLD}[7]${NC} Ollama            — KI-Assistent konfigurieren"
   echo -e "  ${BOLD}[8]${NC} Konfiguration     — App-URL / Port / Admin-E-Mail anpassen"
   echo -e "  ${BOLD}[9]${NC} Status            — Laufende Container und Logs anzeigen"
+  echo -e "  ${BOLD}[10]${NC} Docker bereinigen — Ungenutzte Container, Images + Volumes löschen"
   echo "  [0] Beenden"
   echo ""
   read -p "  → Wahl [1]: " MAIN_CHOICE
@@ -1971,6 +2013,7 @@ while true; do
     7) modus_ollama ;;
     8) modus_config ;;
     9) modus_status ;;
+    10) modus_docker_cleanup ;;
     0) echo ""; echo "  Auf Wiedersehen."; echo ""; exit 0 ;;
     *) warn "Ungültige Auswahl."; sleep 1 ;;
   esac
