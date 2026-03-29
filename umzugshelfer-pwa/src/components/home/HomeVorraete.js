@@ -11,7 +11,11 @@ import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
 
 const KATEGORIEN = ["Haushalt", "Lebensmittel", "Hygiene", "Reinigung", "Technik", "Sonstiges"];
-const EINHEITEN = ["Stück", "Packung", "Liter", "kg", "Dose", "Flasche", "Rolle", "Paar", "Satz"];
+const EINHEITEN = [
+  "Stück", "Packung", "Liter", "ml", "kg", "g",
+  "Dose", "Flasche", "Rolle", "Sack", "Beutel", "Tüte",
+  "Tube", "Glas", "Becher", "Kasten", "Karton", "Paar", "Satz",
+];
 
 const VorratForm = ({ initial, onSpeichern, onAbbrechen }) => {
   const [form, setForm] = useState({

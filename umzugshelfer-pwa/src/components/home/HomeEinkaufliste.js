@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { ShoppingCart, Plus, Trash2, X, Check, Circle, Loader2, AlertCircle, Sparkles } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, X, Check, Circle, Loader2, AlertCircle, Sparkles, Pencil } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../../supabaseClient";
 import KiHomeAssistent from "./KiHomeAssistent";
@@ -8,7 +8,11 @@ import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
 
 const KATEGORIEN = ["Lebensmittel", "Haushalt", "Hygiene", "Reinigung", "Technik", "Sonstiges"];
-const EINHEITEN = ["Stück", "Packung", "Liter", "kg", "Dose", "Flasche", "Rolle"];
+const EINHEITEN = [
+  "Stück", "Packung", "Liter", "ml", "kg", "g",
+  "Dose", "Flasche", "Rolle", "Sack", "Beutel", "Tüte",
+  "Tube", "Glas", "Becher", "Kasten", "Karton", "Paar", "Satz",
+];
 
 const HomeEinkaufliste = ({ session }) => {
   const userId = session?.user?.id;
@@ -16,6 +20,7 @@ const HomeEinkaufliste = ({ session }) => {
   const [loading, setLoading] = useState(true);
   const [eintraege, setEintraege] = useState([]);
   const [modal, setModal] = useState(false);
+  const [editId, setEditId] = useState(null);
   const [fehler, setFehler] = useState(null);
   const [form, setForm] = useState({ name: "", menge: 1, einheit: "Stück", kategorie: "Haushalt" });
   const [kiOffen, setKiOffen] = useState(false);
@@ -41,11 +46,28 @@ const HomeEinkaufliste = ({ session }) => {
 
   useEffect(() => { ladeDaten(); }, [ladeDaten]);
 
-  const hinzufuegen = async () => {
-    if (!form.name.trim()) return;
-    await supabase.from("home_einkaufliste").insert({ ...form, user_id: userId, name: form.name.trim() });
-    setForm({ name: "", menge: 1, einheit: "Stück", kategorie: "Haushalt" });
+  const modalSchliessen = () => {
     setModal(false);
+    setEditId(null);
+    setForm({ name: "", menge: 1, einheit: "Stück", kategorie: "Haushalt" });
+  };
+
+  const bearbeiten = (item) => {
+    setForm({ name: item.name, menge: item.menge, einheit: item.einheit, kategorie: item.kategorie || "Haushalt" });
+    setEditId(item.id);
+    setModal(true);
+  };
+
+  const speichern = async () => {
+    if (!form.name.trim()) return;
+    if (editId) {
+      await supabase.from("home_einkaufliste")
+        .update({ name: form.name.trim(), menge: form.menge, einheit: form.einheit, kategorie: form.kategorie })
+        .eq("id", editId);
+    } else {
+      await supabase.from("home_einkaufliste").insert({ ...form, user_id: userId, name: form.name.trim() });
+    }
+    modalSchliessen();
     ladeDaten();
   };
 
@@ -154,7 +176,8 @@ const HomeEinkaufliste = ({ session }) => {
                       <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary ml-2">{e.menge} {e.einheit}</span>
                     </div>
                     <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{e.kategorie}</span>
-                    <button onClick={() => loesche(e.id)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={13} /></button>
+                    <button onClick={() => bearbeiten(e)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-secondary-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"><Pencil size={13} /></button>
+                    <button onClick={() => loesche(e.id)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"><Trash2 size={13} /></button>
                   </motion.div>
                 ))}
                 </AnimatePresence>
@@ -187,7 +210,8 @@ const HomeEinkaufliste = ({ session }) => {
                       <span className="text-sm text-light-text-main dark:text-dark-text-main line-through">{e.name}</span>
                       <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary ml-2">{e.menge} {e.einheit}</span>
                     </div>
-                    <button onClick={() => loesche(e.id)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={13} /></button>
+                    <button onClick={() => bearbeiten(e)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-secondary-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"><Pencil size={13} /></button>
+                    <button onClick={() => loesche(e.id)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"><Trash2 size={13} /></button>
                   </motion.div>
                 ))}
                 </AnimatePresence>
@@ -199,18 +223,22 @@ const HomeEinkaufliste = ({ session }) => {
 
       {/* Modal */}
       {modal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)]">
-          <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border">
-            <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
-              <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">Eintrag hinzufügen</h3>
-              <button onClick={() => setModal(false)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary"><X size={18} /></button>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pb-safe">
+          <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="shrink-0 flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
+              <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
+                {editId ? "Eintrag bearbeiten" : "Eintrag hinzufügen"}
+              </h3>
+              <button onClick={modalSchliessen} className="p-1 text-light-text-secondary dark:text-dark-text-secondary"><X size={18} /></button>
             </div>
-            <div className="p-4 space-y-3">
+            {/* Body scrollt bei aufgeklappter Tastatur */}
+            <div className="overflow-y-auto flex-1 p-4 pb-2 space-y-3">
               <div>
                 <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Artikel*</label>
-                <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && hinzufuegen()} placeholder="z.B. Waschmittel" className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:ring-2 focus:ring-secondary-500" autoFocus />
+                <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && speichern()} placeholder="z.B. Waschmittel" className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:ring-2 focus:ring-secondary-500" autoFocus />
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Menge</label>
                   <input type="number" min="0.5" step="0.5" value={form.menge} onChange={(e) => setForm((p) => ({ ...p, menge: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none" />
@@ -221,17 +249,20 @@ const HomeEinkaufliste = ({ session }) => {
                     {EINHEITEN.map((e) => <option key={e}>{e}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Kategorie</label>
-                  <select value={form.kategorie} onChange={(e) => setForm((p) => ({ ...p, kategorie: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none">
-                    {KATEGORIEN.map((k) => <option key={k}>{k}</option>)}
-                  </select>
-                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <button onClick={() => setModal(false)} className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main">Abbrechen</button>
-                <button onClick={hinzufuegen} disabled={!form.name.trim()} className="flex-1 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50">Hinzufügen</button>
+              <div>
+                <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Kategorie</label>
+                <select value={form.kategorie} onChange={(e) => setForm((p) => ({ ...p, kategorie: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none">
+                  {KATEGORIEN.map((k) => <option key={k}>{k}</option>)}
+                </select>
               </div>
+            </div>
+            {/* Footer sticky */}
+            <div className="shrink-0 border-t border-light-border dark:border-dark-border px-4 py-3 flex gap-2">
+              <button onClick={modalSchliessen} className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main">Abbrechen</button>
+              <button onClick={speichern} disabled={!form.name.trim()} className="flex-1 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50">
+                {editId ? "Speichern" : "Hinzufügen"}
+              </button>
             </div>
           </div>
         </div>

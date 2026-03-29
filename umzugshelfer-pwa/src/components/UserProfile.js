@@ -55,7 +55,7 @@ const UserProfile = ({ session, householdContext }) => {
   const email    = session?.user?.email || "";
   const nameRaw  = session?.user?.user_metadata?.full_name || email.split("@")[0] || "Nutzer";
   const initiale = nameRaw.charAt(0).toUpperCase();
-  const isHouseholdAdmin = householdContext?.is_admin !== false;
+  const isHouseholdAdmin = householdContext?.is_admin === true;
 
   // â”€â”€ Basis-States â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [ladend, setLadend] = useState(true);
@@ -79,6 +79,9 @@ const UserProfile = ({ session, householdContext }) => {
   const [ollamaStatus,    setOllamaStatus]    = useState(null);
   const [ollamaTestStatus,setOllamaTestStatus]= useState(null);
   const [ollamaModelle,   setOllamaModelle]   = useState([]);
+
+  // KI-Status für Nicht-Admin-Mitglieder
+  const [memberKiStatus, setMemberKiStatus] = useState(null); // { ki_provider, ki_konfiguriert, bildanalyse_modus, bildanalyse_key_gesetzt }
 
   // Bildanalyse
   const [bildanalyseModus,         setBildanalyseModus]         = useState("chatgpt_vision");
@@ -155,19 +158,31 @@ const UserProfile = ({ session, householdContext }) => {
       });
   }, [userId]);
 
-  // Bildanalyse-Einstellungen aus household_settings laden
+  // Bildanalyse-Einstellungen: nur für Admins (mit household_id-Filter)
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !isHouseholdAdmin || !householdContext?.household_id) return;
     supabase
       .from("household_settings")
       .select("bildanalyse_modus, bildanalyse_openai_key_set, ollama_vision_model")
+      .eq("household_id", householdContext.household_id)
       .maybeSingle()
       .then(({ data }) => {
         if (data?.bildanalyse_modus) setBildanalyseModus(data.bildanalyse_modus);
         if (data?.bildanalyse_openai_key_set !== undefined) setBildanalyseOpenaiKeySet(!!data.bildanalyse_openai_key_set);
         if (data?.ollama_vision_model) setOllamaVisionModel(data.ollama_vision_model);
       });
-  }, [userId]);
+  }, [userId, isHouseholdAdmin, householdContext?.household_id]);
+
+  // KI-Status für Nicht-Admin-Mitglieder via sicherem RPC
+  useEffect(() => {
+    if (!userId || isHouseholdAdmin) return;
+    supabase
+      .rpc("get_household_ki_status")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setMemberKiStatus(data);
+      });
+  }, [userId, isHouseholdAdmin]);
 
   useEffect(() => {
     if (!userId) return;
@@ -1157,10 +1172,44 @@ const UserProfile = ({ session, householdContext }) => {
       </AkkordeonSektion>
       </>
       ) : (
-      <AkkordeonSektion title="Haushaltseinstellungen" icon={<Shield size={16} />}>
-        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-          Globale Haushaltseinstellungen (App-Modus und KI) können nur vom Haushalts-Admin geändert werden.
+      <AkkordeonSektion title="KI-Status" icon={<Cpu size={16} />}>
+        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-4">
+          Die KI-Konfiguration wird vom Haushalts-Admin verwaltet. Du siehst hier den aktuellen Status.
         </p>
+        {memberKiStatus ? (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between py-2 border-b border-light-border dark:border-dark-border">
+              <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary">KI verfügbar</span>
+              {memberKiStatus.ki_konfiguriert ? (
+                <span className="flex items-center gap-1.5 text-sm text-accent-success">
+                  <CheckCircle size={14} /> Ja
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-sm text-accent-danger">
+                  <AlertCircle size={14} /> Nicht konfiguriert
+                </span>
+              )}
+            </div>
+            <div className="flex items-center justify-between py-2 border-b border-light-border dark:border-dark-border">
+              <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Provider</span>
+              <span className="text-sm font-medium text-light-text-main dark:text-dark-text-main capitalize">
+                {memberKiStatus.ki_provider || "–"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between py-2">
+              <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Bildanalyse</span>
+              {memberKiStatus.bildanalyse_key_gesetzt ? (
+                <span className="flex items-center gap-1.5 text-sm text-accent-success">
+                  <CheckCircle size={14} /> Konfiguriert
+                </span>
+              ) : (
+                <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Nicht konfiguriert</span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="h-16 bg-light-surface-1 dark:bg-canvas-3 rounded-card-sm animate-pulse" />
+        )}
       </AkkordeonSektion>
       )}
 
