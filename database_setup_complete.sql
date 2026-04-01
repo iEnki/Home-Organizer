@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS public.user_profile (
   ollama_base_url  text,                    -- z.B. http://192.168.1.100:11434
   ollama_model     text DEFAULT 'llama3.2', -- z.B. llama3.2, mistral, qwen2.5
   password_change_required boolean NOT NULL DEFAULT false,
+  mobile_nav_config jsonb NOT NULL DEFAULT '{"home":["aufgaben","inventar","budget"],"umzug":["todos","packliste","budget"]}'::jsonb,
   created_at       timestamptz DEFAULT NOW(),
   updated_at       timestamptz DEFAULT NOW()
 );
@@ -1552,6 +1553,18 @@ ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS ki_provider     text DE
 ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS ollama_base_url text;
 ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS ollama_model    text DEFAULT 'llama3.2';
 ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS password_change_required boolean NOT NULL DEFAULT false;
+
+-- Mobile Navigation-Konfiguration (robuste 4-Schritte-Sequenz)
+ALTER TABLE public.user_profile
+  ADD COLUMN IF NOT EXISTS mobile_nav_config jsonb;
+UPDATE public.user_profile
+  SET mobile_nav_config = '{"home":["aufgaben","inventar","budget"],"umzug":["todos","packliste","budget"]}'::jsonb
+  WHERE mobile_nav_config IS NULL;
+ALTER TABLE public.user_profile
+  ALTER COLUMN mobile_nav_config
+  SET DEFAULT '{"home":["aufgaben","inventar","budget"],"umzug":["todos","packliste","budget"]}'::jsonb;
+ALTER TABLE public.user_profile
+  ALTER COLUMN mobile_nav_config SET NOT NULL;
 
 -- Migration: persÃƒÂ¶nliche To-Do-Vorlagen (user_id nullable)
 ALTER TABLE public.todo_vorlagen
