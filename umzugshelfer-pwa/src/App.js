@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { sanitizeMobileNavFavorites } from "./config/mobileNavConfig";
 import {
   Routes,
   Route,
@@ -220,6 +221,7 @@ const AuthenticatedShell = ({
   householdContext,
   passwordChangeRequired,
   onPasswordChangeCompleted,
+  mobileNavFavorites,
 }) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -228,6 +230,12 @@ const AuthenticatedShell = ({
   const userId = session?.user?.id;
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+
+  // Bottombar-Einstellungen öffnen: Sheet schließen + zu Profil navigieren
+  const handleOpenNavSettings = useCallback(() => {
+    setMobileMoreOpen(false);
+    navigate("/profil", { state: { openSection: "mobile-nav" } });
+  }, [navigate]);
 
   // Modus wechseln + automatisch zum passenden Dashboard navigieren
   const handleToggleMode = useCallback(() => {
@@ -351,6 +359,7 @@ const AuthenticatedShell = ({
             appMode={appMode}
             onNavigate={navigate}
             onOpenMore={() => setMobileMoreOpen(true)}
+            mobileNavFavorites={mobileNavFavorites}
           />
 
           <MobileMoreSheet
@@ -360,6 +369,8 @@ const AuthenticatedShell = ({
             onClose={() => setMobileMoreOpen(false)}
             onNavigate={navigate}
             onToggleMode={handleToggleMode}
+            mobileNavFavorites={mobileNavFavorites}
+            onOpenNavSettings={handleOpenNavSettings}
           />
 
           <MobileSearchSheet
@@ -390,6 +401,7 @@ function App() {
   const [householdLoading, setHouseholdLoading] = useState(false);
   const [passwordChangeRequired, setPasswordChangeRequired] = useState(false);
   const [passwordFlagLoading, setPasswordFlagLoading] = useState(false);
+  const [mobileNavFavorites, setMobileNavFavorites] = useState(() => sanitizeMobileNavFavorites(null));
   useErinnerungen(session?.user?.id);
 
   useEffect(() => {
@@ -464,33 +476,38 @@ function App() {
   useEffect(() => {
     let cancelled = false;
 
-    const loadPasswordFlag = async () => {
+    const loadUserConfig = async () => {
       if (!session?.user?.id) {
         setPasswordChangeRequired(false);
+        setMobileNavFavorites(sanitizeMobileNavFavorites(null));
         setPasswordFlagLoading(false);
         return;
       }
 
       setPasswordFlagLoading(true);
       try {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("user_profile")
-          .select("password_change_required")
+          .select("password_change_required, mobile_nav_config")
           .eq("id", session.user.id)
           .single();
-
-        if (cancelled) return;
-        setPasswordChangeRequired(data?.password_change_required === true);
+        if (!cancelled) {
+          setPasswordChangeRequired(data?.password_change_required === true);
+          setMobileNavFavorites(sanitizeMobileNavFavorites(data?.mobile_nav_config ?? null));
+        }
       } catch (_err) {
-        if (!cancelled) setPasswordChangeRequired(false);
+        if (!cancelled) {
+          setPasswordChangeRequired(false);
+          setMobileNavFavorites(sanitizeMobileNavFavorites(null));
+        }
       } finally {
         if (!cancelled) setPasswordFlagLoading(false);
       }
     };
 
-    loadPasswordFlag();
+    loadUserConfig();
     return () => { cancelled = true; };
-  }, [session?.user?.id, location.pathname]);
+  }, [session?.user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Lade-Screen ──────────────────────────────────────────────────────────────
   const loadingScreen = (
@@ -517,6 +534,7 @@ function App() {
         householdContext={householdContext}
         passwordChangeRequired={passwordChangeRequired}
         onPasswordChangeCompleted={() => setPasswordChangeRequired(false)}
+        mobileNavFavorites={mobileNavFavorites}
       />
     );
 
@@ -588,7 +606,7 @@ function App() {
 
               {/* Übergreifend */}
               <Route path="/kalender" element={<KalenderUebersicht session={session} />} />
-              <Route path="/profil"   element={<UserProfile session={session} householdContext={householdContext} />} />
+              <Route path="/profil"   element={<UserProfile session={session} householdContext={householdContext} mobileNavFavorites={mobileNavFavorites} onMobileNavChange={setMobileNavFavorites} />} />
             </Route>
 
             {/* ── Fallback ─────────────────────────────────────────────────────── */}

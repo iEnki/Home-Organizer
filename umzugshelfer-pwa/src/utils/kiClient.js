@@ -19,19 +19,32 @@ const edgeChatClient = {
   chat: {
     completions: {
       create: async ({ model, messages, temperature }) => {
+        const doFetch = async (token) =>
+          fetch(buildFunctionsUrl("ki-chat"), {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`,
+            },
+            body: JSON.stringify({ model, messages, temperature }),
+          });
+
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.access_token) {
           throw new Error("Nicht eingeloggt.");
         }
 
-        const response = await fetch(buildFunctionsUrl("ki-chat"), {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ model, messages, temperature }),
-        });
+        let response = await doFetch(session.access_token);
+
+        // Bei 401: Session refreshen und einmal retry
+        if (response.status === 401) {
+          const { data: { session: freshSession }, error: refreshError } =
+            await supabase.auth.refreshSession();
+          if (refreshError || !freshSession?.access_token) {
+            throw new Error("Sitzung abgelaufen. Bitte neu anmelden.");
+          }
+          response = await doFetch(freshSession.access_token);
+        }
 
         const json = await response.json().catch(() => ({}));
         if (!response.ok) {
