@@ -49,6 +49,19 @@ const MODUL_CONFIG = {
       '"2 Liter Orangensaft" → Menge + Einheit',
       '"Shampoo, Kategorie Drogerie" → mit Kategorie',
     ],
+    buildPrompt: (text) => `Extrahiere alle Einkaufsartikel aus dem Text als JSON-Array.
+
+Felder: name (Pflicht), menge (Zahl, default 1), einheit (z.B. Stück/Liter/kg/Packung, optional), kategorie (optional)
+
+Beispiel:
+Text: "2 Liter Milch und Butter"
+[{"name":"Milch","menge":2,"einheit":"Liter"},{"name":"Butter","menge":1,"einheit":"Stück"}]
+
+Text: "1 kg kartoffel"
+[{"name":"Kartoffel","menge":1,"einheit":"kg"}]
+
+Text: "${text}"
+JSON-Array:`,
   },
   geraete: {
     titel: "Gerät per KI erfassen",
@@ -261,9 +274,14 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
       const openai = client;
       const prompt = config.buildPrompt
         ? config.buildPrompt(text)
-        : `Extrahiere alle relevanten Felder (${config.felder}) aus dem folgenden Text und gib ein JSON-Array zurück.\nFormat: [${config.schema}]\nErkenne automatisch: Kategorien, Mengen, Zeitangaben, Intervalle, wiederkehrende Ereignisse.\nText: "${text}"\nAntworte NUR mit dem JSON-Array, kein anderer Text.`;
+        : `Extrahiere alle Einträge aus dem folgenden Text als JSON-Array.\nFelder: ${config.felder}\nFormat-Beispiel: [${config.schema}]\nText: "${text}"\nJSON-Array:`;
       const res = await openai.chat.completions.create({
-        model: model, messages: [{ role: "user", content: prompt }], temperature: 0.2,
+        model: model,
+        messages: [
+          { role: "system", content: "Du bist ein JSON-Extraktor. Antworte ausschließlich mit einem gültigen JSON-Array. Kein erklärender Text, kein Markdown." },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.2,
       });
       const items = parseJsonAntwort(res.choices[0].message.content);
       if (Array.isArray(items) && items.length > 0) setErgebnisse(items);

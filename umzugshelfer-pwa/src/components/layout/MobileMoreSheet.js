@@ -1,61 +1,6 @@
 import React, { useEffect } from "react";
-import {
-  X,
-  Home,
-  Package,
-  ShoppingCart,
-  Wrench,
-  Users,
-  FolderOpen,
-  DollarSign,
-  Search,
-  BookOpen,
-  History,
-  LayoutDashboard,
-  ListChecks,
-  Archive,
-  Paintbrush,
-  Calculator,
-  CalendarClock,
-  CalendarDays,
-  UserCircle2,
-  Repeat,
-  ScanLine,
-  FileText,
-} from "lucide-react";
-
-const HOME_LINKS = [
-  { label: "Home", path: "/home", icon: Home },
-  { label: "Inventar", path: "/home/inventar", icon: Package },
-  { label: "Vorräte", path: "/home/vorraete", icon: ShoppingCart },
-  { label: "Einkauf", path: "/home/einkaufliste", icon: ShoppingCart },
-  { label: "Aufgaben", path: "/home/aufgaben", icon: ListChecks },
-  { label: "Geräte",    path: "/home/geraete",    icon: Wrench },
-  { label: "Dokumente", path: "/home/dokumente",  icon: FileText },
-  { label: "Projekte",  path: "/home/projekte",   icon: FolderOpen },
-  { label: "Rechnung scannen", path: "/home/rechnung-scannen", icon: ScanLine },
-  { label: "Bewohner",         path: "/home/bewohner",         icon: Users },
-  { label: "Budget", path: "/home/budget", icon: DollarSign },
-  { label: "Suche", path: "/home/suche", icon: Search },
-  { label: "Wissen", path: "/home/wissen", icon: BookOpen },
-  { label: "Verlauf", path: "/home/verlauf", icon: History },
-  { label: "Kalender", path: "/kalender", icon: CalendarDays },
-  { label: "Profil", path: "/profil", icon: UserCircle2 },
-];
-
-const UMZUG_LINKS = [
-  { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-  { label: "Kontakte", path: "/kontakte", icon: Users },
-  { label: "Budget", path: "/budget", icon: DollarSign },
-  { label: "To-Dos", path: "/todos", icon: ListChecks },
-  { label: "Packliste", path: "/packliste", icon: Archive },
-  { label: "Materialplaner", path: "/materialplaner", icon: Paintbrush },
-  { label: "Bedarfsrechner", path: "/bedarfsrechner", icon: Calculator },
-  { label: "Zeitstrahl", path: "/zeitstrahl", icon: CalendarClock },
-  { label: "Dokumente", path: "/dokumente", icon: FolderOpen },
-  { label: "Kalender", path: "/kalender", icon: CalendarDays },
-  { label: "Profil", path: "/profil", icon: UserCircle2 },
-];
+import { X, Repeat, Settings } from "lucide-react";
+import { MOBILE_NAV_REGISTRY } from "../../config/mobileNavConfig";
 
 const MobileMoreSheet = ({
   open,
@@ -64,6 +9,8 @@ const MobileMoreSheet = ({
   onClose,
   onNavigate,
   onToggleMode,
+  mobileNavFavorites,
+  onOpenNavSettings,
 }) => {
   useEffect(() => {
     if (!open) return undefined;
@@ -80,7 +27,8 @@ const MobileMoreSheet = ({
 
   if (!open) return null;
 
-  const links = appMode === "home" ? HOME_LINKS : UMZUG_LINKS;
+  const registry  = MOBILE_NAV_REGISTRY[appMode] || MOBILE_NAV_REGISTRY.home;
+  const favKeySet = new Set(mobileNavFavorites?.[appMode] ?? []);
   const modeLabel = appMode === "home" ? "Zum Umzugsplaner wechseln" : "Zum Home Organizer wechseln";
 
   const handleNavigate = (path) => {
@@ -115,12 +63,13 @@ const MobileMoreSheet = ({
         </div>
 
         <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {links.map((item) => {
+          {registry.map((item) => {
             const Icon = item.icon;
             const active = item.path === "/home" ? activeRoute === "/home" : activeRoute.startsWith(item.path);
+            const isFavorite = favKeySet.has(item.key);
             return (
               <button
-                key={item.path}
+                key={item.key}
                 onClick={() => handleNavigate(item.path)}
                 className={`flex items-center gap-2.5 px-3 py-2.5 rounded-card-sm border text-left transition-colors ${
                   active
@@ -129,13 +78,28 @@ const MobileMoreSheet = ({
                 }`}
               >
                 <Icon size={16} />
-                <span className="text-sm font-medium">{item.label}</span>
+                <span className="text-sm font-medium flex-1">{item.label}</span>
+                {isFavorite && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-pill
+                                   bg-primary-500/10 text-primary-500 border border-primary-500/20 shrink-0">
+                    Bottombar
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
 
         <div className="px-4 pt-1 grid grid-cols-1 gap-2">
+          <button
+            onClick={onOpenNavSettings}
+            className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-pill
+                       bg-light-surface-1 dark:bg-canvas-3 border border-light-border dark:border-dark-border
+                       text-light-text-secondary dark:text-dark-text-secondary text-sm"
+          >
+            <Settings size={16} /> Bottombar anpassen
+          </button>
+
           <button
             onClick={() => {
               onToggleMode?.();
@@ -146,7 +110,6 @@ const MobileMoreSheet = ({
             <Repeat size={16} />
             <span className="text-sm font-medium">{modeLabel}</span>
           </button>
-
         </div>
       </section>
     </div>

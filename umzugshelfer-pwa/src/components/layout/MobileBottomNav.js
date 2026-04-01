@@ -1,14 +1,6 @@
 import React from "react";
-import {
-  Home,
-  CheckSquare,
-  Package,
-  DollarSign,
-  LayoutDashboard,
-  ListChecks,
-  Archive,
-  Menu,
-} from "lucide-react";
+import { Menu } from "lucide-react";
+import { MOBILE_NAV_REGISTRY } from "../../config/mobileNavConfig";
 
 const isRouteActive = (activeRoute, path) => {
   if (path === "/home") return activeRoute === "/home";
@@ -16,23 +8,12 @@ const isRouteActive = (activeRoute, path) => {
   return activeRoute.startsWith(path);
 };
 
-const MobileBottomNav = ({ activeRoute, appMode, onNavigate, onOpenMore }) => {
-  const items =
-    appMode === "home"
-      ? [
-          { label: "Home", path: "/home", icon: Home },
-          { label: "Aufgaben", path: "/home/aufgaben", icon: CheckSquare },
-          { label: "Inventar", path: "/home/inventar", icon: Package },
-          { label: "Budget", path: "/home/budget", icon: DollarSign },
-          { label: "Mehr", action: "more", icon: Menu },
-        ]
-      : [
-          { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-          { label: "To-Dos", path: "/todos", icon: ListChecks },
-          { label: "Packliste", path: "/packliste", icon: Archive },
-          { label: "Budget", path: "/budget", icon: DollarSign },
-          { label: "Mehr", action: "more", icon: Menu },
-        ];
+const MobileBottomNav = ({ activeRoute, appMode, onNavigate, onOpenMore, mobileNavFavorites }) => {
+  const registry  = MOBILE_NAV_REGISTRY[appMode] || MOBILE_NAV_REGISTRY.home;
+  const fixedItem = registry.find((i) => i.slot === "fixed-root");
+  const favKeys   = mobileNavFavorites?.[appMode] ?? [];
+  const favItems  = favKeys.map((k) => registry.find((i) => i.key === k)).filter(Boolean);
+  const items     = [fixedItem, ...favItems, { label: "Mehr", action: "more", icon: Menu }].filter(Boolean);
 
   return (
     <nav
@@ -51,7 +32,7 @@ const MobileBottomNav = ({ activeRoute, appMode, onNavigate, onOpenMore }) => {
 
           return item.action === "more" ? (
             <button
-              key={item.label}
+              key="mehr"
               onClick={onOpenMore}
               className={`${baseClass} text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main`}
             >
@@ -60,7 +41,7 @@ const MobileBottomNav = ({ activeRoute, appMode, onNavigate, onOpenMore }) => {
             </button>
           ) : (
             <button
-              key={item.path}
+              key={item.key}
               onClick={() => onNavigate(item.path)}
               className={`${baseClass} ${
                 active

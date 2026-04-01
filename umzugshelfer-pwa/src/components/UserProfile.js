@@ -1,11 +1,15 @@
 ﻿import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Eye, EyeOff, Save, Truck, Home, CheckCircle, AlertCircle,
   RotateCcw, Bell, BellOff, BellRing, Cpu, Wifi, WifiOff,
   ChevronDown, Camera, Pencil, Check, X, KeyRound, Shield, Layers, Sun, Copy, UserPlus,
-  Users, Crown,
+  Users, Crown, Smartphone,
 } from "lucide-react";
+import {
+  MOBILE_NAV_REGISTRY, DEFAULT_MOBILE_FAVORITES,
+  sanitizeMobileNavFavorites, MOBILE_NAV_FAVORITE_COUNT,
+} from "../config/mobileNavConfig";
 import { supabase } from "../supabaseClient";
 import { useTheme } from "../contexts/ThemeContext";
 import { alleToursZuruecksetzen } from "./home/tour/useTour";
@@ -13,7 +17,7 @@ import { useAppMode } from "../contexts/AppModeContext";
 import ThemeSwitch from "./ThemeSwitch";
 import usePushSubscription from "../hooks/usePushSubscription";
 
-// â”€â”€ Akkordeon-Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€ Akkordeon-Helper â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 const AkkordeonSektion = ({ title, icon, defaultOpen = false, children }) => {
   const [offen, setOffen] = useState(defaultOpen);
   return (
@@ -42,9 +46,10 @@ const AkkordeonSektion = ({ title, icon, defaultOpen = false, children }) => {
   );
 };
 
-// â”€â”€ Haupt-Komponente â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const UserProfile = ({ session, householdContext }) => {
+// â"€â"€ Haupt-Komponente â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNavChange }) => {
   const navigate  = useNavigate();
+  const location  = useLocation();
   const { theme } = useTheme();
   const {
     appMode, switchToHome, switchToUmzug,
@@ -57,7 +62,7 @@ const UserProfile = ({ session, householdContext }) => {
   const initiale = nameRaw.charAt(0).toUpperCase();
   const isHouseholdAdmin = householdContext?.is_admin === true;
 
-  // â”€â”€ Basis-States â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Basis-States â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   const [ladend, setLadend] = useState(true);
 
   // Name-Bearbeitung
@@ -137,7 +142,14 @@ const UserProfile = ({ session, householdContext }) => {
   const isStandalone = window.navigator.standalone === true ||
                        window.matchMedia("(display-mode: standalone)").matches;
 
-  // â”€â”€ Daten aus Supabase laden â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Mobile Navigation
+  const [navEdit,          setNavEdit]          = useState(null);  // null = noch nicht initialisiert
+  const [navSaveStatus,    setNavSaveStatus]     = useState(null);
+  const [navPickerModus,   setNavPickerModus]    = useState(null);  // "home"|"umzug" wenn Picker offen
+  const [navPickerSlotIdx, setNavPickerSlotIdx]  = useState(null);  // welcher Slot ersetzt wird
+  const [navSektionOffen,  setNavSektionOffen]   = useState(false);
+
+  // â"€â"€ Daten aus Supabase laden â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   useEffect(() => {
     if (!userId) return;
     supabase
@@ -220,7 +232,22 @@ const UserProfile = ({ session, householdContext }) => {
     };
   }, [userId]);
 
-  // â”€â”€ Handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Mobile Navigation: navEdit aus App.js-State initialisieren (nur einmal)
+  useEffect(() => {
+    if (navEdit === null && mobileNavFavorites) {
+      setNavEdit(sanitizeMobileNavFavorites(mobileNavFavorites));
+    }
+  }, [mobileNavFavorites, navEdit]);
+
+  // Mobile Navigation: Sektion auto-öffnen wenn per location.state angefragt
+  useEffect(() => {
+    if (location.state?.openSection === "mobile-nav") {
+      setNavSektionOffen(true);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location, navigate]);
+
+  // â"€â"€ Handler â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
   const handleNameSpeichern = async () => {
     const { error } = await supabase.auth.updateUser({ data: { full_name: displayName.trim() } });
@@ -498,7 +525,50 @@ const UserProfile = ({ session, householdContext }) => {
     navigate("/");
   };
 
-  // â”€â”€ Eingabe-Klassen (wiederverwendbar) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Mobile Navigation Handler ────────────────────────────────────────────────
+
+  const handleNavFavoritErsetzen = (mode, slotIdx, neuerKey) => {
+    setNavEdit((prev) => {
+      const liste = [...(prev?.[mode] || [])];
+      liste[slotIdx] = neuerKey;
+      return { ...prev, [mode]: liste };
+    });
+    setNavPickerModus(null);
+    setNavPickerSlotIdx(null);
+  };
+
+  const handleNavFavoritVerschieben = (mode, idx, richtung) => {
+    setNavEdit((prev) => {
+      const liste = [...(prev?.[mode] || [])];
+      const neuerIdx = idx + richtung;
+      if (neuerIdx < 0 || neuerIdx >= liste.length) return prev;
+      [liste[idx], liste[neuerIdx]] = [liste[neuerIdx], liste[idx]];
+      return { ...prev, [mode]: liste };
+    });
+  };
+
+  const handleNavFavoritenZuruecksetzen = (mode) => {
+    setNavEdit((prev) => ({ ...prev, [mode]: [...DEFAULT_MOBILE_FAVORITES[mode]] }));
+    setNavPickerModus(null);
+    setNavPickerSlotIdx(null);
+  };
+
+  const handleNavSpeichern = async () => {
+    const sanitized = sanitizeMobileNavFavorites(navEdit);
+    const { error } = await supabase
+      .from("user_profile")
+      .update({ mobile_nav_config: sanitized })
+      .eq("id", userId);
+    if (error) {
+      setNavSaveStatus("fehler");
+    } else {
+      onMobileNavChange(sanitized);
+      setNavSaveStatus("ok");
+    }
+    setTimeout(() => setNavSaveStatus(null), 2500);
+  };
+
+  // â"€â"€ Eingabe-Klassen (wiederverwendbar) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   const inputCls = `w-full px-3 py-2.5 text-sm rounded-card-sm
     bg-light-bg dark:bg-canvas-1
     border border-light-border dark:border-dark-border
@@ -506,11 +576,11 @@ const UserProfile = ({ session, householdContext }) => {
     placeholder-light-text-secondary dark:placeholder-dark-text-secondary
     focus:outline-none focus:ring-2 focus:ring-secondary-500`;
 
-  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Render â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   return (
     <div className="max-w-2xl mx-auto px-4 lg:px-6 py-6 pb-24 lg:pb-8 space-y-3">
 
-      {/* â”€â”€ Header: Avatar + Name + E-Mail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* â"€â"€ Header: Avatar + Name + E-Mail â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
       <div className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-2 p-5
                       flex items-center gap-4">
         {/* Avatar */}
@@ -598,7 +668,7 @@ const UserProfile = ({ session, householdContext }) => {
         </div>
       </div>
 
-      {/* â”€â”€ Erscheinungsbild â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* â"€â"€ Erscheinungsbild â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
       <AkkordeonSektion title="Erscheinungsbild" icon={<Sun size={16} />} defaultOpen={true}>
         <div className="flex items-center justify-between">
           <div>
@@ -732,7 +802,7 @@ const UserProfile = ({ session, householdContext }) => {
 
       {isHouseholdAdmin ? (
       <>
-      {/* â”€â”€ App-Modus â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* â"€â"€ App-Modus â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
       <AkkordeonSektion title="App-Modus" icon={<Layers size={16} />} defaultOpen={true}>
         <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-4">
           Wähle, welchen Bereich du primär nutzt. Du kannst jederzeit wechseln.
@@ -820,7 +890,7 @@ const UserProfile = ({ session, householdContext }) => {
         ) : null}
       </AkkordeonSektion>
 
-      {/* â”€â”€ KI-Einstellungen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* â"€â"€ KI-Einstellungen â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
       <AkkordeonSektion title="Haushaltsmitglieder einladen" icon={<UserPlus size={16} />}>
         <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-3">
           Lade neue Personen per E-Mail ein. Sie koennen auch ohne bestehenden Account beitreten:
@@ -1213,7 +1283,7 @@ const UserProfile = ({ session, householdContext }) => {
       </AkkordeonSektion>
       )}
 
-      {/* â”€â”€ Push-Benachrichtigungen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* â"€â"€ Push-Benachrichtigungen â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
       <AkkordeonSektion title="Push-Benachrichtigungen" icon={<Bell size={16} />}>
         <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-4">
           Erhalte Benachrichtigungen auch wenn die App geschlossen ist – für Aufgaben, Vorräte, Wartungen und Deadlines.
@@ -1349,7 +1419,7 @@ const UserProfile = ({ session, householdContext }) => {
         )}
       </AkkordeonSektion>
 
-      {/* â”€â”€ Interaktive Anleitungen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* â"€â"€ Interaktive Anleitungen â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
       <AkkordeonSektion title="Interaktive Anleitungen" icon={<RotateCcw size={16} />}>
         <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-4">
           Setze alle Schritt-für-Schritt-Anleitungen zurück. Beim nächsten Besuch jedes Bereichs erscheint die Tour wieder automatisch.
@@ -1368,7 +1438,157 @@ const UserProfile = ({ session, householdContext }) => {
         </button>
       </AkkordeonSektion>
 
-      {/* â”€â”€ Account & Sicherheit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Mobile Navigation ─────────────────────────────────────────────────── */}
+      <div className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-2 overflow-hidden">
+        <button
+          onClick={() => setNavSektionOffen(!navSektionOffen)}
+          className="w-full flex items-center justify-between px-5 py-4
+                     text-light-text-main dark:text-dark-text-main"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-secondary-500 shrink-0"><Smartphone size={16} /></span>
+            <span className="text-sm font-semibold">Mobile Navigation</span>
+          </div>
+          <ChevronDown
+            size={16}
+            className={`text-light-text-secondary dark:text-dark-text-secondary
+                        transition-transform duration-200 ${navSektionOffen ? "rotate-180" : ""}`}
+          />
+        </button>
+
+        {navSektionOffen && (
+          <div className="px-5 pb-5 border-t border-light-border dark:border-dark-border pt-4 space-y-5">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+              Passe die {MOBILE_NAV_FAVORITE_COUNT} mittleren Slots der mobilen Navigationsleiste an.
+              Der erste (Home/Dashboard) und letzte Slot (Mehr) sind fest.
+            </p>
+
+            {navEdit && ["home", "umzug"].map((mode) => (
+              <div key={mode} className="space-y-2">
+                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">
+                  {mode === "home" ? "Home Organizer" : "Umzugsplaner"}
+                </p>
+
+                <div className="space-y-1.5">
+                  {navEdit[mode].map((key, idx) => {
+                    const item = MOBILE_NAV_REGISTRY[mode].find((i) => i.key === key);
+                    if (!item) return null;
+                    const Icon = item.icon;
+                    return (
+                      <div
+                        key={key}
+                        className="flex items-center gap-2 px-3 py-2 rounded-card-sm
+                                   border border-light-border dark:border-dark-border
+                                   bg-light-surface-1 dark:bg-canvas-3"
+                      >
+                        <Icon size={15} className="text-primary-500 shrink-0" />
+                        <span className="text-sm text-light-text-main dark:text-dark-text-main flex-1">
+                          {item.label}
+                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => handleNavFavoritVerschieben(mode, idx, -1)}
+                            disabled={idx === 0}
+                            className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary
+                                       hover:text-light-text-main dark:hover:text-dark-text-main
+                                       disabled:opacity-30 transition-colors"
+                            title="Nach oben"
+                          >↑</button>
+                          <button
+                            onClick={() => handleNavFavoritVerschieben(mode, idx, 1)}
+                            disabled={idx === navEdit[mode].length - 1}
+                            className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary
+                                       hover:text-light-text-main dark:hover:text-dark-text-main
+                                       disabled:opacity-30 transition-colors"
+                            title="Nach unten"
+                          >↓</button>
+                          <button
+                            onClick={() => { setNavPickerModus(mode); setNavPickerSlotIdx(idx); }}
+                            className="px-2 py-0.5 rounded-pill text-xs border border-primary-500/30
+                                       text-primary-500 hover:bg-primary-500/10 transition-colors"
+                          >
+                            Ersetzen
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {navPickerModus === mode && navPickerSlotIdx !== null && (
+                  <div className="mt-2 p-3 rounded-card-sm border border-secondary-500/30 bg-secondary-500/5">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-medium text-secondary-500">Modul wählen:</p>
+                      <button
+                        onClick={() => { setNavPickerModus(null); setNavPickerSlotIdx(null); }}
+                        className="text-xs text-light-text-secondary dark:text-dark-text-secondary
+                                   hover:text-light-text-main dark:hover:text-dark-text-main"
+                      >
+                        Abbrechen
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {MOBILE_NAV_REGISTRY[mode]
+                        .filter((i) => i.favoriteEligible && !navEdit[mode].includes(i.key))
+                        .map((i) => {
+                          const Icon = i.icon;
+                          return (
+                            <button
+                              key={i.key}
+                              onClick={() => handleNavFavoritErsetzen(mode, navPickerSlotIdx, i.key)}
+                              className="flex items-center gap-2 px-2.5 py-2 rounded-card-sm
+                                         border border-light-border dark:border-dark-border
+                                         text-light-text-main dark:text-dark-text-main
+                                         hover:border-secondary-500/50 hover:bg-secondary-500/5
+                                         text-sm transition-colors text-left"
+                            >
+                              <Icon size={14} className="shrink-0" />
+                              <span>{i.label}</span>
+                            </button>
+                          );
+                        })
+                      }
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => handleNavFavoritenZuruecksetzen(mode)}
+                  className="text-xs text-light-text-secondary dark:text-dark-text-secondary
+                             hover:text-light-text-main dark:hover:text-dark-text-main
+                             underline underline-offset-2 transition-colors"
+                >
+                  Auf Standard zurücksetzen
+                </button>
+              </div>
+            ))}
+
+            <div className="flex items-center gap-3 pt-2 border-t border-light-border dark:border-dark-border">
+              <button
+                onClick={handleNavSpeichern}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-pill text-sm font-medium
+                           bg-primary-500 hover:bg-primary-600 text-white transition-colors"
+              >
+                {navSaveStatus === "ok" ? (
+                  <><CheckCircle size={15} /> Gespeichert</>
+                ) : navSaveStatus === "fehler" ? (
+                  <><AlertCircle size={15} /> Fehler</>
+                ) : (
+                  <><Save size={15} /> Speichern</>
+                )}
+              </button>
+              {navSaveStatus === "ok" && (
+                <p className="text-xs text-accent-success">Bottombar aktualisiert</p>
+              )}
+              {navSaveStatus === "fehler" && (
+                <p className="text-xs text-accent-danger">Fehler beim Speichern</p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* â"€â"€ Account & Sicherheit â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
       <AkkordeonSektion title="Account & Sicherheit" icon={<Shield size={16} />}>
         <div className="space-y-5">
 
