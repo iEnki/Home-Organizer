@@ -167,6 +167,13 @@ ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS app_modus       text N
 ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS wiederholen     boolean DEFAULT false;
 ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS intervall       text;
 ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS naechstes_datum date;
+ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS ursprung_template_id uuid REFERENCES public.budget_posten(id) ON DELETE SET NULL;
+ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS ende_datum          date;
+
+-- Unique Index fuer Idempotenz bei Recurring-Occurrences.
+-- PostgreSQL behandelt NULL != NULL → Templates (ursprung_template_id IS NULL) kollidieren nicht.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_budget_posten_template_datum
+  ON public.budget_posten (ursprung_template_id, datum);
 
 CREATE INDEX IF NOT EXISTS idx_budget_posten_user_id ON public.budget_posten(user_id);
 CREATE INDEX IF NOT EXISTS idx_budget_posten_datum   ON public.budget_posten(datum);
