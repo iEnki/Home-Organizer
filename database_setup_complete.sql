@@ -169,6 +169,12 @@ ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS intervall       text;
 ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS naechstes_datum date;
 ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS ursprung_template_id uuid REFERENCES public.budget_posten(id) ON DELETE SET NULL;
 ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS ende_datum          date;
+-- budget_scope (Phase 1: Haushalt vs. Privat)
+-- HINWEIS: zahlungskonto_id (FK auf home_finanzkonten) wird NACH der Tabellenerstellung
+-- in Abschnitt 5 ergaenzt (FK-Reihenfolge: home_finanzkonten muss zuerst existieren).
+ALTER TABLE public.budget_posten
+  ADD COLUMN IF NOT EXISTS budget_scope text NOT NULL DEFAULT 'haushalt'
+    CHECK (budget_scope IN ('haushalt','privat'));
 
 -- Unique Index fuer Idempotenz bei Recurring-Occurrences.
 -- PostgreSQL behandelt NULL != NULL → Templates (ursprung_template_id IS NULL) kollidieren nicht.
@@ -1278,6 +1284,56 @@ CREATE TRIGGER set_home_sparziele_updated_at
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 
+-- home_finanzkonten (muss vor den Shared-Table-DO-Bloecken stehen)
+CREATE TABLE IF NOT EXISTS public.home_finanzkonten (
+  id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id         uuid REFERENCES public.households(id) ON DELETE CASCADE,
+  user_id              uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_by_user_id   uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  name                 text NOT NULL,
+  konto_typ            text NOT NULL DEFAULT 'haushaltskonto'
+    CHECK (konto_typ IN ('haushaltskonto','privatkonto','kreditkarte','paypal','bar','sparkonto')),
+  inhaber_typ          text NOT NULL DEFAULT 'household'
+    CHECK (inhaber_typ IN ('household','bewohner')),
+  inhaber_bewohner_id  uuid REFERENCES public.home_bewohner(id) ON DELETE SET NULL,
+  aktiv                boolean NOT NULL DEFAULT true,
+  farbe                text DEFAULT '#10B981',
+  sortierung           int DEFAULT 0,
+  created_at           timestamptz DEFAULT NOW(),
+  updated_at           timestamptz DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_home_finanzkonten_household
+  ON public.home_finanzkonten(household_id);
+CREATE INDEX IF NOT EXISTS idx_home_finanzkonten_inhaber
+  ON public.home_finanzkonten(inhaber_bewohner_id);
+CREATE INDEX IF NOT EXISTS idx_home_finanzkonten_aktiv
+  ON public.home_finanzkonten(household_id, aktiv, sortierung);
+
+DROP TRIGGER IF EXISTS set_home_finanzkonten_updated_at ON public.home_finanzkonten;
+CREATE TRIGGER set_home_finanzkonten_updated_at
+  BEFORE UPDATE ON public.home_finanzkonten
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+ALTER TABLE public.home_finanzkonten ENABLE ROW LEVEL SECURITY;
+
+-- Initiale eigene RLS; wird durch den Shared-Table-DO-Block weiter unten
+-- mit household_member_access ueberschrieben
+DROP POLICY IF EXISTS home_finanzkonten_crud_own ON public.home_finanzkonten;
+CREATE POLICY home_finanzkonten_crud_own ON public.home_finanzkonten FOR ALL
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+-- zahlungskonto_id FK auf budget_posten (hier, NACH home_finanzkonten)
+ALTER TABLE public.budget_posten
+  ADD COLUMN IF NOT EXISTS zahlungskonto_id uuid
+    REFERENCES public.home_finanzkonten(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_budget_posten_scope
+  ON public.budget_posten(household_id, budget_scope, datum);
+CREATE INDEX IF NOT EXISTS idx_budget_posten_bewohner_scope
+  ON public.budget_posten(household_id, bewohner_id, budget_scope, datum);
+
+
 -- Ã¢â€â‚¬Ã¢â€â‚¬ home_verlauf Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 CREATE TABLE IF NOT EXISTS public.home_verlauf (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -2362,7 +2418,7 @@ DECLARE
     'pack_kisten','pack_gegenstaende','dokumente','renovierungs_posten',
     'home_projekte','home_orte','home_lagerorte','home_objekte',
     'home_vorraete','home_einkaufliste','home_geraete','home_wartungen',
-    'home_bewohner','home_budget_limits','home_sparziele',
+    'home_bewohner','home_budget_limits','home_sparziele','home_finanzkonten',
     'home_verlauf','home_wissen','haushaltsaufgaben','vorraete','projekte','geraete'
   ];
   t text; fk record; pol record;
@@ -2718,7 +2774,7 @@ DECLARE
     'pack_kisten','pack_gegenstaende','dokumente','renovierungs_posten',
     'home_projekte','home_orte','home_lagerorte','home_objekte',
     'home_vorraete','home_einkaufliste','home_geraete','home_wartungen',
-    'home_bewohner','home_budget_limits','home_sparziele',
+    'home_bewohner','home_budget_limits','home_sparziele','home_finanzkonten',
     'home_verlauf','home_wissen','haushaltsaufgaben','vorraete','projekte','geraete'
   ];
   t text;
