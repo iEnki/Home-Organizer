@@ -17,6 +17,7 @@ import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
 import { deleteInvoiceCascade } from "../../utils/invoiceCascadeDelete";
+import { calcNaechstesDatum, ensureRecurringBudgetEntries } from "../../utils/budgetRecurring";
 
 ChartJS.register(
   ArcElement, Tooltip, Legend,
@@ -52,19 +53,6 @@ const SCALE_OPTS = {
 };
 
 // ─────────────── Helpers ───────────────
-const calcNaechstesDatum = (datum, intervallStr) => {
-  const d = new Date(datum);
-  const map = {
-    "Täglich": () => d.setDate(d.getDate() + 1),
-    "Wöchentlich": () => d.setDate(d.getDate() + 7),
-    "Monatlich": () => d.setMonth(d.getMonth() + 1),
-    "Vierteljährlich": () => d.setMonth(d.getMonth() + 3),
-    "Jährlich": () => d.setFullYear(d.getFullYear() + 1),
-  };
-  (map[intervallStr] || (() => {}))();
-  return d.toISOString().split("T")[0];
-};
-
 const fmt = (n) => Number(n || 0).toFixed(2) + " €";
 const istRechnungsDokument = (dok) => {
   const kategorie = String(dok?.kategorie || "").trim().toLowerCase();
@@ -114,6 +102,8 @@ const BudgetForm = ({ initial, onSpeichern, onAbbrechen, bewohner }) => {
   });
   const [wiederholen, setWiederholen] = useState(initial?.wiederholen || false);
   const [intervall, setIntervall] = useState(initial?.intervall || "Monatlich");
+  const [endeModus, setEndeModus] = useState(initial?.ende_datum ? "datum" : "endlos");
+  const [endeDatum, setEndeDatum] = useState(initial?.ende_datum || "");
 
   const handleSpeichern = () => {
     if (!form.beschreibung.trim() || !form.betrag) return;
@@ -124,6 +114,7 @@ const BudgetForm = ({ initial, onSpeichern, onAbbrechen, bewohner }) => {
       wiederholen,
       intervall: wiederholen ? intervall : null,
       naechstes_datum: naechstesDatum,
+      ende_datum: wiederholen && endeModus === "datum" && endeDatum ? endeDatum : null,
       bewohner_id: form.bewohner_id || null,
     });
   };
@@ -165,11 +156,41 @@ const BudgetForm = ({ initial, onSpeichern, onAbbrechen, bewohner }) => {
         <span className="text-sm text-light-text-main dark:text-dark-text-main">Wiederkehrend</span>
       </label>
       {wiederholen && (
-        <div>
-          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Intervall</label>
-          <select value={intervall} onChange={e => setIntervall(e.target.value)} className={INPUT_CLS}>
-            {INTERVALL_OPTIONEN.map(o => <option key={o}>{o}</option>)}
-          </select>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Intervall</label>
+            <select value={intervall} onChange={e => setIntervall(e.target.value)} className={INPUT_CLS}>
+              {INTERVALL_OPTIONEN.map(o => <option key={o}>{o}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Wiederholung endet</label>
+            <div className="flex gap-2 mb-2">
+              {[["endlos", "Endlos"], ["datum", "Bis Datum"]].map(([v, l]) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setEndeModus(v)}
+                  className={`flex-1 px-3 py-1.5 rounded-card-sm text-xs font-medium border transition-colors ${
+                    endeModus === v
+                      ? "bg-primary-500 text-white border-primary-500"
+                      : "bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main border-light-border dark:border-dark-border"
+                  }`}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+            {endeModus === "datum" && (
+              <input
+                type="date"
+                value={endeDatum}
+                onChange={e => setEndeDatum(e.target.value)}
+                min={form.datum}
+                className={INPUT_CLS}
+              />
+            )}
+          </div>
         </div>
       )}
       {bewohner?.length > 0 && (
@@ -388,39 +409,13 @@ const HomeBudget = ({ session }) => {
       supabase.from("home_sparziele").select("*").eq("user_id", userId).order("created_at")
         .then(({ data }) => { if (data) setSparziele(data); });
 
-      const { data: postenData, error: postenError } = await supabase
+      await ensureRecurringBudgetEntries({ supabase, userId, appModi: ["home", "beides"] });
+
+      const { data: refreshed, error: refreshError } = await supabase
         .from("budget_posten").select("*").eq("user_id", userId)
         .in("app_modus", ["home", "beides"]).order("datum", { ascending: false });
-      if (postenError) throw postenError;
-
-      const fetchedData = postenData || [];
-      const todayStr = new Date().toISOString().split("T")[0];
-      const faellige = fetchedData.filter(p => p.wiederholen && p.naechstes_datum && p.naechstes_datum <= todayStr);
-      let finalPosten = fetchedData;
-
-      for (const p of faellige) {
-        const neuesDatum = calcNaechstesDatum(p.naechstes_datum, p.intervall);
-        await supabase.from("budget_posten").insert({
-          user_id: userId,
-          beschreibung: p.beschreibung,
-          betrag: p.betrag,
-          kategorie: p.kategorie,
-          datum: p.naechstes_datum,
-          typ: p.typ || "ausgabe",
-          app_modus: p.app_modus,
-          bewohner_id: p.bewohner_id || null,
-          wiederholen: true,
-          intervall: p.intervall,
-          naechstes_datum: neuesDatum,
-        });
-        await supabase.from("budget_posten").update({ naechstes_datum: neuesDatum }).eq("id", p.id);
-      }
-
-      if (faellige.length > 0) {
-        const { data: refreshed } = await supabase.from("budget_posten").select("*").eq("user_id", userId)
-          .in("app_modus", ["home", "beides"]).order("datum", { ascending: false });
-        finalPosten = refreshed || [];
-      }
+      if (refreshError) throw refreshError;
+      const finalPosten = refreshed || [];
 
       setPosten(finalPosten);
       await ladeBudgetRechnungen(finalPosten);
@@ -475,6 +470,23 @@ const HomeBudget = ({ session }) => {
   const loesche = async (eintrag) => {
     const id = eintrag?.id;
     if (!id) return;
+
+    // Vorlage (wiederholen=true): zugehörige Occurrences mitlöschen
+    if (eintrag.wiederholen) {
+      const { data: occurrences } = await supabase
+        .from("budget_posten").select("id").eq("ursprung_template_id", id);
+      const anzahl = (occurrences || []).length;
+      const msg = anzahl > 0
+        ? `Wiederkehrende Zahlung und ${anzahl} zugehörige Buchung${anzahl !== 1 ? "en" : ""} löschen?`
+        : "Wiederkehrende Zahlung löschen?";
+      if (!window.confirm(msg)) return;
+      if (anzahl > 0) {
+        await supabase.from("budget_posten").delete().eq("ursprung_template_id", id);
+      }
+      await supabase.from("budget_posten").delete().eq("id", id);
+      ladeDaten();
+      return;
+    }
 
     const verknuepfteRechnungen = budgetRechnungMap[id] || [];
     if (verknuepfteRechnungen.length === 0) {
@@ -536,7 +548,7 @@ const HomeBudget = ({ session }) => {
     if (isNaN(euro) || euro < 0) return;
     await supabase.from("home_budget_limits").upsert(
       { user_id: userId, kategorie, limit_euro: euro },
-      { onConflict: "user_id,kategorie" },
+      { onConflict: "household_id,kategorie" },
     );
     setLimitsEdit(p => { const n = { ...p }; delete n[kategorie]; return n; });
     supabase.from("home_budget_limits").select("*").eq("user_id", userId)
@@ -587,11 +599,45 @@ const HomeBudget = ({ session }) => {
   };
 
   // ─── Computed Values ───
+  const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const selMonatStart     = new Date(selJahr, selMonat, 1);
+  const isFutureMonth     = zeitraum === "monat" && selMonatStart > currentMonthStart;
+
+  /** Projiziertes Datum eines Templates für den aktuell gewählten Monat berechnen */
+  const getProjiziertesDatum = (p) => {
+    if (!isFutureMonth || !p.wiederholen || !p.naechstes_datum || !p.intervall) return p.datum;
+    const targetStart = `${selJahr}-${String(selMonat + 1).padStart(2, "0")}-01`;
+    let projected = p.naechstes_datum;
+    let iterations = 0;
+    while (projected < targetStart && iterations < 500) {
+      projected = calcNaechstesDatum(projected, p.intervall);
+      iterations++;
+    }
+    const pd = new Date(projected + "T00:00:00");
+    return (pd.getFullYear() === selJahr && pd.getMonth() === selMonat) ? projected : p.datum;
+  };
+
   const nachZeitraumGefiltert = posten.filter(p => {
     if (zeitraum === "alle" || !p.datum) return true;
-    const d = new Date(p.datum);
+    const d = new Date(p.datum + "T00:00:00"); // T00:00:00 verhindert UTC-Offset-Fehler für den 1. des Monats
     if (zeitraum === "jahr") return d.getFullYear() === selJahr;
-    return d.getFullYear() === selJahr && d.getMonth() === selMonat;
+    if (d.getFullYear() === selJahr && d.getMonth() === selMonat) return true;
+    // Zukunftsmonat: wiederkehrende Templates mitanzeigen — naechstes_datum iterativ vorwärtsprojizieren
+    if (isFutureMonth && p.wiederholen && p.naechstes_datum && p.intervall) {
+      const targetStart = `${selJahr}-${String(selMonat + 1).padStart(2, "0")}-01`;
+      let projected = p.naechstes_datum;
+      let iterations = 0;
+      while (projected < targetStart && iterations < 500) {
+        projected = calcNaechstesDatum(projected, p.intervall);
+        iterations++;
+      }
+      const pd = new Date(projected + "T00:00:00");
+      if (pd.getFullYear() === selJahr && pd.getMonth() === selMonat) {
+        return !p.ende_datum || projected <= p.ende_datum;
+      }
+      return false;
+    }
+    return false;
   });
 
   const gefiltertPosten = nachZeitraumGefiltert.filter(p => {
@@ -913,8 +959,8 @@ const HomeBudget = ({ session }) => {
                     <div className="flex items-center justify-between sm:justify-start gap-2">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <p className="text-sm text-light-text-main dark:text-dark-text-main truncate">{p.beschreibung}</p>
-                        {p.wiederholen && (
-                          <RefreshCw size={12} className="text-secondary-400 flex-shrink-0" title={`Wiederkehrend: ${p.intervall}`} />
+                        {(p.wiederholen || p.ursprung_template_id) && (
+                          <RefreshCw size={12} className="text-secondary-400 flex-shrink-0" title={p.wiederholen ? `Wiederkehrend: ${p.intervall}` : "Wiederkehrende Zahlung"} />
                         )}
                       </div>
                       {/* Betrag auf Mobile (inline rechts neben Beschreibung) */}
@@ -924,7 +970,7 @@ const HomeBudget = ({ session }) => {
                     </div>
                     <div className="flex items-center gap-2 text-xs text-light-text-secondary dark:text-dark-text-secondary flex-wrap mt-0.5">
                       <span>{p.kategorie}</span>
-                      <span>{p.datum}</span>
+                      <span>{getProjiziertesDatum(p)}</span>
                       <BewohnerBadge bewohner={bewohner.find(b => b.id === p.bewohner_id)} />
                     </div>
                   </div>

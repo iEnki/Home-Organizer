@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { motion, animate, useMotionValue, useTransform } from "framer-motion";
 import { supabase } from "../../supabaseClient";
+import { ensureRecurringBudgetEntries, getMonthBounds, getLocalDateString } from "../../utils/budgetRecurring";
 import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
@@ -121,15 +122,14 @@ const HomeDashboard = ({ session }) => {
     if (!userId) return;
     setLoading(true);
     try {
-      const heute = new Date().toISOString().split("T")[0];
-      const aktuellerMonat = heute.slice(0, 7);
-      const in30 = new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0];
+      await ensureRecurringBudgetEntries({ supabase, userId, appModi: ["home", "beides"] });
 
+      const heute = getLocalDateString();
       const todayDate = new Date();
-      const vormonatDate = new Date(todayDate.getFullYear(), todayDate.getMonth() - 1, 1);
-      const vormonat = vormonatDate.toISOString().slice(0, 7);
-      const nextMonthStart = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 1).toISOString().split("T")[0];
-      const nextMonthEnd   = new Date(todayDate.getFullYear(), todayDate.getMonth() + 2, 0).toISOString().split("T")[0];
+      const in30 = getLocalDateString(new Date(Date.now() + 30 * 86400000));
+      const { start: monthStart,     nextStart: thisMonthEnd  } = getMonthBounds(todayDate);
+      const { start: vormonatStart,  nextStart: vormonatEnd   } = getMonthBounds(new Date(todayDate.getFullYear(), todayDate.getMonth() - 1, 1));
+      const { start: nextMonthStart, nextStart: nextMonthEnd  } = getMonthBounds(new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 1));
 
       const [
         objekteRes, orteRes, vorraeteRes, einkaufRes,
@@ -145,10 +145,10 @@ const HomeDashboard = ({ session }) => {
         supabase.from("todo_aufgaben").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("erledigt", false).in("app_modus", ["home", "beides"]).lte("faelligkeitsdatum", `${heute}T23:59:59`),
         supabase.from("home_projekte").select("id, name, zieldatum, status").eq("user_id", userId).eq("status", "in_bearbeitung").limit(3),
         supabase.from("home_bewohner").select("id", { count: "exact", head: true }).eq("user_id", userId),
-        supabase.from("budget_posten").select("id, typ, betrag, datum").eq("user_id", userId).gte("datum", `${aktuellerMonat}-01`).lte("datum", `${aktuellerMonat}-31`),
+        supabase.from("budget_posten").select("id, typ, betrag, datum").eq("user_id", userId).in("app_modus", ["home", "beides"]).gte("datum", monthStart).lt("datum", thisMonthEnd),
         supabase.from("todo_aufgaben").select("id, beschreibung, faelligkeitsdatum, home_projekt_id, erledigt").eq("user_id", userId).eq("erledigt", false).in("app_modus", ["home", "beides"]).gte("faelligkeitsdatum", heute).lte("faelligkeitsdatum", in30).limit(10),
-        supabase.from("budget_posten").select("typ, betrag").eq("user_id", userId).gte("datum", `${vormonat}-01`).lte("datum", `${vormonat}-31`),
-        supabase.from("budget_posten").select("id, beschreibung, betrag, intervall, naechstes_datum").eq("user_id", userId).eq("wiederholen", true).gte("naechstes_datum", nextMonthStart).lte("naechstes_datum", nextMonthEnd),
+        supabase.from("budget_posten").select("typ, betrag").eq("user_id", userId).in("app_modus", ["home", "beides"]).gte("datum", vormonatStart).lt("datum", vormonatEnd),
+        supabase.from("budget_posten").select("id, beschreibung, betrag, typ, intervall, naechstes_datum").eq("user_id", userId).in("app_modus", ["home", "beides"]).eq("wiederholen", true).gte("naechstes_datum", nextMonthStart).lt("naechstes_datum", nextMonthEnd),
         supabase.from("dokumente").select("id", { count: "exact", head: true }).eq("user_id", userId),
       ]);
 
