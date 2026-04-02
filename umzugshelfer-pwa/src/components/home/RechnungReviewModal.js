@@ -56,9 +56,11 @@ const BUDGET_KATEGORIEN = [
 ];
 
 const BUDGET_INSERT_VARIANTEN = [
+  ["user_id", "household_id", "beschreibung", "betrag", "datum", "kategorie", "app_modus", "typ", "budget_scope", "zahlungskonto_id", "bewohner_id"],
+  ["user_id", "household_id", "beschreibung", "betrag", "datum", "kategorie", "app_modus", "typ", "budget_scope", "zahlungskonto_id"],
+  ["user_id", "household_id", "beschreibung", "betrag", "datum", "kategorie", "app_modus", "typ", "budget_scope"],
   ["user_id", "household_id", "beschreibung", "betrag", "datum", "kategorie", "app_modus", "typ"],
   ["user_id", "household_id", "beschreibung", "betrag", "datum", "kategorie", "app_modus"],
-  ["user_id", "household_id", "beschreibung", "betrag", "datum", "kategorie", "typ"],
   ["user_id", "household_id", "beschreibung", "betrag", "datum", "kategorie"],
 ];
 
@@ -197,6 +199,21 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
   const [modulAktiv, setModulAktiv] = useState(() => initModulAktiv(ergebnis.erkannte_module || []));
   const [speichern, setSpeichern] = useState(false);
   const [zusammenfassung, setZusammenfassung] = useState(ergebnis.summary_text || "");
+
+  // Budget-Scope + Zahlungskonto + Bewohner
+  const [budgetScope, setBudgetScope]           = useState("haushalt");
+  const [zahlungskontoId, setZahlungskontoId]   = useState("");
+  const [budgetBewohnerId, setBudgetBewohnerId] = useState("");
+  const [finanzkonten, setFinanzkonten]         = useState([]);
+  const [bewohner, setBewohner]                 = useState([]);
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    supabase.from("home_finanzkonten").select("id, name, konto_typ").eq("user_id", session.user.id).eq("aktiv", true).order("sortierung")
+      .then(({ data }) => { if (data) setFinanzkonten(data); });
+    supabase.from("home_bewohner").select("id, name").eq("user_id", session.user.id).order("name")
+      .then(({ data }) => { if (data) setBewohner(data); });
+  }, [session?.user?.id]);
 
   // Budget-Felder
   const initialBudgetKategorie = useMemo(() => {
@@ -476,14 +493,17 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
       if (modulAktiv.budget) {
         try {
           const budgetPayload = {
-            user_id:      userId,
-            household_id: householdId,
-            beschreibung: budgetBeschreibung || `Einkauf ${haendler}`,
-            betrag:       Math.abs(gesamtNum),
-            datum:        datum || null,
-            kategorie:    budgetKategorie,
-            app_modus:    "home",
-            typ:          "ausgabe",
+            user_id:          userId,
+            household_id:     householdId,
+            beschreibung:     budgetBeschreibung || `Einkauf ${haendler}`,
+            betrag:           Math.abs(gesamtNum),
+            datum:            datum || null,
+            kategorie:        budgetKategorie,
+            app_modus:        "home",
+            typ:              "ausgabe",
+            budget_scope:     budgetScope,
+            zahlungskonto_id: zahlungskontoId || null,
+            bewohner_id:      budgetBewohnerId || null,
           };
           const { data: budgetData, error: budgetErr } = await insertBudgetPostenRobust(budgetPayload);
           if (budgetErr) {
@@ -637,6 +657,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
   }, [
     hatPflichffehler, gesamt, datei, session, dokDateiname, dokBeschreibung,
     datum, modulAktiv, budgetBeschreibung, haendler, budgetKategorie,
+    budgetScope, zahlungskontoId, budgetBewohnerId,
     geraetName, geraetHersteller, garantieBis, naechsteWartung, ergebnis,
     positionen, zusammenfassung, success, toastError, onGespeichert,
     normalizeNumber, resolveHouseholdId, insertBudgetPostenRobust,
@@ -753,6 +774,23 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
                 {key === "budget" && !modulAktiv.budget && (
                   <span className="ml-auto text-xs text-dark-text-secondary">kein Budgeteintrag</span>
                 )}
+                {key === "budget" && modulAktiv.budget && (
+                  <div className="ml-auto flex gap-1" onClick={(e) => e.preventDefault()}>
+                    {["haushalt", "privat"].map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); setBudgetScope(s); }}
+                        className={`px-2 py-0.5 rounded text-xs font-medium border transition-colors
+                          ${budgetScope === s
+                            ? "bg-primary-500 text-white border-primary-500"
+                            : "border-canvas-3 text-dark-text-secondary hover:border-primary-500/50"}`}
+                      >
+                        {s === "haushalt" ? "Haushalt" : "Privat"}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </label>
             ))}
           </div>
@@ -843,6 +881,36 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
                   onChange={setBudgetKategorie}
                   optionen={BUDGET_KATEGORIEN}
                 />
+                <div>
+                  <label className="block text-xs text-dark-text-secondary mb-1">Anrechnung</label>
+                  <div className="flex gap-2">
+                    {["haushalt", "privat"].map(s => (
+                      <button key={s} type="button" onClick={() => setBudgetScope(s)}
+                        className={`flex-1 py-1.5 rounded-card-sm text-sm font-medium border transition-colors
+                          ${budgetScope === s
+                            ? "bg-primary-500 text-white border-primary-500"
+                            : "border-canvas-3 text-dark-text-secondary"}`}>
+                        {s === "haushalt" ? "Haushalt" : "Privat"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {finanzkonten.length > 0 && (
+                  <SelectFeld
+                    label="Bezahlt von"
+                    value={zahlungskontoId}
+                    onChange={setZahlungskontoId}
+                    optionen={[{ value: "", label: "Kein Konto" }, ...finanzkonten.map(k => ({ value: k.id, label: k.name }))]}
+                  />
+                )}
+                {bewohner.length > 0 && (
+                  <SelectFeld
+                    label="Bewohner"
+                    value={budgetBewohnerId}
+                    onChange={setBudgetBewohnerId}
+                    optionen={[{ value: "", label: "Kein Bewohner" }, ...bewohner.map(b => ({ value: b.id, label: b.name }))]}
+                  />
+                )}
               </>
             }
           />

@@ -17,7 +17,8 @@ import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
 import { deleteInvoiceCascade } from "../../utils/invoiceCascadeDelete";
-import { calcNaechstesDatum, ensureRecurringBudgetEntries } from "../../utils/budgetRecurring";
+import { calcNaechstesDatum, ensureRecurringBudgetEntries, getLocalDateString } from "../../utils/budgetRecurring";
+import { sumScope } from "../../utils/budgetAggregation";
 
 ChartJS.register(
   ArcElement, Tooltip, Legend,
@@ -90,7 +91,7 @@ const ModalWrapper = ({ title, onClose, children }) => (
 // ─────────────── BudgetForm ───────────────
 const INPUT_CLS = "w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500";
 
-const BudgetForm = ({ initial, onSpeichern, onAbbrechen, bewohner }) => {
+const BudgetForm = ({ initial, onSpeichern, onAbbrechen, bewohner, finanzkonten }) => {
   const [form, setForm] = useState({
     beschreibung: initial?.beschreibung || "",
     kategorie: initial?.kategorie || "Haushalt",
@@ -104,6 +105,8 @@ const BudgetForm = ({ initial, onSpeichern, onAbbrechen, bewohner }) => {
   const [intervall, setIntervall] = useState(initial?.intervall || "Monatlich");
   const [endeModus, setEndeModus] = useState(initial?.ende_datum ? "datum" : "endlos");
   const [endeDatum, setEndeDatum] = useState(initial?.ende_datum || "");
+  const [budgetScope, setBudgetScope] = useState(initial?.budget_scope || "haushalt");
+  const [zahlungskontoId, setZahlungskontoId] = useState(initial?.zahlungskonto_id || "");
 
   const handleSpeichern = () => {
     if (!form.beschreibung.trim() || !form.betrag) return;
@@ -116,6 +119,8 @@ const BudgetForm = ({ initial, onSpeichern, onAbbrechen, bewohner }) => {
       naechstes_datum: naechstesDatum,
       ende_datum: wiederholen && endeModus === "datum" && endeDatum ? endeDatum : null,
       bewohner_id: form.bewohner_id || null,
+      budget_scope: budgetScope,
+      zahlungskonto_id: zahlungskontoId || null,
     });
   };
 
@@ -199,6 +204,30 @@ const BudgetForm = ({ initial, onSpeichern, onAbbrechen, bewohner }) => {
           <select value={form.bewohner_id} onChange={e => setForm(p => ({ ...p, bewohner_id: e.target.value }))} className={INPUT_CLS}>
             <option value="">— Kein Bewohner —</option>
             {bewohner.map(b => <option key={b.id} value={b.id}>{b.emoji} {b.name}</option>)}
+          </select>
+        </div>
+      )}
+      <div>
+        <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Anrechnung</label>
+        <div className="flex gap-2">
+          {[["haushalt", "Haushalt"], ["privat", "Privat"]].map(([s, l]) => (
+            <button key={s} type="button" onClick={() => setBudgetScope(s)}
+              className={`flex-1 py-1.5 rounded-card-sm text-sm font-medium border transition-colors ${
+                budgetScope === s
+                  ? "bg-primary-500 text-white border-primary-500"
+                  : "border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary"
+              }`}>
+              {l}
+            </button>
+          ))}
+        </div>
+      </div>
+      {finanzkonten?.length > 0 && (
+        <div>
+          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Bezahlt von</label>
+          <select value={zahlungskontoId} onChange={e => setZahlungskontoId(e.target.value)} className={INPUT_CLS}>
+            <option value="">— Kein Konto —</option>
+            {finanzkonten.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
           </select>
         </div>
       )}
@@ -296,6 +325,72 @@ const SparzieleModal = ({ initial, onSpeichern, onAbbrechen }) => {
   );
 };
 
+// ─────────────── KontoForm ───────────────
+const KONTO_TYP_OPTIONEN = ["haushaltskonto", "privatkonto", "kreditkarte", "paypal", "bar", "sparkonto"];
+
+const KontoForm = ({ initial, bewohner, onSpeichern, onDeaktivieren, onAbbrechen }) => {
+  const [form, setForm] = useState({
+    id: initial?.id || undefined,
+    name: initial?.name || "",
+    konto_typ: initial?.konto_typ || "haushaltskonto",
+    inhaber_typ: initial?.inhaber_typ || "household",
+    inhaber_bewohner_id: initial?.inhaber_bewohner_id || "",
+    farbe: initial?.farbe || "#10B981",
+    sortierung: initial?.sortierung || 0,
+  });
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Name*</label>
+        <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} className={INPUT_CLS} placeholder="z.B. Haushaltskonto" />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Typ</label>
+        <select value={form.konto_typ} onChange={e => setForm(p => ({ ...p, konto_typ: e.target.value }))} className={INPUT_CLS}>
+          {KONTO_TYP_OPTIONEN.map(t => <option key={t}>{t}</option>)}
+        </select>
+      </div>
+      {bewohner?.length > 0 && (
+        <div>
+          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Inhaber</label>
+          <select value={form.inhaber_bewohner_id} onChange={e => setForm(p => ({ ...p, inhaber_bewohner_id: e.target.value, inhaber_typ: e.target.value ? "bewohner" : "household" }))} className={INPUT_CLS}>
+            <option value="">— Haushalt —</option>
+            {bewohner.map(b => <option key={b.id} value={b.id}>{b.emoji} {b.name}</option>)}
+          </select>
+        </div>
+      )}
+      <div>
+        <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Farbe</label>
+        <div className="flex gap-2 flex-wrap">
+          {FARB_OPTIONEN.map(f => (
+            <button key={f} type="button" onClick={() => setForm(p => ({ ...p, farbe: f }))}
+              className={`w-7 h-7 rounded-full border-2 transition-all ${form.farbe === f ? "border-white scale-110" : "border-transparent"}`}
+              style={{ backgroundColor: f }} />
+          ))}
+        </div>
+      </div>
+      <div className="flex gap-2 flex-wrap">
+        <button onClick={onAbbrechen} className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main">
+          Abbrechen
+        </button>
+        {form.id && onDeaktivieren && (
+          <button onClick={() => onDeaktivieren(form.id)} className="px-3 py-2 text-sm border border-amber-500/30 text-amber-500 rounded-card-sm hover:bg-amber-500/10">
+            Deaktivieren
+          </button>
+        )}
+        <button
+          onClick={() => { if (form.name.trim()) onSpeichern(form); }}
+          disabled={!form.name.trim()}
+          className="flex-1 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50"
+        >
+          Speichern
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // ─────────────── Main Component ───────────────
 const HomeBudget = ({ session }) => {
   const userId = session?.user?.id;
@@ -334,6 +429,16 @@ const HomeBudget = ({ session }) => {
 
   // Limit inline editing
   const [limitsEdit, setLimitsEdit] = useState({});
+
+  // Finanzkonten
+  const [finanzkonten, setFinanzkonten] = useState([]);
+
+  // Scope-Filter
+  const [scopeFilter, setScopeFilter] = useState("alle"); // "alle" | "haushalt" | "privat"
+
+  // Finanzkonten-CRUD
+  const [kontenFormOffen, setKontenFormOffen] = useState(false);
+  const [kontenFormDaten, setKontenFormDaten] = useState(null); // null = neu, object = bearbeiten
 
   const ladeBudgetRechnungen = useCallback(async (budgetPosten) => {
     const ids = (budgetPosten || []).map((p) => p.id).filter(Boolean);
@@ -408,6 +513,10 @@ const HomeBudget = ({ session }) => {
 
       supabase.from("home_sparziele").select("*").eq("user_id", userId).order("created_at")
         .then(({ data }) => { if (data) setSparziele(data); });
+
+      // Finanzkonten laden (Proxy schreibt user_id → household_id um → lädt Haushaltskonten)
+      supabase.from("home_finanzkonten").select("*").eq("user_id", userId).eq("aktiv", true).order("sortierung")
+        .then(({ data }) => { if (data) setFinanzkonten(data); });
 
       await ensureRecurringBudgetEntries({ supabase, userId, appModi: ["home", "beides"] });
 
@@ -640,24 +749,39 @@ const HomeBudget = ({ session }) => {
     return false;
   });
 
-  const gefiltertPosten = nachZeitraumGefiltert.filter(p => {
-    if ((p.typ || "ausgabe") === "einnahme") return false;
-    if (kategFilter && p.kategorie !== kategFilter) return false;
-    if (bewohnerFilter && p.bewohner_id !== bewohnerFilter) return false;
+  // Vollständig gefilterte Menge — Basis für Karten UND Liste
+  const sichtbarePosten = nachZeitraumGefiltert.filter(p => {
+    if (kategFilter    && p.kategorie   !== kategFilter)                          return false;
+    if (bewohnerFilter && p.bewohner_id !== bewohnerFilter)                       return false;
+    if (scopeFilter !== "alle" && (p.budget_scope || "haushalt") !== scopeFilter) return false;
     return true;
   });
 
-  const ausgaben = gefiltertPosten.reduce((s, p) => s + Math.abs(Number(p.betrag)), 0);
+  const gefiltertPosten = sichtbarePosten.filter(p => (p.typ || "ausgabe") !== "einnahme");
+
+  // Karten-Summen aus sichtbarePosten (konsistent mit der angezeigten Liste)
+  const ausgabenHaushalt = sumScope(sichtbarePosten, "haushalt");
+  const ausgabenPrivat   = sumScope(sichtbarePosten, "privat");
+  // Rückwärtskompatible Variable für bestehende Logik (z.B. speichereLimit)
+  const ausgaben = ausgabenHaushalt + ausgabenPrivat;
 
   const zeitraumLabel = zeitraum === "alle" ? "Alle"
     : zeitraum === "monat" ? `${MONATE[selMonat]} ${selJahr}` : `Jahr ${selJahr}`;
+
+  // ─── Statistik-Basismenge: Scope-Filter, aber kein Kategorie-/Bewohner-Filter ───
+  const statistikBasisPosten = posten.filter(p => {
+    if ((p.typ || "ausgabe") === "einnahme") return false;
+    if (scopeFilter !== "alle" && (p.budget_scope || "haushalt") !== scopeFilter) return false;
+    return true;
+  });
 
   // ─── Chart Data ───
   const kategAusgaben = HOME_KATEGORIEN
     .map(k => ({
       name: k,
       summe: nachZeitraumGefiltert
-        .filter(p => p.kategorie === k && p.typ !== "einnahme")
+        .filter(p => p.kategorie === k && (p.typ || "ausgabe") !== "einnahme" &&
+          (scopeFilter === "alle" || (p.budget_scope || "haushalt") === scopeFilter))
         .reduce((s, p) => s + Math.abs(Number(p.betrag)), 0),
     }))
     .filter(k => k.summe > 0);
@@ -673,9 +797,9 @@ const HomeBudget = ({ session }) => {
   };
 
   const monatsDaten = Array.from({ length: 12 }, (_, i) => {
-    const mp = posten.filter(p => {
-      if (!p.datum || (p.typ || "ausgabe") === "einnahme") return false;
-      const d = new Date(p.datum);
+    const mp = statistikBasisPosten.filter(p => {
+      if (!p.datum) return false;
+      const d = new Date(p.datum + "T00:00:00");
       return d.getFullYear() === selJahr && d.getMonth() === i;
     });
     return {
@@ -712,9 +836,9 @@ const HomeBudget = ({ session }) => {
   };
 
   // ─── Monatsstatistik ───
-  const statistikMonatPosten = posten.filter(p => {
-    if (!p.datum || (p.typ || "ausgabe") === "einnahme") return false;
-    const d = new Date(p.datum);
+  const statistikMonatPosten = statistikBasisPosten.filter(p => {
+    if (!p.datum) return false;
+    const d = new Date(p.datum + "T00:00:00");
     return d.getFullYear() === selJahr && d.getMonth() === selMonat;
   });
   const statistikMonatKateg = HOME_KATEGORIEN
@@ -748,18 +872,25 @@ const HomeBudget = ({ session }) => {
     }],
   };
 
-  const in30 = new Date(today); in30.setDate(in30.getDate() + 30);
+  // Cashflow: scope-bewusst, 30-Tage-Grenze als ISO-String (getLocalDateString aus budgetRecurring)
+  const in30Iso = getLocalDateString(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
   const cashflow = posten
-    .filter(p => p.wiederholen && p.naechstes_datum && p.naechstes_datum <= in30.toISOString().split("T")[0])
+    .filter(p =>
+      p.wiederholen &&
+      p.naechstes_datum &&
+      p.naechstes_datum <= in30Iso &&
+      (scopeFilter === "alle" || (p.budget_scope || "haushalt") === scopeFilter)
+    )
     .sort((a, b) => a.naechstes_datum.localeCompare(b.naechstes_datum));
 
-  // Limits
+  // Limits — nur Haushaltsausgaben messen (unabhaengig von scopeFilter)
   const aktuellerMonat = today.getMonth();
   const aktuellesJahr = today.getFullYear();
   const monatsVerbrauch = (kat) =>
     posten.filter(p => {
-      if (p.typ === "einnahme" || p.kategorie !== kat || !p.datum) return false;
-      const d = new Date(p.datum);
+      if ((p.typ || "ausgabe") === "einnahme" || p.kategorie !== kat || !p.datum) return false;
+      if ((p.budget_scope || "haushalt") !== "haushalt") return false;
+      const d = new Date(p.datum + "T00:00:00");
       return d.getFullYear() === aktuellesJahr && d.getMonth() === aktuellerMonat;
     }).reduce((s, p) => s + Math.abs(Number(p.betrag)), 0);
 
@@ -878,10 +1009,14 @@ const HomeBudget = ({ session }) => {
           </div>
 
           {/* Ausgaben-Karten */}
-          <div data-tour="tour-budget-uebersicht" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div data-tour="tour-budget-uebersicht" className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="rounded-card border p-3 text-center bg-red-500/10 border-red-500/20">
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">Ausgaben</p>
-              <p className="text-sm font-bold text-red-400 tabular-nums">−{ausgaben.toFixed(2)} €</p>
+              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">Haushalt</p>
+              <p className="text-sm font-bold text-red-400 tabular-nums">{ausgabenHaushalt.toFixed(2)} €</p>
+            </div>
+            <div className="rounded-card border p-3 text-center bg-amber-500/10 border-amber-500/20">
+              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">Privat</p>
+              <p className="text-sm font-bold text-amber-400 tabular-nums">{ausgabenPrivat.toFixed(2)} €</p>
             </div>
             <div className="rounded-card border p-3 text-center bg-light-card dark:bg-canvas-2 border-light-border dark:border-dark-border">
               <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">Buchungen</p>
@@ -936,6 +1071,22 @@ const HomeBudget = ({ session }) => {
                 ))}
               </div>
             )}
+            {/* Scope-Filter */}
+            <div className="flex gap-2 flex-wrap">
+              {[["alle", "Alle"], ["haushalt", "Haushalt"], ["privat", "Privat"]].map(([s, l]) => (
+                <button
+                  key={s}
+                  onClick={() => setScopeFilter(s)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    scopeFilter === s
+                      ? s === "privat" ? "bg-amber-500 text-white" : "bg-primary-500 text-white"
+                      : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"
+                  }`}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Eintrags-Liste */}
@@ -962,10 +1113,13 @@ const HomeBudget = ({ session }) => {
                         {(p.wiederholen || p.ursprung_template_id) && (
                           <RefreshCw size={12} className="text-secondary-400 flex-shrink-0" title={p.wiederholen ? `Wiederkehrend: ${p.intervall}` : "Wiederkehrende Zahlung"} />
                         )}
+                        {p.budget_scope === "privat" && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-500 font-medium flex-shrink-0">Privat</span>
+                        )}
                       </div>
                       {/* Betrag auf Mobile (inline rechts neben Beschreibung) */}
-                      <span className="sm:hidden font-semibold flex-shrink-0 tabular-nums text-sm text-light-text-main dark:text-dark-text-main">
-                        −{Math.abs(Number(p.betrag)).toFixed(2)} €
+                      <span className="sm:hidden font-semibold flex-shrink-0 tabular-nums text-sm text-red-400">
+                        {Math.abs(Number(p.betrag)).toFixed(2)} €
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-light-text-secondary dark:text-dark-text-secondary flex-wrap mt-0.5">
@@ -977,8 +1131,8 @@ const HomeBudget = ({ session }) => {
                   {/* Aktionsbereich: Betrag (Desktop) + Rechnung + Edit/Löschen */}
                   <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end">
                     {/* Betrag auf Desktop */}
-                    <span className="hidden sm:block font-semibold flex-shrink-0 tabular-nums text-light-text-main dark:text-dark-text-main">
-                      −{Math.abs(Number(p.betrag)).toFixed(2)} €
+                    <span className="hidden sm:block font-semibold flex-shrink-0 tabular-nums text-red-400">
+                      {Math.abs(Number(p.betrag)).toFixed(2)} €
                     </span>
                     {hatRechnung && (
                       <button
@@ -1127,7 +1281,7 @@ const HomeBudget = ({ session }) => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="rounded-card border p-3 text-center bg-red-500/10 border-red-500/20">
                       <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">Gesamt</p>
-                      <p className="text-sm font-bold text-red-400 tabular-nums">−{statistikMonatGesamt.toFixed(2)} €</p>
+                      <p className="text-sm font-bold text-red-400 tabular-nums">{statistikMonatGesamt.toFixed(2)} €</p>
                     </div>
                     <div className="rounded-card border p-3 text-center bg-light-card dark:bg-canvas-2 border-light-border dark:border-dark-border">
                       <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">Kategorien</p>
@@ -1186,7 +1340,7 @@ const HomeBudget = ({ session }) => {
                     <span className="flex-1 text-light-text-main dark:text-dark-text-main truncate">{p.beschreibung}</span>
                     <RefreshCw size={11} className="text-secondary-400 flex-shrink-0" />
                     <span className="font-medium flex-shrink-0 tabular-nums text-red-400">
-                      −{Math.abs(Number(p.betrag)).toFixed(2)} €
+                      {Math.abs(Number(p.betrag)).toFixed(2)} €
                     </span>
                   </div>
                 ))}
@@ -1194,7 +1348,7 @@ const HomeBudget = ({ session }) => {
                   <div className="border-t border-light-border dark:border-dark-border pt-2 flex justify-between text-sm">
                     <span className="text-light-text-secondary dark:text-dark-text-secondary">Gesamt 30 Tage</span>
                     <span className="font-semibold tabular-nums text-red-400">
-                      −{fmt(cashflow.reduce((s, p) => s + Math.abs(Number(p.betrag)), 0))}
+                      {fmt(cashflow.reduce((s, p) => s + Math.abs(Number(p.betrag)), 0))}
                     </span>
                   </div>
                 )}
@@ -1275,6 +1429,40 @@ const HomeBudget = ({ session }) => {
               </div>
             );
           })}
+
+          {/* Finanzkonten im Haushalt */}
+          <div className="pt-2 border-t border-light-border dark:border-dark-border">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">Konten im Haushalt</h4>
+              <button
+                onClick={() => { setKontenFormDaten({}); setKontenFormOffen(true); }}
+                className="flex items-center gap-1 px-2 py-1 text-xs bg-primary-500 hover:bg-primary-600 text-white rounded-pill"
+              >
+                <Plus size={12} /> Konto
+              </button>
+            </div>
+            {finanzkonten.length === 0 ? (
+              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Noch keine Konten angelegt.</p>
+            ) : (
+              <div className="space-y-2">
+                {finanzkonten.map(k => (
+                  <div key={k.id} className="flex items-center justify-between bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: k.farbe || "#10B981" }} />
+                      <span className="text-sm text-light-text-main dark:text-dark-text-main">{k.name}</span>
+                      <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">({k.konto_typ})</span>
+                    </div>
+                    <button
+                      onClick={() => { setKontenFormDaten(k); setKontenFormOffen(true); }}
+                      className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500"
+                    >
+                      <Edit2 size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -1458,7 +1646,7 @@ const HomeBudget = ({ session }) => {
 
       {modal !== null && (
         <ModalWrapper title={modal.id ? "Eintrag bearbeiten" : "Neuer Eintrag"} onClose={() => setModal(null)}>
-          <BudgetForm initial={modal.id ? modal : null} onSpeichern={speichere} onAbbrechen={() => setModal(null)} bewohner={bewohner} />
+          <BudgetForm initial={modal.id ? modal : null} onSpeichern={speichere} onAbbrechen={() => setModal(null)} bewohner={bewohner} finanzkonten={finanzkonten} />
         </ModalWrapper>
       )}
 
@@ -1528,7 +1716,39 @@ const HomeBudget = ({ session }) => {
         />
       )}
 
-      {/* KI-Assistent */}
+      {/* Finanzkonten-Modal */}
+      {kontenFormOffen && (
+        <ModalWrapper
+          title={kontenFormDaten?.id ? "Konto bearbeiten" : "Neues Konto"}
+          onClose={() => { setKontenFormOffen(false); setKontenFormDaten(null); }}
+        >
+          <KontoForm
+            initial={kontenFormDaten}
+            bewohner={bewohner}
+            onSpeichern={async (daten) => {
+              if (daten.id) {
+                await supabase.from("home_finanzkonten").update(daten).eq("id", daten.id);
+              } else {
+                await supabase.from("home_finanzkonten").insert({ ...daten, user_id: userId });
+              }
+              setKontenFormOffen(false);
+              setKontenFormDaten(null);
+              supabase.from("home_finanzkonten").select("*").eq("user_id", userId).eq("aktiv", true).order("sortierung")
+                .then(({ data }) => { if (data) setFinanzkonten(data); });
+            }}
+            onDeaktivieren={async (id) => {
+              if (!window.confirm("Konto deaktivieren? Bestehende Buchungen behalten die Referenz.")) return;
+              await supabase.from("home_finanzkonten").update({ aktiv: false }).eq("id", id);
+              setKontenFormOffen(false);
+              setKontenFormDaten(null);
+              setFinanzkonten(p => p.filter(k => k.id !== id));
+            }}
+            onAbbrechen={() => { setKontenFormOffen(false); setKontenFormDaten(null); }}
+          />
+        </ModalWrapper>
+      )}
+
+      {/* KI-Assistent — budget_scope wird als "haushalt" Default gesetzt */}
       {kiOffen && (
         <KiHomeAssistent
           session={session}
@@ -1546,6 +1766,7 @@ const HomeBudget = ({ session }) => {
                 typ: item.typ || "ausgabe",
                 datum,
                 app_modus: "home",
+                budget_scope: "haushalt",
                 wiederholen: item.wiederholen || false,
                 intervall: item.intervall || null,
                 naechstes_datum: naechstesDatum,

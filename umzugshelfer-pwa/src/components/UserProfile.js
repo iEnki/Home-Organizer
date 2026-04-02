@@ -70,6 +70,11 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
   const [nameBearbeiten,     setNameBearbeiten]      = useState(false);
   const [nameSpeichernStatus,setNameSpeichernStatus] = useState(null); // null | "ok" | "fehler"
 
+  // Haushaltsname-Bearbeitung (nur Admin)
+  const [haushaltsName,              setHaushaltsName]              = useState("");
+  const [haushaltsNameBearbeiten,    setHaushaltsNameBearbeiten]    = useState(false);
+  const [haushaltsNameStatus,        setHaushaltsNameStatus]        = useState(null); // null | "ok" | "fehler"
+
   // Avatar
   const [avatarUrl,  setAvatarUrl]  = useState(null);
   const [avatarLadend, setAvatarLadend] = useState(false);
@@ -154,7 +159,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     if (!userId) return;
     supabase
       .from("user_profile")
-      .select("openai_api_key, ki_provider, ollama_base_url, ollama_model, einkauf_reminder_aktiv, einkauf_reminder_zeit, umzug_deaktiviert, avatar_url")
+      .select("openai_api_key, ki_provider, ollama_base_url, ollama_model, einkauf_reminder_aktiv, einkauf_reminder_zeit, umzug_deaktiviert, avatar_url, username")
       .eq("id", userId)
       .single()
       .then(({ data }) => {
@@ -166,6 +171,8 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         if (data?.einkauf_reminder_zeit)    setEinkaufReminderZeit(data.einkauf_reminder_zeit);
         if (data?.umzug_deaktiviert !== undefined) setUmzugDeaktiviertLokal(!!data.umzug_deaktiviert);
         if (data?.avatar_url)               setAvatarUrl(data.avatar_url);
+        // username aus user_profile hat Vorrang vor user_metadata (Topbar liest aus user_profile)
+        if (data?.username)                 setDisplayName(data.username);
         setLadend(false);
       });
   }, [userId]);
@@ -232,6 +239,13 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     };
   }, [userId]);
 
+  // Haushaltsname aus Context initialisieren (einmalig, wenn Context geladen)
+  useEffect(() => {
+    if (householdContext?.household_name && !haushaltsName) {
+      setHaushaltsName(householdContext.household_name);
+    }
+  }, [householdContext?.household_name]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Mobile Navigation: navEdit aus App.js-State initialisieren (nur einmal)
   useEffect(() => {
     if (navEdit === null && mobileNavFavorites) {
@@ -250,10 +264,27 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
   // â"€â"€ Handler â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
   const handleNameSpeichern = async () => {
-    const { error } = await supabase.auth.updateUser({ data: { full_name: displayName.trim() } });
+    const trimmed = displayName.trim();
+    const [authRes, profileRes] = await Promise.all([
+      supabase.auth.updateUser({ data: { full_name: trimmed } }),
+      supabase.from("user_profile").update({ username: trimmed }).eq("id", userId),
+    ]);
+    const error = authRes.error || profileRes.error;
     if (!error) setNameBearbeiten(false);
     setNameSpeichernStatus(error ? "fehler" : "ok");
     setTimeout(() => setNameSpeichernStatus(null), 3000);
+  };
+
+  const handleHaushaltsNameSpeichern = async () => {
+    const trimmed = haushaltsName.trim();
+    if (!trimmed || !householdContext?.household_id) return;
+    const { error } = await supabase
+      .from("households")
+      .update({ name: trimmed })
+      .eq("id", householdContext.household_id);
+    setHaushaltsNameStatus(error ? "fehler" : "ok");
+    if (!error) setHaushaltsNameBearbeiten(false);
+    setTimeout(() => setHaushaltsNameStatus(null), 3000);
   };
 
   const handleAvatarHochladen = async (e) => {
@@ -686,9 +717,32 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
       <AkkordeonSektion title="Haushalt & Bewohner" icon={<Users size={16} />} defaultOpen={true}>
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-              {householdContext?.household_name ? `Haushalt: ${householdContext.household_name}` : "Dein Haushalt"}
-            </div>
+            {isHouseholdAdmin && haushaltsNameBearbeiten ? (
+              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                <input
+                  value={haushaltsName}
+                  onChange={(e) => setHaushaltsName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleHaushaltsNameSpeichern(); if (e.key === "Escape") setHaushaltsNameBearbeiten(false); }}
+                  className="flex-1 min-w-0 text-xs px-2 py-1 rounded-card-sm border border-light-border dark:border-dark-border
+                             bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main
+                             focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  autoFocus
+                />
+                <button onClick={handleHaushaltsNameSpeichern} className="text-primary-500 hover:text-primary-400 transition-colors"><Check size={14} /></button>
+                <button onClick={() => { setHaushaltsNameBearbeiten(false); setHaushaltsName(householdContext?.household_name || ""); }} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger transition-colors"><X size={14} /></button>
+                {haushaltsNameStatus === "fehler" && <span className="text-[10px] text-accent-danger">Fehler</span>}
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                <span>{haushaltsName || householdContext?.household_name || "Dein Haushalt"}</span>
+                {isHouseholdAdmin && (
+                  <button onClick={() => setHaushaltsNameBearbeiten(true)} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 transition-colors" title="Haushaltsname bearbeiten">
+                    <Pencil size={12} />
+                  </button>
+                )}
+                {haushaltsNameStatus === "ok" && <CheckCircle size={12} className="text-accent-success" />}
+              </div>
+            )}
             <button
               onClick={() => navigate("/home/bewohner")}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-xs font-medium

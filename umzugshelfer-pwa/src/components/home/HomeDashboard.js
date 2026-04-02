@@ -113,7 +113,7 @@ const HomeDashboard = ({ session }) => {
     vorraeteAmpel: { rot: 0, gelb: 0, gruen: 0 },
     naechsteWartung: null,
     aktiveProjekte: [],
-    budgetMonat: { ausgaben: 0, buchungen: 0, vormonatAusgaben: 0, kommendeNichtMonatlich: [] },
+    budgetMonat: { ausgabenHaushalt: 0, ausgabenPrivat: 0, buchungen: 0, vormonatAusgaben: 0, kommendeNichtMonatlich: [] },
     verlauf: [],
     timeline: [],
   });
@@ -145,10 +145,10 @@ const HomeDashboard = ({ session }) => {
         supabase.from("todo_aufgaben").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("erledigt", false).in("app_modus", ["home", "beides"]).lte("faelligkeitsdatum", `${heute}T23:59:59`),
         supabase.from("home_projekte").select("id, name, zieldatum, status").eq("user_id", userId).eq("status", "in_bearbeitung").limit(3),
         supabase.from("home_bewohner").select("id", { count: "exact", head: true }).eq("user_id", userId),
-        supabase.from("budget_posten").select("id, typ, betrag, datum").eq("user_id", userId).in("app_modus", ["home", "beides"]).gte("datum", monthStart).lt("datum", thisMonthEnd),
+        supabase.from("budget_posten").select("id, typ, betrag, datum, budget_scope, bewohner_id").eq("user_id", userId).in("app_modus", ["home", "beides"]).gte("datum", monthStart).lt("datum", thisMonthEnd),
         supabase.from("todo_aufgaben").select("id, beschreibung, faelligkeitsdatum, home_projekt_id, erledigt").eq("user_id", userId).eq("erledigt", false).in("app_modus", ["home", "beides"]).gte("faelligkeitsdatum", heute).lte("faelligkeitsdatum", in30).limit(10),
-        supabase.from("budget_posten").select("typ, betrag").eq("user_id", userId).in("app_modus", ["home", "beides"]).gte("datum", vormonatStart).lt("datum", vormonatEnd),
-        supabase.from("budget_posten").select("id, beschreibung, betrag, typ, intervall, naechstes_datum").eq("user_id", userId).in("app_modus", ["home", "beides"]).eq("wiederholen", true).gte("naechstes_datum", nextMonthStart).lt("naechstes_datum", nextMonthEnd),
+        supabase.from("budget_posten").select("typ, betrag, budget_scope").eq("user_id", userId).in("app_modus", ["home", "beides"]).gte("datum", vormonatStart).lt("datum", vormonatEnd),
+        supabase.from("budget_posten").select("id, beschreibung, betrag, typ, intervall, naechstes_datum, budget_scope").eq("user_id", userId).in("app_modus", ["home", "beides"]).eq("wiederholen", true).gte("naechstes_datum", nextMonthStart).lt("naechstes_datum", nextMonthEnd),
         supabase.from("dokumente").select("id", { count: "exact", head: true }).eq("user_id", userId),
       ]);
 
@@ -209,18 +209,29 @@ const HomeDashboard = ({ session }) => {
         });
       }
 
-      // ── Budget Monat (nur Ausgaben) ──
+      // ── Budget Monat (Haushalt vs. Privat) ──
       const posten = (budgetRes.data || []).filter(p => (p.typ || "ausgabe") !== "einnahme");
-      const ausgaben = posten.reduce((s, p) => s + Math.abs(Number(p.betrag)), 0);
+      const ausgabenHaushalt = posten
+        .filter(p => (p.budget_scope || "haushalt") === "haushalt")
+        .reduce((s, p) => s + Math.abs(Number(p.betrag)), 0);
+      const ausgabenPrivat = posten
+        .filter(p => p.budget_scope === "privat")
+        .reduce((s, p) => s + Math.abs(Number(p.betrag)), 0);
       const buchungen = posten.length;
 
-      // ── Vormonat-Vergleich ──
+      // ── Vormonat-Vergleich (nur Haushalt) ──
       const vormonatPosten = (vormonatRes.data || []).filter(p => (p.typ || "ausgabe") !== "einnahme");
-      const vormonatAusgaben = vormonatPosten.reduce((s, p) => s + Math.abs(Number(p.betrag)), 0);
+      const vormonatAusgaben = vormonatPosten
+        .filter(p => (p.budget_scope || "haushalt") === "haushalt")
+        .reduce((s, p) => s + Math.abs(Number(p.betrag)), 0);
 
-      // ── Nicht-monatliche Zahlungen nächsten Monat ──
+      // ── Nicht-monatliche Zahlungen nächsten Monat (nur Haushalt) ──
       const kommendeNichtMonatlich = (nextMonthRes.data || [])
-        .filter(p => p.intervall !== "Monatlich" && (p.typ || "ausgabe") !== "einnahme");
+        .filter(p =>
+          p.intervall !== "Monatlich" &&
+          (p.typ || "ausgabe") !== "einnahme" &&
+          (p.budget_scope || "haushalt") === "haushalt"
+        );
 
       // ── Timeline: Wartungen + Ablauf + Aufgaben ──
       const timelineEvents = [
@@ -241,7 +252,7 @@ const HomeDashboard = ({ session }) => {
         vorraeteAmpel: { rot: ampelRot, gelb: ampelGelb, gruen: ampelGruen },
         naechsteWartung,
         aktiveProjekte,
-        budgetMonat: { ausgaben, buchungen, vormonatAusgaben, kommendeNichtMonatlich },
+        budgetMonat: { ausgabenHaushalt, ausgabenPrivat, buchungen, vormonatAusgaben, kommendeNichtMonatlich },
         verlauf: [],
         timeline: timelineEvents,
       });
@@ -501,7 +512,7 @@ const HomeDashboard = ({ session }) => {
             <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
 
-          {budgetMonat.ausgaben === 0 ? (
+          {budgetMonat.ausgabenHaushalt === 0 && budgetMonat.ausgabenPrivat === 0 && budgetMonat.buchungen === 0 ? (
             <>
               <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                 Noch keine Buchungen diesen Monat.
@@ -517,17 +528,22 @@ const HomeDashboard = ({ session }) => {
             <div className="space-y-1.5">
               <div className="flex items-end justify-between">
                 <span className="text-2xl font-bold text-light-text-main dark:text-dark-text-main tabular-nums">
-                  {fmt(budgetMonat.ausgaben)} €
+                  {fmt(budgetMonat.ausgabenHaushalt)} €
                 </span>
                 <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">
                   {budgetMonat.buchungen} Buchung{budgetMonat.buchungen !== 1 ? "en" : ""}
                 </span>
               </div>
               <p className="text-xs text-red-400 flex items-center gap-1">
-                <TrendingDown size={11} /> Ausgaben diesen Monat
+                <TrendingDown size={11} /> Haushalt diesen Monat
               </p>
+              {budgetMonat.ausgabenPrivat > 0 && (
+                <p className="text-xs text-amber-400">
+                  + {fmt(budgetMonat.ausgabenPrivat)} € privat
+                </p>
+              )}
               {budgetMonat.vormonatAusgaben > 0 && (() => {
-                const delta = budgetMonat.ausgaben - budgetMonat.vormonatAusgaben;
+                const delta = budgetMonat.ausgabenHaushalt - budgetMonat.vormonatAusgaben;
                 const pct = Math.round(Math.abs(delta) / budgetMonat.vormonatAusgaben * 100);
                 const hoeher = delta > 0;
                 return (
