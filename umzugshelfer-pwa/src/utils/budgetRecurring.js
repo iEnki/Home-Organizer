@@ -91,7 +91,7 @@ export const ensureRecurringBudgetEntries = async ({
 
   // Dedup: bei mehreren wiederholen=true-Einträgen mit gleicher Signatur nur das neueste Template behalten.
   // Schützt gegen Alt-Occurrences aus dem alten UTC-Bug-Code (naechstes_datum="2026-03-31" statt "2026-04-01").
-  const dedupKey = (p) => `${p.user_id}|${p.beschreibung}|${p.betrag}|${p.intervall}|${p.app_modus}`;
+  const dedupKey = (p) => `${p.user_id}|${p.beschreibung}|${p.betrag}|${p.intervall}|${p.app_modus}|${p.budget_scope || "haushalt"}|${p.bewohner_id || ""}|${p.zahlungskonto_id || ""}`;
   const newestByKey = new Map();
   for (const p of faellige || []) {
     const key = dedupKey(p);
@@ -129,8 +129,10 @@ export const ensureRecurringBudgetEntries = async ({
           datum:                next,
           typ:                  p.typ || "ausgabe",
           app_modus:            p.app_modus,
-          bewohner_id:          p.bewohner_id     || null,
-          home_projekt_id:      p.home_projekt_id || null,
+          bewohner_id:          p.bewohner_id       || null,
+          home_projekt_id:      p.home_projekt_id  || null,
+          budget_scope:         p.budget_scope     || "haushalt",
+          zahlungskonto_id:     p.zahlungskonto_id || null,
           wiederholen:          false,  // Occurrence = normaler abgeschlossener Eintrag
           intervall:            null,
           naechstes_datum:      null,
