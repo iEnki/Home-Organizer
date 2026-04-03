@@ -211,9 +211,20 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
     if (!session?.user?.id) return;
     supabase.from("home_finanzkonten").select("id, name, konto_typ").eq("user_id", session.user.id).eq("aktiv", true).order("sortierung")
       .then(({ data }) => { if (data) setFinanzkonten(data); });
-    supabase.from("home_bewohner").select("id, name").eq("user_id", session.user.id).order("name")
+    supabase.from("home_bewohner").select("id, name, linked_user_id").eq("user_id", session.user.id).order("name")
       .then(({ data }) => { if (data) setBewohner(data); });
   }, [session?.user?.id]);
+
+  // Auto-Bewohner: wenn "Privat" gewählt und noch kein Bewohner gesetzt,
+  // wird der eigene verlinkte Bewohnereintrag automatisch vorausgewählt.
+  useEffect(() => {
+    if (budgetScope !== "privat") return;
+    if (budgetBewohnerId) return;
+    if (!bewohner.length) return;
+    const userId = session?.user?.id;
+    const eigener = bewohner.find((b) => b.linked_user_id === userId);
+    if (eigener) setBudgetBewohnerId(eigener.id);
+  }, [budgetScope, budgetBewohnerId, bewohner, session?.user?.id]);
 
   // Budget-Felder
   const initialBudgetKategorie = useMemo(() => {
