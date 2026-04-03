@@ -11,6 +11,7 @@ import {
 import { supabase, setActiveHouseholdId } from "./supabaseClient";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AppModeProvider, useAppMode } from "./contexts/AppModeContext";
+import { TourProvider, useTourContext } from "./contexts/TourContext";
 import { ToastProvider } from "./hooks/useToast";
 import useViewport from "./hooks/useViewport";
 
@@ -34,6 +35,7 @@ import HomeGeraete          from "./components/home/HomeGeraete";
 import HomeBudget           from "./components/home/HomeBudget";
 import HomeProjekte         from "./components/home/HomeProjekte";
 import HomeOnboarding       from "./components/home/HomeOnboarding";
+import TourPromptModal      from "./components/home/tour/TourPromptModal";
 import HomeVerlauf          from "./components/home/HomeVerlauf";
 import HomeWissen           from "./components/home/HomeWissen";
 import HomeDokumente        from "./components/home/HomeDokumente";
@@ -210,6 +212,40 @@ const OnboardingGate = ({ session, blockOnboarding = false, children }) => {
     );
   }
   return children;
+};
+
+// ── Tour-Prompt Gate (Home Organizer only) ─────────────────────────────────────
+// Zeigt einmalig den Intro-Dialog wenn:
+//   - Modus-Onboarding abgeschlossen (onboardingGezeigt)
+//   - App-Modus aus Supabase geladen (modusGeladen)
+//   - User ist im Home-Modus
+//   - tour_state.intro_prompt_status === "pending"
+// Globaler Session-Dialog (außerhalb Routes) — bewusste Phase-1-Entscheidung.
+const TourPromptGate = ({ session }) => {
+  const { appMode, onboardingGezeigt, modusGeladen } = useAppMode();
+  const ctx = useTourContext();
+  const navigate = useNavigate();
+
+  if (
+    !onboardingGezeigt ||
+    !modusGeladen ||
+    !ctx?.geladen ||
+    !ctx?.tourState ||
+    appMode !== "home" ||
+    ctx.tourState.intro_prompt_status !== "pending"
+  ) return null;
+
+  return (
+    <TourPromptModal
+      onJa={() => {
+        ctx.setIntroAnswer(true);
+        navigate("/home");
+        // Dashboard-Tour startet automatisch: useTour("dashboard") liefert active=true
+        // da completed_pages.dashboard noch nicht gesetzt
+      }}
+      onNein={() => ctx.setIntroAnswer(false)}
+    />
+  );
 };
 
 // ── Authenticated Layout Shell ─────────────────────────────────────────────────
@@ -543,6 +579,8 @@ function App() {
     <ThemeProvider>
       <AppModeProvider>
         <HomeModusSyncer session={session} householdContext={householdContext} />
+        <TourProvider session={session}>
+          <TourPromptGate session={session} />
         <OnboardingGate
           session={session}
           blockOnboarding={passwordFlagLoading || passwordChangeRequired}
@@ -613,6 +651,7 @@ function App() {
             <Route path="*" element={session ? <SmartRedirect /> : <Navigate to="/" replace />} />
           </Routes>
         </OnboardingGate>
+        </TourProvider>
       </AppModeProvider>
     </ThemeProvider>
     </ToastProvider>
