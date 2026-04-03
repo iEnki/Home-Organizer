@@ -101,7 +101,7 @@ const Topbar = ({
                  border-b border-light-border dark:border-dark-border shrink-0"
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
-      <div className="flex items-center gap-3 px-4 sm:px-6 lg:pl-6 h-[72px]">
+      <div className="flex items-center gap-3 topbar-safe-x h-[72px]">
       {/* Seitentitel + Modus-Badge */}
       <div className="flex items-center gap-2 shrink-0 min-w-0">
         <h1 className="text-base sm:text-xl font-semibold text-light-text-main dark:text-dark-text-main truncate">

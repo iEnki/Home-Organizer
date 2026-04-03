@@ -23,7 +23,7 @@ const MobileBottomNav = ({ activeRoute, appMode, onNavigate, onOpenMore, mobileN
       style={{ paddingBottom: "var(--safe-area-bottom)" }}
       aria-label="Mobile Navigation"
     >
-      <div className="h-16 px-2 grid grid-cols-5 gap-1">
+      <div className="h-16 mobile-nav-safe-x grid grid-cols-5 gap-1">
         {items.map((item) => {
           const Icon = item.icon;
           const active = item.path ? isRouteActive(activeRoute, item.path) : false;

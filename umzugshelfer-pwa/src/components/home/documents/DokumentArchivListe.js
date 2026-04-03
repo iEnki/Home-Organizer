@@ -34,7 +34,7 @@ export default function DokumentArchivListe({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 min-w-0">
       {reihenfolge.map((key) => {
         const doks = map[key];
         const istZugeklappt = collapsed.has(key);

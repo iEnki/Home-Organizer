@@ -105,7 +105,7 @@ export default function DokumentZeile({
     <div
       data-dokument-id={dok.id}
       onClick={() => onVorschau?.(dok)}
-      className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors group
+      className={`flex min-w-0 max-w-full items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors group
         ${isHighlighted
           ? "bg-primary-500/5 ring-1 ring-inset ring-primary-500/30"
           : "hover:bg-light-hover dark:hover:bg-canvas-3"

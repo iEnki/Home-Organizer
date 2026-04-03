@@ -59,13 +59,13 @@ export default function DokumentFilterBar({
   const STATUS_LABEL = { budget: "Im Budget", wissen: "Als Wissen", offen: "Offen (Rechnung)" };
 
   return (
-    <div className="sticky top-0 z-10 bg-light-bg/95 dark:bg-canvas-0/95 backdrop-blur-sm
-                    -mx-4 px-4 lg:-mx-6 lg:px-6 pb-3 pt-2
+    <div className="sticky top-0 z-10 min-w-0 overflow-x-hidden bg-light-bg/95 dark:bg-canvas-0/95 backdrop-blur-sm
+                    lg:-mx-6 lg:px-6 pb-3 pt-2
                     border-b border-light-border dark:border-dark-border space-y-2">
       {/* Zeile 1: Suche + Upload + Ansicht */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {/* Suchfeld */}
-        <div data-tour="tour-dokumente-suche" className="relative flex-1">
+        <div data-tour="tour-dokumente-suche" className="relative basis-full w-full min-w-0 sm:flex-1 sm:basis-auto">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary pointer-events-none" />
           <input
             value={suchbegriff}
@@ -83,46 +83,48 @@ export default function DokumentFilterBar({
           )}
         </div>
 
-        {/* Upload */}
-        <button
-          data-tour="tour-dokumente-upload"
-          onClick={onUpload}
-          className="flex items-center gap-1.5 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill transition-colors whitespace-nowrap flex-shrink-0"
-        >
-          <Upload size={13} /> Hochladen
-        </button>
+        <div className="flex w-full min-w-0 items-center justify-between gap-2 sm:w-auto sm:min-w-fit sm:justify-start">
+          {/* Upload */}
+          <button
+            data-tour="tour-dokumente-upload"
+            onClick={onUpload}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill transition-colors whitespace-nowrap flex-shrink-0"
+          >
+            <Upload size={13} /> Hochladen
+          </button>
 
-        {/* Ansicht-Toggle */}
-        <div className="flex items-center rounded-card-sm border border-light-border dark:border-dark-border overflow-hidden flex-shrink-0">
-          <button
-            onClick={() => onViewMode("archiv")}
-            className={`px-2.5 py-2 transition-colors ${
-              viewMode === "archiv"
-                ? "bg-primary-500 text-white"
-                : "bg-light-card dark:bg-canvas-2 text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
-            }`}
-            title="Archivansicht"
-          >
-            <List size={14} />
-          </button>
-          <button
-            onClick={() => onViewMode("karten")}
-            className={`px-2.5 py-2 transition-colors ${
-              viewMode === "karten"
-                ? "bg-primary-500 text-white"
-                : "bg-light-card dark:bg-canvas-2 text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
-            }`}
-            title="Kartenansicht"
-          >
-            <LayoutGrid size={14} />
-          </button>
+          {/* Ansicht-Toggle */}
+          <div className="flex items-center rounded-card-sm border border-light-border dark:border-dark-border overflow-hidden flex-shrink-0">
+            <button
+              onClick={() => onViewMode("archiv")}
+              className={`px-2.5 py-2 transition-colors ${
+                viewMode === "archiv"
+                  ? "bg-primary-500 text-white"
+                  : "bg-light-card dark:bg-canvas-2 text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
+              }`}
+              title="Archivansicht"
+            >
+              <List size={14} />
+            </button>
+            <button
+              onClick={() => onViewMode("karten")}
+              className={`px-2.5 py-2 transition-colors ${
+                viewMode === "karten"
+                  ? "bg-primary-500 text-white"
+                  : "bg-light-card dark:bg-canvas-2 text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
+              }`}
+              title="Kartenansicht"
+            >
+              <LayoutGrid size={14} />
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Zeile 2: Kategorie-Chips + Monat + Jahr + Sortierung */}
       <div className="flex items-center gap-2 flex-wrap">
         {/* Kategorie-Chips (scrollbar) */}
-        <div data-tour="tour-dokumente-filter" className="flex gap-1.5 overflow-x-auto scrollbar-hide flex-shrink-0 max-w-full">
+        <div data-tour="tour-dokumente-filter" className="flex gap-1.5 overflow-x-auto scrollbar-hide w-full">
           {["Alle", ...KATEGORIEN].map((kat) => {
             const aktiv = kategorieFilter === kat;
             const anzahl = kat === "Alle" ? undefined : (kategorieZaehlung[kat] || 0);

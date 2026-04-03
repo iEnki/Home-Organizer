@@ -755,46 +755,50 @@ const DokumentKarte = ({
         </div>
       )}
 
-      <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-light-border dark:border-dark-border">
-        <button
-          onClick={() => onDownload(dok.storage_pfad, dok.dateiname)}
-          disabled={laedtDownload}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors disabled:opacity-50"
-        >
-          <Download size={12} /> Herunterladen
-        </button>
-        <button
-          onClick={() => onWissen(dok)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors"
-        >
-          <BookOpen size={12} /> Als Wissen
-        </button>
-        {istRechnungKategorie(dok) && (
-          dok.im_budget ? (
-            <span className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-green-500/10 text-green-600 dark:text-green-400">
-              <CheckCircle size={12} /> Im Budget
-            </span>
-          ) : (
-            <button
-              onClick={() => onZumBudget(dok)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors"
-            >
-              <Plus size={12} /> Zum Budget hinzufügen
-            </button>
-          )
-        )}
-        <button
-          onClick={() => onBearbeiten(dok)}
-          className="ml-auto flex items-center px-2.5 py-1.5 text-xs rounded-card-sm bg-light-hover dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main transition-colors"
-        >
-          <Pencil size={12} />
-        </button>
-        <button
-          onClick={() => onLoeschen(dok.id, dok.storage_pfad, dok.dateiname)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm text-red-500 hover:bg-red-500/10 transition-colors"
-        >
-          <Trash2 size={12} />
-        </button>
+      <div className="mt-3 pt-3 border-t border-light-border dark:border-dark-border flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+          <button
+            onClick={() => onDownload(dok.storage_pfad, dok.dateiname)}
+            disabled={laedtDownload}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors disabled:opacity-50"
+          >
+            <Download size={12} /> Herunterladen
+          </button>
+          <button
+            onClick={() => onWissen(dok)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors"
+          >
+            <BookOpen size={12} /> Als Wissen
+          </button>
+          {istRechnungKategorie(dok) && (
+            dok.im_budget ? (
+              <span className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-green-500/10 text-green-600 dark:text-green-400">
+                <CheckCircle size={12} /> Im Budget
+              </span>
+            ) : (
+              <button
+                onClick={() => onZumBudget(dok)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors"
+              >
+                <Plus size={12} /> Zum Budget hinzufügen
+              </button>
+            )
+          )}
+        </div>
+        <div className="ml-auto flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={() => onBearbeiten(dok)}
+            className="flex items-center px-2.5 py-1.5 text-xs rounded-card-sm bg-light-hover dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main transition-colors"
+          >
+            <Pencil size={12} />
+          </button>
+          <button
+            onClick={() => onLoeschen(dok.id, dok.storage_pfad, dok.dateiname)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm text-red-500 hover:bg-red-500/10 transition-colors"
+          >
+            <Trash2 size={12} />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1267,7 +1271,7 @@ const HomeDokumente = ({ session }) => {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-5xl mx-auto px-4 lg:px-6 py-4 space-y-4">
+    <div className="w-full min-w-0 max-w-5xl mx-auto px-4 lg:px-6 py-4 space-y-4 overflow-x-hidden">
 
       {/* Header */}
       <div data-tour="tour-dokumente-header" className="flex items-center gap-2">
