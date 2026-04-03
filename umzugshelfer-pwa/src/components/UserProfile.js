@@ -12,7 +12,7 @@ import {
 } from "../config/mobileNavConfig";
 import { supabase } from "../supabaseClient";
 import { useTheme } from "../contexts/ThemeContext";
-import { alleToursZuruecksetzen } from "./home/tour/useTour";
+import { useTourContext } from "../contexts/TourContext";
 import { useAppMode } from "../contexts/AppModeContext";
 import ThemeSwitch from "./ThemeSwitch";
 import usePushSubscription from "../hooks/usePushSubscription";
@@ -61,6 +61,16 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
   const nameRaw  = session?.user?.user_metadata?.full_name || email.split("@")[0] || "Nutzer";
   const initiale = nameRaw.charAt(0).toUpperCase();
   const isHouseholdAdmin = householdContext?.is_admin === true;
+
+  // Tour-Context
+  const {
+    tourState,
+    geladen: tourGeladen,
+    setIntroAnswer,
+    resetAllTours,
+    setAutoTours,
+    resetPageTour,
+  } = useTourContext() || {};
 
   // â"€â"€ Basis-States â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   const [ladend, setLadend] = useState(true);
@@ -415,7 +425,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
   };
 
   const handleTourZuruecksetzen = () => {
-    alleToursZuruecksetzen();
+    resetAllTours?.();
     setTourReset(true);
     setTimeout(() => setTourReset(false), 3000);
   };
@@ -1473,23 +1483,85 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         )}
       </AkkordeonSektion>
 
-      {/* â"€â"€ Interaktive Anleitungen â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
+      {/* ── Interaktive Anleitungen ──────────────────────────────────────────── */}
       <AkkordeonSektion title="Interaktive Anleitungen" icon={<RotateCcw size={16} />}>
-        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-4">
-          Setze alle Schritt-für-Schritt-Anleitungen zurück. Beim nächsten Besuch jedes Bereichs erscheint die Tour wieder automatisch.
-        </p>
-        <button
-          onClick={handleTourZuruecksetzen}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-pill text-sm font-medium
-                     bg-secondary-500/10 hover:bg-secondary-500/20 text-secondary-500
-                     border border-secondary-500/30 transition-colors"
-        >
-          {tourReset ? (
-            <><CheckCircle size={15} /> Anleitungen zurückgesetzt</>
-          ) : (
-            <><RotateCcw size={15} /> Alle Anleitungen zurücksetzen</>
+        <div className="space-y-3">
+          {/* Status */}
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-light-text-secondary dark:text-dark-text-secondary">Status:</span>
+            {!tourGeladen ? (
+              <span className="text-light-text-secondary dark:text-dark-text-secondary text-xs">Lädt…</span>
+            ) : tourState?.intro_opt_in === true ? (
+              <span className="text-primary-500 text-xs font-medium">Touren aktiv</span>
+            ) : tourState?.intro_opt_in === false ? (
+              <span className="text-light-text-secondary dark:text-dark-text-secondary text-xs">Deaktiviert</span>
+            ) : (
+              <span className="text-amber-400 text-xs font-medium">Noch nicht entschieden</span>
+            )}
+          </div>
+
+          {/* Auto-Touren Toggle — nur wenn opt_in true */}
+          {tourState?.intro_opt_in === true && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-light-text-main dark:text-dark-text-main">Automatische Touren</span>
+              <button
+                onClick={() => setAutoTours?.(!tourState.auto_tours_enabled)}
+                className={`px-3 py-1 rounded-pill text-xs font-medium transition-colors
+                  ${tourState.auto_tours_enabled
+                    ? "bg-primary-500 text-white"
+                    : "border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-1 dark:hover:bg-canvas-3"}`}
+              >
+                {tourState.auto_tours_enabled ? "An" : "Aus"}
+              </button>
+            </div>
           )}
-        </button>
+
+          {/* Alle Modul-Touren zurücksetzen — nur completed_pages, auto_tours_enabled unverändert */}
+          {tourState?.intro_opt_in === true && (
+            <div className="space-y-1">
+              <button
+                onClick={handleTourZuruecksetzen}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-pill text-sm font-medium
+                           bg-secondary-500/10 hover:bg-secondary-500/20 text-secondary-500
+                           border border-secondary-500/30 transition-colors"
+              >
+                {tourReset ? (
+                  <><CheckCircle size={15} /> Zurückgesetzt</>
+                ) : (
+                  <><RotateCcw size={15} /> Alle Modul-Touren zurücksetzen</>
+                )}
+              </button>
+              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                Automatischer Start hängt von der Einstellung „Automatische Touren" ab.
+              </p>
+            </div>
+          )}
+
+          {/* Dashboard-Tour neu starten */}
+          {tourState?.intro_opt_in === true && (
+            <button
+              onClick={() => { setAutoTours?.(true); resetPageTour?.("dashboard"); navigate("/home"); }}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-pill text-sm font-medium
+                         border border-light-border dark:border-dark-border
+                         text-light-text-secondary dark:text-dark-text-secondary
+                         hover:bg-light-surface-1 dark:hover:bg-canvas-3 transition-colors"
+            >
+              <RotateCcw size={15} /> Dashboard-Tour neu starten
+            </button>
+          )}
+
+          {/* Reaktivieren wenn abgelehnt (Alt-User oder manuell deaktiviert) */}
+          {tourState?.intro_opt_in === false && (
+            <button
+              onClick={() => { setIntroAnswer?.(true); resetPageTour?.("dashboard"); navigate("/home"); }}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-pill text-sm font-medium
+                         bg-primary-500/10 hover:bg-primary-500/20 text-primary-500
+                         border border-primary-500/30 transition-colors"
+            >
+              <RotateCcw size={15} /> Touren aktivieren &amp; Dashboard-Tour starten
+            </button>
+          )}
+        </div>
       </AkkordeonSektion>
 
       {/* ── Mobile Navigation ─────────────────────────────────────────────────── */}

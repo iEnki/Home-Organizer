@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTourContext } from "../../../contexts/TourContext";
 
 const TOUR_PAGE_KEYS = [
   "dashboard", "budget", "inventar", "vorraete",
@@ -8,32 +9,45 @@ const TOUR_PAGE_KEYS = [
 
 /**
  * Hook zum Verwalten der interaktiven Tour für eine bestimmte Seite.
- * Speichert den "gesehen"-Status im localStorage.
+ * Liest den Status aus TourContext (persistent in user_profile.tour_state).
+ *
+ * API identisch zu v1: useTour(pageKey) → { active, schritt, setSchritt, beenden, neustarten }
  *
  * @param {string} pageKey - Eindeutiger Schlüssel der Seite (z.B. "budget")
  */
 export function useTour(pageKey) {
-  const storageKey = `tour_done_home_${pageKey}`;
-  const [active, setActive] = useState(() => !localStorage.getItem(storageKey));
+  const ctx = useTourContext();
   const [schritt, setSchritt] = useState(0);
 
+  const tourState = ctx?.tourState;
+  const geladen   = ctx?.geladen ?? false;
+
+  // Aktiv nur wenn: Context geladen + User zugestimmt + Auto-Touren an + Seite noch nicht fertig
+  const active = !!(
+    geladen &&
+    tourState &&
+    tourState.intro_opt_in === true &&
+    tourState.auto_tours_enabled === true &&
+    tourState.completed_pages?.[pageKey] !== true
+  );
+
   const beenden = () => {
-    localStorage.setItem(storageKey, "1");
-    setActive(false);
+    if (ctx) ctx.markPageDone(pageKey);
   };
 
   const neustarten = () => {
-    localStorage.removeItem(storageKey);
-    setSchritt(0);
-    setActive(true);
+    if (ctx) {
+      ctx.resetPageTour(pageKey);
+      setSchritt(0);
+    }
   };
 
   return { active, schritt, setSchritt, beenden, neustarten };
 }
 
 /**
- * Setzt alle Tour-Flags im localStorage zurück.
- * Beim nächsten Besuch jedes Bereichs erscheint die Tour wieder.
+ * Setzt alle Tour-Flags im localStorage zurück (Legacy-Kompatibilität).
+ * Neue UI nutzt TourContext.resetAllTours() direkt.
  */
 export function alleToursZuruecksetzen() {
   TOUR_PAGE_KEYS.forEach((k) => localStorage.removeItem(`tour_done_home_${k}`));

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 
 const TOOLTIP_WIDTH = 300;
@@ -17,27 +17,39 @@ function getHighlightRect(el) {
   };
 }
 
-function getTooltipStyle(rect, position) {
+function getTooltipStyle(rect, position, tooltipEl) {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
+  const tooltipH = tooltipEl?.offsetHeight || 200;
 
-  let style = { width: TOOLTIP_WIDTH };
-
-  if (position === "bottom") {
-    style.top = rect.bottom + GAP;
-    style.left = Math.min(Math.max(rect.left, 12), vw - TOOLTIP_WIDTH - 12);
-  } else if (position === "top") {
-    style.bottom = vh - rect.top + GAP;
-    style.left = Math.min(Math.max(rect.left, 12), vw - TOOLTIP_WIDTH - 12);
-  } else if (position === "right") {
-    style.top = Math.min(Math.max(rect.top, 12), vh - 200);
-    style.left = Math.min(rect.right + GAP, vw - TOOLTIP_WIDTH - 12);
-  } else if (position === "left") {
-    style.top = Math.min(Math.max(rect.top, 12), vh - 200);
-    style.right = Math.min(vw - rect.left + GAP, vw - TOOLTIP_WIDTH - 12);
+  let effectivePosition = position;
+  // Auto-flip: wenn unten kein Platz → top
+  if (position === "bottom" && rect.bottom + GAP + tooltipH > vh - 20) {
+    effectivePosition = "top";
+  }
+  // Auto-flip: wenn oben kein Platz → bottom
+  if (position === "top" && rect.top - GAP - tooltipH < 20) {
+    effectivePosition = "bottom";
   }
 
-  return style;
+  const w = Math.min(TOOLTIP_WIDTH, vw - 24);
+  let style = { width: w };
+
+  if (effectivePosition === "bottom") {
+    style.top = rect.bottom + GAP;
+    style.left = Math.min(Math.max(rect.left, 12), vw - w - 12);
+  } else if (effectivePosition === "top") {
+    style.bottom = vh - rect.top + GAP;
+    style.left = Math.min(Math.max(rect.left, 12), vw - w - 12);
+  } else if (effectivePosition === "right") {
+    style.top = Math.min(Math.max(rect.top, 12), vh - 200);
+    style.left = Math.min(rect.right + GAP, vw - w - 12);
+  } else if (effectivePosition === "left") {
+    style.top = Math.min(Math.max(rect.top, 12), vh - 200);
+    style.right = Math.min(vw - rect.left + GAP, vw - w - 12);
+  }
+
+  return { style, effectivePosition };
 }
 
 function getArrowClass(position) {
@@ -61,37 +73,67 @@ export default function TourOverlay({ steps, schritt, onSchritt, onBeenden }) {
   const [highlightRect, setHighlightRect] = useState(null);
   const [tooltipStyle, setTooltipStyle] = useState({});
   const [arrowClass, setArrowClass] = useState("");
+  const tooltipRef = useRef(null);
+  const retryRef = useRef(null);
 
   const aktuellerSchritt = steps[schritt];
+
+  const positioniereElement = useCallback((el, position) => {
+    const rect = getHighlightRect(el);
+    setHighlightRect(rect);
+    const { style, effectivePosition } = getTooltipStyle(rect, position, tooltipRef.current);
+    setTooltipStyle(style);
+    setArrowClass(getArrowClass(effectivePosition));
+  }, []);
 
   const positionieren = useCallback(() => {
     if (!aktuellerSchritt) return;
 
+    // Altes Retry abbrechen
+    if (retryRef.current) {
+      clearInterval(retryRef.current);
+      retryRef.current = null;
+    }
+
     const el = document.querySelector(`[data-tour="${aktuellerSchritt.target}"]`);
-    if (!el) {
-      // Element nicht gefunden: automatisch weiter
-      if (schritt < steps.length - 1) {
-        onSchritt(schritt + 1);
-      } else {
-        onBeenden();
-      }
+    if (el) {
+      el.scrollIntoView({ behavior: "auto", block: "center", inline: "nearest" });
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => positioniereElement(el, aktuellerSchritt.position));
+      });
       return;
     }
 
-    // Sofort scrollen (kein smooth), dann nach Layout-Frame positionieren
-    el.scrollIntoView({ behavior: "auto", block: "center", inline: "nearest" });
+    // Element nicht gefunden: Retry bis zu 10×100ms, dann Skip
+    let versuche = 0;
+    retryRef.current = setInterval(() => {
+      versuche++;
+      const elRetry = document.querySelector(`[data-tour="${aktuellerSchritt.target}"]`);
+      if (elRetry) {
+        clearInterval(retryRef.current);
+        retryRef.current = null;
+        elRetry.scrollIntoView({ behavior: "auto", block: "center", inline: "nearest" });
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => positioniereElement(elRetry, aktuellerSchritt.position));
+        });
+      } else if (versuche >= 10) {
+        clearInterval(retryRef.current);
+        retryRef.current = null;
+        if (schritt < steps.length - 1) {
+          onSchritt(schritt + 1);
+        } else {
+          onBeenden();
+        }
+      }
+    }, 100);
+  }, [aktuellerSchritt, schritt, steps.length, onSchritt, onBeenden, positioniereElement]);
 
-    // Zwei requestAnimationFrames sichern ab, dass das Layout nach dem Scroll
-    // vollständig neu berechnet wurde, bevor die Highlight-Position gesetzt wird.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const rect = getHighlightRect(el);
-        setHighlightRect(rect);
-        setTooltipStyle(getTooltipStyle(rect, aktuellerSchritt.position));
-        setArrowClass(getArrowClass(aktuellerSchritt.position));
-      });
-    });
-  }, [aktuellerSchritt, schritt, steps.length, onSchritt, onBeenden]);
+  // Cleanup bei Unmount
+  useEffect(() => {
+    return () => {
+      if (retryRef.current) clearInterval(retryRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     positionieren();
@@ -200,8 +242,9 @@ export default function TourOverlay({ steps, schritt, onSchritt, onBeenden }) {
       {/* Tooltip-Blase */}
       <div
         key={`tip-${schritt}`}
+        ref={tooltipRef}
         className={`fixed z-[10000] bg-white dark:bg-[#1e2130] border-2 border-[#6366f1] rounded-xl shadow-2xl p-4 ${arrowClass}`}
-        style={{ ...tooltipStyle, maxWidth: TOOLTIP_WIDTH, animation: "tourFadeIn 0.15s ease" }}
+        style={{ ...tooltipStyle, maxWidth: Math.min(TOOLTIP_WIDTH, window.innerWidth - 24), animation: "tourFadeIn 0.15s ease" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

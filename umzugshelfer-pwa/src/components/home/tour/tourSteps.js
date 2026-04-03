@@ -2,53 +2,27 @@
 // Jeder Schritt: { target: "data-tour-id", title, text, position }
 
 export const TOUR_STEPS = {
+  // Dashboard-Tour dient gleichzeitig als Einstiegstour (Variante A).
+  // Nur 3 Schritte – knapp und fokussiert.
+  // Hinweis: tour-topbar-profil ist hidden md:flex (Desktop/Tablet only).
+  // Auf Mobile überspringt die Retry-Logik diesen Schritt nach 1s sauber.
   dashboard: [
     {
-      target: "tour-sidebar",
-      title: "Navigation",
-      text: "Hier findest du alle Hauptbereiche des Home Organizers: Inventar, Vorräte, Geräte & Wartung, Einkauf, Aufgaben, Projekte, Budget, Suche, Wissen und Verlauf. Klicke auf ein Symbol, um den Bereich zu öffnen.",
-      position: "right",
-    },
-    {
       target: "tour-dashboard-willkommen",
-      title: "Willkommen",
-      text: "Diese Karte zeigt dir auf einen Blick, wie viele Aufgaben, Projekte oder Aktionen gerade anstehen – dein täglicher Überblick.",
-      position: "bottom",
-    },
-    {
-      target: "tour-dashboard-status",
-      title: "Haushalt-Status",
-      text: "Hier siehst du den Gesamtstatus deines Haushalts: Vorräte, offene Aufgaben und aktive Projekte in einer kompakten Übersicht.",
-      position: "bottom",
-    },
-    {
-      target: "tour-dashboard-inventar",
-      title: "Schnellzugriff Inventar",
-      text: "Schnellzugriff auf dein Inventar. Hier kannst du Gegenstände hinzufügen, bearbeiten oder filtern.",
+      title: "Willkommen im Home Organizer",
+      text: "Dein Dashboard zeigt dir täglich den Überblick: offene Aufgaben, Vorratsstatus und Budget auf einen Blick.",
       position: "bottom",
     },
     {
       target: "tour-dashboard-budget",
       title: "Budget-Übersicht",
-      text: "Öffnet die Budgetübersicht. Hier legst du monatliche Limits fest, erfasst Ausgaben und siehst deinen Fortschritt.",
-      position: "bottom",
-    },
-    {
-      target: "tour-dashboard-aufgaben",
-      title: "To-Dos",
-      text: "Zeigt offene Aufgaben. Klicke hier, um deine Aufgaben zu verwalten oder neue Aufgaben hinzuzufügen.",
-      position: "bottom",
-    },
-    {
-      target: "tour-dashboard-bewohner",
-      title: "Bewohner",
-      text: "Hier kannst du Bewohner verwalten und Aufgaben oder Inventar mit ihnen teilen.",
+      text: "Hier siehst du deine monatlichen Ausgaben und kannst direkt in den Finanzmanager wechseln.",
       position: "bottom",
     },
     {
       target: "tour-topbar-profil",
-      title: "Benutzerprofil",
-      text: "Über das Benutzersymbol gelangst du zu deinem Profil, wo du dein Konto verwaltest, den Dark-Mode umschaltest und Anleitungen zurücksetzen kannst.",
+      title: "Dein Profil",
+      text: "Hier verwaltest du dein Konto und kannst Touren jederzeit neu starten.",
       position: "bottom",
     },
   ],

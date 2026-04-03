@@ -1128,12 +1128,8 @@ const HomeBudget = ({ session }) => {
                       <BewohnerBadge bewohner={bewohner.find(b => b.id === p.bewohner_id)} />
                     </div>
                   </div>
-                  {/* Aktionsbereich: Betrag (Desktop) + Rechnung + Edit/Löschen */}
+                  {/* Aktionsbereich: Rechnung + Betrag (Desktop) + Edit/Löschen */}
                   <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end">
-                    {/* Betrag auf Desktop */}
-                    <span className="hidden sm:block font-semibold flex-shrink-0 tabular-nums text-red-400">
-                      {Math.abs(Number(p.betrag)).toFixed(2)} €
-                    </span>
                     {hatRechnung && (
                       <button
                         onClick={() => oeffneRechnungsVorschau(p)}
@@ -1143,6 +1139,10 @@ const HomeBudget = ({ session }) => {
                         <span className="hidden sm:inline">Rechnung</span>
                       </button>
                     )}
+                    {/* Betrag auf Desktop */}
+                    <span className="hidden sm:block font-semibold flex-shrink-0 tabular-nums text-red-400 w-24 text-right">
+                      {Math.abs(Number(p.betrag)).toFixed(2)} €
+                    </span>
                     <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex-shrink-0">
                       <button onClick={() => setModal(p)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500">
                         <Edit2 size={13} />
