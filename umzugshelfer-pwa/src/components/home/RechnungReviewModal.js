@@ -206,25 +206,53 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
   const [budgetBewohnerId, setBudgetBewohnerId] = useState("");
   const [finanzkonten, setFinanzkonten]         = useState([]);
   const [bewohner, setBewohner]                 = useState([]);
+  const [bewohnerGeladen, setBewohnerGeladen]   = useState(false);
 
   useEffect(() => {
     if (!session?.user?.id) return;
     supabase.from("home_finanzkonten").select("id, name, konto_typ").eq("user_id", session.user.id).eq("aktiv", true).order("sortierung")
       .then(({ data }) => { if (data) setFinanzkonten(data); });
     supabase.from("home_bewohner").select("id, name, linked_user_id").eq("user_id", session.user.id).order("name")
-      .then(({ data }) => { if (data) setBewohner(data); });
+      .then(({ data }) => { setBewohner(data || []); setBewohnerGeladen(true); });
   }, [session?.user?.id]);
 
   // Auto-Bewohner: wenn "Privat" gewählt und noch kein Bewohner gesetzt,
   // wird der eigene verlinkte Bewohnereintrag automatisch vorausgewählt.
+  // Existiert noch kein verlinkter Eintrag, wird einer angelegt.
   useEffect(() => {
     if (budgetScope !== "privat") return;
     if (budgetBewohnerId) return;
-    if (!bewohner.length) return;
+    if (!bewohnerGeladen) return;
     const userId = session?.user?.id;
+    if (!userId) return;
+
+    // Fall 1: Verlinkter Bewohnereintrag vorhanden → setzen
     const eigener = bewohner.find((b) => b.linked_user_id === userId);
-    if (eigener) setBudgetBewohnerId(eigener.id);
-  }, [budgetScope, budgetBewohnerId, bewohner, session?.user?.id]);
+    if (eigener) {
+      setBudgetBewohnerId(eigener.id);
+      return;
+    }
+
+    // Fall 2: Kein verlinkter Eintrag → automatisch anlegen
+    const activeHouseholdId = getActiveHouseholdId();
+    if (!activeHouseholdId) return;
+    const displayName =
+      session.user.user_metadata?.username ||
+      session.user.user_metadata?.display_name ||
+      session.user.email?.split("@")[0] ||
+      "Ich";
+    supabase
+      .from("home_bewohner")
+      .insert({ household_id: activeHouseholdId, user_id: userId, linked_user_id: userId, name: displayName })
+      .select("id, name, linked_user_id")
+      .single()
+      .then(({ data }) => {
+        if (data?.id) {
+          setBewohner((prev) => [...prev, data]);
+          setBudgetBewohnerId(data.id);
+        }
+      });
+  }, [budgetScope, budgetBewohnerId, bewohner, bewohnerGeladen, session?.user?.id]);
 
   // Budget-Felder
   const initialBudgetKategorie = useMemo(() => {

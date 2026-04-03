@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   FileText, FolderOpen, Upload, Download, Trash2, BookOpen,
   Search, X, Plus, CheckCircle, File, Loader2, AlertTriangle, Pencil, ZoomIn, ZoomOut,
@@ -10,6 +10,9 @@ import { deleteInvoiceCascade } from "../../utils/invoiceCascadeDelete";
 import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
+import { getDokDatum, getMonatsKey, formatMonatLabel, compareDokDatum, sortMonthKeys } from "../../utils/dokumentArchiv";
+import DokumentFilterBar from "./documents/DokumentFilterBar";
+import DokumentArchivListe from "./documents/DokumentArchivListe";
 
 // ── Konstanten ────────────────────────────────────────────────────────────────
 const KATEGORIEN = [
@@ -151,8 +154,8 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)] bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 max-h-[calc(100dvh-var(--safe-area-bottom)-2rem)] lg:max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 pb-safe bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 max-h-[90vh] flex flex-col">
 
         {/* Header — immer sichtbar */}
         <div className="shrink-0 flex items-center justify-between px-5 pt-5 pb-4 border-b border-light-border dark:border-dark-border">
@@ -280,6 +283,7 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
         inhalt: inhalt || null,
         kategorie,
         tags: [dok.dateiname],
+        dokument_id: dok.id,
       });
       if (error) throw error;
       await logVerlauf(supabase, userId, "home_wissen", titel.trim(), "erstellt");
@@ -501,8 +505,8 @@ const BearbeitenModal = ({ dok, onSchliessen, onGespeichert }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)] bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 max-h-[calc(100dvh-var(--safe-area-bottom)-2rem)] lg:max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 pb-safe bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 max-h-[90vh] flex flex-col">
 
         {/* Header */}
         <div className="shrink-0 flex items-center justify-between px-5 pt-5 pb-4 border-b border-light-border dark:border-dark-border">
@@ -587,6 +591,8 @@ const BearbeitenModal = ({ dok, onSchliessen, onGespeichert }) => {
 // ── Dokument-Karte ─────────────────────────────────────────────────────────────
 const DokumentKarte = ({
   dok,
+  vorschauUrl,
+  onLoadVorschau,
   onDownload,
   onLoeschen,
   onWissen,
@@ -599,11 +605,12 @@ const DokumentKarte = ({
   const katFarbe = KATEGORIE_FARBEN[kat] || KATEGORIE_FARBEN.Sonstiges;
   const beschreibungOhneHinweis = dok.beschreibung?.replace(/\s*\[[^\]]+\]$/, "") || "";
   const [vorschauOffen, setVorschauOffen] = useState(false);
+  const [laedt, setLaedt] = useState(false);
   const [zoom, setZoom] = useState(1);
   const istPdf = istPdfDatei(dok);
-  const hatBildVorschau = hatBildVorschauCheck(dok) && !!dok.vorschau_url;
-  const hatPdfVorschau = istPdf && !!dok.vorschau_url && !hatBildVorschau;
-  const hatVorschau = hatBildVorschau || hatPdfVorschau;
+  const hatBildVorschau = hatBildVorschauCheck(dok) && !!vorschauUrl;
+  const hatPdfVorschau = istPdf && !!vorschauUrl && !hatBildVorschau;
+  const hatVorschau = hatBildVorschau || hatPdfVorschau || hatVorschauCheck(dok);
 
   const dateiIcon = () => {
     if (dok.datei_typ?.startsWith("image/")) return <File size={20} className="text-blue-500" />;
@@ -657,12 +664,27 @@ const DokumentKarte = ({
         <div className="mt-3 pt-3 border-t border-light-border dark:border-dark-border space-y-2">
           <button
             type="button"
-            onClick={() => { setVorschauOffen((prev) => !prev); setZoom(1); }}
+            onClick={async () => {
+              if (!vorschauUrl) {
+                setLaedt(true);
+                try {
+                  await onLoadVorschau?.();
+                } finally {
+                  setLaedt(false);
+                }
+              }
+              setVorschauOffen((prev) => !prev);
+              setZoom(1);
+            }}
             className="w-full flex items-center gap-2 rounded-card-sm border border-light-border dark:border-dark-border p-2 text-left hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors"
           >
-            {hatBildVorschau ? (
+            {laedt ? (
+              <div className="w-14 h-14 rounded-card-sm border border-light-border dark:border-dark-border flex-shrink-0 flex items-center justify-center">
+                <Loader2 size={20} className="animate-spin text-light-text-secondary dark:text-dark-text-secondary" />
+              </div>
+            ) : hatBildVorschau ? (
               <img
-                src={dok.vorschau_url}
+                src={vorschauUrl}
                 alt={`Vorschau von ${dok.dateiname}`}
                 className="w-14 h-14 rounded-card-sm object-cover border border-light-border dark:border-dark-border flex-shrink-0"
                 loading="lazy"
@@ -682,7 +704,7 @@ const DokumentKarte = ({
             </div>
           </button>
 
-          {vorschauOffen && (
+          {vorschauOffen && vorschauUrl && (
             hatBildVorschau ? (
               <div className="rounded-card-sm border border-light-border dark:border-dark-border overflow-hidden">
                 <div className="flex items-center justify-between px-2 py-1 bg-light-bg dark:bg-canvas-1 border-b border-light-border dark:border-dark-border">
@@ -715,7 +737,7 @@ const DokumentKarte = ({
                 </div>
                 <div className="overflow-auto max-h-72 bg-light-bg dark:bg-canvas-1 cursor-grab active:cursor-grabbing">
                   <img
-                    src={dok.vorschau_url}
+                    src={vorschauUrl}
                     alt={`Rechnung ${dok.dateiname}`}
                     style={{ width: `${zoom * 100}%`, display: 'block' }}
                     loading="lazy"
@@ -724,7 +746,7 @@ const DokumentKarte = ({
               </div>
             ) : (
               <iframe
-                src={dok.vorschau_url}
+                src={vorschauUrl}
                 title={`PDF: ${dok.dateiname}`}
                 className="w-full h-72 rounded-card-sm border border-light-border dark:border-dark-border"
               />
@@ -778,6 +800,85 @@ const DokumentKarte = ({
   );
 };
 
+// ── Vorschau-Modal ─────────────────────────────────────────────────────────────
+const VorschauModal = ({ dok, vorschauUrl, loadPreviewUrl, onSchliessen }) => {
+  const [url, setUrl] = useState(vorschauUrl || null);
+  const [laedt, setLaedt] = useState(!vorschauUrl);
+
+  useEffect(() => {
+    if (url) return;
+    let cancelled = false;
+    setLaedt(true);
+    loadPreviewUrl(dok).then((u) => {
+      if (!cancelled) { setUrl(u); setLaedt(false); }
+    }).catch(() => { if (!cancelled) setLaedt(false); });
+    return () => { cancelled = true; };
+  }, [dok, loadPreviewUrl, url]);
+
+  useEffect(() => {
+    const handleKey = (e) => { if (e.key === "Escape") onSchliessen(); };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onSchliessen]);
+
+  const istBild = hatBildVorschauCheck(dok);
+  const istPdf  = istPdfDatei(dok);
+
+  return (
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onSchliessen}>
+      <div
+        className="relative w-full max-w-3xl bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 flex flex-col max-h-[90vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-light-border dark:border-dark-border">
+          <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main truncate pr-4">
+            {dok.dateiname}
+          </p>
+          <button
+            onClick={onSchliessen}
+            className="w-8 h-8 flex items-center justify-center rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary flex-shrink-0"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Inhalt */}
+        <div className="flex-1 overflow-auto p-4 flex items-center justify-center min-h-[200px]">
+          {laedt ? (
+            <Loader2 size={32} className="animate-spin text-light-text-secondary dark:text-dark-text-secondary" />
+          ) : !url ? (
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+              Vorschau nicht verfügbar.
+            </p>
+          ) : istBild ? (
+            <img
+              src={url}
+              alt={dok.dateiname}
+              className="max-w-full max-h-full object-contain rounded-card-sm"
+            />
+          ) : istPdf ? (
+            <iframe
+              src={url}
+              title={dok.dateiname}
+              className="w-full h-[60vh] rounded-card-sm border border-light-border dark:border-dark-border"
+            />
+          ) : (
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-primary-500 hover:text-primary-600 underline"
+            >
+              Datei öffnen
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── Hauptkomponente ────────────────────────────────────────────────────────────
 const HomeDokumente = ({ session }) => {
   const userId = session?.user?.id;
@@ -799,25 +900,35 @@ const HomeDokumente = ({ session }) => {
   const [kategorieFilter, setKategorieFilter] = useState("Alle");
   const [suchbegriff, setSuchbegriff] = useState("");
   const [highlightedDokumentId, setHighlightedDokumentId] = useState(null);
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem("dok_archiv_viewmode") || "archiv");
+  const [monatFilter, setMonatFilter] = useState("alle");
+  const [jahrFilter, setJahrFilter] = useState("alle");
+  const [sortierung, setSortierung] = useState("neueste");
+  const [statusFilter, setStatusFilter] = useState("alle");
+  const [vorschauUrls, setVorschauUrls] = useState({});
+  const [vorschauUrlsTs, setVorschauUrlsTs] = useState({});
+  const [vorschauModal, setVorschauModal] = useState(null);
   const handledFocusRef = useRef(null);
   const focusDokumentId = location.state?.focusDokumentId || null;
 
-  const baueVorschauUrls = useCallback(async (doks) => {
-    const zielDoks = doks.filter((dok) => hatVorschauCheck(dok));
-    if (zielDoks.length === 0) return {};
+  const loadPreviewUrl = useCallback(async (dok) => {
+    const existing = vorschauUrls[dok.id];
+    const ts = vorschauUrlsTs[dok.id] || 0;
+    const FRESH_MS = 55 * 60 * 1000; // 55 Minuten
+    if (existing && Date.now() - ts < FRESH_MS) return existing;
 
-    const vorschauEintraege = await Promise.all(
-      zielDoks.map(async (dok) => {
-        const { data, error } = await supabase.storage
-          .from("user-dokumente")
-          .createSignedUrl(dok.storage_pfad, 60 * 60);
-        if (error || !data?.signedUrl) return [dok.id, null];
-        return [dok.id, data.signedUrl];
-      })
-    );
-
-    return Object.fromEntries(vorschauEintraege);
-  }, []);
+    if (!hatVorschauCheck(dok)) return null;
+    const { data } = await supabase.storage
+      .from("user-dokumente")
+      .createSignedUrl(dok.storage_pfad, 60 * 60);
+    const url = data?.signedUrl || null;
+    if (url) {
+      const now = Date.now();
+      setVorschauUrls((prev) => ({ ...prev, [dok.id]: url }));
+      setVorschauUrlsTs((prev) => ({ ...prev, [dok.id]: now }));
+    }
+    return url;
+  }, [vorschauUrls, vorschauUrlsTs]);
 
   const resolveHouseholdId = useCallback(async () => {
     const aktiveHouseholdId = getActiveHouseholdId();
@@ -882,12 +993,12 @@ const HomeDokumente = ({ session }) => {
         .order("erstellt_am", { ascending: false });
       if (error) throw error;
       const doks = data || [];
-      const vorschauUrls = await baueVorschauUrls(doks);
       const dokIds = doks.map((dok) => dok.id).filter(Boolean);
       const householdId = await resolveHouseholdId().catch(() => null);
 
       let budgetLinkedSet = new Set();
       let rechnungByDokId = new Map();
+      let wissenDokIdSet = new Set();
 
       if (dokIds.length > 0) {
         let linksQuery = supabase
@@ -906,20 +1017,30 @@ const HomeDokumente = ({ session }) => {
         if (householdId) rechnungQuery = rechnungQuery.eq("household_id", householdId);
         const { data: rechnungRows } = await rechnungQuery;
         rechnungByDokId = new Map((rechnungRows || []).map((row) => [row.dokument_id, row]));
+
+        const { data: wissenRows } = await supabase
+          .from("home_wissen")
+          .select("dokument_id")
+          .in("dokument_id", dokIds)
+          .not("dokument_id", "is", null);
+        wissenDokIdSet = new Set((wissenRows || []).map((r) => r.dokument_id));
       }
 
       setDokumente(doks.map((dok) => ({
         ...dok,
-        vorschau_url: vorschauUrls[dok.id] || null,
+        vorschau_url: null,
         im_budget: budgetLinkedSet.has(dok.id),
+        hat_wissen: wissenDokIdSet.has(dok.id),
         rechnung_info: rechnungByDokId.get(dok.id) || null,
       })));
+      setVorschauUrls({});
+      setVorschauUrlsTs({});
     } catch (err) {
       setFehler("Dokumente konnten nicht geladen werden.");
     } finally {
       setLoading(false);
     }
-  }, [baueVorschauUrls, resolveHouseholdId, userId]);
+  }, [resolveHouseholdId, userId]);
 
   useEffect(() => { ladeDaten(); }, [ladeDaten]);
 
@@ -929,6 +1050,10 @@ const HomeDokumente = ({ session }) => {
 
     if (kategorieFilter !== "Alle") setKategorieFilter("Alle");
     if (suchbegriff) setSuchbegriff("");
+    if (monatFilter  !== "alle")  setMonatFilter("alle");
+    if (jahrFilter   !== "alle")  setJahrFilter("alle");
+    if (statusFilter !== "alle")  setStatusFilter("alle");
+    if (viewMode !== "archiv")    handleViewMode("archiv");
 
     const zielEl = document.querySelector(`[data-dokument-id="${focusDokumentId}"]`);
     if (!zielEl) return;
@@ -941,7 +1066,7 @@ const HomeDokumente = ({ session }) => {
     navigate(location.pathname, { replace: true, state: {} });
 
     return () => window.clearTimeout(timer);
-  }, [focusDokumentId, kategorieFilter, loading, location.pathname, navigate, suchbegriff]);
+  }, [focusDokumentId, kategorieFilter, suchbegriff, monatFilter, jahrFilter, statusFilter, viewMode, loading, location.pathname, navigate]);
 
   // ── Download ────────────────────────────────────────────────────────────────
   const handleDownload = async (storagePfad, dateiname) => {
@@ -984,6 +1109,11 @@ const HomeDokumente = ({ session }) => {
 
   // ── Wissen-Erfolg ──────────────────────────────────────────────────────────
   const handleWissensErfolg = () => {
+    setDokumente((prev) =>
+      prev.map((d) =>
+        d.id === wissenModalDok?.id ? { ...d, hat_wissen: true } : d
+      )
+    );
     setWissenModalDok(null);
     setWissenErfolgreich(true);
     setTimeout(() => setWissenErfolgreich(false), 3000);
@@ -1064,43 +1194,87 @@ const HomeDokumente = ({ session }) => {
     }
   };
 
-  // ── Gefilterte Dokumente ───────────────────────────────────────────────────
-  const gefilterteDokumente = dokumente.filter((dok) => {
-    const kat = effektiveKategorie(dok);
-    const katPasst = kategorieFilter === "Alle" || kat === kategorieFilter;
-    const q = suchbegriff.toLowerCase();
-    const suchPasst =
-      !q ||
-      dok.dateiname.toLowerCase().includes(q) ||
-      (dok.beschreibung || "").toLowerCase().includes(q);
-    return katPasst && suchPasst;
-  });
+  // ── Filterlogik ────────────────────────────────────────────────────────────
+  const handleJahrFilter = (jahr) => {
+    setJahrFilter(jahr);
+    setMonatFilter("alle");
+  };
 
-  const kategorieZaehlung = dokumente.reduce((acc, dok) => {
+  const handleViewMode = (mode) => {
+    setViewMode(mode);
+    localStorage.setItem("dok_archiv_viewmode", mode);
+  };
+
+  const sichtbareDokumente = useMemo(() => {
+    let r = dokumente.filter((dok) => {
+      if (kategorieFilter !== "Alle" && effektiveKategorie(dok) !== kategorieFilter) return false;
+      if (monatFilter !== "alle" && getMonatsKey(dok) !== monatFilter) return false;
+      if (jahrFilter  !== "alle" && !getDokDatum(dok).startsWith(jahrFilter)) return false;
+      if (statusFilter === "budget" && !dok.im_budget) return false;
+      if (statusFilter === "wissen" && !dok.hat_wissen) return false;
+      if (statusFilter === "offen"  && (!istRechnungKategorie(dok) || dok.im_budget)) return false;
+      if (suchbegriff) {
+        const q = suchbegriff.toLowerCase();
+        const treffer =
+          dok.dateiname.toLowerCase().includes(q) ||
+          (dok.beschreibung || "").toLowerCase().includes(q) ||
+          (dok.rechnung_info?.lieferant_name || "").toLowerCase().includes(q);
+        if (!treffer) return false;
+      }
+      return true;
+    });
+
+    // Bei name_az: Dokumente innerhalb der Monatsgruppen alphabetisch,
+    // Monatsgruppen selbst bleiben chronologisch.
+    r.sort((a, b) => {
+      if (sortierung === "name_az") {
+        const na = (a.rechnung_info?.lieferant_name || a.dateiname).toLowerCase();
+        const nb = (b.rechnung_info?.lieferant_name || b.dateiname).toLowerCase();
+        return na.localeCompare(nb, "de");
+      }
+      return compareDokDatum(a, b, sortierung);
+    });
+
+    return r;
+  }, [dokumente, kategorieFilter, monatFilter, jahrFilter, statusFilter, suchbegriff, sortierung]);
+
+  const gruppiertNachMonat = useMemo(() => {
+    const map = {};
+    sichtbareDokumente.forEach((dok) => {
+      const key = getMonatsKey(dok);
+      (map[key] ??= []).push(dok);
+    });
+    const reihenfolge = Object.keys(map).sort((a, b) => sortMonthKeys(a, b, sortierung));
+    return { map, reihenfolge };
+  }, [sichtbareDokumente, sortierung]);
+
+  const verfuegbareJahre = useMemo(() =>
+    [...new Set(dokumente.map((d) => getDokDatum(d).substring(0, 4)).filter(Boolean))].sort().reverse(),
+  [dokumente]);
+
+  const verfuegbareMonate = useMemo(() => {
+    const basis = jahrFilter === "alle"
+      ? dokumente
+      : dokumente.filter((d) => getDokDatum(d).startsWith(jahrFilter));
+    return [...new Set(basis.map(getMonatsKey).filter((k) => k !== "unbekannt"))].sort().reverse();
+  }, [dokumente, jahrFilter]);
+
+  const kategorieZaehlung = useMemo(() => dokumente.reduce((acc, dok) => {
     const kat = effektiveKategorie(dok) || "Sonstiges";
     acc[kat] = (acc[kat] || 0) + 1;
     return acc;
-  }, {});
+  }, {}), [dokumente]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="max-w-5xl mx-auto px-4 lg:px-6 py-4 space-y-4">
 
       {/* Header */}
-      <div data-tour="tour-dokumente-header" className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <FolderOpen size={22} className="text-primary-500" />
-          <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">
-            Dokumentenarchiv
-          </h1>
-        </div>
-        <button
-          data-tour="tour-dokumente-upload"
-          onClick={() => setUploadModalOffen(true)}
-          className="flex items-center gap-1.5 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill transition-colors"
-        >
-          <Plus size={14} /> Hochladen
-        </button>
+      <div data-tour="tour-dokumente-header" className="flex items-center gap-2">
+        <FolderOpen size={22} className="text-primary-500" />
+        <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">
+          Dokumentenarchiv
+        </h1>
       </div>
 
       {/* Wissen-Erfolg */}
@@ -1118,76 +1292,70 @@ const HomeDokumente = ({ session }) => {
         </div>
       )}
 
-      {/* Suchfeld */}
-      <div data-tour="tour-dokumente-suche" className="relative">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary" />
-        <input
-          value={suchbegriff}
-          onChange={(e) => setSuchbegriff(e.target.value)}
-          placeholder="Dokument suchen…"
-          className="w-full pl-9 pr-9 py-2.5 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
-        />
-        {suchbegriff && (
-          <button
-            onClick={() => setSuchbegriff("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
-          >
-            <X size={14} />
-          </button>
-        )}
-      </div>
-
-      {/* Kategorie-Filter-Chips */}
-      <div data-tour="tour-dokumente-filter" className="flex gap-2 flex-wrap">
-        {["Alle", ...KATEGORIEN].map((kat) => {
-          const aktiv = kategorieFilter === kat;
-          const anzahl = kat === "Alle" ? dokumente.length : (kategorieZaehlung[kat] || 0);
-          return (
-            <button
-              key={kat}
-              onClick={() => setKategorieFilter(kat)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-xs font-medium transition-colors border ${
-                aktiv
-                  ? "bg-primary-500 text-white border-primary-500"
-                  : "bg-light-card dark:bg-canvas-2 text-light-text-secondary dark:text-dark-text-secondary border-light-border dark:border-dark-border hover:border-primary-500/50"
-              }`}
-            >
-              {kat}
-              {(kat === "Alle" || anzahl > 0) && (
-                <span className={`px-1 py-0.5 rounded-full text-[10px] ${aktiv ? "bg-white/20 text-white" : "bg-light-border dark:bg-canvas-3"}`}>
-                  {anzahl}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      {/* FilterBar */}
+      <DokumentFilterBar
+        suchbegriff={suchbegriff}
+        onSuche={setSuchbegriff}
+        kategorieFilter={kategorieFilter}
+        onKategorie={setKategorieFilter}
+        monatFilter={monatFilter}
+        onMonat={setMonatFilter}
+        jahrFilter={jahrFilter}
+        onJahr={handleJahrFilter}
+        sortierung={sortierung}
+        onSortierung={setSortierung}
+        statusFilter={statusFilter}
+        onStatus={setStatusFilter}
+        viewMode={viewMode}
+        onViewMode={handleViewMode}
+        verfuegbareJahre={verfuegbareJahre}
+        verfuegbareMonate={verfuegbareMonate}
+        kategorieZaehlung={kategorieZaehlung}
+        anzahlGefiltert={sichtbareDokumente.length}
+        onUpload={() => setUploadModalOffen(true)}
+      />
 
       {/* Hauptinhalt */}
       {loading ? (
         <div className="flex justify-center py-16">
           <Loader2 size={28} className="animate-spin text-light-text-secondary dark:text-dark-text-secondary" />
         </div>
-      ) : gefilterteDokumente.length === 0 ? (
+      ) : sichtbareDokumente.length === 0 ? (
         <div data-tour="tour-dokumente-liste" className="text-center py-16 text-light-text-secondary dark:text-dark-text-secondary">
           <FolderOpen size={40} className="mx-auto mb-3 opacity-20" />
           <p className="text-sm font-medium">
-            {suchbegriff || kategorieFilter !== "Alle"
+            {suchbegriff || kategorieFilter !== "Alle" || monatFilter !== "alle" || jahrFilter !== "alle"
               ? "Keine Dokumente gefunden."
               : "Noch keine Dokumente hochgeladen."}
           </p>
-          {!suchbegriff && kategorieFilter === "Alle" && (
+          {!suchbegriff && kategorieFilter === "Alle" && monatFilter === "alle" && jahrFilter === "alle" && (
             <p className="text-xs mt-1 opacity-70">
               Klicke auf „Hochladen", um dein erstes Dokument hinzuzufügen.
             </p>
           )}
         </div>
+      ) : viewMode === "archiv" ? (
+        <div data-tour="tour-dokumente-liste">
+          <DokumentArchivListe
+            gruppiertNachMonat={gruppiertNachMonat}
+            vorschauUrls={vorschauUrls}
+            loadPreviewUrl={loadPreviewUrl}
+            highlightedDokumentId={highlightedDokumentId}
+            onVorschau={setVorschauModal}
+            onBearbeiten={setBearbeitenModalDok}
+            onLoeschen={handleLoeschen}
+            onWissen={setWissenModalDok}
+            onBudget={oeffneBudgetModal}
+          />
+        </div>
       ) : (
         <div data-tour="tour-dokumente-liste" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {gefilterteDokumente.map((dok) => (
+          {sichtbareDokumente.map((dok) => (
             <DokumentKarte
               key={dok.id}
               dok={dok}
+              vorschauUrl={vorschauUrls[dok.id]}
+              onLoadVorschau={() => loadPreviewUrl(dok)}
               onDownload={handleDownload}
               onLoeschen={handleLoeschen}
               onWissen={setWissenModalDok}
@@ -1198,6 +1366,16 @@ const HomeDokumente = ({ session }) => {
             />
           ))}
         </div>
+      )}
+
+      {/* Vorschau-Modal */}
+      {vorschauModal && (
+        <VorschauModal
+          dok={vorschauModal}
+          vorschauUrl={vorschauUrls[vorschauModal.id]}
+          loadPreviewUrl={loadPreviewUrl}
+          onSchliessen={() => setVorschauModal(null)}
+        />
       )}
 
       {/* Modals */}
