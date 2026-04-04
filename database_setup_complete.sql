@@ -505,35 +505,11 @@ CREATE POLICY storage_user_dokumente_insert ON storage.objects FOR INSERT TO aut
 
 DROP POLICY IF EXISTS storage_user_dokumente_select ON storage.objects;
 CREATE POLICY storage_user_dokumente_select ON storage.objects FOR SELECT TO authenticated
-  USING (
-    bucket_id = 'user-dokumente'
-    AND (
-      (select auth.uid())::text = (storage.foldername(name))[1]
-      OR EXISTS (
-        SELECT 1
-        FROM public.household_members hm1
-        JOIN public.household_members hm2 ON hm1.household_id = hm2.household_id
-        WHERE hm1.user_id = (select auth.uid())
-          AND hm2.user_id::text = (storage.foldername(name))[1]
-      )
-    )
-  );
+  USING (bucket_id = 'user-dokumente' AND (select auth.uid())::text = (storage.foldername(name))[1]);
 
 DROP POLICY IF EXISTS storage_user_dokumente_delete ON storage.objects;
 CREATE POLICY storage_user_dokumente_delete ON storage.objects FOR DELETE TO authenticated
-  USING (
-    bucket_id = 'user-dokumente'
-    AND (
-      (select auth.uid())::text = (storage.foldername(name))[1]
-      OR EXISTS (
-        SELECT 1
-        FROM public.household_members hm1
-        JOIN public.household_members hm2 ON hm1.household_id = hm2.household_id
-        WHERE hm1.user_id = (select auth.uid())
-          AND hm2.user_id::text = (storage.foldername(name))[1]
-      )
-    )
-  );
+  USING (bucket_id = 'user-dokumente' AND (select auth.uid())::text = (storage.foldername(name))[1]);
 
 DROP POLICY IF EXISTS storage_kisten_fotos_insert ON storage.objects;
 CREATE POLICY storage_kisten_fotos_insert ON storage.objects FOR INSERT TO authenticated
@@ -1121,9 +1097,17 @@ CREATE TABLE IF NOT EXISTS public.home_einkaufliste (
   user_id     uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   vorrat_id   uuid REFERENCES public.home_vorraete(id) ON DELETE SET NULL,
   name        text NOT NULL,
+  original_text text,
+  normalized_name text,
   menge       numeric(10,2) DEFAULT 1,
   einheit     text DEFAULT 'StÃƒÂ¼ck',
   kategorie   text,
+  hauptkategorie text,
+  unterkategorie text,
+  confidence  numeric(4,3),
+  review_noetig boolean NOT NULL DEFAULT false,
+  quelle      text NOT NULL DEFAULT 'manuell'
+    CHECK (quelle IN ('manuell','ki','vorrat')),
   erledigt    boolean DEFAULT FALSE,
   erledigt_am timestamptz,
   notizen     text,
@@ -1131,8 +1115,80 @@ CREATE TABLE IF NOT EXISTS public.home_einkaufliste (
   updated_at  timestamptz DEFAULT NOW()
 );
 
+ALTER TABLE public.home_einkaufliste ADD COLUMN IF NOT EXISTS original_text text;
+ALTER TABLE public.home_einkaufliste ADD COLUMN IF NOT EXISTS normalized_name text;
+ALTER TABLE public.home_einkaufliste ADD COLUMN IF NOT EXISTS hauptkategorie text;
+ALTER TABLE public.home_einkaufliste ADD COLUMN IF NOT EXISTS unterkategorie text;
+ALTER TABLE public.home_einkaufliste ADD COLUMN IF NOT EXISTS confidence numeric(4,3);
+ALTER TABLE public.home_einkaufliste ADD COLUMN IF NOT EXISTS review_noetig boolean NOT NULL DEFAULT false;
+ALTER TABLE public.home_einkaufliste ADD COLUMN IF NOT EXISTS quelle text NOT NULL DEFAULT 'manuell';
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.check_constraints
+    WHERE constraint_name = 'home_einkaufliste_quelle_check'
+  ) THEN
+    ALTER TABLE public.home_einkaufliste
+      ADD CONSTRAINT home_einkaufliste_quelle_check
+      CHECK (quelle IN ('manuell','ki','vorrat'));
+  END IF;
+END $$;
+
+UPDATE public.home_einkaufliste
+SET
+  original_text = COALESCE(original_text, name),
+  normalized_name = COALESCE(normalized_name, name),
+  hauptkategorie = COALESCE(
+    hauptkategorie,
+    CASE
+      WHEN kategorie = 'Lebensmittel' THEN 'Lebensmittel'
+      WHEN kategorie = 'Haushalt' THEN 'Haushalt'
+      WHEN kategorie = 'Hygiene' THEN 'Drogerie'
+      WHEN kategorie = 'Reinigung' THEN 'Haushalt'
+      WHEN kategorie = 'Technik' THEN 'Elektronik'
+      ELSE 'Sonstiges'
+    END
+  ),
+  unterkategorie = COALESCE(
+    unterkategorie,
+    CASE
+      WHEN kategorie = 'Reinigung' THEN 'Reinigung'
+      ELSE unterkategorie
+    END
+  ),
+  confidence = COALESCE(
+    confidence,
+    CASE
+      WHEN kategorie IN ('Lebensmittel','Haushalt') THEN 0.90
+      WHEN kategorie IN ('Hygiene','Reinigung','Technik') THEN 0.82
+      ELSE 0.45
+    END
+  ),
+  review_noetig = CASE
+    WHEN review_noetig IS TRUE THEN true
+    WHEN kategorie IN ('Lebensmittel','Haushalt','Hygiene','Reinigung','Technik') THEN false
+    ELSE true
+  END,
+  quelle = COALESCE(NULLIF(quelle, ''), 'manuell'),
+  kategorie = COALESCE(
+    hauptkategorie,
+    CASE
+      WHEN kategorie = 'Lebensmittel' THEN 'Lebensmittel'
+      WHEN kategorie = 'Haushalt' THEN 'Haushalt'
+      WHEN kategorie = 'Hygiene' THEN 'Drogerie'
+      WHEN kategorie = 'Reinigung' THEN 'Haushalt'
+      WHEN kategorie = 'Technik' THEN 'Elektronik'
+      ELSE 'Sonstiges'
+    END
+  );
+
 CREATE INDEX IF NOT EXISTS idx_home_einkaufliste_user_id  ON public.home_einkaufliste(user_id);
 CREATE INDEX IF NOT EXISTS idx_home_einkaufliste_erledigt ON public.home_einkaufliste(erledigt);
+CREATE INDEX IF NOT EXISTS idx_home_einkaufliste_normalized_name ON public.home_einkaufliste(normalized_name);
+CREATE INDEX IF NOT EXISTS idx_home_einkaufliste_hauptkategorie ON public.home_einkaufliste(hauptkategorie);
+CREATE INDEX IF NOT EXISTS idx_home_einkaufliste_review_noetig ON public.home_einkaufliste(review_noetig);
 
 DROP TRIGGER IF EXISTS set_home_einkaufliste_updated_at ON public.home_einkaufliste;
 CREATE TRIGGER set_home_einkaufliste_updated_at
@@ -1143,6 +1199,36 @@ ALTER TABLE public.home_einkaufliste ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS home_einkaufliste_crud_own ON public.home_einkaufliste;
 CREATE POLICY home_einkaufliste_crud_own ON public.home_einkaufliste FOR ALL
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+
+-- Ã¢â€â‚¬Ã¢â€â‚¬ home_einkauf_korrekturen Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+CREATE TABLE IF NOT EXISTS public.home_einkauf_korrekturen (
+  id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id            uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  created_by_user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  normalized_name    text NOT NULL,
+  bevorzugter_name   text,
+  hauptkategorie     text NOT NULL,
+  unterkategorie     text,
+  standard_einheit   text,
+  created_at         timestamptz DEFAULT NOW(),
+  updated_at         timestamptz DEFAULT NOW(),
+  UNIQUE (user_id, normalized_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_home_einkauf_korrekturen_user_id
+  ON public.home_einkauf_korrekturen(user_id);
+
+DROP TRIGGER IF EXISTS set_home_einkauf_korrekturen_updated_at ON public.home_einkauf_korrekturen;
+CREATE TRIGGER set_home_einkauf_korrekturen_updated_at
+  BEFORE UPDATE ON public.home_einkauf_korrekturen
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+ALTER TABLE public.home_einkauf_korrekturen ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS home_einkauf_korrekturen_crud_own ON public.home_einkauf_korrekturen;
+CREATE POLICY home_einkauf_korrekturen_crud_own ON public.home_einkauf_korrekturen FOR ALL
   USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
@@ -1287,7 +1373,7 @@ CREATE TRIGGER set_home_sparziele_updated_at
 -- home_finanzkonten (muss vor den Shared-Table-DO-Bloecken stehen)
 CREATE TABLE IF NOT EXISTS public.home_finanzkonten (
   id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  household_id         uuid REFERENCES public.households(id) ON DELETE CASCADE,
+  household_id         uuid,
   user_id              uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   created_by_user_id   uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   name                 text NOT NULL,
@@ -1327,11 +1413,6 @@ CREATE POLICY home_finanzkonten_crud_own ON public.home_finanzkonten FOR ALL
 ALTER TABLE public.budget_posten
   ADD COLUMN IF NOT EXISTS zahlungskonto_id uuid
     REFERENCES public.home_finanzkonten(id) ON DELETE SET NULL;
-
-CREATE INDEX IF NOT EXISTS idx_budget_posten_scope
-  ON public.budget_posten(household_id, budget_scope, datum);
-CREATE INDEX IF NOT EXISTS idx_budget_posten_bewohner_scope
-  ON public.budget_posten(household_id, bewohner_id, budget_scope, datum);
 
 
 -- Ã¢â€â‚¬Ã¢â€â‚¬ home_verlauf Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
@@ -1936,6 +2017,39 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_household_one_admin
   ON public.household_members(household_id)
   WHERE role = 'admin';
 
+-- Storage-Policies jetzt auf Haushaltszugriff erweitern
+DROP POLICY IF EXISTS storage_user_dokumente_select ON storage.objects;
+CREATE POLICY storage_user_dokumente_select ON storage.objects FOR SELECT TO authenticated
+  USING (
+    bucket_id = 'user-dokumente'
+    AND (
+      (select auth.uid())::text = (storage.foldername(name))[1]
+      OR EXISTS (
+        SELECT 1
+        FROM public.household_members hm1
+        JOIN public.household_members hm2 ON hm1.household_id = hm2.household_id
+        WHERE hm1.user_id = (select auth.uid())
+          AND hm2.user_id::text = (storage.foldername(name))[1]
+      )
+    )
+  );
+
+DROP POLICY IF EXISTS storage_user_dokumente_delete ON storage.objects;
+CREATE POLICY storage_user_dokumente_delete ON storage.objects FOR DELETE TO authenticated
+  USING (
+    bucket_id = 'user-dokumente'
+    AND (
+      (select auth.uid())::text = (storage.foldername(name))[1]
+      OR EXISTS (
+        SELECT 1
+        FROM public.household_members hm1
+        JOIN public.household_members hm2 ON hm1.household_id = hm2.household_id
+        WHERE hm1.user_id = (select auth.uid())
+          AND hm2.user_id::text = (storage.foldername(name))[1]
+      )
+    )
+  );
+
 CREATE TABLE IF NOT EXISTS public.household_settings (
   household_id                  uuid PRIMARY KEY REFERENCES public.households(id) ON DELETE CASCADE,
   app_modus                     text NOT NULL DEFAULT 'umzug',
@@ -2425,7 +2539,7 @@ DECLARE
     'kontakte','budget_posten','budget_teilzahlungen','todo_aufgaben',
     'pack_kisten','pack_gegenstaende','dokumente','renovierungs_posten',
     'home_projekte','home_orte','home_lagerorte','home_objekte',
-    'home_vorraete','home_einkaufliste','home_geraete','home_wartungen',
+    'home_vorraete','home_einkaufliste','home_einkauf_korrekturen','home_geraete','home_wartungen',
     'home_bewohner','home_budget_limits','home_sparziele','home_finanzkonten',
     'home_verlauf','home_wissen','haushaltsaufgaben','vorraete','projekte','geraete'
   ];
@@ -2505,6 +2619,11 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
+
+CREATE INDEX IF NOT EXISTS idx_budget_posten_scope
+  ON public.budget_posten(household_id, budget_scope, datum);
+CREATE INDEX IF NOT EXISTS idx_budget_posten_bewohner_scope
+  ON public.budget_posten(household_id, bewohner_id, budget_scope, datum);
 
 -- home_geraete: Kategorie-Index (household_id + kategorie) nach household_id-Migration
 DO $$
@@ -2769,6 +2888,30 @@ BEGIN
   END IF;
 END $$;
 
+-- home_einkauf_korrekturen: Unique-Constraint von user_id -> household_id
+DO $$
+BEGIN
+  ALTER TABLE public.home_einkauf_korrekturen
+    DROP CONSTRAINT IF EXISTS home_einkauf_korrekturen_user_id_normalized_name_key;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'home_einkauf_korrekturen_household_id_normalized_name_key'
+      AND conrelid = 'public.home_einkauf_korrekturen'::regclass
+  ) THEN
+    BEGIN
+      ALTER TABLE public.home_einkauf_korrekturen
+        ADD CONSTRAINT home_einkauf_korrekturen_household_id_normalized_name_key
+        UNIQUE (household_id, normalized_name);
+    EXCEPTION WHEN duplicate_table THEN
+      DROP INDEX IF EXISTS public.home_einkauf_korrekturen_household_id_normalized_name_key;
+      ALTER TABLE public.home_einkauf_korrekturen
+        ADD CONSTRAINT home_einkauf_korrekturen_household_id_normalized_name_key
+        UNIQUE (household_id, normalized_name);
+    END;
+  END IF;
+END $$;
+
 -- Ã¢â€â‚¬Ã¢â€â‚¬ Insert/Update-Helfer fÃƒÂ¼r alte Frontend-Payloads Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 CREATE OR REPLACE FUNCTION public.set_household_scope_defaults()
@@ -2795,7 +2938,7 @@ DECLARE
     'kontakte','budget_posten','budget_teilzahlungen','todo_aufgaben',
     'pack_kisten','pack_gegenstaende','dokumente','renovierungs_posten',
     'home_projekte','home_orte','home_lagerorte','home_objekte',
-    'home_vorraete','home_einkaufliste','home_geraete','home_wartungen',
+    'home_vorraete','home_einkaufliste','home_einkauf_korrekturen','home_geraete','home_wartungen',
     'home_bewohner','home_budget_limits','home_sparziele','home_finanzkonten',
     'home_verlauf','home_wissen','haushaltsaufgaben','vorraete','projekte','geraete'
   ];
