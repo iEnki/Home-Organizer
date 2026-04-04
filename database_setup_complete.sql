@@ -1629,6 +1629,10 @@ ALTER TABLE public.user_profile
 ALTER TABLE public.user_profile
   ALTER COLUMN mobile_nav_config SET NOT NULL;
 
+-- Tour-Status (Tour-System 2.0): NULL = noch kein Eintrag (Migrations-Erkennungssignal)
+ALTER TABLE public.user_profile
+  ADD COLUMN IF NOT EXISTS tour_state jsonb;
+
 -- Migration: persÃƒÂ¶nliche To-Do-Vorlagen (user_id nullable)
 ALTER TABLE public.todo_vorlagen
   ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE;
@@ -3434,6 +3438,92 @@ $$;
 REVOKE ALL ON FUNCTION public.claim_doc_processing(uuid, text, uuid, boolean) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.claim_doc_processing(uuid, text, uuid, boolean) FROM anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.claim_doc_processing(uuid, text, uuid, boolean) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.sync_invoice_date(
+  p_rechnung_id uuid,
+  p_neues_datum date
+)
+RETURNS TABLE (
+  dokument_id uuid,
+  rechnung_id uuid,
+  wissen_id uuid,
+  budget_posten_ids uuid[]
+)
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_uid uuid;
+  v_household_id uuid;
+  v_dokument_id uuid;
+  v_wissen_id uuid;
+  v_budget_ids uuid[] := '{}'::uuid[];
+BEGIN
+  v_uid := (SELECT auth.uid());
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'Nicht authentifiziert.';
+  END IF;
+
+  SELECT r.household_id, r.dokument_id
+  INTO v_household_id, v_dokument_id
+  FROM public.rechnungen r
+  WHERE r.id = p_rechnung_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Rechnung nicht gefunden.';
+  END IF;
+
+  IF v_household_id IS DISTINCT FROM public.get_current_household_id() THEN
+    RAISE EXCEPTION 'Keine Berechtigung fuer diese Rechnung.';
+  END IF;
+
+  UPDATE public.rechnungen r
+  SET rechnungsdatum = p_neues_datum
+  WHERE r.id = p_rechnung_id;
+
+  WITH updated_budget AS (
+    UPDATE public.budget_posten bp
+    SET datum = p_neues_datum
+    WHERE bp.id IN (
+      SELECT dl.entity_id
+      FROM public.dokument_links dl
+      WHERE dl.household_id = v_household_id
+        AND dl.dokument_id = v_dokument_id
+        AND dl.entity_type = 'budget_posten'
+    )
+      AND COALESCE(bp.wiederholen, false) = false
+      AND bp.ursprung_template_id IS NULL
+    RETURNING bp.id
+  )
+  SELECT COALESCE(array_agg(ub.id), '{}'::uuid[])
+  INTO v_budget_ids
+  FROM updated_budget ub;
+
+  SELECT hw.id
+  INTO v_wissen_id
+  FROM public.home_wissen hw
+  WHERE hw.rechnung_id = p_rechnung_id
+  ORDER BY hw.updated_at DESC NULLS LAST, hw.created_at DESC, hw.id DESC
+  LIMIT 1;
+
+  IF v_wissen_id IS NULL THEN
+    SELECT hw.id
+    INTO v_wissen_id
+    FROM public.home_wissen hw
+    WHERE hw.dokument_id = v_dokument_id
+    ORDER BY hw.updated_at DESC NULLS LAST, hw.created_at DESC, hw.id DESC
+    LIMIT 1;
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    v_dokument_id,
+    p_rechnung_id,
+    v_wissen_id,
+    v_budget_ids;
+END;
+$$;
 
 SELECT pg_notify('pgrst', 'reload schema');
 
