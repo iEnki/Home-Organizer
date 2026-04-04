@@ -216,6 +216,134 @@ env_prompt_secret() {
   echo "$EINGABE"
 }
 
+detect_local_ip() {
+  local ip=""
+  if command -v hostname >/dev/null 2>&1; then
+    ip="$(hostname -I 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i !~ /^127\./) { print $i; exit }}')"
+  fi
+  if [[ -z "$ip" ]] && command -v ip >/dev/null 2>&1; then
+    ip="$(ip route get 1.1.1.1 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i == "src") { print $(i+1); exit }}')"
+  fi
+  echo "$ip"
+}
+
+normalize_url_scheme() {
+  local raw="$1"
+  local default_scheme="${2:-http}"
+  [[ -z "$raw" ]] && { echo ""; return; }
+  if [[ "$raw" =~ ^https?:// ]]; then
+    echo "$raw"
+  else
+    echo "${default_scheme}://${raw}"
+  fi
+}
+
+prompt_install_access_urls() {
+  local install_mode="$1"
+  local app_port="$2"
+  local access_choice local_ip access_host_input app_url_input supabase_input
+  local app_url_default="" supabase_url_default=""
+
+  INSTALL_ACCESS_MODE=""
+  INSTALL_ACCESS_LABEL=""
+  INSTALL_ACCESS_HOST=""
+  INSTALL_APP_URL=""
+  INSTALL_SUPABASE_URL=""
+
+  while true; do
+    echo "  Wie soll die App erreichbar sein?"
+    echo "  [1] Mit Domain / Reverse Proxy"
+    echo "  [2] Nur lokal auf diesem Geraet (localhost)"
+    echo "  [3] Im lokalen Netzwerk ohne Domain (LAN-IP)"
+    read -p "  -> Wahl [1]: " access_choice
+    [[ -z "$access_choice" ]] && access_choice=1
+
+    case "$access_choice" in
+      1)
+        while true; do
+          read -p "  App-URL oder Host (z.B. https://umzug.meine-domain.de, 0 = Abbrechen): " app_url_input
+          [[ "$app_url_input" == "0" ]] && return 1
+          [[ -n "$app_url_input" ]] && break
+          echo "  -> App-URL ist erforderlich."
+        done
+
+        INSTALL_ACCESS_MODE="domain"
+        INSTALL_ACCESS_LABEL="Domain / Reverse Proxy"
+        INSTALL_APP_URL="$(normalize_url_scheme "$app_url_input" "https")"
+
+        if [[ "$install_mode" == "vollstack" ]]; then
+          read -p "  Supabase-URL [Standard: ${INSTALL_APP_URL}]: " supabase_input
+          [[ -z "$supabase_input" ]] && supabase_input="$INSTALL_APP_URL"
+          INSTALL_SUPABASE_URL="$(normalize_url_scheme "$supabase_input" "https")"
+        fi
+        return 0
+        ;;
+
+      2)
+        app_url_default="http://localhost:${app_port}"
+        echo "  Lokaler Modus: Die App ist nur auf diesem Geraet ueber localhost erreichbar."
+        read -p "  App-URL [${app_url_default}]: " app_url_input
+        [[ "$app_url_input" == "0" ]] && return 1
+        [[ -z "$app_url_input" ]] && app_url_input="$app_url_default"
+
+        INSTALL_ACCESS_MODE="localhost"
+        INSTALL_ACCESS_LABEL="Nur lokal auf diesem Geraet"
+        INSTALL_ACCESS_HOST="localhost"
+        INSTALL_APP_URL="$(normalize_url_scheme "$app_url_input" "http")"
+
+        if [[ "$install_mode" == "vollstack" ]]; then
+          supabase_url_default="http://localhost:8000"
+          read -p "  Supabase-URL [${supabase_url_default}]: " supabase_input
+          [[ -z "$supabase_input" ]] && supabase_input="$supabase_url_default"
+          INSTALL_SUPABASE_URL="$(normalize_url_scheme "$supabase_input" "http")"
+        fi
+        return 0
+        ;;
+
+      3)
+        local_ip="$(detect_local_ip)"
+        if [[ -n "$local_ip" ]]; then
+          read -p "  Lokale IP / Hostname [${local_ip}]: " access_host_input
+          [[ "$access_host_input" == "0" ]] && return 1
+          [[ -z "$access_host_input" ]] && access_host_input="$local_ip"
+        else
+          while true; do
+            read -p "  Lokale IP / Hostname (z.B. 192.168.1.50, 0 = Abbrechen): " access_host_input
+            [[ "$access_host_input" == "0" ]] && return 1
+            [[ -n "$access_host_input" ]] && break
+            echo "  -> IP oder Hostname ist erforderlich."
+          done
+        fi
+
+        app_url_default="http://${access_host_input}:${app_port}"
+        echo "  LAN-Modus: Andere Geraete im Heimnetz koennen diese Adresse verwenden."
+        warn "Web Push und einige PWA-Funktionen sind ueber reines HTTP im LAN je nach Browser eingeschraenkt. Voller Umfang erfordert HTTPS oder localhost."
+        read -p "  App-URL [${app_url_default}]: " app_url_input
+        [[ "$app_url_input" == "0" ]] && return 1
+        [[ -z "$app_url_input" ]] && app_url_input="$app_url_default"
+
+        INSTALL_ACCESS_MODE="lan"
+        INSTALL_ACCESS_LABEL="Lokales Netzwerk"
+        INSTALL_ACCESS_HOST="$access_host_input"
+        INSTALL_APP_URL="$(normalize_url_scheme "$app_url_input" "http")"
+
+        if [[ "$install_mode" == "vollstack" ]]; then
+          supabase_url_default="http://${access_host_input}:8000"
+          read -p "  Supabase-URL [${supabase_url_default}]: " supabase_input
+          [[ -z "$supabase_input" ]] && supabase_input="$supabase_url_default"
+          INSTALL_SUPABASE_URL="$(normalize_url_scheme "$supabase_input" "http")"
+        fi
+        return 0
+        ;;
+
+      *)
+        warn "Ungueltige Auswahl."
+        echo ""
+        ;;
+    esac
+  done
+}
+
 container_stoppen() {
   info "Stoppe und entferne Container..."
   if [[ "$IS_VOLLSTACK" == "true" ]]; then
@@ -293,6 +421,15 @@ modus_backup() {
   docker exec supabase-db rm -f /tmp/db.dump
   echo "    OK ${BACKUP_DIR}/db.dump"
 
+  # Storage-Dateien sichern (Uploads, Fotos, Avatare)
+  if [[ -d "./volumes/storage" ]] && [[ -n "$(ls -A ./volumes/storage 2>/dev/null)" ]]; then
+    info "Sichere Storage-Dateien (Uploads, Fotos)..."
+    tar -czf "${BACKUP_DIR}/storage.tar.gz" -C "./volumes" storage
+    echo "    OK ${BACKUP_DIR}/storage.tar.gz"
+  else
+    echo "    INFO Storage-Verzeichnis leer oder nicht vorhanden, wird übersprungen."
+  fi
+
   if [[ -f ".env" ]]; then
     cp .env "${BACKUP_DIR}/.env"
     echo "    OK ${BACKUP_DIR}/.env"
@@ -311,6 +448,7 @@ Compose:  ${COMPOSE_FILE}
 
 Dateien:
   db.dump         — PostgreSQL Datenbank (pg_dump -Fc)
+  storage.tar.gz  — Supabase Storage (Uploads, Fotos) [nur wenn Dateien vorhanden]
   .env            — Konfigurationsdatei
   credentials.txt — Zugangsdaten
 
@@ -411,16 +549,65 @@ modus_restore() {
   info "Kopiere Backup in Container..."
   docker cp "${SELECTED_BACKUP}/db.dump" supabase-db:/tmp/restore.dump
 
-  info "Stelle Datenbank wieder her (pg_restore --clean --if-exists --no-owner)..."
+  # 5a) auth.users leeren — Frischinstallation legt automatisch neue User an,
+  #     deren UUIDs sich von den Backup-UUIDs unterscheiden → FK-Konflikte
+  info "Bereite auth.users für Restore vor..."
+  docker exec supabase-db psql -U postgres -d postgres \
+    -c "DELETE FROM auth.users;" 2>/dev/null || true
+
+  # 5b) auth.users aus Backup wiederherstellen — UUIDs müssen vor public-Daten existieren
+  info "Stelle auth.users wieder her..."
   set +e
   docker exec supabase-db pg_restore -U postgres -d postgres \
-    --clean --if-exists --no-owner /tmp/restore.dump
-  local PG_EXIT=$?
+    --data-only --no-owner --no-privileges \
+    --schema=auth --table=users /tmp/restore.dump 2>&1 \
+    | grep -v "^pg_restore: warning"
   set -e
+
+  # 5c) public-Schema leeren — handle_new_user-Trigger hat durch 5b automatisch
+  #     Einträge angelegt; außerdem sicherstellen dass keine Altdaten stören
+  info "Leere public-Schema für sauberen Restore..."
+  docker exec supabase-db psql -U postgres -d postgres -c "
+SET session_replication_role = replica;
+DO \$\$ DECLARE r RECORD; BEGIN
+  FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP
+    EXECUTE 'TRUNCATE TABLE public.' || quote_ident(r.tablename) || ' CASCADE';
+  END LOOP;
+END \$\$;
+SET session_replication_role = DEFAULT;
+" 2>/dev/null
+
+  # 5d) public-Daten mit deaktivierten FK-Checks einspielen
+  # session_replication_role = replica deaktiviert alle FK-Constraint-Trigger
+  # ohne Table-Owner-Rechte zu benötigen (--disable-triggers schlägt fehl da
+  # Tabellen supabase_admin gehören, nicht postgres)
+  info "Stelle public-Schema wieder her..."
+  set +e
+  local RESTORE_ERRORS
+  RESTORE_ERRORS=$(docker exec supabase-db bash -c "
+(echo 'SET session_replication_role = replica;';
+ pg_restore -f - --schema=public --data-only --no-owner --no-privileges /tmp/restore.dump;
+ echo 'SET session_replication_role = DEFAULT;') | \
+psql -U postgres -d postgres 2>&1
+" | grep "^ERROR" | grep -v "duplicate key\|already exists")
+  set -e
+
+  if [[ -n "$RESTORE_ERRORS" ]]; then
+    warn "Restore-Warnungen (möglicherweise harmlos):"
+    echo "$RESTORE_ERRORS" | head -10
+  fi
+
   docker exec supabase-db rm -f /tmp/restore.dump
 
-  if [[ $PG_EXIT -ne 0 ]]; then
-    warn "pg_restore meldete Fehler (Exit ${PG_EXIT}) — häufig harmlose Warnungen bei --clean. Fortfahren..."
+  # 5e) Storage-Dateien wiederherstellen (Uploads, Fotos, Avatare)
+  # VOR Container-Start: Bind-Mount ./volumes/storage ist sofort verfügbar
+  if [[ -f "${SELECTED_BACKUP}/storage.tar.gz" ]]; then
+    info "Stelle Storage-Dateien wieder her..."
+    mkdir -p "./volumes/storage"
+    tar -xzf "${SELECTED_BACKUP}/storage.tar.gz" -C "./volumes"
+    echo "    OK Storage-Dateien wiederhergestellt"
+  else
+    warn "Kein storage.tar.gz im Backup — Uploads/Fotos werden nicht wiederhergestellt."
   fi
 
   # 6) Trigger-Funktionen sicherstellen
@@ -619,16 +806,35 @@ modus_config() {
 
   local OLD_URL NEW_URL
   OLD_URL="$(env_get "SITE_URL")"
-  NEW_URL=$(env_prompt "SITE_URL" "App-URL (z.B. https://umzug.meine-domain.de)")
+  [[ -z "$OLD_URL" ]] && OLD_URL="$(env_get "APP_URL")"
+  [[ -z "$OLD_URL" ]] && OLD_URL="$(env_get "REACT_APP_PASSWORD_RESET_REDIRECT_URL" | sed 's#/update-password$##')"
+  NEW_URL=$(env_prompt "SITE_URL" "App-URL oder lokale Adresse (z.B. https://umzug.meine-domain.de oder http://localhost:3000)")
   if [[ -n "$NEW_URL" && "$NEW_URL" != "$OLD_URL" ]]; then
     env_set "APP_URL"                               "$NEW_URL"
     env_set "SITE_URL"                              "$NEW_URL"
-    env_set "API_EXTERNAL_URL"                      "$NEW_URL"
-    env_set "SUPABASE_PUBLIC_URL"                   "$NEW_URL"
     env_set "REACT_APP_PASSWORD_RESET_REDIRECT_URL" "${NEW_URL}/update-password"
-    env_set "ADDITIONAL_REDIRECT_URLS"              "${NEW_URL}/**"
+    if [[ -n "$(env_get "ADDITIONAL_REDIRECT_URLS")" ]]; then
+      env_set "ADDITIONAL_REDIRECT_URLS"            "$NEW_URL"
+    fi
     env_set "OLLAMA_ORIGINS"                        "$NEW_URL"
     warn "App-URL geändert → App-Rebuild erforderlich."
+    CHANGED=true
+  fi
+
+  local OLD_SUPABASE_URL NEW_SUPABASE_URL
+  OLD_SUPABASE_URL="$(env_get "REACT_APP_SUPABASE_URL")"
+  [[ -z "$OLD_SUPABASE_URL" ]] && OLD_SUPABASE_URL="$(env_get "SUPABASE_PUBLIC_URL")"
+  [[ -z "$OLD_SUPABASE_URL" ]] && OLD_SUPABASE_URL="$(env_get "API_EXTERNAL_URL")"
+  NEW_SUPABASE_URL=$(env_prompt "REACT_APP_SUPABASE_URL" "Supabase-URL / API (z.B. https://supa.meine-domain.de oder http://localhost:8000)")
+  if [[ -n "$NEW_SUPABASE_URL" && "$NEW_SUPABASE_URL" != "$OLD_SUPABASE_URL" ]]; then
+    env_set "REACT_APP_SUPABASE_URL" "$NEW_SUPABASE_URL"
+    if [[ -n "$(env_get "SUPABASE_PUBLIC_URL")" ]]; then
+      env_set "SUPABASE_PUBLIC_URL" "$NEW_SUPABASE_URL"
+    fi
+    if [[ -n "$(env_get "API_EXTERNAL_URL")" ]]; then
+      env_set "API_EXTERNAL_URL" "$NEW_SUPABASE_URL"
+    fi
+    warn "Supabase-URL geÃ¤ndert â†’ App-Rebuild erforderlich."
     CHANGED=true
   fi
 
@@ -1289,14 +1495,7 @@ modus_installation() {
   echo ""
 
   local APP_URL ADMIN_EMAIL APP_PORT SUPABASE_URL STUDIO_PASSWORD EXT_ANON_KEY EXT_SERVICE_ROLE_KEY
-
-  while true; do
-    read -p "  App-URL (z.B. https://umzug.meine-domain.de, 0 = Abbrechen): " APP_URL
-    [[ "$APP_URL" == "0" ]] && { ZURUECK=true; break; }
-    [[ -n "$APP_URL" ]] && break
-    echo "  → App-URL ist erforderlich."
-  done
-  [[ "$ZURUECK" == "true" ]] && continue
+  local ACCESS_LABEL STUDIO_ACCESS_URL
 
   while true; do
     read -p "  Deine E-Mail-Adresse (für Push-Notifications, 0 = Abbrechen): " ADMIN_EMAIL
@@ -1309,9 +1508,22 @@ modus_installation() {
   read -p "  App-Port [3000]: " APP_PORT
   [[ -z "$APP_PORT" ]] && APP_PORT=3000
 
+  echo ""
+  if ! prompt_install_access_urls "$INSTALL_MODE" "$APP_PORT"; then
+    ZURUECK=true
+  fi
+  [[ "$ZURUECK" == "true" ]] && continue
+
+  APP_URL="$INSTALL_APP_URL"
+  ACCESS_LABEL="$INSTALL_ACCESS_LABEL"
+
   if [[ "$INSTALL_MODE" == "vollstack" ]]; then
-    read -p "  Supabase-URL [Standard: ${APP_URL}]: " SUPABASE_URL
-    [[ -z "$SUPABASE_URL" ]] && SUPABASE_URL="$APP_URL"
+    SUPABASE_URL="$INSTALL_SUPABASE_URL"
+    if [[ "$INSTALL_ACCESS_MODE" == "lan" && -n "$INSTALL_ACCESS_HOST" ]]; then
+      STUDIO_ACCESS_URL="http://${INSTALL_ACCESS_HOST}:8000"
+    else
+      STUDIO_ACCESS_URL="http://localhost:8000"
+    fi
 
     while true; do
       read -s -p "  Supabase Studio Passwort (mind. 8 Zeichen, 0 = Abbrechen): " STUDIO_PASSWORD
@@ -1785,9 +1997,10 @@ APPONLY_ENV
 APP
   URL:        ${APP_URL}
   Port:       ${APP_PORT}
+  Zugriff:    ${ACCESS_LABEL}
 
 SUPABASE STUDIO (Admin-Oberfläche)
-  URL:        http://localhost:8000
+  URL:        ${STUDIO_ACCESS_URL}
   Benutzer:   supabase
   Passwort:   ${STUDIO_PASSWORD}
 
@@ -1821,7 +2034,7 @@ SCHEMA-STATUS
 ============================================================
   NÄCHSTE SCHRITTE
 ============================================================
-1. Studio öffnen: http://localhost:8000  (supabase / ${STUDIO_PASSWORD})
+1. Studio öffnen: ${STUDIO_ACCESS_URL}  (supabase / ${STUDIO_PASSWORD})
 2. Falls Schema noch offen: database_setup_complete.sql ausführen
 3. App aufrufen: ${APP_URL}
 4. Verwaltung: ./scripts/manage.sh
@@ -1841,6 +2054,7 @@ VOLLSTACK_CREDS
 APP
   URL:      ${APP_URL}
   Port:     ${APP_PORT}
+  Zugriff:  ${ACCESS_LABEL}
 
 SUPABASE (extern)
   URL:      ${SUPABASE_URL}
@@ -1885,7 +2099,7 @@ APPONLY_CREDS
   echo ""
   echo -e "  App:            ${CYAN}${APP_URL}${NC}  (Port: ${APP_PORT})"
   if [[ "$INSTALL_MODE" == "vollstack" ]]; then
-    echo -e "  Supabase Studio: ${CYAN}http://localhost:8000${NC}"
+    echo -e "  Supabase Studio: ${CYAN}${STUDIO_ACCESS_URL}${NC}"
   else
     echo -e "  Supabase:        ${CYAN}${SUPABASE_URL}${NC}  (extern)"
   fi
