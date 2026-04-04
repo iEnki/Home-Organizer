@@ -27,6 +27,7 @@ const SHARED_TABLES = new Set([
   "home_objekte",
   "home_vorraete",
   "home_einkaufliste",
+  "home_einkauf_korrekturen",
   "home_geraete",
   "home_wartungen",
   "home_bewohner",
