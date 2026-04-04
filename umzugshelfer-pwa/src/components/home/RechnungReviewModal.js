@@ -518,6 +518,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
             tags:         ["rechnung", ...(haendler ? [haendler.toLowerCase().split(" ")[0]] : [])],
             dokument_id:  dokDatenbankId,
             rechnung_id:  rechnungId,
+            herkunft:     "auto_full",
           })
           .select("id")
           .single();

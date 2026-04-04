@@ -19,6 +19,7 @@ import { TOUR_STEPS } from "./tour/tourSteps";
 import { deleteInvoiceCascade } from "../../utils/invoiceCascadeDelete";
 import { calcNaechstesDatum, ensureRecurringBudgetEntries, getLocalDateString } from "../../utils/budgetRecurring";
 import { sumScope } from "../../utils/budgetAggregation";
+import { syncInvoiceDate } from "../../utils/invoiceDateSync";
 
 ChartJS.register(
   ArcElement, Tooltip, Legend,
@@ -466,16 +467,26 @@ const HomeBudget = ({ session }) => {
       .in("id", dokumentIds);
     if (dokErr) throw dokErr;
 
+    const { data: rechnungRows, error: rechnungErr } = await supabase
+      .from("rechnungen")
+      .select("id, dokument_id, rechnungsdatum")
+      .in("dokument_id", dokumentIds);
+    if (rechnungErr) throw rechnungErr;
+
     const dokumenteById = new Map((dokumentRows || []).map((d) => [d.id, d]));
+    const rechnungByDokId = new Map((rechnungRows || []).map((row) => [row.dokument_id, row]));
     const nextMap = {};
 
     for (const link of (linkRows || [])) {
       const dok = dokumenteById.get(link.dokument_id);
+      const rechnung = rechnungByDokId.get(link.dokument_id);
       if (!dok || !istRechnungsDokument(dok)) continue;
       if (!nextMap[link.entity_id]) nextMap[link.entity_id] = [];
       nextMap[link.entity_id].push({
         link_id: link.id,
         dokument_id: dok.id,
+        rechnung_id: rechnung?.id || null,
+        rechnungsdatum: rechnung?.rechnungsdatum || null,
         dateiname: dok.dateiname,
         datei_typ: dok.datei_typ,
         storage_pfad: dok.storage_pfad,
@@ -567,13 +578,32 @@ const HomeBudget = ({ session }) => {
 
   const speichere = async (daten) => {
     const payload = { ...daten, user_id: userId };
-    if (modal?.id) {
-      await supabase.from("budget_posten").update(daten).eq("id", modal.id);
-    } else {
-      await supabase.from("budget_posten").insert(payload);
+    try {
+      if (modal?.id) {
+        const verknuepfteRechnung = (budgetRechnungMap[modal.id] || []).find((eintrag) => eintrag.rechnung_id);
+        if (verknuepfteRechnung?.rechnung_id) {
+          await syncInvoiceDate({
+            supabase,
+            rechnungId: verknuepfteRechnung.rechnung_id,
+            neuesDatum: daten.datum,
+            userId,
+          });
+
+          const { datum, ...rest } = daten;
+          if (Object.keys(rest).length > 0) {
+            await supabase.from("budget_posten").update(rest).eq("id", modal.id);
+          }
+        } else {
+          await supabase.from("budget_posten").update(daten).eq("id", modal.id);
+        }
+      } else {
+        await supabase.from("budget_posten").insert(payload);
+      }
+      setModal(null);
+      ladeDaten();
+    } catch (err) {
+      setFehler(`Speichern fehlgeschlagen: ${err.message}`);
     }
-    setModal(null);
-    ladeDaten();
   };
 
   const loesche = async (eintrag) => {

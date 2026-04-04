@@ -11,6 +11,7 @@ import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
 import { getDokDatum, getMonatsKey, formatMonatLabel, compareDokDatum, sortMonthKeys } from "../../utils/dokumentArchiv";
+import { syncInvoiceDate } from "../../utils/invoiceDateSync";
 import DokumentFilterBar from "./documents/DokumentFilterBar";
 import DokumentArchivListe from "./documents/DokumentArchivListe";
 
@@ -470,20 +471,31 @@ const BudgetZuordnungModal = ({ dok, initial, onSchliessen, onSpeichern, speiche
 };
 
 // ── Bearbeiten-Modal ──────────────────────────────────────────────────────────
-const BearbeitenModal = ({ dok, onSchliessen, onGespeichert }) => {
+const BearbeitenModal = ({ dok, userId, onSchliessen, onGespeichert }) => {
   const [dateiname, setDateiname] = useState(dok.dateiname || "");
   const [beschreibung, setBeschreibung] = useState(
     dok.beschreibung?.replace(/\s*\[[^\]]+\]$/, "") || ""
   );
   const [kategorie, setKategorie] = useState(effektiveKategorie(dok) || "Sonstiges");
+  const [rechnungsDatum, setRechnungsDatum] = useState(dok?.rechnung_info?.rechnungsdatum || "");
   const [speichern, setSpeichern] = useState(false);
   const [fehler, setFehler] = useState("");
+  const hatRechnung = Boolean(dok?.rechnung_info?.id);
 
   const handleSpeichern = async () => {
     if (!dateiname.trim()) return;
     setSpeichern(true);
     setFehler("");
     try {
+      if (hatRechnung) {
+        await syncInvoiceDate({
+          supabase,
+          rechnungId: dok.rechnung_info.id,
+          neuesDatum: rechnungsDatum || null,
+          userId,
+        });
+      }
+
       const neuerDokumentTyp =
         kategorie === "Rechnung" ? "rechnung" : dok.dokument_typ;
       const updated = {
@@ -497,9 +509,10 @@ const BearbeitenModal = ({ dok, onSchliessen, onGespeichert }) => {
         .update(updated)
         .eq("id", dok.id);
       if (error) throw error;
-      onGespeichert(updated);
+      onGespeichert();
     } catch (err) {
       setFehler(`Fehler: ${err.message}`);
+    } finally {
       setSpeichern(false);
     }
   };
@@ -558,6 +571,20 @@ const BearbeitenModal = ({ dok, onSchliessen, onGespeichert }) => {
               {KATEGORIEN.map((k) => <option key={k}>{k}</option>)}
             </select>
           </div>
+
+          {hatRechnung && (
+            <div>
+              <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
+                Rechnungsdatum
+              </label>
+              <input
+                type="date"
+                value={rechnungsDatum || ""}
+                onChange={(e) => setRechnungsDatum(e.target.value)}
+                className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
+              />
+            </div>
+          )}
 
           {fehler && (
             <div className="p-3 rounded-card-sm bg-red-500/10 border border-red-500/30 flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
@@ -1016,7 +1043,7 @@ const HomeDokumente = ({ session }) => {
 
         let rechnungQuery = supabase
           .from("rechnungen")
-          .select("dokument_id, lieferant_name, brutto, rechnungsdatum")
+          .select("id, dokument_id, lieferant_name, brutto, rechnungsdatum")
           .in("dokument_id", dokIds);
         if (householdId) rechnungQuery = rechnungQuery.eq("household_id", householdId);
         const { data: rechnungRows } = await rechnungQuery;
@@ -1124,9 +1151,9 @@ const HomeDokumente = ({ session }) => {
   };
 
   // ── Bearbeiten-Erfolg ──────────────────────────────────────────────────────
-  const handleBearbeitenGespeichert = (id, updated) => {
-    setDokumente((prev) => prev.map((d) => (d.id === id ? { ...d, ...updated } : d)));
+  const handleBearbeitenGespeichert = () => {
     setBearbeitenModalDok(null);
+    ladeDaten();
   };
 
   const oeffneBudgetModal = (dok) => {
@@ -1415,10 +1442,9 @@ const HomeDokumente = ({ session }) => {
       {bearbeitenModalDok && (
         <BearbeitenModal
           dok={bearbeitenModalDok}
+          userId={userId}
           onSchliessen={() => setBearbeitenModalDok(null)}
-          onGespeichert={(updated) =>
-            handleBearbeitenGespeichert(bearbeitenModalDok.id, updated)
-          }
+          onGespeichert={handleBearbeitenGespeichert}
         />
       )}
       {/* Tour */}
