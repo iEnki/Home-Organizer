@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 import { FileText, File, Eye, Pencil, MoreVertical, BookOpen, Plus, Trash2, CheckCircle, Loader2 } from "lucide-react";
 import { getDokDatum } from "../../../utils/dokumentArchiv";
 
@@ -64,6 +64,9 @@ export default function DokumentZeile({
 }) {
   const [menuOffen, setMenuOffen] = useState(false);
   const [laedt, setLaedt] = useState(false);
+  const [menuOeffnetNachOben, setMenuOeffnetNachOben] = useState(false);
+  const menuButtonRef = useRef(null);
+  const menuRef = useRef(null);
 
   const kat = effektiveKategorie(dok);
   const katFarbe = KATEGORIE_FARBEN[kat] || KATEGORIE_FARBEN.Sonstiges;
@@ -100,6 +103,35 @@ export default function DokumentZeile({
     }
     onVorschau?.(dok);
   };
+
+  useLayoutEffect(() => {
+    if (!menuOffen) return undefined;
+
+    const updateMenuPosition = () => {
+      const triggerRect = menuButtonRef.current?.getBoundingClientRect();
+      const menuHeight = menuRef.current?.offsetHeight ?? 148;
+      if (!triggerRect) return;
+
+      const topInset = 16;
+      const bottomInset = window.innerWidth < 640 ? 88 : 16;
+      const gap = 8;
+      const platzOben = triggerRect.top - topInset;
+      const platzUnten = window.innerHeight - triggerRect.bottom - bottomInset;
+
+      setMenuOeffnetNachOben(
+        platzUnten < menuHeight + gap && platzOben > platzUnten
+      );
+    };
+
+    updateMenuPosition();
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+    };
+  }, [menuOffen]);
 
   return (
     <div
@@ -174,6 +206,7 @@ export default function DokumentZeile({
         {/* Mehr-Menü */}
         <div className="relative">
           <button
+            ref={menuButtonRef}
             onClick={() => setMenuOffen((p) => !p)}
             className="w-7 h-7 flex items-center justify-center rounded-lg text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-border dark:hover:bg-canvas-2 transition-colors"
             title="Weitere Aktionen"
@@ -185,7 +218,12 @@ export default function DokumentZeile({
             <>
               {/* Backdrop */}
               <div className="fixed inset-0 z-[200]" onClick={() => setMenuOffen(false)} />
-              <div className="absolute right-0 top-8 z-[201] w-44 bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border rounded-card-sm shadow-elevation-2 py-1 text-sm">
+              <div
+                ref={menuRef}
+                className={`absolute right-0 z-[201] w-44 bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border rounded-card-sm shadow-elevation-2 py-1 text-sm ${
+                  menuOeffnetNachOben ? "bottom-8" : "top-8"
+                }`}
+              >
                 <button
                   onClick={() => { setMenuOffen(false); onWissen?.(dok); }}
                   className="w-full flex items-center gap-2 px-3 py-2 hover:bg-light-hover dark:hover:bg-canvas-3 text-amber-600 dark:text-amber-400"

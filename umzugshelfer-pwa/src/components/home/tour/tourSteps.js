@@ -2,27 +2,53 @@
 // Jeder Schritt: { target: "data-tour-id", title, text, position }
 
 export const TOUR_STEPS = {
-  // Dashboard-Tour dient gleichzeitig als Einstiegstour (Variante A).
-  // Nur 3 Schritte – knapp und fokussiert.
-  // Hinweis: tour-topbar-profil ist hidden md:flex (Desktop/Tablet only).
-  // Auf Mobile überspringt die Retry-Logik diesen Schritt nach 1s sauber.
   dashboard: [
     {
+      target: "tour-sidebar",
+      title: "Navigation",
+      text: "Hier findest du alle Hauptbereiche des Home Organizers: Inventar, Vorräte, Geräte & Wartung, Einkauf, Aufgaben, Projekte, Budget, Suche, Wissen und Verlauf. Klicke auf ein Symbol, um den Bereich zu öffnen.",
+      position: "right",
+    },
+    {
       target: "tour-dashboard-willkommen",
-      title: "Willkommen im Home Organizer",
-      text: "Dein Dashboard zeigt dir täglich den Überblick: offene Aufgaben, Vorratsstatus und Budget auf einen Blick.",
+      title: "Willkommen",
+      text: "Diese Karte zeigt dir auf einen Blick, wie viele Aufgaben, Projekte oder Aktionen gerade anstehen – dein täglicher Überblick.",
+      position: "bottom",
+    },
+    {
+      target: "tour-dashboard-status",
+      title: "Haushalt-Status",
+      text: "Hier siehst du den Gesamtstatus deines Haushalts: Vorräte, offene Aufgaben und aktive Projekte in einer kompakten Übersicht.",
+      position: "bottom",
+    },
+    {
+      target: "tour-dashboard-inventar",
+      title: "Schnellzugriff Inventar",
+      text: "Schnellzugriff auf dein Inventar. Hier kannst du Gegenstände hinzufügen, bearbeiten oder filtern.",
       position: "bottom",
     },
     {
       target: "tour-dashboard-budget",
       title: "Budget-Übersicht",
-      text: "Hier siehst du deine monatlichen Ausgaben und kannst direkt in den Finanzmanager wechseln.",
+      text: "Öffnet die Budgetübersicht. Hier legst du monatliche Limits fest, erfasst Ausgaben und siehst deinen Fortschritt.",
+      position: "bottom",
+    },
+    {
+      target: "tour-dashboard-aufgaben",
+      title: "To-Dos",
+      text: "Zeigt offene Aufgaben. Klicke hier, um deine Aufgaben zu verwalten oder neue Aufgaben hinzuzufügen.",
+      position: "bottom",
+    },
+    {
+      target: "tour-dashboard-bewohner",
+      title: "Bewohner",
+      text: "Hier kannst du Bewohner verwalten und Aufgaben oder Inventar mit ihnen teilen.",
       position: "bottom",
     },
     {
       target: "tour-topbar-profil",
-      title: "Dein Profil",
-      text: "Hier verwaltest du dein Konto und kannst Touren jederzeit neu starten.",
+      title: "Benutzerprofil",
+      text: "Über das Benutzersymbol gelangst du zu deinem Profil, wo du dein Konto verwaltest, den Dark-Mode umschaltest und Anleitungen zurücksetzen kannst.",
       position: "bottom",
     },
   ],
@@ -114,32 +140,20 @@ export const TOUR_STEPS = {
   einkaufliste: [
     {
       target: "tour-einkauf-hinzufuegen",
-      title: "Sammelerfassung",
-      text: "Hier legst du einzelne oder mehrere Artikel auf einmal an. Kommas, Semikolons und Zeilenumbrüche werden als getrennte Einträge erkannt.",
-      position: "bottom",
-    },
-    {
-      target: "tour-einkauf-suche",
-      title: "Suche",
-      text: "Suche nach Artikeln, Hauptkategorien oder Unterkategorien. So findest du auch längere Listen schnell wieder.",
+      title: "Neuer Eintrag",
+      text: "Füge einen neuen Artikel zur Einkaufsliste hinzu. Gib Name, Menge und optional eine Kategorie ein.",
       position: "bottom",
     },
     {
       target: "tour-einkauf-filter",
-      title: "Filter & Review",
-      text: "Filtere nach offenen, erledigten oder prüfbedürftigen Artikeln. Unsichere Zuordnungen werden hier gezielt sichtbar.",
-      position: "bottom",
-    },
-    {
-      target: "tour-einkauf-sort",
-      title: "Sortierung",
-      text: "Wechsle zwischen Markt-Reihenfolge, Kategorie-Ansicht und Neueste. Standard ist die Markt-Reihenfolge für den Einkauf.",
+      title: "Filter",
+      text: "Blende erledigte Artikel aus, um deine Einkaufsliste übersichtlich zu halten.",
       position: "bottom",
     },
     {
       target: "tour-einkauf-liste",
-      title: "Gruppierte Einkaufsliste",
-      text: "Offene Artikel werden gruppiert angezeigt. Prüfen-Badges markieren unsichere Einträge, die du per Bearbeiten dauerhaft korrigieren kannst.",
+      title: "Einkaufsposten",
+      text: "Zeigt alle offenen und abgehakten Artikel. Klicke auf das Häkchen, um einen Posten als erledigt zu markieren.",
       position: "top",
     },
   ],
@@ -202,7 +216,7 @@ export const TOUR_STEPS = {
     {
       target: "tour-budget-uebersicht",
       title: "Monatsübersicht",
-      text: "Oben siehst du die Gesamtausgaben dieses Monats und wie viele Buchungen du erfasst hast – inkl. Vergleich zum Vormonat.",
+      text: "Oben siehst du die aktuelle Übersicht mit Summen für Haushalt und Privat, deiner Buchungsanzahl und der gefilterten Liste darunter.",
       position: "bottom",
     },
     {
@@ -231,38 +245,6 @@ export const TOUR_STEPS = {
       title: "Ergebnis-Kategorien",
       text: "Ergebnisse werden nach Kategorie gruppiert. Klicke auf einen Reiter, um nur Einträge aus diesem Bereich zu sehen.",
       position: "bottom",
-    },
-  ],
-  dokumente: [
-    {
-      target: "tour-dokumente-header",
-      title: "Dokumentenarchiv",
-      text: "Hier speicherst du alle wichtigen Dokumente deines Haushalts: Rechnungen, Verträge, Handbücher, Garantiebelege und mehr – übersichtlich kategorisiert.",
-      position: "bottom",
-    },
-    {
-      target: "tour-dokumente-upload",
-      title: "Hochladen",
-      text: "Klicke hier, um eine neue Datei hochzuladen. Du kannst eine Kategorie und eine Beschreibung vergeben.",
-      position: "bottom",
-    },
-    {
-      target: "tour-dokumente-suche",
-      title: "Suche",
-      text: "Suche nach Dateinamen oder Beschreibungen – die Ergebnisse werden sofort in Echtzeit gefiltert.",
-      position: "bottom",
-    },
-    {
-      target: "tour-dokumente-filter",
-      title: "Kategorie-Filter",
-      text: "Filtere nach Typ: Rechnung, Vertrag, Handbuch usw. Die Zahl zeigt, wie viele Dokumente in jeder Kategorie liegen.",
-      position: "bottom",
-    },
-    {
-      target: "tour-dokumente-liste",
-      title: "Dokumentenkarten",
-      text: "Jede Karte zeigt Dateiname, Kategorie, Größe und Datum. Per Klick herunterladen, als Wissenseintrag speichern oder löschen.",
-      position: "top",
     },
   ],
 };

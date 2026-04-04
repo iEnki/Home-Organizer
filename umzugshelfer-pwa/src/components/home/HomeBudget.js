@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   DollarSign, Plus, Edit2, Trash2, X, Loader2, AlertCircle,
-  Calendar, ChevronLeft, ChevronRight, Sparkles, RefreshCw,
+  ChevronLeft, ChevronRight, Sparkles, RefreshCw,
   Target, TrendingUp, BarChart2, PiggyBank, Wallet, Check, FileText,
 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -20,6 +20,17 @@ import { deleteInvoiceCascade } from "../../utils/invoiceCascadeDelete";
 import { calcNaechstesDatum, ensureRecurringBudgetEntries, getLocalDateString } from "../../utils/budgetRecurring";
 import { sumScope } from "../../utils/budgetAggregation";
 import { syncInvoiceDate } from "../../utils/invoiceDateSync";
+import {
+  computeBudgetOverviewKpis,
+  groupBudgetEntries,
+  matchBudgetSearch,
+  sortBudgetEntries,
+} from "../../utils/budgetOverview";
+import BudgetFilterBar from "./budget/BudgetFilterBar";
+import BudgetFilterSheet from "./budget/BudgetFilterSheet";
+import BudgetGroupSection from "./budget/BudgetGroupSection";
+import BudgetEntryRow from "./budget/BudgetEntryRow";
+import BudgetKpiStrip from "./budget/BudgetKpiStrip";
 
 ChartJS.register(
   ArcElement, Tooltip, Legend,
@@ -43,6 +54,7 @@ const KATEGORIE_FARBEN = {
 };
 const EMOJI_OPTIONEN = ["🎯", "🏠", "✈️", "🚗", "💻", "📱", "🎓", "💍", "🛋️", "🎸", "🌴", "💰"];
 const FARB_OPTIONEN = ["#10B981", "#3B82F6", "#8B5CF6", "#EC4899", "#F59E0B", "#F97316", "#14B8A6", "#EF4444"];
+const BewohnerBadge = () => null;
 
 const CHART_OPTS_BASE = {
   responsive: true,
@@ -63,18 +75,6 @@ const istRechnungsDokument = (dok) => {
 };
 
 // ─────────────── Sub-Components ───────────────
-const BewohnerBadge = ({ bewohner }) => {
-  if (!bewohner) return null;
-  return (
-    <span
-      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium flex-shrink-0"
-      style={{ backgroundColor: bewohner.farbe + "22", color: bewohner.farbe }}
-    >
-      {bewohner.emoji} {bewohner.name}
-    </span>
-  );
-};
-
 const ModalWrapper = ({ title, onClose, children }) => (
   <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)]">
     <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border max-h-[calc(100dvh-var(--safe-area-bottom)-2rem)] lg:max-h-[90vh] overflow-y-auto">
@@ -436,6 +436,13 @@ const HomeBudget = ({ session }) => {
 
   // Scope-Filter
   const [scopeFilter, setScopeFilter] = useState("alle"); // "alle" | "haushalt" | "privat"
+  const [suchbegriff, setSuchbegriff] = useState("");
+  const [sortierung, setSortierung] = useState("datum_desc");
+  const [gruppierung, setGruppierung] = useState("tag");
+  const [filterSheetOffen, setFilterSheetOffen] = useState(false);
+  const [nurWiederkehrend, setNurWiederkehrend] = useState(false);
+  const [nurMitRechnung, setNurMitRechnung] = useState(false);
+  const [expandedRows, setExpandedRows] = useState({});
 
   // Finanzkonten-CRUD
   const [kontenFormOffen, setKontenFormOffen] = useState(false);
@@ -793,10 +800,142 @@ const HomeBudget = ({ session }) => {
   const ausgabenHaushalt = sumScope(sichtbarePosten, "haushalt");
   const ausgabenPrivat   = sumScope(sichtbarePosten, "privat");
   // Rückwärtskompatible Variable für bestehende Logik (z.B. speichereLimit)
-  const ausgaben = ausgabenHaushalt + ausgabenPrivat;
-
   const zeitraumLabel = zeitraum === "alle" ? "Alle"
     : zeitraum === "monat" ? `${MONATE[selMonat]} ${selJahr}` : `Jahr ${selJahr}`;
+
+  const bewohnerById = useMemo(
+    () => Object.fromEntries((bewohner || []).map((eintrag) => [eintrag.id, eintrag])),
+    [bewohner],
+  );
+
+  const kontoById = useMemo(
+    () => Object.fromEntries((finanzkonten || []).map((konto) => [konto.id, konto])),
+    [finanzkonten],
+  );
+
+  const overviewCtx = useMemo(
+    () => ({
+      bewohnerById,
+      kontoById,
+      budgetRechnungMap,
+      isFutureMonth,
+      selJahr,
+      selMonat,
+    }),
+    [bewohnerById, kontoById, budgetRechnungMap, isFutureMonth, selJahr, selMonat],
+  );
+
+  const overviewBasis = useMemo(
+    () =>
+      nachZeitraumGefiltert.filter((p) => {
+        if (kategFilter && p.kategorie !== kategFilter) return false;
+        if (bewohnerFilter && p.bewohner_id !== bewohnerFilter) return false;
+        if (scopeFilter !== "alle" && (p.budget_scope || "haushalt") !== scopeFilter) return false;
+        return true;
+      }),
+    [nachZeitraumGefiltert, kategFilter, bewohnerFilter, scopeFilter],
+  );
+
+  const overviewMitQuickFiltern = useMemo(
+    () =>
+      overviewBasis.filter((p) => {
+        if (nurWiederkehrend && !(p.wiederholen || p.ursprung_template_id)) return false;
+        if (nurMitRechnung && !(budgetRechnungMap[p.id] || []).length) return false;
+        return true;
+      }),
+    [overviewBasis, nurWiederkehrend, nurMitRechnung, budgetRechnungMap],
+  );
+
+  const overviewMitSuche = useMemo(
+    () =>
+      overviewMitQuickFiltern.filter((entry) => matchBudgetSearch(entry, suchbegriff, overviewCtx)),
+    [overviewMitQuickFiltern, suchbegriff, overviewCtx],
+  );
+
+  const gefilterteUebersichtPosten = useMemo(
+    () => overviewMitSuche.filter((p) => (p.typ || "ausgabe") !== "einnahme"),
+    [overviewMitSuche],
+  );
+
+  const sortierteUebersichtPosten = useMemo(
+    () => sortBudgetEntries(gefilterteUebersichtPosten, sortierung, overviewCtx),
+    [gefilterteUebersichtPosten, sortierung, overviewCtx],
+  );
+
+  const gruppierteUebersichtPosten = useMemo(
+    () => groupBudgetEntries(sortierteUebersichtPosten, gruppierung, overviewCtx),
+    [sortierteUebersichtPosten, gruppierung, overviewCtx],
+  );
+
+  const overviewKpis = useMemo(
+    () => computeBudgetOverviewKpis(gefilterteUebersichtPosten),
+    [gefilterteUebersichtPosten],
+  );
+
+  useEffect(() => {
+    setExpandedRows({});
+  }, [
+    zeitraum,
+    selJahr,
+    selMonat,
+    kategFilter,
+    bewohnerFilter,
+    scopeFilter,
+    suchbegriff,
+    sortierung,
+    gruppierung,
+    nurWiederkehrend,
+    nurMitRechnung,
+  ]);
+
+  const resetOverviewFilter = useCallback(() => {
+    setSuchbegriff("");
+    setKategFilter("");
+    setBewohnerFilter("");
+    setScopeFilter("alle");
+    setNurWiederkehrend(false);
+    setNurMitRechnung(false);
+    setSortierung("datum_desc");
+    setGruppierung("tag");
+  }, []);
+
+  const aktiveFilter = [
+    kategFilter
+      ? {
+          id: "kategorie",
+          label: `Kategorie: ${kategFilter}`,
+          onRemove: () => setKategFilter(""),
+        }
+      : null,
+    bewohnerFilter && bewohnerById[bewohnerFilter]
+      ? {
+          id: "person",
+          label: `Person: ${bewohnerById[bewohnerFilter].name}`,
+          onRemove: () => setBewohnerFilter(""),
+        }
+      : null,
+    scopeFilter !== "alle"
+      ? {
+          id: "scope",
+          label: `Scope: ${scopeFilter === "privat" ? "Privat" : "Haushalt"}`,
+          onRemove: () => setScopeFilter("alle"),
+        }
+      : null,
+    nurWiederkehrend
+      ? {
+          id: "wiederkehrend",
+          label: "Nur wiederkehrend",
+          onRemove: () => setNurWiederkehrend(false),
+        }
+      : null,
+    nurMitRechnung
+      ? {
+          id: "rechnung",
+          label: "Nur mit Rechnung",
+          onRemove: () => setNurMitRechnung(false),
+        }
+      : null,
+  ].filter(Boolean);
 
   // ─── Statistik-Basismenge: Scope-Filter, aber kein Kategorie-/Bewohner-Filter ───
   const statistikBasisPosten = posten.filter(p => {
@@ -1001,42 +1140,85 @@ const HomeBudget = ({ session }) => {
       {/* ════════════ TAB: ÜBERSICHT ════════════ */}
       {aktiverTab === "uebersicht" && (
         <>
-          {/* Zeitraum-Navigation */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <Calendar size={15} className="text-light-text-secondary dark:text-dark-text-secondary flex-shrink-0" />
-            <div className="flex gap-2 flex-wrap">
-              {["monat", "jahr", "alle"].map(z => (
-                <button
-                  key={z}
-                  onClick={() => setZeitraum(z)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                    zeitraum === z
-                      ? "bg-primary-500 text-white"
-                      : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"
-                  }`}
-                >
-                  {z === "monat" ? "Monat" : z === "jahr" ? "Jahr" : "Alle"}
-                </button>
+          <BudgetFilterBar
+            suchbegriff={suchbegriff}
+            onSuche={setSuchbegriff}
+            zeitraum={zeitraum}
+            onZeitraum={setZeitraum}
+            zeitraumLabel={zeitraumLabel}
+            onPrevZeitraum={() => (zeitraum === "monat" ? navigiereMonat(-1) : setSelJahr((y) => y - 1))}
+            onNextZeitraum={() => (zeitraum === "monat" ? navigiereMonat(1) : setSelJahr((y) => y + 1))}
+            aktiveFilter={aktiveFilter}
+            anzahlGefiltert={gefilterteUebersichtPosten.length}
+            onOpenFilterSheet={() => setFilterSheetOffen(true)}
+            onReset={resetOverviewFilter}
+          />
+
+          <BudgetKpiStrip
+            haushaltSumme={overviewKpis.haushaltSumme}
+            privatSumme={overviewKpis.privatSumme}
+            anzahl={overviewKpis.anzahl}
+          />
+
+          {gefilterteUebersichtPosten.length === 0 ? (
+            <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 py-12 text-center text-light-text-secondary dark:text-dark-text-secondary">
+              <DollarSign size={40} className="mx-auto mb-3 opacity-30" />
+              <p className="text-sm">Keine Einträge im gewählten Zeitraum</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {gruppierteUebersichtPosten.map((gruppe) => (
+                <BudgetGroupSection
+                  key={gruppe.key}
+                  label={gruppierung === "keine" ? "" : gruppe.label}
+                  count={gruppe.items.length}
+                  items={gruppe.items}
+                  renderItem={(entry) => (
+                    <BudgetEntryRow
+                      key={entry.id}
+                      entry={entry}
+                      ctx={overviewCtx}
+                      isOpen={Boolean(expandedRows[entry.id])}
+                      onToggle={() =>
+                        setExpandedRows((prev) => ({
+                          ...prev,
+                          [entry.id]: !prev[entry.id],
+                        }))
+                      }
+                      onEdit={setModal}
+                      onDelete={loesche}
+                      onPreviewInvoice={oeffneRechnungsVorschau}
+                    />
+                  )}
+                />
               ))}
             </div>
-            {zeitraum !== "alle" && (
-              <div className="flex items-center gap-1 sm:ml-auto">
-                <button
-                  onClick={() => zeitraum === "monat" ? navigiereMonat(-1) : setSelJahr(y => y - 1)}
-                  className="p-1 rounded-card-sm hover:bg-light-border dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary"
-                >
-                  <ChevronLeft size={14} />
-                </button>
-                <span className="text-sm font-medium text-light-text-main dark:text-dark-text-main px-2 min-w-[72px] sm:min-w-[90px] text-center">{zeitraumLabel}</span>
-                <button
-                  onClick={() => zeitraum === "monat" ? navigiereMonat(1) : setSelJahr(y => y + 1)}
-                  className="p-1 rounded-card-sm hover:bg-light-border dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary"
-                >
-                  <ChevronRight size={14} />
-                </button>
-              </div>
-            )}
-          </div>
+          )}
+
+          <BudgetFilterSheet
+            offen={filterSheetOffen}
+            onClose={() => setFilterSheetOffen(false)}
+            kategFilter={kategFilter}
+            onKategorie={setKategFilter}
+            bewohnerFilter={bewohnerFilter}
+            onBewohner={setBewohnerFilter}
+            scopeFilter={scopeFilter}
+            onScope={setScopeFilter}
+            nurWiederkehrend={nurWiederkehrend}
+            onNurWiederkehrend={setNurWiederkehrend}
+            nurMitRechnung={nurMitRechnung}
+            onNurMitRechnung={setNurMitRechnung}
+            sortierung={sortierung}
+            onSortierung={setSortierung}
+            gruppierung={gruppierung}
+            onGruppierung={setGruppierung}
+            kategorien={HOME_KATEGORIEN}
+            bewohner={bewohner}
+            onReset={resetOverviewFilter}
+          />
+
+          {false && (
+            <>
 
           {/* Ausgaben-Karten */}
           <div data-tour="tour-budget-uebersicht" className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1186,6 +1368,8 @@ const HomeBudget = ({ session }) => {
                 );
               })}
             </div>
+          )}
+            </>
           )}
         </>
       )}
