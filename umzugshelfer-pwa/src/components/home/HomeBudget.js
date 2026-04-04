@@ -1,16 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   DollarSign, Plus, Edit2, Trash2, X, Loader2, AlertCircle,
-  ChevronLeft, ChevronRight, Sparkles, RefreshCw,
-  Target, TrendingUp, BarChart2, PiggyBank, Wallet, Check, FileText,
+  Sparkles, RefreshCw,
+  Target, TrendingUp, BarChart2, Wallet,
+  FileText,
 } from "lucide-react";
-import { motion } from "framer-motion";
-import { Doughnut, Bar, Line } from "react-chartjs-2";
-import {
-  Chart as ChartJS, ArcElement, Tooltip, Legend,
-  CategoryScale, LinearScale, BarElement,
-  PointElement, LineElement, Filler,
-} from "chart.js";
 import { supabase } from "../../supabaseClient";
 import KiHomeAssistent from "./KiHomeAssistent";
 import TourOverlay from "./tour/TourOverlay";
@@ -26,17 +20,35 @@ import {
   matchBudgetSearch,
   sortBudgetEntries,
 } from "../../utils/budgetOverview";
+import {
+  buildCashflowPreview,
+  buildMonthStatsData,
+  buildYearStatsData,
+} from "../../utils/budgetStats";
+import {
+  formatLimitMeta,
+  getLimitProgress,
+  getLimitStatus,
+} from "../../utils/budgetLimits";
+import {
+  getGoalMonatlichNoetig,
+  getGoalProgress,
+  getGoalRestbetrag,
+  getGoalStatus,
+  groupGoalsByStatus,
+} from "../../utils/budgetGoals";
 import BudgetFilterBar from "./budget/BudgetFilterBar";
 import BudgetFilterSheet from "./budget/BudgetFilterSheet";
 import BudgetGroupSection from "./budget/BudgetGroupSection";
 import BudgetEntryRow from "./budget/BudgetEntryRow";
 import BudgetKpiStrip from "./budget/BudgetKpiStrip";
-
-ChartJS.register(
-  ArcElement, Tooltip, Legend,
-  CategoryScale, LinearScale, BarElement,
-  PointElement, LineElement, Filler,
-);
+import BudgetStatsHeader from "./budget/BudgetStatsHeader";
+import BudgetStatsKpiStrip from "./budget/BudgetStatsKpiStrip";
+import BudgetStatsCharts from "./budget/BudgetStatsCharts";
+import BudgetCashflowList from "./budget/BudgetCashflowList";
+import BudgetLimitsList from "./budget/BudgetLimitsList";
+import BudgetAccountsSection from "./budget/BudgetAccountsSection";
+import BudgetGoalsList from "./budget/BudgetGoalsList";
 
 // ─────────────── Constants ───────────────
 const HOME_KATEGORIEN = [
@@ -55,16 +67,6 @@ const KATEGORIE_FARBEN = {
 const EMOJI_OPTIONEN = ["🎯", "🏠", "✈️", "🚗", "💻", "📱", "🎓", "💍", "🛋️", "🎸", "🌴", "💰"];
 const FARB_OPTIONEN = ["#10B981", "#3B82F6", "#8B5CF6", "#EC4899", "#F59E0B", "#F97316", "#14B8A6", "#EF4444"];
 const BewohnerBadge = () => null;
-
-const CHART_OPTS_BASE = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: { legend: { labels: { color: "rgba(156,163,175,1)", font: { size: 11 } } } },
-};
-const SCALE_OPTS = {
-  grid: { color: "rgba(75,85,99,0.3)" },
-  ticks: { color: "rgba(156,163,175,1)", font: { size: 10 } },
-};
 
 // ─────────────── Helpers ───────────────
 const fmt = (n) => Number(n || 0).toFixed(2) + " €";
@@ -395,7 +397,7 @@ const KontoForm = ({ initial, bewohner, onSpeichern, onDeaktivieren, onAbbrechen
 // ─────────────── Main Component ───────────────
 const HomeBudget = ({ session }) => {
   const userId = session?.user?.id;
-  const today = new Date();
+  const today = useMemo(() => new Date(), []);
   const { active: tourAktiv, schritt, setSchritt, beenden: tourBeenden } = useTour("budget");
 
   // Data
@@ -938,142 +940,92 @@ const HomeBudget = ({ session }) => {
   ].filter(Boolean);
 
   // ─── Statistik-Basismenge: Scope-Filter, aber kein Kategorie-/Bewohner-Filter ───
-  const statistikBasisPosten = posten.filter(p => {
-    if ((p.typ || "ausgabe") === "einnahme") return false;
-    if (scopeFilter !== "alle" && (p.budget_scope || "haushalt") !== scopeFilter) return false;
-    return true;
-  });
+  const statsYearView = useMemo(
+    () =>
+      buildYearStatsData({
+        posten,
+        selJahr,
+        scopeFilter,
+        kategorien: HOME_KATEGORIEN,
+        kategoriefarben: KATEGORIE_FARBEN,
+        monate: MONATE,
+      }),
+    [posten, selJahr, scopeFilter],
+  );
 
-  // ─── Chart Data ───
-  const kategAusgaben = HOME_KATEGORIEN
-    .map(k => ({
-      name: k,
-      summe: nachZeitraumGefiltert
-        .filter(p => p.kategorie === k && (p.typ || "ausgabe") !== "einnahme" &&
-          (scopeFilter === "alle" || (p.budget_scope || "haushalt") === scopeFilter))
-        .reduce((s, p) => s + Math.abs(Number(p.betrag)), 0),
-    }))
-    .filter(k => k.summe > 0);
+  const statsMonthView = useMemo(
+    () =>
+      buildMonthStatsData({
+        posten,
+        selJahr,
+        selMonat,
+        scopeFilter,
+        kategorien: HOME_KATEGORIEN,
+        kategoriefarben: KATEGORIE_FARBEN,
+      }),
+    [posten, selJahr, selMonat, scopeFilter],
+  );
 
-  const doughnutData = {
-    labels: kategAusgaben.map(k => k.name),
-    datasets: [{
-      data: kategAusgaben.map(k => k.summe),
-      backgroundColor: kategAusgaben.map(k => KATEGORIE_FARBEN[k.name] + "CC"),
-      borderColor: kategAusgaben.map(k => KATEGORIE_FARBEN[k.name]),
-      borderWidth: 1,
-    }],
-  };
+  const cashflowView = useMemo(
+    () =>
+      buildCashflowPreview({
+        posten,
+        scopeFilter,
+        fromDateIso: getLocalDateString(today),
+      }),
+    [posten, scopeFilter, today],
+  );
 
-  const monatsDaten = Array.from({ length: 12 }, (_, i) => {
-    const mp = statistikBasisPosten.filter(p => {
-      if (!p.datum) return false;
-      const d = new Date(p.datum + "T00:00:00");
-      return d.getFullYear() === selJahr && d.getMonth() === i;
-    });
-    return {
-      ausgaben: mp.reduce((s, p) => s + Math.abs(Number(p.betrag)), 0),
-    };
-  });
+  const limitsCurrentMonth = today.getMonth();
+  const limitsCurrentYear = today.getFullYear();
+  const limitsMonthLabel = `${MONATE[limitsCurrentMonth]} ${limitsCurrentYear}`;
 
-  const barData = {
-    labels: MONATE,
-    datasets: [
-      {
-        label: "Ausgaben",
-        data: monatsDaten.map(m => m.ausgaben),
-        backgroundColor: "rgba(239,68,68,0.7)",
-        borderColor: "rgba(239,68,68,1)",
-        borderWidth: 1,
-        borderRadius: 4,
-      },
-    ],
-  };
+  const limitRowsView = useMemo(
+    () =>
+      HOME_KATEGORIEN.map((kategorie) => {
+        const limit = limits.find((entry) => entry.kategorie === kategorie);
+        const limitEuro = Number(limit?.limit_euro || 0);
+        const verbrauch = posten
+          .filter((entry) => {
+            if ((entry.typ || "ausgabe") === "einnahme" || entry.kategorie !== kategorie || !entry.datum) return false;
+            if ((entry.budget_scope || "haushalt") !== "haushalt") return false;
+            const datum = new Date(`${entry.datum}T00:00:00`);
+            return datum.getFullYear() === limitsCurrentYear && datum.getMonth() === limitsCurrentMonth;
+          })
+          .reduce((sum, entry) => sum + Math.abs(Number(entry.betrag || 0)), 0);
 
-  let kumuliertAusgaben = 0;
-  const lineData = {
-    labels: MONATE,
-    datasets: [{
-      label: "Kumulierte Ausgaben",
-      data: monatsDaten.map(m => { kumuliertAusgaben += m.ausgaben; return kumuliertAusgaben; }),
-      borderColor: "rgba(239,68,68,1)",
-      backgroundColor: "rgba(239,68,68,0.1)",
-      fill: true,
-      tension: 0.4,
-      pointRadius: 3,
-    }],
-  };
+        const progress = getLimitProgress({ verbrauch, limitEuro });
+        const status = getLimitStatus({ verbrauch, limitEuro });
 
-  // ─── Monatsstatistik ───
-  const statistikMonatPosten = statistikBasisPosten.filter(p => {
-    if (!p.datum) return false;
-    const d = new Date(p.datum + "T00:00:00");
-    return d.getFullYear() === selJahr && d.getMonth() === selMonat;
-  });
-  const statistikMonatKateg = HOME_KATEGORIEN
-    .map(k => ({
-      name: k,
-      summe: statistikMonatPosten.filter(p => p.kategorie === k).reduce((s, p) => s + Math.abs(Number(p.betrag)), 0),
-    }))
-    .filter(k => k.summe > 0)
-    .sort((a, b) => b.summe - a.summe);
-  const statistikMonatGesamt = statistikMonatPosten.reduce((s, p) => s + Math.abs(Number(p.betrag)), 0);
+        return {
+          kategorie,
+          color: KATEGORIE_FARBEN[kategorie],
+          limitEuro,
+          verbrauch,
+          progress,
+          status,
+          meta: formatLimitMeta({ verbrauch, limitEuro, progress, status, fmt }),
+        };
+      }),
+    [limits, posten, limitsCurrentMonth, limitsCurrentYear],
+  );
 
-  const barDataMonat = {
-    labels: statistikMonatKateg.map(k => k.name),
-    datasets: [{
-      label: "Ausgaben",
-      data: statistikMonatKateg.map(k => k.summe),
-      backgroundColor: statistikMonatKateg.map(k => KATEGORIE_FARBEN[k.name] + "CC"),
-      borderColor: statistikMonatKateg.map(k => KATEGORIE_FARBEN[k.name]),
-      borderWidth: 1,
-      borderRadius: 4,
-    }],
-  };
-
-  const doughnutDataMonat = {
-    labels: statistikMonatKateg.map(k => k.name),
-    datasets: [{
-      data: statistikMonatKateg.map(k => k.summe),
-      backgroundColor: statistikMonatKateg.map(k => KATEGORIE_FARBEN[k.name] + "CC"),
-      borderColor: statistikMonatKateg.map(k => KATEGORIE_FARBEN[k.name]),
-      borderWidth: 1,
-    }],
-  };
-
-  // Cashflow: scope-bewusst, 30-Tage-Grenze als ISO-String (getLocalDateString aus budgetRecurring)
-  const in30Iso = getLocalDateString(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
-  const cashflow = posten
-    .filter(p =>
-      p.wiederholen &&
-      p.naechstes_datum &&
-      p.naechstes_datum <= in30Iso &&
-      (scopeFilter === "alle" || (p.budget_scope || "haushalt") === scopeFilter)
-    )
-    .sort((a, b) => a.naechstes_datum.localeCompare(b.naechstes_datum));
-
-  // Limits — nur Haushaltsausgaben messen (unabhaengig von scopeFilter)
-  const aktuellerMonat = today.getMonth();
-  const aktuellesJahr = today.getFullYear();
-  const monatsVerbrauch = (kat) =>
-    posten.filter(p => {
-      if ((p.typ || "ausgabe") === "einnahme" || p.kategorie !== kat || !p.datum) return false;
-      if ((p.budget_scope || "haushalt") !== "haushalt") return false;
-      const d = new Date(p.datum + "T00:00:00");
-      return d.getFullYear() === aktuellesJahr && d.getMonth() === aktuellerMonat;
-    }).reduce((s, p) => s + Math.abs(Number(p.betrag)), 0);
-
-  // Sparziele helpers
-  const tageVerbleibend = (zieldatum) => {
-    if (!zieldatum) return null;
-    return Math.max(0, Math.ceil((new Date(zieldatum) - today) / 86400000));
-  };
-  const monatlichNoetig = (ziel) => {
-    if (!ziel.zieldatum) return null;
-    const d = new Date(ziel.zieldatum);
-    const monate = Math.max(0.5, (d.getFullYear() - today.getFullYear()) * 12 + d.getMonth() - today.getMonth());
-    return Math.max(0, (Number(ziel.ziel_betrag) - Number(ziel.aktueller_betrag)) / monate);
-  };
+  const goalGroupsView = useMemo(
+    () =>
+      groupGoalsByStatus(sparziele).map((group) => ({
+        ...group,
+        items: group.items.map((ziel) => ({
+          ziel,
+          meta: {
+            progress: getGoalProgress(ziel),
+            status: getGoalStatus(ziel),
+            restbetrag: getGoalRestbetrag(ziel),
+            monatlichNoetig: getGoalMonatlichNoetig(ziel, today),
+          },
+        })),
+      })),
+    [sparziele, today],
+  );
 
   if (loading) return (
     <div className="flex items-center justify-center py-20">
@@ -1375,401 +1327,79 @@ const HomeBudget = ({ session }) => {
       )}
 
       {/* ════════════ TAB: STATISTIKEN ════════════ */}
+      {/* Budget Statistiken */}
       {aktiverTab === "statistiken" && (
         <div className="space-y-4">
+          <BudgetStatsHeader
+            modus={statistikModus}
+            onModusChange={setStatistikModus}
+            navigatorLabel={statistikModus === "jahr" ? `${selJahr}` : `${MONATE[selMonat]} ${selJahr}`}
+            onPrev={() => (statistikModus === "jahr" ? setSelJahr((jahr) => jahr - 1) : navigiereMonat(-1))}
+            onNext={() => (statistikModus === "jahr" ? setSelJahr((jahr) => jahr + 1) : navigiereMonat(1))}
+          />
 
-          {/* Modus-Toggle */}
-          <div className="flex gap-1 bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-1">
-            {[["jahr", "Jahr", "Jahresansicht"], ["monat", "Monat", "Monatsansicht"]].map(([m, kurz, lang]) => (
-              <button
-                key={m}
-                onClick={() => setStatistikModus(m)}
-                className={`flex-1 py-1.5 rounded-card-sm text-xs font-medium transition-colors ${
-                  statistikModus === m
-                    ? "bg-primary-500 text-white"
-                    : "text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
-                }`}
-              >
-                <span className="sm:hidden">{kurz}</span>
-                <span className="hidden sm:inline">{lang}</span>
-              </button>
-            ))}
-          </div>
+          <BudgetStatsKpiStrip
+            modus={statistikModus}
+            yearStats={statsYearView}
+            monthStats={statsMonthView}
+          />
 
-          {statistikModus === "jahr" ? (
-            <>
-              {/* Jahr-Navigator */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <span className="text-sm font-medium text-light-text-main dark:text-dark-text-main">Jahresansicht</span>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => setSelJahr(y => y - 1)} className="p-1 rounded hover:bg-light-border dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary">
-                    <ChevronLeft size={16} />
-                  </button>
-                  <span className="text-sm font-bold text-light-text-main dark:text-dark-text-main px-3">{selJahr}</span>
-                  <button onClick={() => setSelJahr(y => y + 1)} className="p-1 rounded hover:bg-light-border dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary">
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-              </div>
+          <BudgetStatsCharts
+            modus={statistikModus}
+            yearStats={statsYearView}
+            monthStats={statsMonthView}
+            selJahr={selJahr}
+            monatLabel={`${MONATE[selMonat]} ${selJahr}`}
+          />
 
-              {/* Doughnut: Ausgaben-Verteilung */}
-              <div className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-4">
-                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-3 uppercase tracking-wider">Ausgaben nach Kategorie</p>
-                {kategAusgaben.length === 0 ? (
-                  <p className="text-sm text-center text-light-text-secondary dark:text-dark-text-secondary py-8">Keine Ausgaben im Zeitraum</p>
-                ) : (
-                  <div className="h-40 sm:h-52">
-                    <Doughnut data={doughnutData} options={{
-                      ...CHART_OPTS_BASE,
-                      plugins: {
-                        ...CHART_OPTS_BASE.plugins,
-                        tooltip: { callbacks: { label: c => `${c.label}: ${Number(c.raw).toFixed(2)} €` } },
-                      },
-                    }} />
-                  </div>
-                )}
-              </div>
-
-              {/* Bar: Ausgaben nach Monat */}
-              <div className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-4">
-                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-3 uppercase tracking-wider">Ausgaben nach Monat {selJahr}</p>
-                <div className="h-40 sm:h-52">
-                  <Bar data={barData} options={{
-                    ...CHART_OPTS_BASE,
-                    scales: {
-                      x: SCALE_OPTS,
-                      y: { ...SCALE_OPTS, ticks: { ...SCALE_OPTS.ticks, callback: v => `${v} €` } },
-                    },
-                    plugins: {
-                      ...CHART_OPTS_BASE.plugins,
-                      tooltip: { callbacks: { label: c => `${c.dataset.label}: ${Number(c.raw).toFixed(2)} €` } },
-                    },
-                  }} />
-                </div>
-              </div>
-
-              {/* Line: Kumulierte Ausgaben */}
-              <div className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-4">
-                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-3 uppercase tracking-wider">Kumulierte Ausgaben {selJahr}</p>
-                <div className="h-36 sm:h-48">
-                  <Line data={lineData} options={{
-                    ...CHART_OPTS_BASE,
-                    scales: {
-                      x: SCALE_OPTS,
-                      y: { ...SCALE_OPTS, ticks: { ...SCALE_OPTS.ticks, callback: v => `${v} €` } },
-                    },
-                    plugins: {
-                      ...CHART_OPTS_BASE.plugins,
-                      tooltip: { callbacks: { label: c => `Kumuliert: ${Number(c.raw).toFixed(2)} €` } },
-                    },
-                  }} />
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Monat-Navigator */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <span className="text-sm font-medium text-light-text-main dark:text-dark-text-main">Monatsansicht</span>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => navigiereMonat(-1)} className="p-1 rounded hover:bg-light-border dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary">
-                    <ChevronLeft size={16} />
-                  </button>
-                  <span className="text-sm font-bold text-light-text-main dark:text-dark-text-main px-3 min-w-[72px] sm:min-w-[110px] text-center">
-                    {MONATE[selMonat]} {selJahr}
-                  </span>
-                  <button onClick={() => navigiereMonat(1)} className="p-1 rounded hover:bg-light-border dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary">
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-              </div>
-
-              {statistikMonatKateg.length === 0 ? (
-                <div className="text-center py-12 text-light-text-secondary dark:text-dark-text-secondary">
-                  <BarChart2 size={36} className="mx-auto mb-3 opacity-30" />
-                  <p className="text-sm">Keine Ausgaben in {MONATE[selMonat]} {selJahr}</p>
-                </div>
-              ) : (
-                <>
-                  {/* Kennzahl */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="rounded-card border p-3 text-center bg-red-500/10 border-red-500/20">
-                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">Gesamt</p>
-                      <p className="text-sm font-bold text-red-400 tabular-nums">{statistikMonatGesamt.toFixed(2)} €</p>
-                    </div>
-                    <div className="rounded-card border p-3 text-center bg-light-card dark:bg-canvas-2 border-light-border dark:border-dark-border">
-                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">Kategorien</p>
-                      <p className="text-sm font-bold text-light-text-main dark:text-dark-text-main tabular-nums">{statistikMonatKateg.length}</p>
-                    </div>
-                  </div>
-
-                  {/* Doughnut: Kategorie-Verteilung */}
-                  <div className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-4">
-                    <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-3 uppercase tracking-wider">Verteilung nach Kategorie</p>
-                    <div className="h-40 sm:h-52">
-                      <Doughnut data={doughnutDataMonat} options={{
-                        ...CHART_OPTS_BASE,
-                        plugins: {
-                          ...CHART_OPTS_BASE.plugins,
-                          tooltip: { callbacks: { label: c => `${c.label}: ${Number(c.raw).toFixed(2)} €` } },
-                        },
-                      }} />
-                    </div>
-                  </div>
-
-                  {/* Horizontales Bar: Kategorien nach Betrag */}
-                  <div className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-4">
-                    <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-3 uppercase tracking-wider">Ausgaben pro Kategorie</p>
-                    <div style={{ height: `${Math.max(statistikMonatKateg.length * 36, 100)}px` }}>
-                      <Bar data={barDataMonat} options={{
-                        ...CHART_OPTS_BASE,
-                        indexAxis: "y",
-                        scales: {
-                          x: { ...SCALE_OPTS, ticks: { ...SCALE_OPTS.ticks, callback: v => `${v} €` } },
-                          y: SCALE_OPTS,
-                        },
-                        plugins: {
-                          ...CHART_OPTS_BASE.plugins,
-                          legend: { display: false },
-                          tooltip: { callbacks: { label: c => `${Number(c.raw).toFixed(2)} €` } },
-                        },
-                      }} />
-                    </div>
-                  </div>
-                </>
-              )}
-            </>
-          )}
-
-          {/* Cashflow-Vorschau */}
-          <div className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-4">
-            <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-3 uppercase tracking-wider">Cashflow — Nächste 30 Tage</p>
-            {cashflow.length === 0 ? (
-              <p className="text-sm text-center text-light-text-secondary dark:text-dark-text-secondary py-4">Keine fälligen Zahlungen</p>
-            ) : (
-              <div className="space-y-2">
-                {cashflow.map(p => (
-                  <div key={p.id} className="flex items-center gap-3 text-sm">
-                    <span className="text-light-text-secondary dark:text-dark-text-secondary text-xs w-20 flex-shrink-0">{p.naechstes_datum}</span>
-                    <span className="flex-1 text-light-text-main dark:text-dark-text-main truncate">{p.beschreibung}</span>
-                    <RefreshCw size={11} className="text-secondary-400 flex-shrink-0" />
-                    <span className="font-medium flex-shrink-0 tabular-nums text-red-400">
-                      {Math.abs(Number(p.betrag)).toFixed(2)} €
-                    </span>
-                  </div>
-                ))}
-                {cashflow.length > 1 && (
-                  <div className="border-t border-light-border dark:border-dark-border pt-2 flex justify-between text-sm">
-                    <span className="text-light-text-secondary dark:text-dark-text-secondary">Gesamt 30 Tage</span>
-                    <span className="font-semibold tabular-nums text-red-400">
-                      {fmt(cashflow.reduce((s, p) => s + Math.abs(Number(p.betrag)), 0))}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          <BudgetCashflowList
+            items={cashflowView.items}
+            total={cashflowView.total}
+            count={cashflowView.count}
+          />
         </div>
       )}
-
-      {/* ════════════ TAB: LIMITS ════════════ */}
+      {/* Budget Limits */}
       {aktiverTab === "limits" && (
         <div data-tour="tour-budget-limits" className="space-y-3">
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-            Monatliche Budgetlimits für {MONATE[aktuellerMonat]} {aktuellesJahr}. Klicke auf den Limit-Betrag zum Bearbeiten.
-          </p>
-          {HOME_KATEGORIEN.map(kat => {
-            const limit = limits.find(l => l.kategorie === kat);
-            const limitEuro = limit?.limit_euro || 0;
-            const verbrauch = monatsVerbrauch(kat);
-            const prozent = limitEuro > 0 ? Math.min((verbrauch / limitEuro) * 100, 100) : 0;
-            const balkenFarbe = limitEuro === 0 ? "bg-canvas-3"
-              : prozent >= 100 ? "bg-red-500"
-              : prozent >= 75 ? "bg-amber-500"
-              : "bg-green-500";
-            const isEditing = kat in limitsEdit;
+          <BudgetLimitsList
+            monatLabel={`Monatliche Budgetlimits fuer ${limitsMonthLabel}. Klicke auf den Limit-Betrag zum Bearbeiten.`}
+            rows={limitRowsView}
+            limitsEdit={limitsEdit}
+            onStartEdit={(kategorie, limitEuro) => setLimitsEdit((prev) => ({ ...prev, [kategorie]: String(limitEuro || 0) }))}
+            onChangeEdit={(kategorie, value) => setLimitsEdit((prev) => ({ ...prev, [kategorie]: value }))}
+            onSave={speichereLimit}
+            onCancel={(kategorie) => setLimitsEdit((prev) => {
+              const next = { ...prev };
+              delete next[kategorie];
+              return next;
+            })}
+          />
 
-            return (
-              <div key={kat} className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: KATEGORIE_FARBEN[kat] }} />
-                    <span className="text-sm font-medium text-light-text-main dark:text-dark-text-main">{kat}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary tabular-nums">{fmt(verbrauch)}</span>
-                    {isEditing ? (
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">/</span>
-                        <input
-                          type="number" step="10" min="0"
-                          value={limitsEdit[kat]}
-                          onChange={e => setLimitsEdit(p => ({ ...p, [kat]: e.target.value }))}
-                          className="w-20 px-2 py-0.5 text-xs rounded border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
-                          autoFocus
-                          onKeyDown={e => { if (e.key === "Enter") speichereLimit(kat, limitsEdit[kat]); if (e.key === "Escape") setLimitsEdit(p => { const n = { ...p }; delete n[kat]; return n; }); }}
-                        />
-                        <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">€</span>
-                        <button onClick={() => speichereLimit(kat, limitsEdit[kat])} className="p-1 rounded text-green-400 hover:bg-green-500/10">
-                          <Check size={13} />
-                        </button>
-                        <button onClick={() => setLimitsEdit(p => { const n = { ...p }; delete n[kat]; return n; })} className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-red-400">
-                          <X size={13} />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setLimitsEdit(p => ({ ...p, [kat]: limitEuro.toString() }))}
-                        className="text-xs text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 transition-colors border-b border-dashed border-light-border dark:border-dark-border"
-                      >
-                        {limitEuro > 0 ? `/ ${fmt(limitEuro)}` : "Limit setzen"}
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div className="h-2 rounded-full bg-canvas-3 overflow-hidden">
-                  <motion.div
-                    className={`h-full rounded-full ${balkenFarbe}`}
-                    initial={{ width: 0 }}
-                    animate={{ width: limitEuro > 0 ? `${prozent}%` : "0%" }}
-                    transition={{ duration: 0.65, ease: "easeOut" }}
-                  />
-                </div>
-                {limitEuro === 0 && <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1">Kein Limit gesetzt</p>}
-                {limitEuro > 0 && prozent >= 100 && <p className="text-xs text-red-400 mt-1">Budget überschritten!</p>}
-                {limitEuro > 0 && prozent >= 75 && prozent < 100 && (
-                  <p className="text-xs text-amber-400 mt-1">{(100 - prozent).toFixed(0)} % verbleibend</p>
-                )}
-              </div>
-            );
-          })}
-
-          {/* Finanzkonten im Haushalt */}
-          <div className="pt-2 border-t border-light-border dark:border-dark-border">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">Konten im Haushalt</h4>
-              <button
-                onClick={() => { setKontenFormDaten({}); setKontenFormOffen(true); }}
-                className="flex items-center gap-1 px-2 py-1 text-xs bg-primary-500 hover:bg-primary-600 text-white rounded-pill"
-              >
-                <Plus size={12} /> Konto
-              </button>
-            </div>
-            {finanzkonten.length === 0 ? (
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Noch keine Konten angelegt.</p>
-            ) : (
-              <div className="space-y-2">
-                {finanzkonten.map(k => (
-                  <div key={k.id} className="flex items-center justify-between bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: k.farbe || "#10B981" }} />
-                      <span className="text-sm text-light-text-main dark:text-dark-text-main">{k.name}</span>
-                      <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">({k.konto_typ})</span>
-                    </div>
-                    <button
-                      onClick={() => { setKontenFormDaten(k); setKontenFormOffen(true); }}
-                      className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500"
-                    >
-                      <Edit2 size={13} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <BudgetAccountsSection
+            konten={finanzkonten}
+            bewohnerById={bewohnerById}
+            onAdd={() => { setKontenFormDaten({}); setKontenFormOffen(true); }}
+            onEdit={(konto) => { setKontenFormDaten(konto); setKontenFormOffen(true); }}
+          />
         </div>
       )}
-
-      {/* ════════════ TAB: ZIELE ════════════ */}
+      {/* Budget Ziele */}
       {aktiverTab === "ziele" && (
-        <div data-tour="tour-budget-sparziele" className="space-y-4">
-          <div className="flex justify-end">
-            <button
-              onClick={() => setSparzieleModal({})}
-              className="flex items-center gap-1.5 px-3 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-pill text-sm font-medium"
-            >
-              <Plus size={14} />Sparziel
-            </button>
-          </div>
-
-          {sparziele.length === 0 ? (
-            <div className="text-center py-12 text-light-text-secondary dark:text-dark-text-secondary">
-              <PiggyBank size={40} className="mx-auto mb-3 opacity-30" />
-              <p className="text-sm">Noch keine Sparziele angelegt</p>
-            </div>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {sparziele.map(ziel => {
-                const zielBetrag = Number(ziel.ziel_betrag);
-                const aktuell = Number(ziel.aktueller_betrag);
-                const prozent = Math.min((aktuell / Math.max(zielBetrag, 1)) * 100, 100);
-                const tage = tageVerbleibend(ziel.zieldatum);
-                const monatlich = monatlichNoetig(ziel);
-                const erreicht = aktuell >= zielBetrag;
-
-                return (
-                  <div key={ziel.id} className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-4 space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl">{ziel.emoji}</span>
-                        <div>
-                          <p className="font-medium text-light-text-main dark:text-dark-text-main text-sm">{ziel.name}</p>
-                          {ziel.zieldatum && (
-                            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                              {tage === 0 ? "Heute fällig!" : `Noch ${tage} Tage`}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex gap-1">
-                        <button onClick={() => setSparzieleModal(ziel)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500">
-                          <Edit2 size={13} />
-                        </button>
-                        <button onClick={() => loescheSparziel(ziel.id)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500">
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-light-text-secondary dark:text-dark-text-secondary tabular-nums">{fmt(aktuell)}</span>
-                        <span className="font-medium tabular-nums" style={{ color: ziel.farbe }}>{prozent.toFixed(0)} %</span>
-                        <span className="text-light-text-secondary dark:text-dark-text-secondary tabular-nums">{fmt(zielBetrag)}</span>
-                      </div>
-                      <div className="h-2.5 rounded-full bg-canvas-3 overflow-hidden">
-                        <motion.div
-                          className="h-full rounded-full"
-                          style={{ backgroundColor: ziel.farbe }}
-                          initial={{ width: 0 }}
-                          animate={{ width: `${prozent}%` }}
-                          transition={{ duration: 0.65, ease: "easeOut" }}
-                        />
-                      </div>
-                    </div>
-                    {!erreicht && monatlich !== null && (
-                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary tabular-nums">
-                        {fmt(monatlich)} / Monat notwendig
-                      </p>
-                    )}
-                    {erreicht && <p className="text-xs text-green-400 font-medium">🎉 Ziel erreicht!</p>}
-                    {!erreicht && (
-                      <button
-                        onClick={() => { setEinzahlenModal(ziel); setEinzahlenBetrag(""); }}
-                        className="w-full py-1.5 text-xs font-medium rounded-card-sm border text-center transition-colors hover:opacity-80"
-                        style={{ borderColor: ziel.farbe + "66", color: ziel.farbe }}
-                      >
-                        + Einzahlen
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+        <div data-tour="tour-budget-sparziele">
+          <BudgetGoalsList
+            groups={goalGroupsView}
+            today={today}
+            onCreate={() => setSparzieleModal({})}
+            onEdit={setSparzieleModal}
+            onDelete={loescheSparziel}
+            onDeposit={(ziel) => {
+              setEinzahlenModal(ziel);
+              setEinzahlenBetrag("");
+            }}
+          />
         </div>
       )}
-
-      {/* ════════════ MODALS ════════════ */}
       {rechnungVorschau && (
         <div
           className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)] flex items-center justify-center"
