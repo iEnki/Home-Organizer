@@ -1681,6 +1681,10 @@ ALTER TABLE public.home_projekte
 ALTER TABLE public.home_geraete
   ADD COLUMN IF NOT EXISTS gewaehrleistung_bis date;
 
+-- home_geraete: Kategorie-Spalte
+ALTER TABLE public.home_geraete
+  ADD COLUMN IF NOT EXISTS kategorie text;
+
 
 -- ============================================================
 -- 10. SCHEMA NEU LADEN
@@ -2500,6 +2504,20 @@ BEGIN
          WITH CHECK (public.is_household_member(household_id))', t);
     END IF;
   END LOOP;
+END $$;
+
+-- home_geraete: Kategorie-Index (household_id + kategorie) nach household_id-Migration
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'home_geraete'
+      AND column_name = 'household_id'
+  ) THEN
+    CREATE INDEX IF NOT EXISTS idx_home_geraete_kategorie
+      ON public.home_geraete (household_id, kategorie);
+  END IF;
 END $$;
 
 -- home_bewohner: Haushaltsmitglieder spiegeln + eindeutige Verknuepfung
