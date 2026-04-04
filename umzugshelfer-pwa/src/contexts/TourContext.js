@@ -71,7 +71,10 @@ export function TourProvider({ children, session }) {
           // upsert statt update: falls kein user_profile-Datensatz existiert, wird er erstellt
           supabase
             .from("user_profile")
-            .upsert({ id: userId, tour_state: initialState }, { onConflict: "id" });
+            .upsert({ id: userId, tour_state: initialState }, { onConflict: "id" })
+            .then(({ error }) => {
+              if (error) console.warn("[TourContext] Initialer upsert fehlgeschlagen:", error.message);
+            });
         }
         setGeladen(true);
       });
@@ -84,7 +87,13 @@ export function TourProvider({ children, session }) {
         if (!prev) return prev;
         const next = typeof updaterFn === "function" ? updaterFn(prev) : updaterFn;
         if (userId) {
-          supabase.from("user_profile").update({ tour_state: next }).eq("id", userId);
+          supabase
+            .from("user_profile")
+            .update({ tour_state: next })
+            .eq("id", userId)
+            .then(({ error }) => {
+              if (error) console.warn("[TourContext] persist fehlgeschlagen:", error.message);
+            });
         }
         return next;
       });

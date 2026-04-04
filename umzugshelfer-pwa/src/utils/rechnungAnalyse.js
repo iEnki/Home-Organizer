@@ -400,7 +400,7 @@ function validierePositionen(positionen) {
 /**
  * Generiert einen lesbaren Fliesstext aus den Rechnungsdaten.
  */
-function generiereZusammenfassung(haendler, datum, gesamt, positionen) {
+export function generiereZusammenfassung(haendler, datum, gesamt, positionen) {
   const haendlerText = haendler || "einem unbekannten Händler";
   const datumText = datum
     ? new Date(datum).toLocaleDateString("de-AT", { day: "2-digit", month: "2-digit", year: "numeric" })
