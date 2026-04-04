@@ -3,6 +3,7 @@ import { supabase } from "../../supabaseClient";
 import OpenAI from "openai";
 import { ReactMic } from "react-mic";
 import { getKiClient, isKiClientReady, startSpeechRecognition } from "../../utils/kiClient";
+import { buildShoppingAiExtractionPrompt } from "../../utils/einkaufslisteUtils";
 import { motion } from "framer-motion";
 import {
   Mic, StopCircle, Send, Type, X, AlertTriangle, UploadCloud,
@@ -40,28 +41,17 @@ const MODUL_CONFIG = {
   einkaufliste: {
     titel: "Einkaufsliste per KI",
     beschreibung: 'z.B. „Lege Milch und Butter auf die Einkaufsliste"',
-    felder: "name, menge (Zahl, optional, default 1), einheit (optional), kategorie (optional)",
-    schema: '{"name":"Butter","menge":1,"einheit":"Stück","kategorie":"Milchprodukte"}',
+    felder: "original_text, name, normalized_name, menge, einheit, hauptkategorie, unterkategorie, confidence",
+    schema: '{"original_text":"2 Liter Milch","name":"Milch","normalized_name":"Milch","menge":2,"einheit":"Liter","hauptkategorie":"Lebensmittel","unterkategorie":"Milchprodukte","confidence":0.96}',
     ergebnisLabel: "Erkannte Einkaufsartikel",
-    renderItem: (item) => `${item.name}${item.menge ? ` — ${item.menge} ${item.einheit || ""}` : ""}${item.kategorie ? ` (${item.kategorie})` : ""}`,
+    renderItem: (item) =>
+      `${item.name || item.normalized_name || item.original_text}${item.menge ? ` — ${item.menge} ${item.einheit || ""}` : ""}${item.unterkategorie ? ` (${item.unterkategorie})` : item.hauptkategorie ? ` (${item.hauptkategorie})` : ""}`,
     hilfe: [
-      '"Milch, Butter und Brot kaufen" → mehrere Artikel auf einmal',
-      '"2 Liter Orangensaft" → Menge + Einheit',
-      '"Shampoo, Kategorie Drogerie" → mit Kategorie',
+      '"Milch, Butter und Brot kaufen" → mehrere Artikel in einem Durchgang',
+      '"2 Liter Orangensaft und Küchenrolle" → Menge + Einheit + Taxonomie',
+      '"Shampoo und Pflaster" → KI liefert feste Haupt- und Unterkategorien',
     ],
-    buildPrompt: (text) => `Extrahiere alle Einkaufsartikel aus dem Text als JSON-Array.
-
-Felder: name (Pflicht), menge (Zahl, default 1), einheit (z.B. Stück/Liter/kg/Packung, optional), kategorie (optional)
-
-Beispiel:
-Text: "2 Liter Milch und Butter"
-[{"name":"Milch","menge":2,"einheit":"Liter"},{"name":"Butter","menge":1,"einheit":"Stück"}]
-
-Text: "1 kg kartoffel"
-[{"name":"Kartoffel","menge":1,"einheit":"kg"}]
-
-Text: "${text}"
-JSON-Array:`,
+    buildPrompt: (text) => buildShoppingAiExtractionPrompt(text),
   },
   geraete: {
     titel: "Gerät per KI erfassen",

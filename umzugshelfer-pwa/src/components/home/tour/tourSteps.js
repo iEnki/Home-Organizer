@@ -114,20 +114,32 @@ export const TOUR_STEPS = {
   einkaufliste: [
     {
       target: "tour-einkauf-hinzufuegen",
-      title: "Neuer Eintrag",
-      text: "Füge einen neuen Artikel zur Einkaufsliste hinzu. Gib Name, Menge und optional eine Kategorie ein.",
+      title: "Sammelerfassung",
+      text: "Hier legst du einzelne oder mehrere Artikel auf einmal an. Kommas, Semikolons und Zeilenumbrüche werden als getrennte Einträge erkannt.",
+      position: "bottom",
+    },
+    {
+      target: "tour-einkauf-suche",
+      title: "Suche",
+      text: "Suche nach Artikeln, Hauptkategorien oder Unterkategorien. So findest du auch längere Listen schnell wieder.",
       position: "bottom",
     },
     {
       target: "tour-einkauf-filter",
-      title: "Filter",
-      text: "Blende erledigte Artikel aus, um deine Einkaufsliste übersichtlich zu halten.",
+      title: "Filter & Review",
+      text: "Filtere nach offenen, erledigten oder prüfbedürftigen Artikeln. Unsichere Zuordnungen werden hier gezielt sichtbar.",
+      position: "bottom",
+    },
+    {
+      target: "tour-einkauf-sort",
+      title: "Sortierung",
+      text: "Wechsle zwischen Markt-Reihenfolge, Kategorie-Ansicht und Neueste. Standard ist die Markt-Reihenfolge für den Einkauf.",
       position: "bottom",
     },
     {
       target: "tour-einkauf-liste",
-      title: "Einkaufsposten",
-      text: "Zeigt alle offenen und abgehakten Artikel. Klicke auf das Häkchen, um einen Posten als erledigt zu markieren.",
+      title: "Gruppierte Einkaufsliste",
+      text: "Offene Artikel werden gruppiert angezeigt. Prüfen-Badges markieren unsichere Einträge, die du per Bearbeiten dauerhaft korrigieren kannst.",
       position: "top",
     },
   ],

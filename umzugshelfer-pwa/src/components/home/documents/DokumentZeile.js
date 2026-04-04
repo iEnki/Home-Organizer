@@ -105,11 +105,12 @@ export default function DokumentZeile({
     <div
       data-dokument-id={dok.id}
       onClick={() => onVorschau?.(dok)}
-      className={`flex min-w-0 max-w-full items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors group
+      className={`relative flex min-w-0 max-w-full items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors group first:rounded-t-card-sm last:rounded-b-card-sm
         ${isHighlighted
           ? "bg-primary-500/5 ring-1 ring-inset ring-primary-500/30"
           : "hover:bg-light-hover dark:hover:bg-canvas-3"
-        }`}
+        }
+        ${menuOffen ? "z-[202]" : ""}`}
     >
       {/* Datei-Icon */}
       <div className="w-8 h-8 rounded-lg bg-light-border dark:bg-canvas-3 flex items-center justify-center flex-shrink-0">

@@ -9,6 +9,7 @@ import { useToast } from "../../hooks/useToast";
 import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
+import { applyShoppingBatch, prepareShoppingBatch } from "../../utils/einkaufslisteUtils";
 
 const KATEGORIEN = ["Haushalt", "Lebensmittel", "Hygiene", "Reinigung", "Technik", "Sonstiges"];
 const EINHEITEN = [
@@ -126,16 +127,46 @@ const HomeVorraete = ({ session }) => {
   const erstelleEinkaufslisteFuerRote = async () => {
     const rote = vorraete.filter((v) => Number(v.bestand) < Number(v.mindestmenge));
     if (rote.length === 0) return;
-    const eintraege = rote.map((v) => ({
-      user_id: userId,
-      vorrat_id: v.id,
-      name: v.name,
-      menge: Number(v.mindestmenge) - Number(v.bestand),
-      einheit: v.einheit,
-      kategorie: v.kategorie,
-    }));
-    await supabase.from("home_einkaufliste").insert(eintraege);
-    toast.success(`${rote.length} Artikel zur Einkaufsliste hinzugefügt.`);
+    try {
+      const rawItems = rote.map((v) => ({
+        original_text: `${v.name} ${Number(v.mindestmenge) - Number(v.bestand)} ${v.einheit || ""}`.trim(),
+        name: v.name,
+        menge: Number(v.mindestmenge) - Number(v.bestand),
+        einheit: v.einheit,
+        kategorie: v.kategorie,
+        vorrat_id: v.id,
+      }));
+
+      const result = await prepareShoppingBatch({
+        rawItems,
+        userId,
+        source: "vorrat",
+      });
+
+      const decisions = {};
+      result.duplicates.forEach((duplicate) => {
+        decisions[duplicate.client_id] = {
+          action: "merge",
+          existingEntry: duplicate.existing_entry,
+        };
+      });
+
+      const persisted = await applyShoppingBatch({
+        userId,
+        drafts: result.drafts,
+        decisions,
+      });
+
+      const parts = [];
+      if (persisted.inserted > 0) parts.push(`${persisted.inserted} neu`);
+      if (persisted.merged > 0) parts.push(`${persisted.merged} zusammengeführt`);
+      toast.success(
+        `Einkaufsliste aktualisiert${parts.length ? `: ${parts.join(", ")}` : ""}.`
+      );
+    } catch (error) {
+      console.error("Fehler beim Übertragen auf die Einkaufsliste", error);
+      toast.error("Artikel konnten nicht auf die Einkaufsliste übertragen werden.");
+    }
   };
 
   const ampelKlasse = (v) => {

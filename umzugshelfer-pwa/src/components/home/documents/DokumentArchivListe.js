@@ -61,7 +61,7 @@ export default function DokumentArchivListe({
 
             {/* Dokumentzeilen — nur wenn nicht zugeklappt */}
             {!istZugeklappt && (
-              <div className="bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border divide-y divide-light-border dark:divide-dark-border overflow-hidden">
+              <div className="bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border divide-y divide-light-border dark:divide-dark-border overflow-visible">
                 {doks.map((dok) => (
                   <DokumentZeile
                     key={dok.id}
