@@ -834,17 +834,6 @@ rm -rf volumes/db/data volumes/storage
 ./scripts/install.sh
 ```
 
----
-
-## Mitwirken
-
-1. Fork erstellen
-2. Feature-Branch anlegen: `git checkout -b feature/mein-feature`
-3. Änderungen committen
-4. Pull Request erstellen
-
----
-
 ## Lizenz
 
 MIT – siehe `LICENSE`-Datei.
