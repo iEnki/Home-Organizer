@@ -1370,6 +1370,67 @@ CREATE TRIGGER set_home_sparziele_updated_at
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 
+-- home_budget_views (persoenliche Budget-Ansichten pro Haushalt)
+CREATE TABLE IF NOT EXISTS public.home_budget_views (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  household_id uuid NOT NULL,
+  name         text NOT NULL,
+  is_default   boolean NOT NULL DEFAULT false,
+  filters      jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at   timestamptz NOT NULL DEFAULT NOW(),
+  updated_at   timestamptz NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_home_budget_views_household_id
+  ON public.home_budget_views(household_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_home_budget_views_user_household_name_unique
+  ON public.home_budget_views(user_id, household_id, lower(name));
+CREATE UNIQUE INDEX IF NOT EXISTS idx_home_budget_views_user_household_default_unique
+  ON public.home_budget_views(user_id, household_id)
+  WHERE is_default = true;
+
+DROP TRIGGER IF EXISTS set_home_budget_views_updated_at ON public.home_budget_views;
+CREATE TRIGGER set_home_budget_views_updated_at
+  BEFORE UPDATE ON public.home_budget_views
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+ALTER TABLE public.home_budget_views ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS home_budget_views_own ON public.home_budget_views;
+CREATE POLICY home_budget_views_own ON public.home_budget_views FOR ALL
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+
+-- home_budget_view_state (aktueller Budget-Filterzustand pro User + Haushalt)
+CREATE TABLE IF NOT EXISTS public.home_budget_view_state (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id        uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  household_id   uuid NOT NULL,
+  active_view_id uuid REFERENCES public.home_budget_views(id) ON DELETE SET NULL,
+  current_state  jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at     timestamptz NOT NULL DEFAULT NOW(),
+  updated_at     timestamptz NOT NULL DEFAULT NOW(),
+  UNIQUE(user_id, household_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_home_budget_view_state_household_id
+  ON public.home_budget_view_state(household_id);
+CREATE INDEX IF NOT EXISTS idx_home_budget_view_state_active_view_id
+  ON public.home_budget_view_state(active_view_id);
+
+DROP TRIGGER IF EXISTS set_home_budget_view_state_updated_at ON public.home_budget_view_state;
+CREATE TRIGGER set_home_budget_view_state_updated_at
+  BEFORE UPDATE ON public.home_budget_view_state
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+ALTER TABLE public.home_budget_view_state ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS home_budget_view_state_own ON public.home_budget_view_state;
+CREATE POLICY home_budget_view_state_own ON public.home_budget_view_state FOR ALL
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+
 -- home_finanzkonten (muss vor den Shared-Table-DO-Bloecken stehen)
 CREATE TABLE IF NOT EXISTS public.home_finanzkonten (
   id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -2011,6 +2072,31 @@ CREATE TABLE IF NOT EXISTS public.household_members (
 
 CREATE INDEX IF NOT EXISTS idx_household_members_household_id ON public.household_members(household_id);
 CREATE INDEX IF NOT EXISTS idx_household_members_user_id      ON public.household_members(user_id);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'home_budget_views_household_id_fkey'
+      AND conrelid = 'public.home_budget_views'::regclass
+  ) THEN
+    ALTER TABLE public.home_budget_views
+      ADD CONSTRAINT home_budget_views_household_id_fkey
+      FOREIGN KEY (household_id) REFERENCES public.households(id) ON DELETE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'home_budget_view_state_household_id_fkey'
+      AND conrelid = 'public.home_budget_view_state'::regclass
+  ) THEN
+    ALTER TABLE public.home_budget_view_state
+      ADD CONSTRAINT home_budget_view_state_household_id_fkey
+      FOREIGN KEY (household_id) REFERENCES public.households(id) ON DELETE CASCADE;
+  END IF;
+END $$;
 
 -- Genau ein Admin pro Haushalt
 CREATE UNIQUE INDEX IF NOT EXISTS idx_household_one_admin
