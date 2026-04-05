@@ -12,11 +12,15 @@ describe("budgetStats", () => {
     Abonnements: "#8B5CF6",
   };
   const monate = ["Jan", "Feb", "Maer", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+  const kontenById = {
+    "konto-1": { id: "konto-1", name: "Haushaltskonto", farbe: "#10B981" },
+    "konto-2": { id: "konto-2", name: "PayPal", farbe: "#3B82F6" },
+  };
 
   const posten = [
-    { id: "1", datum: "2026-01-15", kategorie: "Lebensmittel", betrag: -100, budget_scope: "haushalt", typ: "ausgabe" },
-    { id: "2", datum: "2026-01-20", kategorie: "Haushalt", betrag: -50, budget_scope: "haushalt", typ: "ausgabe" },
-    { id: "3", datum: "2026-02-10", kategorie: "Abonnements", betrag: -20, budget_scope: "privat", typ: "ausgabe" },
+    { id: "1", datum: "2026-01-15", kategorie: "Lebensmittel", betrag: -100, budget_scope: "haushalt", typ: "ausgabe", zahlungskonto_id: "konto-1" },
+    { id: "2", datum: "2026-01-20", kategorie: "Haushalt", betrag: -50, budget_scope: "haushalt", typ: "ausgabe", zahlungskonto_id: "konto-2" },
+    { id: "3", datum: "2026-02-10", kategorie: "Abonnements", betrag: -20, budget_scope: "privat", typ: "ausgabe", zahlungskonto_id: "konto-2" },
     { id: "4", datum: "2025-12-10", kategorie: "Lebensmittel", betrag: -999, budget_scope: "haushalt", typ: "ausgabe" },
     { id: "5", datum: "2026-01-01", kategorie: "Lebensmittel", betrag: 500, budget_scope: "haushalt", typ: "einnahme" },
     { id: "6", wiederholen: true, naechstes_datum: "2026-04-10", beschreibung: "Miete", betrag: -800, budget_scope: "haushalt" },
@@ -31,6 +35,7 @@ describe("budgetStats", () => {
       kategorien,
       kategoriefarben: farben,
       monate,
+      kontenById,
     });
 
     expect(result.total).toBe(150);
@@ -39,6 +44,10 @@ describe("budgetStats", () => {
     expect(result.barData.datasets[0].data[0]).toBe(150);
     expect(result.barData.datasets[0].data[1]).toBe(0);
     expect(result.lineData.datasets[0].data[0]).toBe(150);
+    expect(result.accountTotals.map((item) => ({ name: item.name, summe: item.summe }))).toEqual([
+      { name: "Haushaltskonto", summe: 100 },
+      { name: "PayPal", summe: 50 },
+    ]);
   });
 
   test("berechnet Monatsdaten inkl. groesster Kategorie", () => {
@@ -49,12 +58,14 @@ describe("budgetStats", () => {
       scopeFilter: "alle",
       kategorien,
       kategoriefarben: farben,
+      kontenById,
     });
 
     expect(result.total).toBe(150);
     expect(result.aktiveKategorien).toBe(2);
     expect(result.groessteKategorie).toEqual({ name: "Lebensmittel", summe: 100 });
     expect(result.barData.labels).toEqual(["Lebensmittel", "Haushalt"]);
+    expect(result.accountBarData.labels).toEqual(["Haushaltskonto", "PayPal"]);
   });
 
   test("cashflow preview bleibt bei wiederkehrenden Eintraegen mit upper bound", () => {

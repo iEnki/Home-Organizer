@@ -102,14 +102,18 @@ describe("budgetOverview", () => {
     expect(asc.map((entry) => entry.id)).toEqual(["entry-2", "entry-1", "entry-3"]);
   });
 
-  test("gruppiert nach projiziertem Tag und Monat", () => {
+  test("gruppiert nach projiziertem Tag, Monat und Konto", () => {
     const groupsByDay = groupBudgetEntries([entries[1]], "tag", ctx);
     const groupsByMonth = groupBudgetEntries([entries[1]], "monat", ctx);
+    const groupsByAccount = groupBudgetEntries([entries[0], entries[1]], "konto", ctx);
 
     expect(groupsByDay).toHaveLength(1);
     expect(groupsByDay[0].key).toBe("2026-04-10");
     expect(groupsByMonth).toHaveLength(1);
     expect(groupsByMonth[0].key).toBe("2026-04");
+    expect(groupsByAccount).toHaveLength(2);
+    expect(groupsByAccount[0].label).toBe("Haushaltskonto");
+    expect(groupsByAccount[1].label).toBe("Ohne Konto");
   });
 
   test("berechnet KPIs nur für sichtbare Ausgaben", () => {

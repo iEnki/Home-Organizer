@@ -20,6 +20,27 @@ const makeCategoryTotals = ({ entries, kategorien }) =>
     }))
     .filter((entry) => entry.summe > 0);
 
+const makeAccountTotals = ({ entries, kontenById = {} }) => {
+  const totals = new Map();
+
+  entries.forEach((entry) => {
+    if (!entry?.zahlungskonto_id) return;
+    const konto = kontenById?.[entry.zahlungskonto_id];
+    if (!konto) return;
+
+    const current = totals.get(konto.id) || {
+      id: konto.id,
+      name: konto.name,
+      farbe: konto.farbe || "#10B981",
+      summe: 0,
+    };
+    current.summe += Math.abs(Number(entry.betrag || 0));
+    totals.set(konto.id, current);
+  });
+
+  return [...totals.values()].sort((left, right) => right.summe - left.summe);
+};
+
 export const buildYearStatsData = ({
   posten,
   selJahr,
@@ -27,6 +48,7 @@ export const buildYearStatsData = ({
   kategorien,
   kategoriefarben,
   monate,
+  kontenById = {},
 }) => {
   const yearEntries = (posten || []).filter((entry) => {
     if (!isExpense(entry) || !filterBudgetScope(entry, scopeFilter) || !entry?.datum) return false;
@@ -35,6 +57,7 @@ export const buildYearStatsData = ({
   });
 
   const categoryTotals = makeCategoryTotals({ entries: yearEntries, kategorien });
+  const accountTotals = makeAccountTotals({ entries: yearEntries, kontenById });
   const total = yearEntries.reduce((sum, entry) => sum + Math.abs(Number(entry.betrag || 0)), 0);
   const monthlyTotals = Array.from({ length: 12 }, (_, monthIndex) => {
     const summe = yearEntries
@@ -55,6 +78,7 @@ export const buildYearStatsData = ({
     durchschnittProMonat: total / 12,
     hasData: yearEntries.length > 0,
     categoryTotals,
+    accountTotals,
     doughnutData: {
       labels: categoryTotals.map((entry) => entry.name),
       datasets: [{
@@ -87,6 +111,26 @@ export const buildYearStatsData = ({
         pointRadius: 3,
       }],
     },
+    accountDoughnutData: {
+      labels: accountTotals.map((entry) => entry.name),
+      datasets: [{
+        data: accountTotals.map((entry) => entry.summe),
+        backgroundColor: accountTotals.map((entry) => `${entry.farbe}CC`),
+        borderColor: accountTotals.map((entry) => entry.farbe),
+        borderWidth: 1,
+      }],
+    },
+    accountBarData: {
+      labels: accountTotals.map((entry) => entry.name),
+      datasets: [{
+        label: "Ausgaben",
+        data: accountTotals.map((entry) => entry.summe),
+        backgroundColor: accountTotals.map((entry) => `${entry.farbe}CC`),
+        borderColor: accountTotals.map((entry) => entry.farbe),
+        borderWidth: 1,
+        borderRadius: 4,
+      }],
+    },
   };
 };
 
@@ -97,6 +141,7 @@ export const buildMonthStatsData = ({
   scopeFilter,
   kategorien,
   kategoriefarben,
+  kontenById = {},
 }) => {
   const monthEntries = (posten || []).filter((entry) => {
     if (!isExpense(entry) || !filterBudgetScope(entry, scopeFilter) || !entry?.datum) return false;
@@ -105,6 +150,7 @@ export const buildMonthStatsData = ({
   });
 
   const categoryTotals = makeCategoryTotals({ entries: monthEntries, kategorien }).sort((a, b) => b.summe - a.summe);
+  const accountTotals = makeAccountTotals({ entries: monthEntries, kontenById });
   const total = monthEntries.reduce((sum, entry) => sum + Math.abs(Number(entry.betrag || 0)), 0);
   const groessteKategorie = categoryTotals[0] || null;
 
@@ -114,6 +160,7 @@ export const buildMonthStatsData = ({
     groessteKategorie,
     hasData: monthEntries.length > 0,
     categoryTotals,
+    accountTotals,
     doughnutData: {
       labels: categoryTotals.map((entry) => entry.name),
       datasets: [{
@@ -130,6 +177,26 @@ export const buildMonthStatsData = ({
         data: categoryTotals.map((entry) => entry.summe),
         backgroundColor: categoryTotals.map((entry) => `${kategoriefarben[entry.name]}CC`),
         borderColor: categoryTotals.map((entry) => kategoriefarben[entry.name]),
+        borderWidth: 1,
+        borderRadius: 4,
+      }],
+    },
+    accountDoughnutData: {
+      labels: accountTotals.map((entry) => entry.name),
+      datasets: [{
+        data: accountTotals.map((entry) => entry.summe),
+        backgroundColor: accountTotals.map((entry) => `${entry.farbe}CC`),
+        borderColor: accountTotals.map((entry) => entry.farbe),
+        borderWidth: 1,
+      }],
+    },
+    accountBarData: {
+      labels: accountTotals.map((entry) => entry.name),
+      datasets: [{
+        label: "Ausgaben",
+        data: accountTotals.map((entry) => entry.summe),
+        backgroundColor: accountTotals.map((entry) => `${entry.farbe}CC`),
+        borderColor: accountTotals.map((entry) => entry.farbe),
         borderWidth: 1,
         borderRadius: 4,
       }],

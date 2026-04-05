@@ -1,4 +1,5 @@
 import { calcNaechstesDatum } from "./budgetRecurring";
+import { getBudgetAccountMeta } from "./budgetAccounts";
 
 const MONTH_FORMATTER_SHORT = new Intl.DateTimeFormat("de-AT", {
   month: "short",
@@ -95,7 +96,8 @@ const getScopeColorClass = (scope) =>
 
 export const getBudgetEntryMeta = (entry, ctx = {}) => {
   const bewohner = ctx.bewohnerById?.[entry?.bewohner_id] || null;
-  const konto = ctx.kontoById?.[entry?.zahlungskonto_id] || null;
+  const accountMeta = getBudgetAccountMeta(entry, ctx.kontoById, ctx.bewohnerById);
+  const konto = accountMeta.konto;
   const verknuepfteRechnungen = ctx.budgetRechnungMap?.[entry?.id] || [];
   const scope = entry?.budget_scope || "haushalt";
   const anzeigeDatum = getProjectedDate(entry, ctx);
@@ -108,6 +110,9 @@ export const getBudgetEntryMeta = (entry, ctx = {}) => {
   return {
     bewohner,
     konto,
+    kontoName: accountMeta.kontoName,
+    kontoTyp: accountMeta.kontoTyp,
+    kontoInhaberName: accountMeta.inhaberName,
     scopeLabel: getScopeLabel(scope),
     scopeColorClass: getScopeColorClass(scope),
     hatRechnung: verknuepfteRechnungen.length > 0,
@@ -200,6 +205,10 @@ export const groupBudgetEntries = (entries, gruppierung = "tag", ctx = {}) => {
       case "scope":
         key = entry?.budget_scope || "haushalt";
         label = meta.scopeLabel;
+        break;
+      case "konto":
+        key = entry?.zahlungskonto_id || "ohne-konto";
+        label = meta.kontoName || "Ohne Konto";
         break;
       case "tag":
       default:
