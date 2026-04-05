@@ -22,9 +22,19 @@ describe("budgetGoals", () => {
     expect(getGoalRestbetrag(ziele[1])).toBe(80);
   });
 
-  test("monatlich noetig nutzt bestehende monatslogik mit mindestwert", () => {
-    const nearTarget = { ziel_betrag: 1000, aktueller_betrag: 900, zieldatum: "2026-04-20" };
-    expect(getGoalMonatlichNoetig(nearTarget, today)).toBe(200);
+  test("monatlich noetig nutzt nur die verbleibenden vollen Kalendermonate", () => {
+    const target = { ziel_betrag: 250, aktueller_betrag: 50, zieldatum: "2026-06-30" };
+    expect(getGoalMonatlichNoetig(target, today)).toBe(100);
+  });
+
+  test("monatlich noetig nutzt im Zielmonat den offenen Restbetrag", () => {
+    const sameMonthTarget = { ziel_betrag: 500, aktueller_betrag: 300, zieldatum: "2026-04-30" };
+    expect(getGoalMonatlichNoetig(sameMonthTarget, today)).toBe(200);
+  });
+
+  test("monatlich noetig nutzt bei abgelaufenem Ziel ebenfalls den offenen Restbetrag", () => {
+    const overdueTarget = { ziel_betrag: 500, aktueller_betrag: 300, zieldatum: "2026-04-01" };
+    expect(getGoalMonatlichNoetig(overdueTarget, today)).toBe(200);
   });
 
   test("gruppiert stabil nach status in fixer reihenfolge", () => {

@@ -1,3 +1,10 @@
+const parseLocalDate = (value) => {
+  if (!value) return null;
+  const [year, month, day] = String(value).split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+};
+
 export const getGoalProgress = (ziel) => {
   const zielBetrag = Number(ziel?.ziel_betrag || 0);
   const aktuellerBetrag = Number(ziel?.aktueller_betrag || 0);
@@ -20,15 +27,19 @@ export const getGoalRestbetrag = (ziel) =>
 export const getGoalMonatlichNoetig = (ziel, today) => {
   if (!ziel?.zieldatum) return null;
 
-  const targetDate = new Date(ziel.zieldatum);
-  const months = Math.max(
-    0.5,
-    (targetDate.getFullYear() - today.getFullYear()) * 12 +
-      targetDate.getMonth() -
-      today.getMonth(),
-  );
+  const restbetrag = getGoalRestbetrag(ziel);
+  const targetDate = parseLocalDate(ziel.zieldatum);
+  const currentDate = today instanceof Date ? today : new Date(today);
 
-  return Math.max(0, getGoalRestbetrag(ziel) / months);
+  if (!targetDate || Number.isNaN(currentDate.getTime())) return restbetrag;
+
+  const remainingMonths =
+    (targetDate.getFullYear() - currentDate.getFullYear()) * 12 +
+    (targetDate.getMonth() - currentDate.getMonth());
+
+  if (remainingMonths <= 0) return restbetrag;
+
+  return restbetrag / remainingMonths;
 };
 
 export const groupGoalsByStatus = (ziele) => {
