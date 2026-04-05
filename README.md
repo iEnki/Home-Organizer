@@ -71,15 +71,15 @@ Eine Progressive Web Application mit zwei Modi:
 
 ## Technologie-Stack
 
-| Bereich | Technologie |
-|---|---|
-| Frontend | React 18 (Create React App), JavaScript |
-| Styling | Tailwind CSS (Dark Mode via `class`-Strategie) |
+| Bereich             | Technologie                                          |
+| ------------------- | ---------------------------------------------------- |
+| Frontend            | React 18 (Create React App), JavaScript              |
+| Styling             | Tailwind CSS (Dark Mode via `class`-Strategie)       |
 | Backend & Datenbank | Supabase (PostgreSQL, Auth, Storage, Edge Functions) |
-| Push Notifications | Web Push API, VAPID, Deno Edge Functions |
-| Cron Jobs | pg_cron (Supabase Extension) |
-| KI | OpenAI API (optional: Ollama – lokaler LLM-Server) |
-| Deployment | Docker, Docker Compose, Nginx |
+| Push Notifications  | Web Push API, VAPID, Deno Edge Functions             |
+| Cron Jobs           | pg_cron (Supabase Extension)                         |
+| KI                  | OpenAI API (optional: Ollama – lokaler LLM-Server)   |
+| Deployment          | Docker, Docker Compose, Nginx                        |
 
 ---
 
@@ -87,12 +87,12 @@ Eine Progressive Web Application mit zwei Modi:
 
 ### Server-Anforderungen
 
-| Komponente | Minimum |
-|---|---|
-| CPU | 2 Kerne |
-| RAM | 4 GB (8 GB bei Ollama-Mitinstallation) |
-| Disk | 20 GB |
-| OS | Ubuntu 22.04 / Debian 12 oder neuer |
+| Komponente | Minimum                                |
+| ---------- | -------------------------------------- |
+| CPU        | 2 Kerne                                |
+| RAM        | 4 GB (8 GB bei Ollama-Mitinstallation) |
+| Disk       | 20 GB                                  |
+| OS         | Ubuntu 22.04 / Debian 12 oder neuer    |
 
 ### Software
 
@@ -111,6 +111,7 @@ openssl version
 ```
 
 Versionen prüfen:
+
 ```bash
 docker --version          # >= 24.0
 docker compose version    # >= 2.20
@@ -139,17 +140,17 @@ chmod +x scripts/manage.sh
 
 **Menü:**
 
-| Option | Funktion |
-|---|---|
-| `[1]` Installation | Vollstack oder App-only einrichten |
-| `[2]` Update | Updates einspielen, Container neu starten |
-| `[3]` Deinstallation | Container, Volumes oder alles entfernen |
-| `[4]` Backup | Datenbank + Konfiguration sichern |
-| `[5]` Wiederherstellung | Backup importieren / Daten wiederherstellen |
-| `[6]` SMTP | E-Mail-Einstellungen konfigurieren |
-| `[7]` Ollama | KI-Assistent konfigurieren |
-| `[8]` Konfiguration | App-URL / Port / Admin-E-Mail anpassen |
-| `[9]` Status | Laufende Container und Logs anzeigen |
+| Option                   | Funktion                                       |
+| ------------------------ | ---------------------------------------------- |
+| `[1]` Installation       | Vollstack oder App-only einrichten             |
+| `[2]` Update             | Updates einspielen, Container neu starten      |
+| `[3]` Deinstallation     | Container, Volumes oder alles entfernen        |
+| `[4]` Backup             | Datenbank + Konfiguration sichern              |
+| `[5]` Wiederherstellung  | Backup importieren / Daten wiederherstellen    |
+| `[6]` SMTP               | E-Mail-Einstellungen konfigurieren             |
+| `[7]` Ollama             | KI-Assistent konfigurieren                     |
+| `[8]` Konfiguration      | App-URL / Port / Admin-E-Mail anpassen         |
+| `[9]` Status             | Laufende Container und Logs anzeigen           |
 | `[10]` Docker bereinigen | Ungenutzte Container, Images + Volumes löschen |
 
 > **Empfehlung:** Für regelmäßige Updates und Wartungsaufgaben immer `manage.sh` verwenden, statt Docker-Befehle direkt einzugeben.
@@ -180,6 +181,7 @@ chmod +x scripts/install.sh
 Installiert Supabase und die React-App gemeinsam via Docker. Empfohlen für neue Server ohne bestehende Supabase-Instanz.
 
 Der Installer:
+
 - Generiert alle kryptografischen Schlüssel automatisch
 - Lädt Supabase-Initialisierungsdateien von GitHub herunter
 - Erstellt `.env` und startet alle Container via `docker-compose.full.yml`
@@ -187,16 +189,17 @@ Der Installer:
 
 **Abgefragte Eingaben:**
 
-| Eingabe | Beispiel | Beschreibung |
-|---|---|---|
-| App-URL | `https://umzug.meine-domain.de` | Öffentliche URL der React-App |
-| E-Mail | `admin@meine-domain.de` | Für VAPID-Signatur (Push-Notifications) |
-| App-Port | `3000` | Externer Port der React-App |
-| Supabase-URL | `https://supa.meine-domain.de` | URL des Supabase-Gateways |
-| Studio-Passwort | *(min. 8 Zeichen)* | Passwort für Supabase Admin-UI |
-| Ollama | `1` / `2` / `3` | KI-Assistent-Option (siehe [KI-Einstellungen](#ki-einstellungen-openai--ollama)) |
+| Eingabe         | Beispiel                        | Beschreibung                                                                     |
+| --------------- | ------------------------------- | -------------------------------------------------------------------------------- |
+| App-URL         | `https://umzug.meine-domain.de` | Öffentliche URL der React-App                                                    |
+| E-Mail          | `admin@meine-domain.de`         | Für VAPID-Signatur (Push-Notifications)                                          |
+| App-Port        | `3000`                          | Externer Port der React-App                                                      |
+| Supabase-URL    | `https://supa.meine-domain.de`  | URL des Supabase-Gateways                                                        |
+| Studio-Passwort | _(min. 8 Zeichen)_              | Passwort für Supabase Admin-UI                                                   |
+| Ollama          | `1` / `2` / `3`                 | KI-Assistent-Option (siehe [KI-Einstellungen](#ki-einstellungen-openai--ollama)) |
 
 **Ausgabe:**
+
 ```
   App:             https://umzug.meine-domain.de  (Port: 3000)
   Supabase Studio: http://localhost:8000
@@ -204,6 +207,7 @@ Der Installer:
 ```
 
 **Nächste Schritte nach Vollstack-Installation:**
+
 1. `install.sh` fragt optional: `Schema jetzt anwenden? [J/n]` (empfohlen: `J`)
 2. Bei manueller Ausführung im SQL Editor zuerst `database_setup_complete.sql`, danach `umzugshelfer-pwa/haushalt_multiuser_setup.sql`
 3. App aufrufen und ersten Account registrieren
@@ -216,30 +220,33 @@ Der Installer:
 Installiert nur die React-App. Supabase läuft bereits woanders (Supabase Cloud oder eigener Server).
 
 Der Installer:
+
 - Generiert nur VAPID-Keys (für Push-Notifications)
 - Erstellt eine minimale `.env` mit deinen Supabase-Zugangsdaten
 - Baut und startet nur den App-Container via `docker-compose.yml`
 
 **Abgefragte Eingaben:**
 
-| Eingabe | Beispiel | Beschreibung |
-|---|---|---|
-| App-URL | `https://umzug.meine-domain.de` | Öffentliche URL der React-App |
-| E-Mail | `admin@meine-domain.de` | Für VAPID-Signatur |
-| App-Port | `3000` | Externer Port der React-App |
-| Supabase URL | `https://supa.enkination.de` | URL deiner bestehenden Supabase-Instanz |
-| Anon Key | `eyJhbGci...` | Aus Project Settings → API |
-| Service Role Key | `eyJhbGci...` | Aus Project Settings → API (geheim!) |
-| Ollama | `1` / `2` / `3` | KI-Assistent-Option |
+| Eingabe          | Beispiel                          | Beschreibung                            |
+| ---------------- | --------------------------------- | --------------------------------------- |
+| App-URL          | `https://umzug.meine-domain.de`   | Öffentliche URL der React-App           |
+| E-Mail           | `admin@meine-domain.de`           | Für VAPID-Signatur                      |
+| App-Port         | `3000`                            | Externer Port der React-App             |
+| Supabase URL     | `https://supa.meine-datenbank.de` | URL deiner bestehenden Supabase-Instanz |
+| Anon Key         | `eyJhbGci...`                     | Aus Project Settings → API              |
+| Service Role Key | `eyJhbGci...`                     | Aus Project Settings → API (geheim!)    |
+| Ollama           | `1` / `2` / `3`                   | KI-Assistent-Option                     |
 
 **Ausgabe:**
+
 ```
   App:      https://umzug.meine-domain.de  (Port: 3000)
-  Supabase: https://supa.enkination.de  (extern)
+  Supabase: https://supa.meine-datenbank.de  (extern)
   Zugangsdaten: CREDENTIALS.txt
 ```
 
 **Nächste Schritte nach App-only-Installation:**
+
 1. In deiner Supabase-Instanz im SQL Editor zuerst `database_setup_complete.sql`, danach `umzugshelfer-pwa/haushalt_multiuser_setup.sql` ausführen
 2. App aufrufen und ersten Account registrieren
 3. Nach Erstlogin: Haushalt erstellen oder per Invite-Link beitreten
@@ -426,6 +433,7 @@ cp supabase/functions/check-reminders/index.ts ~/supabase-project/volumes/functi
 ```
 
 **Supabase Cloud:**
+
 ```bash
 supabase login
 supabase link --project-ref DEIN-PROJECT-REF
@@ -440,20 +448,22 @@ supabase functions deploy check-reminders
 In `~/supabase-project/docker-compose.yml` den Service `supabase-edge-functions` suchen und ergänzen:
 
 ```yaml
-  supabase-edge-functions:
-    environment:
-      # ... bestehende Variablen ...
-      VAPID_SUBJECT: "mailto:deine@email.de"
-      VAPID_PUBLIC_KEY: "<dein-public-key>"
-      VAPID_PRIVATE_KEY: "<dein-private-key>"
+supabase-edge-functions:
+  environment:
+    # ... bestehende Variablen ...
+    VAPID_SUBJECT: "mailto:deine@email.de"
+    VAPID_PUBLIC_KEY: "<dein-public-key>"
+    VAPID_PRIVATE_KEY: "<dein-private-key>"
 ```
 
 Container neu starten:
+
 ```bash
 docker restart supabase-edge-functions
 ```
 
 **Supabase Cloud:**
+
 ```bash
 supabase secrets set VAPID_SUBJECT=mailto:deine@email.de
 supabase secrets set VAPID_PUBLIC_KEY=<key>
@@ -463,6 +473,7 @@ supabase secrets set VAPID_PRIVATE_KEY=<key>
 ### Schritt 4 – VAPID Public Key in der App
 
 In `.env` (Root-Verzeichnis für Docker):
+
 ```env
 REACT_APP_VAPID_PUBLIC_KEY=<dein-public-key>
 ```
@@ -567,6 +578,7 @@ SMTP_SENDER_NAME=Umzughelfer
 ```
 
 Auth-Container neu starten:
+
 ```bash
 docker compose -f docker-compose.full.yml restart supabase-auth
 ```
@@ -626,6 +638,7 @@ Wenn du zusaetzlich neue Templates/Functions auf den Server kopiert hast:
 Für Produktionsbetrieb mit HTTPS.
 
 **App** (`/etc/nginx/sites-available/umzug`):
+
 ```nginx
 server {
     listen 443 ssl;
@@ -645,6 +658,7 @@ server {
 ```
 
 **Supabase API** (`/etc/nginx/sites-available/supa`):
+
 ```nginx
 server {
     listen 443 ssl;
@@ -667,6 +681,7 @@ server {
 ```
 
 **SSL-Zertifikate mit Let's Encrypt:**
+
 ```bash
 sudo apt install certbot python3-certbot-nginx
 sudo certbot --nginx -d umzug.meine-domain.de -d supa.meine-domain.de
