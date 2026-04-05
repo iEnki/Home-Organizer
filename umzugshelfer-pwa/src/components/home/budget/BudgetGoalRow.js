@@ -68,7 +68,7 @@ export default function BudgetGoalRow({
               </p>
             </div>
             <div>
-              <p>Monatlich noetig</p>
+              <p>Monatlich nötig</p>
               <p className="mt-1 text-sm font-medium tabular-nums text-light-text-main dark:text-dark-text-main">
                 {meta.monatlichNoetig === null ? "-" : formatCurrency(meta.monatlichNoetig)}
               </p>
