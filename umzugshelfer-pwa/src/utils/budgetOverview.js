@@ -99,6 +99,7 @@ export const getBudgetEntryMeta = (entry, ctx = {}) => {
   const accountMeta = getBudgetAccountMeta(entry, ctx.kontoById, ctx.bewohnerById);
   const konto = accountMeta.konto;
   const verknuepfteRechnungen = ctx.budgetRechnungMap?.[entry?.id] || [];
+  const splitGroup = ctx.splitGroupByPostenId?.[entry?.id] || null;
   const scope = entry?.budget_scope || "haushalt";
   const anzeigeDatum = getProjectedDate(entry, ctx);
   const datumIstProjiziert =
@@ -117,6 +118,8 @@ export const getBudgetEntryMeta = (entry, ctx = {}) => {
     scopeColorClass: getScopeColorClass(scope),
     hatRechnung: verknuepfteRechnungen.length > 0,
     verknuepfteRechnungen,
+    hatSplit: Boolean(splitGroup),
+    splitGroup,
     istTemplate: Boolean(entry?.wiederholen),
     istOccurrence: Boolean(entry?.ursprung_template_id),
     istRecurring: Boolean(entry?.wiederholen || entry?.ursprung_template_id),
