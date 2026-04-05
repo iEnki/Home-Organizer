@@ -209,7 +209,7 @@ Der Installer:
 **Nächste Schritte nach Vollstack-Installation:**
 
 1. `install.sh` fragt optional: `Schema jetzt anwenden? [J/n]` (empfohlen: `J`)
-2. Bei manueller Ausführung im SQL Editor zuerst `database_setup_complete.sql`, danach `umzugshelfer-pwa/haushalt_multiuser_setup.sql`
+2. Bei manueller Ausführung im SQL Editor `database_setup_complete.sql` ausführen – dieses Skript richtet alle Tabellen, Funktionen und RLS-Policies ein
 3. App aufrufen und ersten Account registrieren
 4. Nach Erstlogin: Haushalt erstellen oder per Invite-Link beitreten
 
@@ -247,7 +247,7 @@ Der Installer:
 
 **Nächste Schritte nach App-only-Installation:**
 
-1. In deiner Supabase-Instanz im SQL Editor zuerst `database_setup_complete.sql`, danach `umzugshelfer-pwa/haushalt_multiuser_setup.sql` ausführen
+1. In deiner Supabase-Instanz im SQL Editor `database_setup_complete.sql` ausführen – dieses Skript richtet alle Tabellen, Funktionen und RLS-Policies ein
 2. App aufrufen und ersten Account registrieren
 3. Nach Erstlogin: Haushalt erstellen oder per Invite-Link beitreten
 
@@ -378,7 +378,6 @@ Nach dem ersten Start muss das Datenbankschema eingerichtet werden.
 
 ```bash
 docker exec -i supabase-db psql -U postgres -d postgres < database_setup_complete.sql
-docker exec -i supabase-db psql -U postgres -d postgres < umzugshelfer-pwa/haushalt_multiuser_setup.sql
 ```
 
 ### pg_cron für Push-Notifications einrichten
@@ -769,8 +768,7 @@ umzughelfer/
 │       ├── App.js              # Routing & Auth
 │       ├── supabaseClient.js   # Supabase-Client (mit Haushalt-Proxy)
 │       └── index.js            # Einstiegspunkt
-├── database_setup_complete.sql             # Komplettes Datenbank-Setup
-├── umzugshelfer-pwa/haushalt_multiuser_setup.sql  # Multi-Haushalt-Schema
+├── database_setup_complete.sql             # Komplettes Datenbank-Setup (alle Tabellen, Funktionen, RLS-Policies)
 ├── docker-compose.yml                      # App only (externer Supabase)
 ├── docker-compose.full.yml                 # Vollstack (Supabase + App + optionaler Ollama)
 ├── .env.full.example                       # Alle Variablen dokumentiert (Vollstack)
