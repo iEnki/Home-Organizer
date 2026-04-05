@@ -1,4 +1,4 @@
-DEMO: https://umzug.enkination.de/ · Login: demo@demo.com · PW: Demo1234
+DEMO: https://umzug.enkination.de/ · Login: demo@demo.com · PW: Demo123
 
 # Umzugsplaner & Home Organizer PWA
 
@@ -150,8 +150,17 @@ chmod +x scripts/manage.sh
 | `[7]` Ollama | KI-Assistent konfigurieren |
 | `[8]` Konfiguration | App-URL / Port / Admin-E-Mail anpassen |
 | `[9]` Status | Laufende Container und Logs anzeigen |
+| `[10]` Docker bereinigen | Ungenutzte Container, Images + Volumes löschen |
 
 > **Empfehlung:** Für regelmäßige Updates und Wartungsaufgaben immer `manage.sh` verwenden, statt Docker-Befehle direkt einzugeben.
+
+**Explizite Browserslist-Wartung**
+
+```bash
+./scripts/manage.sh maintenance browserslist
+```
+
+Aktualisiert die Browserslist-/`caniuse-lite`-Daten gezielt für `umzugshelfer-pwa` und führt danach immer einen Frontend-Build zur Verifikation aus. Dieser Schritt ist bewusst **kein** automatischer Teil von Installation oder Standard-Update und kann `umzugshelfer-pwa/package-lock.json` ändern.
 
 ---
 
@@ -675,6 +684,14 @@ sudo certbot --nginx -d umzug.meine-domain.de -d supa.meine-domain.de
 ```
 
 Das Update-Menü zieht aktuelle Git-Änderungen und baut die App-Container neu.
+
+Für die gezielte Wartung der Browserslist-Daten gibt es einen separaten Befehl:
+
+```bash
+./scripts/manage.sh maintenance browserslist
+```
+
+Damit werden `caniuse-lite`/Browserslist-Daten im Frontend aktualisiert und direkt mit `npm run build` verifiziert, ohne den normalen Update-Pfad zu verändern.
 
 ### Manuell
 
