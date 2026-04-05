@@ -121,8 +121,8 @@ node --version            # >= 16
 ### Repository klonen
 
 ```bash
-git clone https://github.com/iEnki/umzughelfer.git
-cd umzughelfer
+git clone https://github.com/iEnki/Home-Organizer.git
+cd Home-Organizer
 ```
 
 ---
@@ -227,15 +227,15 @@ Der Installer:
 
 **Abgefragte Eingaben:**
 
-| Eingabe          | Beispiel                          | Beschreibung                            |
-| ---------------- | --------------------------------- | --------------------------------------- |
-| App-URL          | `https://umzug.meine-domain.de`   | Öffentliche URL der React-App           |
-| E-Mail           | `admin@meine-domain.de`           | Für VAPID-Signatur                      |
-| App-Port         | `3000`                            | Externer Port der React-App             |
-| Supabase URL     | `https://supa.meine-datenbank.de` | URL deiner bestehenden Supabase-Instanz |
-| Anon Key         | `eyJhbGci...`                     | Aus Project Settings → API              |
-| Service Role Key | `eyJhbGci...`                     | Aus Project Settings → API (geheim!)    |
-| Ollama           | `1` / `2` / `3`                   | KI-Assistent-Option                     |
+| Eingabe          | Beispiel                        | Beschreibung                            |
+| ---------------- | ------------------------------- | --------------------------------------- |
+| App-URL          | `https://umzug.meine-domain.de` | Öffentliche URL der React-App           |
+| E-Mail           | `admin@meine-domain.de`         | Für VAPID-Signatur                      |
+| App-Port         | `3000`                          | Externer Port der React-App             |
+| Supabase URL     | `https://supa.meine-domain.de`  | URL deiner bestehenden Supabase-Instanz |
+| Anon Key         | `eyJhbGci...`                   | Aus Project Settings → API              |
+| Service Role Key | `eyJhbGci...`                   | Aus Project Settings → API (geheim!)    |
+| Ollama           | `1` / `2` / `3`                 | KI-Assistent-Option                     |
 
 **Ausgabe:**
 
@@ -373,7 +373,6 @@ Nach dem ersten Start muss das Datenbankschema eingerichtet werden.
 2. Anmelden: Benutzername `supabase`, Passwort aus `CREDENTIALS.txt` / `.env`
 3. **SQL Editor** → **New query**
 4. Inhalt von `database_setup_complete.sql` einfügen → **Run**
-5. Danach `umzugshelfer-pwa/haushalt_multiuser_setup.sql` einfügen → **Run**
 
 ### Per Kommandozeile (nur Vollstack)
 
