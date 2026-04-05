@@ -6,8 +6,10 @@ import {
   TrendingUp, TrendingDown, Calendar, Clock, FileText,
 } from "lucide-react";
 import { motion, animate, useMotionValue, useTransform } from "framer-motion";
-import { supabase } from "../../supabaseClient";
+import { getActiveHouseholdId, supabase } from "../../supabaseClient";
 import { ensureRecurringBudgetEntries, getMonthBounds, getLocalDateString } from "../../utils/budgetRecurring";
+import { berechneNettoSalden } from "../../utils/budgetSplits";
+import { formatGermanCurrency } from "../../utils/formatUtils";
 import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
@@ -117,6 +119,22 @@ const HomeDashboard = ({ session }) => {
     verlauf: [],
     timeline: [],
   });
+  const [splitGroups, setSplitGroups] = useState([]);
+  const [settlements, setSettlements] = useState([]);
+
+  const resolveDashboardHouseholdId = useCallback(async () => {
+    const activeHouseholdId = getActiveHouseholdId();
+    if (activeHouseholdId) return activeHouseholdId;
+
+    const { data, error } = await supabase
+      .from("household_members")
+      .select("household_id")
+      .eq("user_id", userId)
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data?.household_id || null;
+  }, [userId]);
 
   const ladeStats = useCallback(async () => {
     if (!userId) return;
@@ -151,6 +169,25 @@ const HomeDashboard = ({ session }) => {
         supabase.from("budget_posten").select("id, beschreibung, betrag, typ, intervall, naechstes_datum, budget_scope").eq("user_id", userId).in("app_modus", ["home", "beides"]).eq("wiederholen", true).gte("naechstes_datum", nextMonthStart).lt("naechstes_datum", nextMonthEnd),
         supabase.from("dokumente").select("id", { count: "exact", head: true }).eq("user_id", userId),
       ]);
+
+      const householdId = await resolveDashboardHouseholdId();
+      if (householdId) {
+        const [{ data: groups }, { data: setts }] = await Promise.all([
+          supabase
+            .from("budget_split_groups")
+            .select("*, budget_split_shares(*)")
+            .eq("household_id", householdId),
+          supabase
+            .from("budget_settlements")
+            .select("*")
+            .eq("household_id", householdId),
+        ]);
+        setSplitGroups(groups || []);
+        setSettlements(setts || []);
+      } else {
+        setSplitGroups([]);
+        setSettlements([]);
+      }
 
       // ── Basis Stats ──
       const vorraete = vorraeteRes.data || [];
@@ -273,7 +310,7 @@ const HomeDashboard = ({ session }) => {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [resolveDashboardHouseholdId, userId]);
 
   useEffect(() => { ladeStats(); }, [ladeStats]);
 
@@ -368,6 +405,12 @@ const HomeDashboard = ({ session }) => {
   }
 
   const { budgetMonat, aktiveProjekte, timeline, verlauf } = erweitert;
+  const salden = berechneNettoSalden(splitGroups, settlements);
+  const offeneSaldoCount = Object.values(salden).filter((saldo) => saldo < 0).length;
+  const gesamtOffeneSchulden =
+    Object.values(salden)
+      .filter((saldo) => saldo < 0)
+      .reduce((sum, saldo) => sum + Math.round(Math.abs(saldo) * 100), 0) / 100;
 
   // ── Timeline Helpers ──
   const TIMELINE_ICON = { wartung: "🔧", ablauf: "⚠️", aufgabe: "✅", projekt: "📋" };
@@ -489,7 +532,7 @@ const HomeDashboard = ({ session }) => {
       </motion.div>
 
       {/* Row A: Budget & Vorräte-Ampel */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
         {/* Budget-Widget */}
         <motion.button
@@ -564,6 +607,37 @@ const HomeDashboard = ({ session }) => {
         </motion.button>
 
         {/* Vorräte-Ampel-Widget */}
+        <motion.button
+          variants={cardVariants}
+          initial="hidden"
+          animate="show"
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.99 }}
+          onClick={() => navigate("/home/budget?tab=ausgleich")}
+          className="p-4 rounded-xl bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border hover:border-primary-500/50 transition-colors text-left group"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-base">↔</span>
+              <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
+                Ausgleich im Haushalt
+              </span>
+            </div>
+            <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
+          </div>
+          <div className="space-y-1.5">
+            <div className="text-2xl font-bold text-light-text-main dark:text-dark-text-main tabular-nums">
+              {formatGermanCurrency(gesamtOffeneSchulden)} €
+            </div>
+            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+              Offene Schulden gesamt
+            </p>
+            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+              {offeneSaldoCount} offene Position{offeneSaldoCount !== 1 ? "en" : ""}
+            </p>
+          </div>
+        </motion.button>
+
         <motion.button
           variants={cardVariants}
           initial="hidden"

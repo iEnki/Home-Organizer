@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   DollarSign, Plus, Edit2, Trash2, X, Loader2, AlertCircle,
   Sparkles, RefreshCw,
-  Target, TrendingUp, BarChart2, Wallet,
+  Target, TrendingUp, BarChart2, Wallet, ArrowLeftRight,
   FileText,
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
@@ -50,6 +51,12 @@ import {
   isBudgetViewStateEqual,
   serializeBudgetViewState,
 } from "../../utils/budgetViewState";
+import {
+  buildEqualShares,
+  haushaltsHatSettlements,
+  istSplitGleich,
+  splitAmountInCents,
+} from "../../utils/budgetSplits";
 import BudgetFilterBar from "./budget/BudgetFilterBar";
 import BudgetFilterSheet from "./budget/BudgetFilterSheet";
 import BudgetGroupSection from "./budget/BudgetGroupSection";
@@ -65,6 +72,8 @@ import BudgetAccountsSummaryCard from "./budget/BudgetAccountsSummaryCard";
 import BudgetGoalsList from "./budget/BudgetGoalsList";
 import BudgetSavedViewsSheet from "./budget/BudgetSavedViewsSheet";
 import BudgetViewBadgeBar from "./budget/BudgetViewBadgeBar";
+import KostenAufteilungAuswahl from "./KostenAufteilungAuswahl";
+import BudgetAusgleichTab from "./BudgetAusgleichTab";
 
 // ─────────────── Constants ───────────────
 const HOME_KATEGORIEN = [
@@ -83,6 +92,14 @@ const KATEGORIE_FARBEN = {
 const EMOJI_OPTIONEN = ["🎯", "🏠", "✈️", "🚗", "💻", "📱", "🎓", "💍", "🛋️", "🎸", "🌴", "💰"];
 const FARB_OPTIONEN = ["#10B981", "#3B82F6", "#8B5CF6", "#EC4899", "#F59E0B", "#F97316", "#14B8A6", "#EF4444"];
 const BewohnerBadge = () => null;
+const TABS = [
+  { id: "uebersicht", label: "Übersicht", icon: Wallet },
+  { id: "statistiken", label: "Statistiken", icon: BarChart2 },
+  { id: "limits", label: "Limits", icon: TrendingUp },
+  { id: "ziele", label: "Ziele", icon: Target },
+  { id: "ausgleich", label: "Ausgleich", icon: ArrowLeftRight },
+];
+const GUELTIGE_TAB_IDS = TABS.map((tab) => tab.id);
 
 // ─────────────── Helpers ───────────────
 const fmt = (n) => Number(n || 0).toFixed(2) + " €";
@@ -121,7 +138,15 @@ const ModalWrapper = ({ title, onClose, children }) => (
 // ─────────────── BudgetForm ───────────────
 const INPUT_CLS = "w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500";
 
-const BudgetForm = ({ initial, onSpeichern, onAbbrechen, bewohner, finanzkonten }) => {
+const BudgetForm = ({
+  initial,
+  initialSplit,
+  onSpeichern,
+  onAbbrechen,
+  bewohner,
+  finanzkonten,
+  showSettlementHinweis,
+}) => {
   const [form, setForm] = useState({
     beschreibung: initial?.beschreibung || "",
     kategorie: initial?.kategorie || "Haushalt",
@@ -138,6 +163,9 @@ const BudgetForm = ({ initial, onSpeichern, onAbbrechen, bewohner, finanzkonten 
   const [budgetScope, setBudgetScope] = useState(initial?.budget_scope || "haushalt");
   const [zahlungskontoId, setZahlungskontoId] = useState(initial?.zahlungskonto_id || "");
   const [kontoAutoModus, setKontoAutoModus] = useState(!initial?.zahlungskonto_id);
+  const [splitAktiv, setSplitAktiv] = useState(initialSplit?.aktiv ?? false);
+  const [splitVorgestrecktVon, setSplitVorgestrecktVon] = useState(initialSplit?.payerMemberId || null);
+  const [splitTeilnehmer, setSplitTeilnehmer] = useState(initialSplit?.teilnehmer || []);
   const bewohnerById = useMemo(
     () => Object.fromEntries((bewohner || []).map((eintrag) => [eintrag.id, eintrag])),
     [bewohner],
@@ -178,10 +206,29 @@ const BudgetForm = ({ initial, onSpeichern, onAbbrechen, bewohner, finanzkonten 
     setZahlungskontoId(defaultKonto?.id || "");
   }, [aktiveFinanzkonten, budgetScope, form.bewohner_id, kontoAutoModus]);
 
+  const splitVerfuegbar = !wiederholen && (bewohner || []).length >= 2 && form.typ === "ausgabe";
+
+  useEffect(() => {
+    if (!splitVerfuegbar) {
+      setSplitAktiv(false);
+      return;
+    }
+    if (!splitAktiv) return;
+    if (splitVorgestrecktVon) return;
+    setSplitVorgestrecktVon(form.bewohner_id || bewohner?.[0]?.id || null);
+  }, [bewohner, form.bewohner_id, splitAktiv, splitVerfuegbar, splitVorgestrecktVon]);
+
+  useEffect(() => {
+    if (!splitVerfuegbar || !splitAktiv || !splitVorgestrecktVon) return;
+    setSplitTeilnehmer((prev) =>
+      Array.from(new Set([splitVorgestrecktVon, ...(prev || []).filter(Boolean)])),
+    );
+  }, [splitAktiv, splitVerfuegbar, splitVorgestrecktVon]);
+
   const handleSpeichern = () => {
     if (!form.beschreibung.trim() || !form.betrag) return;
     const naechstesDatum = wiederholen ? calcNaechstesDatum(form.datum, intervall) : null;
-    onSpeichern({
+    const budgetPayload = {
       ...form,
       betrag: Math.abs(Number(form.betrag)),
       wiederholen,
@@ -191,6 +238,19 @@ const BudgetForm = ({ initial, onSpeichern, onAbbrechen, bewohner, finanzkonten 
       bewohner_id: form.bewohner_id || null,
       budget_scope: budgetScope,
       zahlungskonto_id: zahlungskontoId || null,
+    };
+
+    onSpeichern({
+      ...budgetPayload,
+      splitConfig:
+        splitVerfuegbar && splitAktiv && splitVorgestrecktVon
+          ? {
+              aktiv: true,
+              payerMemberId: splitVorgestrecktVon,
+              teilnehmer: splitTeilnehmer,
+              betrag: Math.abs(Number(form.betrag)) || 0,
+            }
+          : { aktiv: false },
     });
   };
 
@@ -311,6 +371,35 @@ const BudgetForm = ({ initial, onSpeichern, onAbbrechen, bewohner, finanzkonten 
               {kontoHinweis}
             </div>
           )}
+        </div>
+      )}
+      {splitVerfuegbar ? (
+        <KostenAufteilungAuswahl
+          bewohner={bewohner}
+          betrag={form.betrag}
+          splitAktiv={splitAktiv}
+          onSplitAktivChange={(nextValue) => {
+            setSplitAktiv(nextValue);
+            if (nextValue && !splitVorgestrecktVon) {
+              setSplitVorgestrecktVon(form.bewohner_id || bewohner?.[0]?.id || null);
+            }
+          }}
+          vorgestrecktVon={splitVorgestrecktVon}
+          teilnehmer={splitTeilnehmer}
+          onVorgestrecktVonChange={(nextPayerId) => {
+            setSplitVorgestrecktVon(nextPayerId);
+            setSplitTeilnehmer((prev) =>
+              Array.from(new Set([nextPayerId, ...(prev || []).filter(Boolean)])),
+            );
+          }}
+          onTeilnehmerChange={setSplitTeilnehmer}
+          showSettlementHinweis={showSettlementHinweis}
+        />
+      ) : (
+        <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 px-3 py-2 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+          {wiederholen
+            ? "Kostenaufteilung ist im MVP nur für nicht wiederkehrende Ausgaben verfügbar."
+            : "Kostenaufteilung ist verfügbar, sobald mindestens zwei Bewohner angelegt sind."}
         </div>
       )}
       <div className="flex gap-2">
@@ -492,6 +581,7 @@ const KontoForm = ({ initial, bewohner, onSpeichern, onDeaktivieren, onAbbrechen
 const HomeBudget = ({ session }) => {
   const userId = session?.user?.id;
   const today = useMemo(() => new Date(), []);
+  const [searchParams, setSearchParams] = useSearchParams();
   const { active: tourAktiv, schritt, setSchritt, beenden: tourBeenden } = useTour("budget");
 
   // Data
@@ -500,10 +590,14 @@ const HomeBudget = ({ session }) => {
   const [bewohner, setBewohner] = useState([]);
   const [limits, setLimits] = useState([]);
   const [sparziele, setSparziele] = useState([]);
+  const [splitGroups, setSplitGroups] = useState([]);
+  const [settlements, setSettlements] = useState([]);
   const [fehler, setFehler] = useState(null);
 
   // UI
-  const [aktiverTab, setAktiverTab] = useState("uebersicht");
+  const [aktiverTab, setAktiverTab] = useState(
+    GUELTIGE_TAB_IDS.includes(searchParams.get("tab")) ? searchParams.get("tab") : "uebersicht",
+  );
   const [modal, setModal] = useState(null);
   const [sparzieleModal, setSparzieleModal] = useState(null);
   const [einzahlenModal, setEinzahlenModal] = useState(null);
@@ -552,6 +646,32 @@ const HomeBudget = ({ session }) => {
   const [kontenFormDaten, setKontenFormDaten] = useState(null); // null = neu, object = bearbeiten
   const isHydratingViewStateRef = useRef(false);
   const isApplyingSavedViewRef = useRef(false);
+
+  const wechselTab = useCallback((tab) => {
+    setAktiverTab(tab);
+    setSearchParams((prev) => {
+      const nextParams = new URLSearchParams(prev);
+      nextParams.set("tab", tab);
+      return nextParams;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (!tab) return;
+
+    if (GUELTIGE_TAB_IDS.includes(tab)) {
+      setAktiverTab(tab);
+      return;
+    }
+
+    setAktiverTab("uebersicht");
+    setSearchParams((prev) => {
+      const nextParams = new URLSearchParams(prev);
+      nextParams.set("tab", "uebersicht");
+      return nextParams;
+    }, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const ladeBudgetRechnungen = useCallback(async (budgetPosten) => {
     const ids = (budgetPosten || []).map((p) => p.id).filter(Boolean);
@@ -696,6 +816,39 @@ const HomeBudget = ({ session }) => {
 
   useEffect(() => { ladeDaten(); }, [ladeDaten]);
 
+  const ladeSplitDaten = useCallback(async () => {
+    if (!budgetViewHouseholdId) {
+      setSplitGroups([]);
+      setSettlements([]);
+      return;
+    }
+
+    const [{ data: groups, error: groupsError }, { data: setts, error: settlementsError }] = await Promise.all([
+      supabase
+        .from("budget_split_groups")
+        .select("*, budget_split_shares(*), budget_posten(id, beschreibung, betrag, datum)")
+        .eq("household_id", budgetViewHouseholdId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("budget_settlements")
+        .select("*")
+        .eq("household_id", budgetViewHouseholdId)
+        .order("date", { ascending: false }),
+    ]);
+
+    if (groupsError) throw groupsError;
+    if (settlementsError) throw settlementsError;
+
+    setSplitGroups(groups || []);
+    setSettlements(setts || []);
+  }, [budgetViewHouseholdId]);
+
+  useEffect(() => {
+    ladeSplitDaten().catch(() => {
+      setFehler("Split-Daten konnten nicht geladen werden.");
+    });
+  }, [ladeSplitDaten]);
+
   // ─── CRUD ───
   const oeffneRechnungsVorschau = async (eintrag) => {
     const rechnungen = budgetRechnungMap[eintrag?.id] || [];
@@ -724,31 +877,167 @@ const HomeBudget = ({ session }) => {
     }
   };
 
+  const splitHatSichRelevantGeaendert = useCallback((nextSplitConfig, originalSplitConfig) => {
+    if (!istSplitGleich(nextSplitConfig, originalSplitConfig)) return true;
+    return splitAmountInCents(nextSplitConfig) !== splitAmountInCents(originalSplitConfig);
+  }, []);
+
+  const aktualisiereSplit = useCallback(async (postenId, splitConfig) => {
+    if (!budgetViewHouseholdId) {
+      setFehler("Aktiver Haushalt konnte nicht bestimmt werden.");
+      return false;
+    }
+
+    const { error: deleteError } = await supabase
+      .from("budget_split_groups")
+      .delete()
+      .eq("budget_posten_id", postenId);
+    if (deleteError) throw deleteError;
+
+    if (!splitConfig?.aktiv || !splitConfig?.payerMemberId) {
+      return true;
+    }
+
+    const shares = buildEqualShares(
+      splitConfig.betrag,
+      splitConfig.teilnehmer,
+      splitConfig.payerMemberId,
+    );
+
+    if (shares.length === 0) {
+      return true;
+    }
+
+    const { data: group, error: groupError } = await supabase
+      .from("budget_split_groups")
+      .insert({
+        budget_posten_id: postenId,
+        household_id: budgetViewHouseholdId,
+        payer_member_id: splitConfig.payerMemberId,
+        split_mode: "equal",
+      })
+      .select("id")
+      .single();
+
+    if (groupError) {
+      setFehler("Buchung gespeichert, Kostenaufteilung fehlgeschlagen.");
+      return false;
+    }
+
+    const { error: sharesError } = await supabase
+      .from("budget_split_shares")
+      .insert(
+        shares.map((share) => ({
+          ...share,
+          split_group_id: group.id,
+          household_id: budgetViewHouseholdId,
+        })),
+      );
+
+    if (sharesError) {
+      await supabase.from("budget_split_groups").delete().eq("id", group.id);
+      setFehler("Buchung gespeichert, Kostenaufteilung fehlgeschlagen.");
+      return false;
+    }
+
+    return true;
+  }, [budgetViewHouseholdId]);
+
+  const oeffneEditModal = useCallback(async (postenEintrag) => {
+    try {
+      const { data: group, error } = await supabase
+        .from("budget_split_groups")
+        .select("*, budget_split_shares(member_id)")
+        .eq("budget_posten_id", postenEintrag.id)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      const initialSplit = group
+        ? {
+            aktiv: true,
+            payerMemberId: group.payer_member_id,
+            teilnehmer: [group.payer_member_id, ...(group.budget_split_shares || []).map((share) => share.member_id)],
+            betrag: Math.abs(Number(postenEintrag.betrag || 0)),
+          }
+        : null;
+
+      setModal({
+        ...postenEintrag,
+        initialSplit,
+        originalSplit: initialSplit,
+      });
+    } catch (error) {
+      setFehler("Kostenaufteilung konnte nicht geladen werden.");
+    }
+  }, []);
+
+  const frageSplitLoeschWarnung = useCallback(async (budgetPostenIds) => {
+    const ids = Array.from(new Set([...(Array.isArray(budgetPostenIds) ? budgetPostenIds : [budgetPostenIds])].filter(Boolean)));
+    if (ids.length === 0) return true;
+
+    const { data: groups, error } = await supabase
+      .from("budget_split_groups")
+      .select("id, budget_posten_id")
+      .in("budget_posten_id", ids);
+
+    if (error) throw error;
+    if (!(groups || []).length) return true;
+
+    return window.confirm(
+      "Diese Buchung hat eine Kostenaufteilung. Das Löschen entfernt auch die Split-Daten und ändert die Nettosalden.",
+    );
+  }, []);
+
   const speichere = async (daten) => {
-    const payload = { ...daten, user_id: userId };
+    const { splitConfig, ...budgetDaten } = daten;
+    const payload = { ...budgetDaten, user_id: userId };
     try {
       if (modal?.id) {
+        const splitRelevantGeaendert = splitHatSichRelevantGeaendert(
+          splitConfig,
+          modal.originalSplit ? { ...modal.originalSplit, betrag: Math.abs(Number(modal.betrag || 0)) } : modal.originalSplit,
+        );
+
+        if (splitRelevantGeaendert && haushaltsHatSettlements(settlements)) {
+          const fortfahren = window.confirm(
+            "Im Haushalt existieren Ausgleichsbuchungen. Das Ändern der Kostenaufteilung beeinflusst die Nettosalden. Fortfahren?",
+          );
+          if (!fortfahren) return;
+        }
+
         const verknuepfteRechnung = (budgetRechnungMap[modal.id] || []).find((eintrag) => eintrag.rechnung_id);
         if (verknuepfteRechnung?.rechnung_id) {
           await syncInvoiceDate({
             supabase,
             rechnungId: verknuepfteRechnung.rechnung_id,
-            neuesDatum: daten.datum,
+            neuesDatum: budgetDaten.datum,
             userId,
           });
 
-          const { datum, ...rest } = daten;
+          const { datum, ...rest } = budgetDaten;
           if (Object.keys(rest).length > 0) {
             await supabase.from("budget_posten").update(rest).eq("id", modal.id);
           }
         } else {
-          await supabase.from("budget_posten").update(daten).eq("id", modal.id);
+          await supabase.from("budget_posten").update(budgetDaten).eq("id", modal.id);
+        }
+
+        if (splitRelevantGeaendert || splitConfig?.aktiv || modal.originalSplit?.aktiv) {
+          await aktualisiereSplit(modal.id, splitConfig);
         }
       } else {
-        await supabase.from("budget_posten").insert(payload);
+        const { data: neuerPosten, error: insertError } = await supabase
+          .from("budget_posten")
+          .insert(payload)
+          .select("id")
+          .single();
+        if (insertError) throw insertError;
+        await aktualisiereSplit(neuerPosten.id, splitConfig);
       }
       setModal(null);
-      ladeDaten();
+      await ladeDaten();
+      await ladeSplitDaten();
     } catch (err) {
       setFehler(`Speichern fehlgeschlagen: ${err.message}`);
     }
@@ -767,19 +1056,23 @@ const HomeBudget = ({ session }) => {
         ? `Wiederkehrende Zahlung und ${anzahl} zugehörige Buchung${anzahl !== 1 ? "en" : ""} löschen?`
         : "Wiederkehrende Zahlung löschen?";
       if (!window.confirm(msg)) return;
+      if (!(await frageSplitLoeschWarnung([id, ...(occurrences || []).map((entry) => entry.id)]))) return;
       if (anzahl > 0) {
         await supabase.from("budget_posten").delete().eq("ursprung_template_id", id);
       }
       await supabase.from("budget_posten").delete().eq("id", id);
-      ladeDaten();
+      await ladeDaten();
+      await ladeSplitDaten();
       return;
     }
 
     const verknuepfteRechnungen = budgetRechnungMap[id] || [];
     if (verknuepfteRechnungen.length === 0) {
+      if (!(await frageSplitLoeschWarnung(id))) return;
       if (!window.confirm("Eintrag löschen?")) return;
       await supabase.from("budget_posten").delete().eq("id", id);
-      ladeDaten();
+      await ladeDaten();
+      await ladeSplitDaten();
       return;
     }
 
@@ -791,6 +1084,7 @@ const HomeBudget = ({ session }) => {
     setLoeschenLaeuft(true);
     try {
       const budgetId = rechnungsLoeschDialog.eintrag.id;
+      if (!(await frageSplitLoeschWarnung(budgetId))) return;
       const { error: budgetErr } = await supabase.from("budget_posten").delete().eq("id", budgetId);
       if (budgetErr) throw budgetErr;
 
@@ -803,6 +1097,7 @@ const HomeBudget = ({ session }) => {
 
       setRechnungsLoeschDialog(null);
       await ladeDaten();
+      await ladeSplitDaten();
     } catch (err) {
       setFehler(`Löschen fehlgeschlagen: ${err.message}`);
     } finally {
@@ -817,12 +1112,24 @@ const HomeBudget = ({ session }) => {
       const dokumentIds = Array.from(
         new Set(rechnungsLoeschDialog.rechnungen.map((r) => r.dokument_id).filter(Boolean)),
       );
+      if (dokumentIds.length > 0) {
+        const { data: links, error: linksError } = await supabase
+          .from("dokument_links")
+          .select("entity_id")
+          .eq("entity_type", "budget_posten")
+          .in("dokument_id", dokumentIds);
+        if (linksError) throw linksError;
+
+        const budgetIds = Array.from(new Set((links || []).map((entry) => entry.entity_id).filter(Boolean)));
+        if (!(await frageSplitLoeschWarnung(budgetIds))) return;
+      }
       for (const dokumentId of dokumentIds) {
         await deleteInvoiceCascade({ supabase, dokumentId });
       }
 
       setRechnungsLoeschDialog(null);
       await ladeDaten();
+      await ladeSplitDaten();
     } catch (err) {
       setFehler(`Komplett-Löschung fehlgeschlagen: ${err.message}`);
     } finally {
@@ -957,17 +1264,27 @@ const HomeBudget = ({ session }) => {
     () => (finanzkonten || []).filter((konto) => konto.aktiv !== false),
     [finanzkonten],
   );
+  const splitGroupByPostenId = useMemo(
+    () =>
+      Object.fromEntries(
+        (splitGroups || [])
+          .filter((group) => group?.budget_posten_id)
+          .map((group) => [group.budget_posten_id, group]),
+      ),
+    [splitGroups],
+  );
 
   const overviewCtx = useMemo(
     () => ({
       bewohnerById,
       kontoById,
       budgetRechnungMap,
+      splitGroupByPostenId,
       isFutureMonth,
       selJahr,
       selMonat,
     }),
-    [bewohnerById, kontoById, budgetRechnungMap, isFutureMonth, selJahr, selMonat],
+    [bewohnerById, kontoById, budgetRechnungMap, isFutureMonth, selJahr, selMonat, splitGroupByPostenId],
   );
 
   const overviewBasis = useMemo(
@@ -1555,12 +1872,6 @@ const HomeBudget = ({ session }) => {
     </div>
   );
 
-  const TABS = [
-    { id: "uebersicht", label: "Übersicht", icon: Wallet },
-    { id: "statistiken", label: "Statistiken", icon: BarChart2 },
-    { id: "limits", label: "Limits", icon: TrendingUp },
-    { id: "ziele", label: "Ziele", icon: Target },
-  ];
 
   return (
     <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4 overflow-x-hidden">
@@ -1598,7 +1909,7 @@ const HomeBudget = ({ session }) => {
         {TABS.map(tab => (
           <button
             key={tab.id}
-            onClick={() => setAktiverTab(tab.id)}
+            onClick={() => wechselTab(tab.id)}
             className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-card-sm text-xs font-medium transition-colors ${
               aktiverTab === tab.id
                 ? "bg-primary-500 text-white"
@@ -1667,7 +1978,7 @@ const HomeBudget = ({ session }) => {
                           [entry.id]: !prev[entry.id],
                         }))
                       }
-                      onEdit={setModal}
+                      onEdit={oeffneEditModal}
                       onDelete={loesche}
                       onPreviewInvoice={oeffneRechnungsVorschau}
                     />
@@ -1857,7 +2168,7 @@ const HomeBudget = ({ session }) => {
                       {Math.abs(Number(p.betrag)).toFixed(2)} €
                     </span>
                     <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex-shrink-0">
-                      <button onClick={() => setModal(p)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500">
+                      <button onClick={() => oeffneEditModal(p)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500">
                         <Edit2 size={13} />
                       </button>
                       <button onClick={() => loesche(p)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500">
@@ -1877,6 +2188,18 @@ const HomeBudget = ({ session }) => {
 
       {/* ════════════ TAB: STATISTIKEN ════════════ */}
       {/* Budget Statistiken */}
+      {aktiverTab === "ausgleich" && (
+        <div className="space-y-4">
+          <BudgetAusgleichTab
+            splitGroups={splitGroups}
+            settlements={settlements}
+            bewohner={bewohner}
+            householdId={budgetViewHouseholdId}
+            onDataChanged={ladeSplitDaten}
+          />
+        </div>
+      )}
+
       {aktiverTab === "statistiken" && (
         <div className="space-y-4">
           <BudgetStatsHeader
@@ -2041,7 +2364,15 @@ const HomeBudget = ({ session }) => {
 
       {modal !== null && (
         <ModalWrapper title={modal.id ? "Eintrag bearbeiten" : "Neuer Eintrag"} onClose={() => setModal(null)}>
-          <BudgetForm initial={modal.id ? modal : null} onSpeichern={speichere} onAbbrechen={() => setModal(null)} bewohner={bewohner} finanzkonten={finanzkonten} />
+          <BudgetForm
+            initial={modal.id ? modal : null}
+            initialSplit={modal.initialSplit || null}
+            onSpeichern={speichere}
+            onAbbrechen={() => setModal(null)}
+            bewohner={bewohner}
+            finanzkonten={finanzkonten}
+            showSettlementHinweis={haushaltsHatSettlements(settlements)}
+          />
         </ModalWrapper>
       )}
 

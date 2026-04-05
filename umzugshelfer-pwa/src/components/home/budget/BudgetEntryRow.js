@@ -73,6 +73,12 @@ export default function BudgetEntryRow({
                     </span>
                   )}
 
+                  {meta.hatSplit && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-300">
+                      Geteilt
+                    </span>
+                  )}
+
                   <span
                     className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${meta.scopeColorClass}`}
                   >
@@ -139,6 +145,12 @@ export default function BudgetEntryRow({
             <div>
               <p className={DETAIL_LABEL_CLS}>Scope</p>
               <p className={DETAIL_VALUE_CLS}>{meta.scopeLabel}</p>
+            </div>
+            <div>
+              <p className={DETAIL_LABEL_CLS}>Kostenaufteilung</p>
+              <p className={DETAIL_VALUE_CLS}>
+                {meta.hatSplit ? "Aktiv" : "Keine"}
+              </p>
             </div>
             <div>
               <p className={DETAIL_LABEL_CLS}>Konto</p>

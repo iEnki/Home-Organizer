@@ -5,6 +5,8 @@ import {
 } from "lucide-react";
 import { supabase, getActiveHouseholdId } from "../../supabaseClient";
 import { useToast } from "../../hooks/useToast";
+import { buildEqualShares } from "../../utils/budgetSplits";
+import KostenAufteilungAuswahl from "./KostenAufteilungAuswahl";
 
 // ============================================================
 // Konstanten
@@ -207,6 +209,12 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
   const [finanzkonten, setFinanzkonten]         = useState([]);
   const [bewohner, setBewohner]                 = useState([]);
   const [bewohnerGeladen, setBewohnerGeladen]   = useState(false);
+  const [splitSchritt, setSplitSchritt]         = useState(false);
+  const [gespeicherterPostenId, setGespeicherterPostenId] = useState(null);
+  const [splitAktiv, setSplitAktiv]             = useState(true);
+  const [splitVorgestrecktVon, setSplitVorgestrecktVon] = useState(null);
+  const [splitTeilnehmer, setSplitTeilnehmer]   = useState([]);
+  const [splitSpeichern, setSplitSpeichern]     = useState(false);
 
   useEffect(() => {
     if (!session?.user?.id) return;
@@ -215,6 +223,21 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
     supabase.from("home_bewohner").select("id, name, linked_user_id").eq("user_id", session.user.id).order("name")
       .then(({ data }) => { setBewohner(data || []); setBewohnerGeladen(true); });
   }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (!splitSchritt) return;
+    if (bewohner.length < 2) return;
+
+    const defaultPayerId = budgetBewohnerId || bewohner[0]?.id || null;
+    if (!defaultPayerId) return;
+
+    setSplitAktiv(true);
+    setSplitVorgestrecktVon(defaultPayerId);
+    setSplitTeilnehmer((prev) => {
+      if (prev.length > 0) return Array.from(new Set([defaultPayerId, ...prev]));
+      return Array.from(new Set([defaultPayerId, ...bewohner.map((b) => b.id).filter(Boolean)]));
+    });
+  }, [bewohner, budgetBewohnerId, splitSchritt]);
 
   // Auto-Bewohner: wenn "Privat" gewählt und noch kein Bewohner gesetzt,
   // wird der eigene verlinkte Bewohnereintrag automatisch vorausgewählt.
@@ -252,7 +275,16 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
           setBudgetBewohnerId(data.id);
         }
       });
-  }, [budgetScope, budgetBewohnerId, bewohner, bewohnerGeladen, session?.user?.id]);
+  }, [
+    budgetScope,
+    budgetBewohnerId,
+    bewohner,
+    bewohnerGeladen,
+    session?.user?.email,
+    session?.user?.id,
+    session?.user?.user_metadata?.display_name,
+    session?.user?.user_metadata?.username,
+  ]);
 
   // Budget-Felder
   const initialBudgetKategorie = useMemo(() => {
@@ -362,6 +394,81 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
 
     return { data: null, error: lastError };
   }, []);
+
+  const handleSplitSpeichern = useCallback(async () => {
+    if (!gespeicherterPostenId) {
+      onGespeichert();
+      return;
+    }
+
+    if (!splitAktiv || !splitVorgestrecktVon) {
+      onGespeichert();
+      return;
+    }
+
+    const shares = buildEqualShares(
+      normalizeNumber(gesamt) || 0,
+      splitTeilnehmer,
+      splitVorgestrecktVon
+    );
+
+    if (shares.length === 0) {
+      onGespeichert();
+      return;
+    }
+
+    setSplitSpeichern(true);
+    try {
+      const householdId = await resolveHouseholdId(session?.user?.id);
+      if (!householdId) {
+        throw new Error("Haushalt konnte nicht bestimmt werden.");
+      }
+
+      const { data: groupData, error: groupError } = await supabase
+        .from("budget_split_groups")
+        .insert({
+          budget_posten_id: gespeicherterPostenId,
+          household_id: householdId,
+          payer_member_id: splitVorgestrecktVon,
+          split_mode: "equal",
+        })
+        .select("id")
+        .single();
+      if (groupError) throw groupError;
+
+      const { error: shareError } = await supabase
+        .from("budget_split_shares")
+        .insert(
+          shares.map((share) => ({
+            ...share,
+            split_group_id: groupData.id,
+            household_id: householdId,
+          }))
+        );
+
+      if (shareError) {
+        await supabase.from("budget_split_groups").delete().eq("id", groupData.id);
+        throw shareError;
+      }
+
+      onGespeichert();
+    } catch (err) {
+      toastError(err.message || "Kostenaufteilung konnte nicht gespeichert werden.");
+    } finally {
+      setSplitSpeichern(false);
+    }
+  }, [
+    gespeicherterPostenId,
+    gesamt,
+    normalizeNumber,
+    onGespeichert,
+    resolveHouseholdId,
+    session?.user?.id,
+    splitAktiv,
+    splitTeilnehmer,
+    splitVorgestrecktVon,
+    toastError,
+  ]);
 
   const hatPflichffehler = useMemo(() => {
     const gesamtNum = parseFloat(gesamt.replace(",", "."));
@@ -672,6 +779,13 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
       } else {
         success("Rechnung gespeichert.");
       }
+
+      if (budgetId && bewohner.length >= 2) {
+        setGespeicherterPostenId(budgetId);
+        setSplitSchritt(true);
+        return;
+      }
+
       onGespeichert();
     } catch (err) {
       if (budgetId) {
@@ -698,9 +812,10 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
     hatPflichffehler, gesamt, datei, session, dokDateiname, dokBeschreibung,
     datum, modulAktiv, budgetBeschreibung, haendler, budgetKategorie,
     budgetScope, zahlungskontoId, budgetBewohnerId,
-    geraetName, geraetHersteller, garantieBis, naechsteWartung, ergebnis,
+    geraetName, geraetHersteller, gewaehrleistungBis, garantieBis, naechsteWartung, ergebnis,
     positionen, zusammenfassung, success, toastError, onGespeichert,
     normalizeNumber, resolveHouseholdId, insertBudgetPostenRobust,
+    bewohner.length,
   ]);
 
   // ============================================================
@@ -709,6 +824,88 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
 
   const niedrigeConfidence = ergebnis.confidence < 0.4;
   const reviewNoetigCount = positionen.filter((p) => p.review_noetig).length;
+
+  if (splitSchritt) {
+    return (
+      <div className="fixed inset-0 z-[100] bg-canvas-0 overflow-y-auto">
+        <div className="sticky top-0 z-10 bg-canvas-1 border-b border-canvas-3 px-4 py-3 flex items-center gap-3">
+          <button
+            onClick={() => {
+              setSplitSchritt(false);
+              onGespeichert();
+            }}
+            className="p-1.5 rounded-lg hover:bg-canvas-2 text-dark-text-main transition-colors"
+            aria-label="Schließen"
+          >
+            <X size={20} />
+          </button>
+          <h2 className="text-lg font-semibold text-dark-text-main flex-1">Kostenaufteilung</h2>
+          <button
+            onClick={handleSplitSpeichern}
+            disabled={splitSpeichern || !gespeicherterPostenId}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-card-sm bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-white text-sm font-semibold transition-colors shadow-sm"
+          >
+            {splitSpeichern ? (
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Check size={16} />
+            )}
+            Aufteilen
+          </button>
+        </div>
+
+        <div className="max-w-3xl mx-auto px-4 py-5 space-y-4">
+          <div className="rounded-card border border-canvas-3 bg-canvas-1 p-4">
+            <h3 className="text-base font-semibold text-dark-text-main mb-1">
+              Rechnung gespeichert
+            </h3>
+            <p className="text-sm text-dark-text-secondary">
+              Wenn du möchtest, kannst du die Budgetbuchung jetzt direkt auf Bewohner aufteilen.
+            </p>
+          </div>
+
+          <div className="rounded-card border border-canvas-3 bg-canvas-1 p-4 space-y-4">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-dark-text-secondary mb-1">
+                Budgetbuchung
+              </p>
+              <p className="text-sm font-medium text-dark-text-main">
+                {budgetBeschreibung || `Einkauf ${haendler || ""}`.trim()}
+              </p>
+              <p className="text-sm text-dark-text-secondary">
+                {(normalizeNumber(gesamt) || 0).toFixed(2)} €
+              </p>
+            </div>
+
+            <KostenAufteilungAuswahl
+              bewohner={bewohner}
+              betrag={normalizeNumber(gesamt) || 0}
+              splitAktiv={splitAktiv}
+              onSplitAktivChange={setSplitAktiv}
+              vorgestrecktVon={splitVorgestrecktVon}
+              teilnehmer={splitTeilnehmer}
+              onVorgestrecktVonChange={setSplitVorgestrecktVon}
+              onTeilnehmerChange={setSplitTeilnehmer}
+              showSettlementHinweis={false}
+            />
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setSplitSchritt(false);
+                onGespeichert();
+              }}
+              className="px-4 py-2 rounded-card-sm border border-canvas-3 text-sm text-dark-text-main hover:bg-canvas-2 transition-colors"
+            >
+              Überspringen
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[100] bg-canvas-0 overflow-y-auto">
