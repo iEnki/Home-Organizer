@@ -82,13 +82,14 @@ const MODUL_CONFIG = {
   budget: {
     titel: "Zahlung per KI erfassen",
     beschreibung: 'z.B. „Netflix 12,99 Euro monatlich" oder „Strom 80 Euro"',
-    felder: "beschreibung, betrag (Zahl), kategorie (optional), wiederholen (true/false), intervall (Monatlich/Jährlich/etc., wenn wiederholen=true)",
-    schema: '{"beschreibung":"Netflix","betrag":12.99,"kategorie":"Abonnement","wiederholen":true,"intervall":"Monatlich"}',
+    felder: "beschreibung, betrag (Zahl), kategorie (optional), wiederholen (true/false), intervall (Monatlich/Jährlich/etc., wenn wiederholen=true), zahlungskonto_name (optional), zahlungskonto_typ (optional), budget_scope (optional: haushalt|privat), bewohner_name (optional)",
+    schema: '{"beschreibung":"Netflix","betrag":12.99,"kategorie":"Abonnement","wiederholen":true,"intervall":"Monatlich","zahlungskonto_name":"Haushaltskonto","budget_scope":"haushalt"}',
     ergebnisLabel: "Erkannte Zahlungen",
-    renderItem: (item) => `${item.beschreibung} — ${item.betrag} €${item.kategorie ? ` (${item.kategorie})` : ""}${item.wiederholen ? ` · ${item.intervall}` : ""}`,
+    renderItem: (item) =>
+      `${item.beschreibung} — ${item.betrag} €${item.kategorie ? ` (${item.kategorie})` : ""}${item.zahlungskonto_name ? ` · ${item.zahlungskonto_name}` : ""}${item.wiederholen ? ` · ${item.intervall}` : ""}`,
     hilfe: [
-      '"Netflix 12,99 Euro monatlich" → wiederkehrende Ausgabe',
-      '"Strom 80 Euro" → einmalige Ausgabe',
+      '"Netflix 12,99 Euro monatlich vom Haushaltskonto" → wiederkehrende Ausgabe mit Konto',
+      '"Strom 80 Euro privat über Martins Kreditkarte" → Scope + Bewohner + Konto',
       '"Miete 950 Euro monatlich, Kategorie Wohnen" → mit Kategorie',
     ],
   },

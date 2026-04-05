@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   DollarSign, Plus, Edit2, Trash2, X, Loader2, AlertCircle,
   Sparkles, RefreshCw,
@@ -6,6 +6,7 @@ import {
   FileText,
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
+import { getActiveHouseholdId } from "../../supabaseClient";
 import KiHomeAssistent from "./KiHomeAssistent";
 import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
@@ -26,6 +27,12 @@ import {
   buildYearStatsData,
 } from "../../utils/budgetStats";
 import {
+  getScopeKontoHinweis,
+  groupSpendByAccount,
+  resolveKontoIdFromAiResult,
+  selectDefaultKontoForEntry,
+} from "../../utils/budgetAccounts";
+import {
   formatLimitMeta,
   getLimitProgress,
   getLimitStatus,
@@ -37,6 +44,12 @@ import {
   getGoalStatus,
   groupGoalsByStatus,
 } from "../../utils/budgetGoals";
+import {
+  applyBudgetViewState,
+  DEFAULT_BUDGET_VIEW_STATE,
+  isBudgetViewStateEqual,
+  serializeBudgetViewState,
+} from "../../utils/budgetViewState";
 import BudgetFilterBar from "./budget/BudgetFilterBar";
 import BudgetFilterSheet from "./budget/BudgetFilterSheet";
 import BudgetGroupSection from "./budget/BudgetGroupSection";
@@ -47,8 +60,11 @@ import BudgetStatsKpiStrip from "./budget/BudgetStatsKpiStrip";
 import BudgetStatsCharts from "./budget/BudgetStatsCharts";
 import BudgetCashflowList from "./budget/BudgetCashflowList";
 import BudgetLimitsList from "./budget/BudgetLimitsList";
-import BudgetAccountsSection from "./budget/BudgetAccountsSection";
+import BudgetAccountKpiStrip from "./budget/BudgetAccountKpiStrip";
+import BudgetAccountsSummaryCard from "./budget/BudgetAccountsSummaryCard";
 import BudgetGoalsList from "./budget/BudgetGoalsList";
+import BudgetSavedViewsSheet from "./budget/BudgetSavedViewsSheet";
+import BudgetViewBadgeBar from "./budget/BudgetViewBadgeBar";
 
 // ─────────────── Constants ───────────────
 const HOME_KATEGORIEN = [
@@ -74,6 +90,17 @@ const istRechnungsDokument = (dok) => {
   const kategorie = String(dok?.kategorie || "").trim().toLowerCase();
   const dokumentTyp = String(dok?.dokument_typ || "").trim().toLowerCase();
   return kategorie === "rechnung" || dokumentTyp === "rechnung";
+};
+const mapBudgetViewError = (error) => {
+  const message = String(error?.message || "");
+  if (
+    error?.code === "23505" ||
+    message.includes("idx_home_budget_views_user_household_name_unique") ||
+    message.toLowerCase().includes("duplicate key")
+  ) {
+    return new Error("Dieser Ansichtsname existiert bereits.");
+  }
+  return error instanceof Error ? error : new Error("Ansicht konnte nicht gespeichert werden.");
 };
 
 // ─────────────── Sub-Components ───────────────
@@ -110,6 +137,46 @@ const BudgetForm = ({ initial, onSpeichern, onAbbrechen, bewohner, finanzkonten 
   const [endeDatum, setEndeDatum] = useState(initial?.ende_datum || "");
   const [budgetScope, setBudgetScope] = useState(initial?.budget_scope || "haushalt");
   const [zahlungskontoId, setZahlungskontoId] = useState(initial?.zahlungskonto_id || "");
+  const [kontoAutoModus, setKontoAutoModus] = useState(!initial?.zahlungskonto_id);
+  const bewohnerById = useMemo(
+    () => Object.fromEntries((bewohner || []).map((eintrag) => [eintrag.id, eintrag])),
+    [bewohner],
+  );
+  const aktiveFinanzkonten = useMemo(() => {
+    const alleKonten = finanzkonten || [];
+    const aktiveKonten = alleKonten.filter((konto) => konto.aktiv !== false);
+    const ausgewaehltesKonto = alleKonten.find((konto) => konto.id === zahlungskontoId);
+    if (
+      ausgewaehltesKonto &&
+      !aktiveKonten.some((konto) => konto.id === ausgewaehltesKonto.id)
+    ) {
+      return [ausgewaehltesKonto, ...aktiveKonten];
+    }
+    return aktiveKonten;
+  }, [finanzkonten, zahlungskontoId]);
+  const kontoMeta = useMemo(
+    () => aktiveFinanzkonten.find((konto) => konto.id === zahlungskontoId) || null,
+    [aktiveFinanzkonten, zahlungskontoId],
+  );
+  const kontoHinweis = useMemo(
+    () =>
+      getScopeKontoHinweis({
+        budgetScope,
+        konto: kontoMeta,
+        bewohnerById,
+      }),
+    [bewohnerById, budgetScope, kontoMeta],
+  );
+
+  useEffect(() => {
+    if (!kontoAutoModus) return;
+    const defaultKonto = selectDefaultKontoForEntry({
+      budgetScope,
+      bewohnerId: form.bewohner_id || null,
+      konten: aktiveFinanzkonten,
+    });
+    setZahlungskontoId(defaultKonto?.id || "");
+  }, [aktiveFinanzkonten, budgetScope, form.bewohner_id, kontoAutoModus]);
 
   const handleSpeichern = () => {
     if (!form.beschreibung.trim() || !form.betrag) return;
@@ -225,13 +292,25 @@ const BudgetForm = ({ initial, onSpeichern, onAbbrechen, bewohner, finanzkonten 
           ))}
         </div>
       </div>
-      {finanzkonten?.length > 0 && (
+      {aktiveFinanzkonten.length > 0 && (
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Bezahlt von</label>
-          <select value={zahlungskontoId} onChange={e => setZahlungskontoId(e.target.value)} className={INPUT_CLS}>
+          <select
+            value={zahlungskontoId}
+            onChange={e => {
+              setKontoAutoModus(false);
+              setZahlungskontoId(e.target.value);
+            }}
+            className={INPUT_CLS}
+          >
             <option value="">— Kein Konto —</option>
-            {finanzkonten.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
+            {aktiveFinanzkonten.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
           </select>
+          {kontoHinweis && (
+            <div className="mt-2 rounded-card-sm border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+              {kontoHinweis}
+            </div>
+          )}
         </div>
       )}
       <div className="flex gap-2">
@@ -341,6 +420,20 @@ const KontoForm = ({ initial, bewohner, onSpeichern, onDeaktivieren, onAbbrechen
     farbe: initial?.farbe || "#10B981",
     sortierung: initial?.sortierung || 0,
   });
+  const handleSpeichern = () => {
+    const trimmedName = String(form.name || "").trim();
+    if (!trimmedName) return;
+
+    onSpeichern({
+      ...(form.id ? { id: form.id } : {}),
+      name: trimmedName,
+      konto_typ: form.konto_typ,
+      inhaber_typ: form.inhaber_bewohner_id ? "bewohner" : "household",
+      inhaber_bewohner_id: form.inhaber_bewohner_id || null,
+      farbe: form.farbe,
+      sortierung: Number(form.sortierung || 0),
+    });
+  };
 
   return (
     <div className="space-y-3">
@@ -374,16 +467,17 @@ const KontoForm = ({ initial, bewohner, onSpeichern, onDeaktivieren, onAbbrechen
         </div>
       </div>
       <div className="flex gap-2 flex-wrap">
-        <button onClick={onAbbrechen} className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main">
+        <button type="button" onClick={onAbbrechen} className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main">
           Abbrechen
         </button>
         {form.id && onDeaktivieren && (
-          <button onClick={() => onDeaktivieren(form.id)} className="px-3 py-2 text-sm border border-amber-500/30 text-amber-500 rounded-card-sm hover:bg-amber-500/10">
+          <button type="button" onClick={() => onDeaktivieren(form.id)} className="px-3 py-2 text-sm border border-amber-500/30 text-amber-500 rounded-card-sm hover:bg-amber-500/10">
             Deaktivieren
           </button>
         )}
         <button
-          onClick={() => { if (form.name.trim()) onSpeichern(form); }}
+          type="button"
+          onClick={handleSpeichern}
           disabled={!form.name.trim()}
           className="flex-1 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50"
         >
@@ -423,6 +517,7 @@ const HomeBudget = ({ session }) => {
   // Filters
   const [kategFilter, setKategFilter] = useState("");
   const [bewohnerFilter, setBewohnerFilter] = useState("");
+  const [kontoFilter, setKontoFilter] = useState("");
   const [zeitraum, setZeitraum] = useState("monat");
   const [selJahr, setSelJahr] = useState(today.getFullYear());
   const [selMonat, setSelMonat] = useState(today.getMonth());
@@ -445,10 +540,18 @@ const HomeBudget = ({ session }) => {
   const [nurWiederkehrend, setNurWiederkehrend] = useState(false);
   const [nurMitRechnung, setNurMitRechnung] = useState(false);
   const [expandedRows, setExpandedRows] = useState({});
+  const [budgetViews, setBudgetViews] = useState([]);
+  const [activeViewId, setActiveViewId] = useState(null);
+  const [viewSheetOffen, setViewSheetOffen] = useState(false);
+  const [viewStateLoaded, setViewStateLoaded] = useState(false);
+  const [savingViewState, setSavingViewState] = useState(false);
+  const [budgetViewHouseholdId, setBudgetViewHouseholdId] = useState(null);
 
   // Finanzkonten-CRUD
   const [kontenFormOffen, setKontenFormOffen] = useState(false);
   const [kontenFormDaten, setKontenFormDaten] = useState(null); // null = neu, object = bearbeiten
+  const isHydratingViewStateRef = useRef(false);
+  const isApplyingSavedViewRef = useRef(false);
 
   const ladeBudgetRechnungen = useCallback(async (budgetPosten) => {
     const ids = (budgetPosten || []).map((p) => p.id).filter(Boolean);
@@ -509,6 +612,42 @@ const HomeBudget = ({ session }) => {
     setBudgetRechnungMap(nextMap);
   }, []);
 
+  const resolveBudgetViewHouseholdId = useCallback(async () => {
+    if (!userId) return null;
+    const activeHouseholdId = getActiveHouseholdId();
+    if (activeHouseholdId) return activeHouseholdId;
+
+    const { data, error } = await supabase
+      .from("household_members")
+      .select("household_id")
+      .eq("user_id", userId)
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data?.household_id || null;
+  }, [userId]);
+
+  const refreshBudgetViews = useCallback(async (householdId) => {
+    if (!userId || !householdId) {
+      setBudgetViews([]);
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .from("home_budget_views")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("household_id", householdId)
+      .order("is_default", { ascending: false })
+      .order("name", { ascending: true });
+
+    if (error) throw error;
+    const nextViews = data || [];
+    setBudgetViews(nextViews);
+    return nextViews;
+  }, [userId]);
+
   // ─── Data Loading ───
   const ladeDaten = useCallback(async () => {
     if (!userId) return;
@@ -535,7 +674,7 @@ const HomeBudget = ({ session }) => {
         .then(({ data }) => { if (data) setSparziele(data); });
 
       // Finanzkonten laden (Proxy schreibt user_id → household_id um → lädt Haushaltskonten)
-      supabase.from("home_finanzkonten").select("*").eq("user_id", userId).eq("aktiv", true).order("sortierung")
+      supabase.from("home_finanzkonten").select("*").eq("user_id", userId).order("sortierung")
         .then(({ data }) => { if (data) setFinanzkonten(data); });
 
       await ensureRecurringBudgetEntries({ supabase, userId, appModi: ["home", "beides"] });
@@ -814,6 +953,10 @@ const HomeBudget = ({ session }) => {
     () => Object.fromEntries((finanzkonten || []).map((konto) => [konto.id, konto])),
     [finanzkonten],
   );
+  const aktiveFinanzkonten = useMemo(
+    () => (finanzkonten || []).filter((konto) => konto.aktiv !== false),
+    [finanzkonten],
+  );
 
   const overviewCtx = useMemo(
     () => ({
@@ -832,10 +975,11 @@ const HomeBudget = ({ session }) => {
       nachZeitraumGefiltert.filter((p) => {
         if (kategFilter && p.kategorie !== kategFilter) return false;
         if (bewohnerFilter && p.bewohner_id !== bewohnerFilter) return false;
+        if (kontoFilter && (p.zahlungskonto_id || "") !== kontoFilter) return false;
         if (scopeFilter !== "alle" && (p.budget_scope || "haushalt") !== scopeFilter) return false;
         return true;
       }),
-    [nachZeitraumGefiltert, kategFilter, bewohnerFilter, scopeFilter],
+    [nachZeitraumGefiltert, kategFilter, bewohnerFilter, kontoFilter, scopeFilter],
   );
 
   const overviewMitQuickFiltern = useMemo(
@@ -874,6 +1018,48 @@ const HomeBudget = ({ session }) => {
     [gefilterteUebersichtPosten],
   );
 
+  const currentBudgetViewState = useMemo(
+    () =>
+      serializeBudgetViewState(
+        {
+          suchbegriff,
+          kategFilter,
+          bewohnerFilter,
+          kontoFilter,
+          scopeFilter,
+          zeitraum,
+          selJahr,
+          selMonat,
+          sortierung,
+          gruppierung,
+          nurWiederkehrend,
+          nurMitRechnung,
+        },
+        today,
+      ),
+    [
+      suchbegriff,
+      kategFilter,
+      bewohnerFilter,
+      kontoFilter,
+      scopeFilter,
+      zeitraum,
+      selJahr,
+      selMonat,
+      sortierung,
+      gruppierung,
+      nurWiederkehrend,
+      nurMitRechnung,
+      today,
+    ],
+  );
+
+  const activeBudgetView = useMemo(
+    () => budgetViews.find((view) => view.id === activeViewId) || null,
+    [budgetViews, activeViewId],
+  );
+  const isCustomBudgetView = !activeBudgetView;
+
   useEffect(() => {
     setExpandedRows({});
   }, [
@@ -882,6 +1068,7 @@ const HomeBudget = ({ session }) => {
     selMonat,
     kategFilter,
     bewohnerFilter,
+    kontoFilter,
     scopeFilter,
     suchbegriff,
     sortierung,
@@ -894,6 +1081,7 @@ const HomeBudget = ({ session }) => {
     setSuchbegriff("");
     setKategFilter("");
     setBewohnerFilter("");
+    setKontoFilter("");
     setScopeFilter("alle");
     setNurWiederkehrend(false);
     setNurMitRechnung(false);
@@ -914,6 +1102,13 @@ const HomeBudget = ({ session }) => {
           id: "person",
           label: `Person: ${bewohnerById[bewohnerFilter].name}`,
           onRemove: () => setBewohnerFilter(""),
+        }
+      : null,
+    kontoFilter
+      ? {
+          id: "konto",
+          label: `Konto: ${kontoById[kontoFilter]?.name || "Unbekanntes Konto"}`,
+          onRemove: () => setKontoFilter(""),
         }
       : null,
     scopeFilter !== "alle"
@@ -939,6 +1134,311 @@ const HomeBudget = ({ session }) => {
       : null,
   ].filter(Boolean);
 
+  const loadBudgetViewState = useCallback(async () => {
+    if (!userId) {
+      setBudgetViews([]);
+      setActiveViewId(null);
+      setBudgetViewHouseholdId(null);
+      setViewStateLoaded(false);
+      return;
+    }
+
+    const householdId = await resolveBudgetViewHouseholdId();
+    setBudgetViewHouseholdId(householdId);
+
+    if (!householdId) {
+      setBudgetViews([]);
+      setActiveViewId(null);
+      setViewStateLoaded(true);
+      return;
+    }
+
+    isHydratingViewStateRef.current = true;
+    setViewStateLoaded(false);
+
+    try {
+      const loadedViews = await refreshBudgetViews(householdId);
+      const { data: stateRow, error: stateError } = await supabase
+        .from("home_budget_view_state")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("household_id", householdId)
+        .maybeSingle();
+      if (stateError) throw stateError;
+
+      if (stateRow) {
+        applyBudgetViewState(stateRow.current_state, {
+          setSuchbegriff,
+          setKategFilter,
+          setBewohnerFilter,
+          setKontoFilter,
+          setScopeFilter,
+          setZeitraum,
+          setSelJahr,
+          setSelMonat,
+          setSortierung,
+          setGruppierung,
+          setNurWiederkehrend,
+          setNurMitRechnung,
+        }, today);
+
+        const nextActiveView = loadedViews.find((view) => view.id === stateRow.active_view_id) || null;
+        setActiveViewId(nextActiveView?.id || null);
+
+        if (stateRow.active_view_id && !nextActiveView) {
+          await supabase
+            .from("home_budget_view_state")
+            .upsert(
+              {
+                user_id: userId,
+                household_id: householdId,
+                active_view_id: null,
+                current_state: serializeBudgetViewState(stateRow.current_state, today),
+              },
+              { onConflict: "user_id,household_id" },
+            );
+        }
+      } else {
+        const defaultView = loadedViews.find((view) => view.is_default) || null;
+        const initialState = defaultView?.filters || DEFAULT_BUDGET_VIEW_STATE;
+
+        applyBudgetViewState(initialState, {
+          setSuchbegriff,
+          setKategFilter,
+          setBewohnerFilter,
+          setKontoFilter,
+          setScopeFilter,
+          setZeitraum,
+          setSelJahr,
+          setSelMonat,
+          setSortierung,
+          setGruppierung,
+          setNurWiederkehrend,
+          setNurMitRechnung,
+        }, today);
+        setActiveViewId(defaultView?.id || null);
+
+        await supabase
+          .from("home_budget_view_state")
+          .upsert(
+            {
+              user_id: userId,
+              household_id: householdId,
+              active_view_id: defaultView?.id || null,
+              current_state: serializeBudgetViewState(initialState, today),
+            },
+            { onConflict: "user_id,household_id" },
+          );
+      }
+    } finally {
+      window.setTimeout(() => {
+        isHydratingViewStateRef.current = false;
+      }, 0);
+      setViewStateLoaded(true);
+    }
+  }, [refreshBudgetViews, resolveBudgetViewHouseholdId, today, userId]);
+
+  const persistBudgetViewState = useCallback(async (nextState, nextActiveViewId) => {
+    if (!userId || !budgetViewHouseholdId) return;
+    await supabase
+      .from("home_budget_view_state")
+      .upsert(
+        {
+          user_id: userId,
+          household_id: budgetViewHouseholdId,
+          active_view_id: nextActiveViewId,
+          current_state: serializeBudgetViewState(nextState, today),
+        },
+        { onConflict: "user_id,household_id" },
+      );
+  }, [budgetViewHouseholdId, today, userId]);
+
+  useEffect(() => {
+    loadBudgetViewState().catch((error) => {
+      setFehler(`Budget-Ansichten konnten nicht geladen werden: ${error.message}`);
+      setViewStateLoaded(true);
+    });
+  }, [loadBudgetViewState]);
+
+  useEffect(() => {
+    const activeHouseholdId = getActiveHouseholdId();
+    if (!viewStateLoaded || !userId || !activeHouseholdId || activeHouseholdId === budgetViewHouseholdId) return;
+    loadBudgetViewState().catch((error) => {
+      setFehler(`Budget-Ansichten konnten nicht neu geladen werden: ${error.message}`);
+    });
+  }, [budgetViewHouseholdId, loadBudgetViewState, userId, viewStateLoaded]);
+
+  useEffect(() => {
+    if (!viewStateLoaded || isHydratingViewStateRef.current || isApplyingSavedViewRef.current) {
+      return;
+    }
+    if (!activeViewId) return;
+    if (!activeBudgetView) {
+      setActiveViewId(null);
+      return;
+    }
+    if (!isBudgetViewStateEqual(currentBudgetViewState, activeBudgetView.filters, today)) {
+      setActiveViewId(null);
+    }
+  }, [activeBudgetView, activeViewId, currentBudgetViewState, today, viewStateLoaded]);
+
+  useEffect(() => {
+    if (!viewStateLoaded || !userId || !budgetViewHouseholdId) return undefined;
+    if (isHydratingViewStateRef.current || isApplyingSavedViewRef.current) return undefined;
+
+    const timeoutId = window.setTimeout(async () => {
+      setSavingViewState(true);
+      try {
+        await persistBudgetViewState(currentBudgetViewState, activeViewId);
+      } catch (error) {
+        setFehler(`Budget-Ansichten konnten nicht gespeichert werden: ${error.message}`);
+      } finally {
+        setSavingViewState(false);
+      }
+    }, 600);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    activeViewId,
+    budgetViewHouseholdId,
+    currentBudgetViewState,
+    persistBudgetViewState,
+    userId,
+    viewStateLoaded,
+  ]);
+
+  const applySavedBudgetView = useCallback(async (view) => {
+    if (!view) return;
+    isApplyingSavedViewRef.current = true;
+    applyBudgetViewState(view.filters, {
+      setSuchbegriff,
+      setKategFilter,
+      setBewohnerFilter,
+      setKontoFilter,
+      setScopeFilter,
+      setZeitraum,
+      setSelJahr,
+      setSelMonat,
+      setSortierung,
+      setGruppierung,
+      setNurWiederkehrend,
+      setNurMitRechnung,
+    }, today);
+    setActiveViewId(view.id);
+    await persistBudgetViewState(view.filters, view.id);
+    window.setTimeout(() => {
+      isApplyingSavedViewRef.current = false;
+    }, 0);
+  }, [persistBudgetViewState, today]);
+
+  const saveCurrentView = useCallback(async (name) => {
+    const trimmedName = String(name || "").trim();
+    if (!trimmedName) {
+      throw new Error("Bitte einen Namen eingeben.");
+    }
+    if (!userId || !budgetViewHouseholdId) {
+      throw new Error("Haushalt konnte nicht aufgelöst werden.");
+    }
+
+    const { data, error } = await supabase
+      .from("home_budget_views")
+      .insert({
+        user_id: userId,
+        household_id: budgetViewHouseholdId,
+        name: trimmedName,
+        filters: currentBudgetViewState,
+      })
+      .select("*")
+      .single();
+    if (error) throw mapBudgetViewError(error);
+
+    const nextViews = await refreshBudgetViews(budgetViewHouseholdId);
+    const insertedView = nextViews.find((view) => view.id === data.id) || data;
+    setActiveViewId(insertedView.id);
+    await persistBudgetViewState(currentBudgetViewState, insertedView.id);
+  }, [budgetViewHouseholdId, currentBudgetViewState, persistBudgetViewState, refreshBudgetViews, userId]);
+
+  const overwriteView = useCallback(async (viewId) => {
+    if (!viewId) return;
+    const { error } = await supabase
+      .from("home_budget_views")
+      .update({ filters: currentBudgetViewState, updated_at: new Date().toISOString() })
+      .eq("id", viewId)
+      .eq("user_id", userId);
+    if (error) throw mapBudgetViewError(error);
+
+    await refreshBudgetViews(budgetViewHouseholdId);
+    setActiveViewId(viewId);
+    await persistBudgetViewState(currentBudgetViewState, viewId);
+  }, [budgetViewHouseholdId, currentBudgetViewState, persistBudgetViewState, refreshBudgetViews, userId]);
+
+  const renameView = useCallback(async (viewId, name) => {
+    const trimmedName = String(name || "").trim();
+    if (!trimmedName) {
+      throw new Error("Bitte einen Namen eingeben.");
+    }
+    const { error } = await supabase
+      .from("home_budget_views")
+      .update({ name: trimmedName, updated_at: new Date().toISOString() })
+      .eq("id", viewId)
+      .eq("user_id", userId);
+    if (error) throw mapBudgetViewError(error);
+    await refreshBudgetViews(budgetViewHouseholdId);
+  }, [budgetViewHouseholdId, refreshBudgetViews, userId]);
+
+  const deleteView = useCallback(async (viewId) => {
+    if (!viewId) return;
+    if (!window.confirm("Ansicht löschen?")) return;
+
+    const wasActive = activeViewId === viewId;
+    const { error } = await supabase
+      .from("home_budget_views")
+      .delete()
+      .eq("id", viewId)
+      .eq("user_id", userId);
+    if (error) throw error;
+
+    await refreshBudgetViews(budgetViewHouseholdId);
+    if (wasActive) {
+      setActiveViewId(null);
+      await persistBudgetViewState(currentBudgetViewState, null);
+    }
+  }, [activeViewId, budgetViewHouseholdId, currentBudgetViewState, persistBudgetViewState, refreshBudgetViews, userId]);
+
+  const setDefaultView = useCallback(async (viewId) => {
+    if (!viewId) return;
+    const { error: clearError } = await supabase
+      .from("home_budget_views")
+      .update({ is_default: false, updated_at: new Date().toISOString() })
+      .eq("user_id", userId)
+      .eq("household_id", budgetViewHouseholdId)
+      .eq("is_default", true);
+    if (clearError) throw clearError;
+
+    const { error } = await supabase
+      .from("home_budget_views")
+      .update({ is_default: true, updated_at: new Date().toISOString() })
+      .eq("id", viewId)
+      .eq("user_id", userId);
+    if (error) throw error;
+
+    await refreshBudgetViews(budgetViewHouseholdId);
+  }, [budgetViewHouseholdId, refreshBudgetViews, userId]);
+
+  const clearDefaultView = useCallback(async (viewId) => {
+    if (!viewId) return;
+    const { error } = await supabase
+      .from("home_budget_views")
+      .update({ is_default: false, updated_at: new Date().toISOString() })
+      .eq("id", viewId)
+      .eq("user_id", userId);
+    if (error) throw error;
+
+    await refreshBudgetViews(budgetViewHouseholdId);
+  }, [budgetViewHouseholdId, refreshBudgetViews, userId]);
+
   // ─── Statistik-Basismenge: Scope-Filter, aber kein Kategorie-/Bewohner-Filter ───
   const statsYearView = useMemo(
     () =>
@@ -949,8 +1449,9 @@ const HomeBudget = ({ session }) => {
         kategorien: HOME_KATEGORIEN,
         kategoriefarben: KATEGORIE_FARBEN,
         monate: MONATE,
+        kontenById: kontoById,
       }),
-    [posten, selJahr, scopeFilter],
+    [kontoById, posten, selJahr, scopeFilter],
   );
 
   const statsMonthView = useMemo(
@@ -962,8 +1463,9 @@ const HomeBudget = ({ session }) => {
         scopeFilter,
         kategorien: HOME_KATEGORIEN,
         kategoriefarben: KATEGORIE_FARBEN,
+        kontenById: kontoById,
       }),
-    [posten, selJahr, selMonat, scopeFilter],
+    [kontoById, posten, scopeFilter, selJahr, selMonat],
   );
 
   const cashflowView = useMemo(
@@ -974,6 +1476,11 @@ const HomeBudget = ({ session }) => {
         fromDateIso: getLocalDateString(today),
       }),
     [posten, scopeFilter, today],
+  );
+
+  const accountKpiItems = useMemo(
+    () => groupSpendByAccount(gefilterteUebersichtPosten, finanzkonten),
+    [finanzkonten, gefilterteUebersichtPosten],
   );
 
   const limitsCurrentMonth = today.getMonth();
@@ -1008,6 +1515,21 @@ const HomeBudget = ({ session }) => {
         };
       }),
     [limits, posten, limitsCurrentMonth, limitsCurrentYear],
+  );
+
+  const kontoStatsById = useMemo(
+    () =>
+      Object.fromEntries(
+        groupSpendByAccount(
+          posten.filter((entry) => {
+            if ((entry.typ || "ausgabe") === "einnahme" || !entry.datum) return false;
+            const datum = new Date(`${entry.datum}T00:00:00`);
+            return datum.getFullYear() === limitsCurrentYear && datum.getMonth() === limitsCurrentMonth;
+          }),
+          aktiveFinanzkonten,
+        ).map((konto) => [konto.id, konto]),
+      ),
+    [aktiveFinanzkonten, limitsCurrentMonth, limitsCurrentYear, posten],
   );
 
   const goalGroupsView = useMemo(
@@ -1106,11 +1628,19 @@ const HomeBudget = ({ session }) => {
             onReset={resetOverviewFilter}
           />
 
+          <BudgetViewBadgeBar
+            activeView={activeBudgetView}
+            isCustom={isCustomBudgetView}
+            onOpenViews={() => setViewSheetOffen(true)}
+          />
+
           <BudgetKpiStrip
             haushaltSumme={overviewKpis.haushaltSumme}
             privatSumme={overviewKpis.privatSumme}
             anzahl={overviewKpis.anzahl}
           />
+
+          <BudgetAccountKpiStrip items={accountKpiItems} />
 
           {gefilterteUebersichtPosten.length === 0 ? (
             <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 py-12 text-center text-light-text-secondary dark:text-dark-text-secondary">
@@ -1154,6 +1684,8 @@ const HomeBudget = ({ session }) => {
             onKategorie={setKategFilter}
             bewohnerFilter={bewohnerFilter}
             onBewohner={setBewohnerFilter}
+            kontoFilter={kontoFilter}
+            onKonto={setKontoFilter}
             scopeFilter={scopeFilter}
             onScope={setScopeFilter}
             nurWiederkehrend={nurWiederkehrend}
@@ -1166,7 +1698,24 @@ const HomeBudget = ({ session }) => {
             onGruppierung={setGruppierung}
             kategorien={HOME_KATEGORIEN}
             bewohner={bewohner}
+            konten={aktiveFinanzkonten}
             onReset={resetOverviewFilter}
+          />
+
+          <BudgetSavedViewsSheet
+            offen={viewSheetOffen}
+            onClose={() => setViewSheetOffen(false)}
+            views={budgetViews}
+            currentState={currentBudgetViewState}
+            activeViewId={activeViewId}
+            onApplyView={applySavedBudgetView}
+            onSaveCurrentAsView={saveCurrentView}
+            onOverwriteView={overwriteView}
+            onRenameView={renameView}
+            onDeleteView={deleteView}
+            onSetDefaultView={setDefaultView}
+            onClearDefaultView={clearDefaultView}
+            saving={savingViewState}
           />
 
           {false && (
@@ -1376,9 +1925,11 @@ const HomeBudget = ({ session }) => {
             })}
           />
 
-          <BudgetAccountsSection
-            konten={finanzkonten}
+          <BudgetAccountsSummaryCard
+            konten={aktiveFinanzkonten}
             bewohnerById={bewohnerById}
+            kontoStatsById={kontoStatsById}
+            monatLabel={limitsMonthLabel}
             onAdd={() => { setKontenFormDaten({}); setKontenFormOffen(true); }}
             onEdit={(konto) => { setKontenFormDaten(konto); setKontenFormOffen(true); }}
           />
@@ -1570,22 +2121,59 @@ const HomeBudget = ({ session }) => {
             initial={kontenFormDaten}
             bewohner={bewohner}
             onSpeichern={async (daten) => {
-              if (daten.id) {
-                await supabase.from("home_finanzkonten").update(daten).eq("id", daten.id);
-              } else {
-                await supabase.from("home_finanzkonten").insert({ ...daten, user_id: userId });
+              try {
+                const householdId = budgetViewHouseholdId || getActiveHouseholdId() || await resolveBudgetViewHouseholdId();
+                if (!householdId) {
+                  throw new Error("Kein aktiver Haushalt gefunden.");
+                }
+
+                if (daten.id) {
+                  const { error } = await supabase
+                    .from("home_finanzkonten")
+                    .update({
+                      ...daten,
+                      household_id: householdId,
+                      created_by_user_id: daten.created_by_user_id || userId,
+                    })
+                    .eq("id", daten.id);
+                  if (error) throw error;
+                } else {
+                  const { error } = await supabase
+                    .from("home_finanzkonten")
+                    .insert({
+                      ...daten,
+                      user_id: userId,
+                      household_id: householdId,
+                      created_by_user_id: userId,
+                      aktiv: true,
+                    });
+                  if (error) throw error;
+                }
+
+                setKontenFormOffen(false);
+                setKontenFormDaten(null);
+                setFehler(null);
+
+                supabase.from("home_finanzkonten").select("*").eq("user_id", userId).order("sortierung")
+                  .then(({ data }) => { if (data) setFinanzkonten(data); });
+              } catch (error) {
+                setFehler(`Konto konnte nicht gespeichert werden: ${error.message}`);
               }
-              setKontenFormOffen(false);
-              setKontenFormDaten(null);
-              supabase.from("home_finanzkonten").select("*").eq("user_id", userId).eq("aktiv", true).order("sortierung")
-                .then(({ data }) => { if (data) setFinanzkonten(data); });
             }}
             onDeaktivieren={async (id) => {
-              if (!window.confirm("Konto deaktivieren? Bestehende Buchungen behalten die Referenz.")) return;
-              await supabase.from("home_finanzkonten").update({ aktiv: false }).eq("id", id);
-              setKontenFormOffen(false);
-              setKontenFormDaten(null);
-              setFinanzkonten(p => p.filter(k => k.id !== id));
+              try {
+                if (!window.confirm("Konto deaktivieren? Bestehende Buchungen behalten die Referenz.")) return;
+                const { error } = await supabase.from("home_finanzkonten").update({ aktiv: false }).eq("id", id);
+                if (error) throw error;
+                setKontenFormOffen(false);
+                setKontenFormDaten(null);
+                setFehler(null);
+                setFinanzkonten((prev) =>
+                  prev.map((konto) => (konto.id === id ? { ...konto, aktiv: false } : konto)),
+                );
+              } catch (error) {
+                setFehler(`Konto konnte nicht deaktiviert werden: ${error.message}`);
+              }
             }}
             onAbbrechen={() => { setKontenFormOffen(false); setKontenFormDaten(null); }}
           />
@@ -1600,6 +2188,31 @@ const HomeBudget = ({ session }) => {
           onClose={() => setKiOffen(false)}
           onErgebnis={async (items) => {
             for (const item of items) {
+              const normalize = (value) => String(value || "").trim().toLowerCase();
+              const resolvedBewohner = item.bewohner_name
+                ? bewohner.find((eintrag) => normalize(eintrag.name) === normalize(item.bewohner_name)) || null
+                : null;
+              const resolvedScope =
+                item.budget_scope === "haushalt" || item.budget_scope === "privat"
+                  ? item.budget_scope
+                  : scopeFilter !== "alle"
+                    ? scopeFilter
+                    : "haushalt";
+              const defaultKonto = selectDefaultKontoForEntry({
+                budgetScope: resolvedScope,
+                bewohnerId: resolvedBewohner?.id || null,
+                konten: aktiveFinanzkonten,
+              });
+              const kontoAusFilter = kontoFilter
+                ? aktiveFinanzkonten.find((konto) => konto.id === kontoFilter) || null
+                : null;
+              const resolvedKontoId =
+                (item.typ || "ausgabe") === "einnahme"
+                  ? null
+                  : resolveKontoIdFromAiResult(item, aktiveFinanzkonten, bewohner)
+                    || kontoAusFilter?.id
+                    || defaultKonto?.id
+                    || null;
               const datum = new Date().toISOString().split("T")[0];
               const naechstesDatum = item.wiederholen && item.intervall ? calcNaechstesDatum(datum, item.intervall) : null;
               await supabase.from("budget_posten").insert({
@@ -1610,7 +2223,9 @@ const HomeBudget = ({ session }) => {
                 typ: item.typ || "ausgabe",
                 datum,
                 app_modus: "home",
-                budget_scope: "haushalt",
+                budget_scope: resolvedScope,
+                bewohner_id: resolvedBewohner?.id || null,
+                zahlungskonto_id: resolvedKontoId,
                 wiederholen: item.wiederholen || false,
                 intervall: item.intervall || null,
                 naechstes_datum: naechstesDatum,

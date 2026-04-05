@@ -11,6 +11,8 @@ export default function BudgetFilterSheet({
   onKategorie,
   bewohnerFilter,
   onBewohner,
+  kontoFilter,
+  onKonto,
   scopeFilter,
   onScope,
   nurWiederkehrend,
@@ -23,6 +25,7 @@ export default function BudgetFilterSheet({
   onGruppierung,
   kategorien,
   bewohner,
+  konten,
   onReset,
 }) {
   useEffect(() => {
@@ -125,6 +128,24 @@ export default function BudgetFilterSheet({
 
           <div>
             <label className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
+              Konto
+            </label>
+            <select
+              value={kontoFilter}
+              onChange={(event) => onKonto(event.target.value)}
+              className={SELECT_CLS}
+            >
+              <option value="">Alle Konten</option>
+              {konten.map((konto) => (
+                <option key={konto.id} value={konto.id}>
+                  {konto.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
               Sortierung
             </label>
             <select
@@ -155,6 +176,7 @@ export default function BudgetFilterSheet({
               <option value="kategorie">Kategorie</option>
               <option value="person">Person</option>
               <option value="scope">Scope</option>
+              <option value="konto">Konto</option>
               <option value="keine">Keine</option>
             </select>
           </div>

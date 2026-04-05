@@ -150,6 +150,30 @@ export default function BudgetStatsCharts({
           />
         </div>
       </section>
+
+      {yearStats.accountTotals?.length > 0 && (
+        <section className={CARD_CLS}>
+          <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+            Ausgaben nach Konto
+          </p>
+          <div className="h-44 sm:h-56">
+            <Doughnut
+              data={yearStats.accountDoughnutData}
+              options={{
+                ...CHART_OPTS_BASE,
+                plugins: {
+                  ...CHART_OPTS_BASE.plugins,
+                  tooltip: {
+                    callbacks: {
+                      label: (ctx) => `${ctx.label}: ${Number(ctx.raw).toFixed(2)} EUR`,
+                    },
+                  },
+                },
+              }}
+            />
+          </div>
+        </section>
+      )}
     </div>
   ) : (
     <div className="space-y-3">
@@ -205,6 +229,39 @@ export default function BudgetStatsCharts({
           />
         </div>
       </section>
+
+      {monthStats.accountTotals?.length > 0 && (
+        <section className={CARD_CLS}>
+          <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+            Ausgaben nach Konto
+          </p>
+          <div style={{ height: `${Math.max(monthStats.accountTotals.length * 36, 100)}px` }}>
+            <Bar
+              data={monthStats.accountBarData}
+              options={{
+                ...CHART_OPTS_BASE,
+                indexAxis: "y",
+                scales: {
+                  x: {
+                    ...SCALE_OPTS,
+                    ticks: { ...SCALE_OPTS.ticks, callback: (value) => `${value} EUR` },
+                  },
+                  y: SCALE_OPTS,
+                },
+                plugins: {
+                  ...CHART_OPTS_BASE.plugins,
+                  legend: { display: false },
+                  tooltip: {
+                    callbacks: {
+                      label: (ctx) => `${Number(ctx.raw).toFixed(2)} EUR`,
+                    },
+                  },
+                },
+              }}
+            />
+          </div>
+        </section>
+      )}
     </div>
   );
 }

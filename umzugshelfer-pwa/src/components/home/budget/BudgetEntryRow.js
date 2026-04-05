@@ -8,6 +8,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { getBudgetEntryMeta } from "../../../utils/budgetOverview";
+import { getScopeKontoHinweis } from "../../../utils/budgetAccounts";
+import BudgetAccountBadge from "./BudgetAccountBadge";
 
 const DETAIL_LABEL_CLS =
   "text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary";
@@ -33,6 +35,14 @@ export default function BudgetEntryRow({
   onPreviewInvoice,
 }) {
   const meta = useMemo(() => getBudgetEntryMeta(entry, ctx), [entry, ctx]);
+  const kontoHinweis = useMemo(
+    () => getScopeKontoHinweis({
+      budgetScope: entry?.budget_scope || "haushalt",
+      konto: meta.konto,
+      bewohnerById: ctx?.bewohnerById,
+    }),
+    [ctx, entry?.budget_scope, meta.konto],
+  );
 
   return (
     <div className="bg-light-card dark:bg-canvas-2">
@@ -74,7 +84,7 @@ export default function BudgetEntryRow({
                   <span>{entry.kategorie || "Ohne Kategorie"}</span>
                   <span>{meta.anzeigeDatumLabel}</span>
                   {meta.bewohner?.name && <span>{meta.bewohner.name}</span>}
-                  {meta.konto?.name && <span>{meta.konto.name}</span>}
+                  {meta.konto?.name && <BudgetAccountBadge konto={meta.konto} compact />}
                 </div>
               </div>
 
@@ -132,7 +142,17 @@ export default function BudgetEntryRow({
             </div>
             <div>
               <p className={DETAIL_LABEL_CLS}>Konto</p>
-              <p className={DETAIL_VALUE_CLS}>{meta.konto?.name || "Kein Konto"}</p>
+              {meta.konto ? (
+                <div className="mt-1 space-y-1.5">
+                  <BudgetAccountBadge konto={meta.konto} />
+                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                    {meta.kontoTyp || "Unbekannter Typ"}
+                    {meta.kontoInhaberName ? ` · ${meta.kontoInhaberName}` : ""}
+                  </p>
+                </div>
+              ) : (
+                <p className={DETAIL_VALUE_CLS}>Kein Konto</p>
+              )}
             </div>
             {meta.istRecurring && (
               <div>
@@ -148,6 +168,12 @@ export default function BudgetEntryRow({
               </div>
             )}
           </div>
+
+          {kontoHinweis && (
+            <div className="rounded-card-sm border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+              {kontoHinweis}
+            </div>
+          )}
 
           <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-2">
             <div className="flex items-center justify-between gap-2">
