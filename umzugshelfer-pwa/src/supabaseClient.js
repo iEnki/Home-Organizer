@@ -45,6 +45,10 @@ const SHARED_TABLES = new Set([
   "vorraete",
   "projekte",
   "geraete",
+  "home_buecher",
+  "home_buch_verleihverlauf",
+  "home_buch_importe",
+  "home_buch_import_kandidaten",
 ]);
 
 let activeHouseholdId =
