@@ -18,8 +18,10 @@ type PushMessage = {
 
 type UserProfileReminder = {
   id: string;
+  einkauf_reminder_aktiv?: boolean | null;
   einkauf_reminder_zeit: string | null;
   einkauf_reminder_letzter_versand: string | null;
+  cospend_reminder_letzter_versand: string | null;
 };
 
 const addMessageForRecipients = (
@@ -88,7 +90,8 @@ Deno.serve(async (req: Request) => {
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
     // 3–7) Alle Haushalte parallel abfragen – pro Haushalt alle 6 Queries gleichzeitig
-    const profileUpdates: string[] = [];
+    const shoppingProfileUpdates: string[] = [];
+    const cospendProfileUpdates: string[] = [];
 
     const householdMessages = await Promise.all(
       [...householdRecipients.entries()].map(async ([householdId, rawRecipients]) => {
@@ -102,6 +105,8 @@ Deno.serve(async (req: Request) => {
           { data: deadlineRows },
           { data: reminderProfiles },
           { data: openShoppingItems },
+          { data: bewohnerRows },
+          { data: openLedgerRows, error: openLedgerError },
         ] = await Promise.all([
           supabase
             .from("todo_aufgaben")
@@ -134,9 +139,7 @@ Deno.serve(async (req: Request) => {
             .lte("deadline", in1Day),
           supabase
             .from("user_profile")
-            .select("id, einkauf_reminder_zeit, einkauf_reminder_letzter_versand")
-            .eq("einkauf_reminder_aktiv", true)
-            .not("einkauf_reminder_zeit", "is", null)
+            .select("id, einkauf_reminder_aktiv, einkauf_reminder_zeit, einkauf_reminder_letzter_versand, cospend_reminder_letzter_versand")
             .in("id", recipients),
           supabase
             .from("home_einkaufliste")
@@ -144,9 +147,24 @@ Deno.serve(async (req: Request) => {
             .eq("household_id", householdId)
             .eq("erledigt", false)
             .limit(5),
+          supabase
+            .from("home_bewohner")
+            .select("id, linked_user_id")
+            .eq("household_id", householdId)
+            .not("linked_user_id", "is", null),
+          supabase.rpc("get_budget_open_split_ledger", {
+            p_household_id: householdId,
+            p_as_of_date: today,
+          }),
         ]);
 
         const msgs: PushMessage[] = [];
+        const bewohnerUserMap = new Map<string, string>();
+        for (const row of bewohnerRows ?? []) {
+          if (row?.id && row?.linked_user_id) {
+            bewohnerUserMap.set(row.id, row.linked_user_id);
+          }
+        }
 
         for (const task of dueTasks ?? []) {
           addMessageForRecipients(msgs, recipients, {
@@ -185,7 +203,7 @@ Deno.serve(async (req: Request) => {
         }
 
         for (const profile of (reminderProfiles ?? []) as UserProfileReminder[]) {
-          if (!profile.einkauf_reminder_zeit) continue;
+          if (!profile.einkauf_reminder_aktiv || !profile.einkauf_reminder_zeit) continue;
           if (profile.einkauf_reminder_letzter_versand === today) continue;
 
           const [hours, minutes] = profile.einkauf_reminder_zeit.split(":").map((x) => Number(x));
@@ -204,7 +222,45 @@ Deno.serve(async (req: Request) => {
             tag: `einkauf-reminder-${householdId}`,
           });
 
-          profileUpdates.push(profile.id);
+          shoppingProfileUpdates.push(profile.id);
+        }
+
+        if (!openLedgerError) {
+          const oldOpenRows = (openLedgerRows ?? []).filter((row: any) => Number(row?.age_days || 0) > 14);
+          const cospendByUser = new Map<string, { totalCents: number; count: number }>();
+
+          oldOpenRows.forEach((row: any) => {
+            const cents = Number(row?.open_amount_cents || 0);
+            if (cents <= 0) return;
+
+            const affectedUsers = [
+              bewohnerUserMap.get(row.from_member_id),
+              bewohnerUserMap.get(row.to_member_id),
+            ].filter((value): value is string => Boolean(value));
+
+            affectedUsers.forEach((userId) => {
+              const current = cospendByUser.get(userId) || { totalCents: 0, count: 0 };
+              current.totalCents += cents;
+              current.count += 1;
+              cospendByUser.set(userId, current);
+            });
+          });
+
+          for (const profile of (reminderProfiles ?? []) as UserProfileReminder[]) {
+            if (profile.cospend_reminder_letzter_versand === today) continue;
+            const openInfo = cospendByUser.get(profile.id);
+            if (!openInfo || openInfo.totalCents <= 0) continue;
+
+            msgs.push({
+              user_id: profile.id,
+              title: "Offene Ausgleiche",
+              body: `${openInfo.count} offene Positionen seit mehr als 14 Tagen · ${Number(openInfo.totalCents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`,
+              url: "/home/budget?tab=ausgleich",
+              tag: `cospend-reminder-${householdId}`,
+            });
+
+            cospendProfileUpdates.push(profile.id);
+          }
         }
 
         return msgs;
@@ -214,12 +270,23 @@ Deno.serve(async (req: Request) => {
     const messages = householdMessages.flat();
 
     // Einkaufs-Reminder-Zeitstempel für alle betroffenen Profile parallel aktualisieren
-    if (profileUpdates.length > 0) {
+    if (shoppingProfileUpdates.length > 0) {
       await Promise.all(
-        profileUpdates.map((profileId) =>
+        [...new Set(shoppingProfileUpdates)].map((profileId) =>
           supabase
             .from("user_profile")
             .update({ einkauf_reminder_letzter_versand: today })
+            .eq("id", profileId)
+        )
+      );
+    }
+
+    if (cospendProfileUpdates.length > 0) {
+      await Promise.all(
+        [...new Set(cospendProfileUpdates)].map((profileId) =>
+          supabase
+            .from("user_profile")
+            .update({ cospend_reminder_letzter_versand: today })
             .eq("id", profileId)
         )
       );
