@@ -37,6 +37,8 @@ const SHARED_TABLES = new Set([
   "budget_split_groups",
   "budget_split_shares",
   "budget_settlements",
+  "home_budget_split_defaults",
+  "budget_settlement_allocations",
   "home_verlauf",
   "home_wissen",
   "haushaltsaufgaben",

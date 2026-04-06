@@ -8,6 +8,9 @@ const getActiveAccounts = (konten = []) =>
 const getNonSavingsAccounts = (konten = []) =>
   getActiveAccounts(konten).filter((konto) => konto.konto_typ !== "sparkonto");
 
+export const getBewohnerDisplayName = (person) =>
+  person?.display_name || person?.name || "Bewohner";
+
 export const getBudgetAccountMeta = (entry, kontenById = {}, bewohnerById = {}) => {
   const konto = kontenById?.[entry?.zahlungskonto_id] || null;
   const inhaber =
@@ -18,7 +21,9 @@ export const getBudgetAccountMeta = (entry, kontenById = {}, bewohnerById = {}) 
     kontoName: konto?.name || null,
     kontoTyp: konto?.konto_typ || null,
     inhaber,
-    inhaberName: inhaber?.name || (konto?.inhaber_typ === "household" ? "Haushalt" : null),
+    inhaberName:
+      (inhaber ? getBewohnerDisplayName(inhaber) : null) ||
+      (konto?.inhaber_typ === "household" ? "Haushalt" : null),
     isHouseholdAccount:
       Boolean(konto) &&
       (konto.inhaber_typ === "household" || konto.konto_typ === "haushaltskonto"),
@@ -75,7 +80,7 @@ export const getScopeKontoHinweis = ({ budgetScope = "haushalt", konto, bewohner
 
   const inhaber =
     konto.inhaber_bewohner_id ? bewohnerById?.[konto.inhaber_bewohner_id] || null : null;
-  const inhaberName = inhaber?.name || "Bewohner";
+  const inhaberName = getBewohnerDisplayName(inhaber);
 
   if (
     budgetScope === "haushalt" &&
@@ -89,6 +94,29 @@ export const getScopeKontoHinweis = ({ budgetScope = "haushalt", konto, bewohner
     (konto.inhaber_typ === "household" || konto.konto_typ === "haushaltskonto")
   ) {
     return "Private Ausgabe ist auf Haushaltskonto gebucht.";
+  }
+
+  return null;
+};
+
+export const resolveSplitPayerFromBudgetSelection = ({
+  bewohnerId = null,
+  zahlungskontoId = null,
+  kontenById = {},
+  bewohnerById = {},
+}) => {
+  const isValidBewohnerId = (value) => Boolean(value) && Boolean(bewohnerById?.[value]);
+  const konto = zahlungskontoId ? kontenById?.[zahlungskontoId] || null : null;
+
+  if (
+    konto?.inhaber_typ === "bewohner" &&
+    isValidBewohnerId(konto.inhaber_bewohner_id)
+  ) {
+    return konto.inhaber_bewohner_id;
+  }
+
+  if (isValidBewohnerId(bewohnerId)) {
+    return bewohnerId;
   }
 
   return null;

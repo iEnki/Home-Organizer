@@ -1,5 +1,5 @@
 import { calcNaechstesDatum } from "./budgetRecurring";
-import { getBudgetAccountMeta } from "./budgetAccounts";
+import { getBewohnerDisplayName, getBudgetAccountMeta } from "./budgetAccounts";
 
 const MONTH_FORMATTER_SHORT = new Intl.DateTimeFormat("de-AT", {
   month: "short",
@@ -142,7 +142,7 @@ export const matchBudgetSearch = (entry, query, ctx = {}) => {
   const haystack = [
     entry?.beschreibung,
     entry?.kategorie,
-    meta.bewohner?.name,
+    getBewohnerDisplayName(meta.bewohner),
     meta.konto?.name,
     meta.scopeLabel,
   ]
@@ -203,7 +203,7 @@ export const groupBudgetEntries = (entries, gruppierung = "tag", ctx = {}) => {
         break;
       case "person":
         key = entry?.bewohner_id || "ohne-person";
-        label = meta.bewohner?.name || "Ohne Person";
+        label = meta.bewohner ? getBewohnerDisplayName(meta.bewohner) : "Ohne Person";
         break;
       case "scope":
         key = entry?.budget_scope || "haushalt";

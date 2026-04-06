@@ -22,6 +22,27 @@ const deleteByIds = async (supabase, table, ids) => {
   return ids.length;
 };
 
+const findAllocatedBudgetIds = async (supabase, budgetIds = []) => {
+  if (!budgetIds.length) return [];
+
+  const { data, error } = await supabase
+    .from("budget_split_groups")
+    .select("budget_posten_id, budget_split_shares(id, budget_settlement_allocations(id))")
+    .in("budget_posten_id", budgetIds);
+
+  if (error) {
+    throw new Error(`Split-Status konnte nicht geprueft werden: ${error.message}`);
+  }
+
+  return (data || [])
+    .filter((group) =>
+      (group.budget_split_shares || []).some(
+        (share) => Array.isArray(share.budget_settlement_allocations) && share.budget_settlement_allocations.length > 0,
+      ),
+    )
+    .map((group) => group.budget_posten_id);
+};
+
 export async function deleteInvoiceCascade({ supabase, dokumentId, fallbackStoragePfad = null }) {
   if (!dokumentId) {
     throw new Error("Dokument-ID fehlt.");
@@ -82,6 +103,13 @@ export async function deleteInvoiceCascade({ supabase, dokumentId, fallbackStora
   const wissenIds = uniqueIds([...wissenIdsFromLinks, ...wissenIdsFallback]);
   const rechnungIds = uniqueIds([...rechnungIdsFromLinks, ...rechnungIdsFallback]);
   const invoiceDoc = invoiceByType || rechnungIds.length > 0 || rechnungIdsFromLinks.length > 0;
+
+  if (invoiceDoc) {
+    const allocierteBudgetIds = await findAllocatedBudgetIds(supabase, budgetIds);
+    if (allocierteBudgetIds.length > 0) {
+      throw new Error("Mindestens eine verknuepfte Budget-Buchung hat bereits allokierte Ausgleiche. Die Kaskadenloeschung wurde vor dem Entfernen der Datei gestoppt.");
+    }
+  }
 
   if (storagePfad) {
     const { error: storageErr } = await supabase.storage

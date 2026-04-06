@@ -68,12 +68,14 @@ export const getMonthBounds = (date = new Date()) => ({
  * Erzeugt alle fälligen Recurring-Occurrences (Catch-up-Schleife).
  * Idempotent via upsert + Unique-Index auf (ursprung_template_id, datum).
  * Race-safe: Parallel-Loads erzeugen keine Duplikate.
+ * Phase B: Kopiert Split-Konfiguration vom Template auf jede neue Occurrence.
  *
- * @param {{ supabase: object, userId: string, appModi?: string[] }} options
+ * @param {{ supabase: object, userId: string, householdId: string, appModi?: string[] }} options
  */
 export const ensureRecurringBudgetEntries = async ({
   supabase,
   userId,
+  householdId,
   appModi = ["home", "beides"],
 }) => {
   const today = getLocalDateString();
@@ -89,9 +91,33 @@ export const ensureRecurringBudgetEntries = async ({
 
   if (fetchError) throw fetchError;
 
+  // Split-Signaturen für Dedup-Key vorladen (aus faellige, VOR dem Dedup)
+  const templateIds = (faellige || []).map(p => p.id).filter(Boolean);
+  let splitSigMap = {};
+  if (templateIds.length > 0 && householdId) {
+    const { data: splitGroups, error: sigErr } = await supabase
+      .from("budget_split_groups")
+      .select("budget_posten_id, payer_member_id, split_mode, payer_share_input, budget_split_shares(member_id, share_type, share_input)")
+      .in("budget_posten_id", templateIds)
+      .eq("household_id", householdId);
+
+    if (sigErr) throw new Error(`[budgetRecurring] Split-Preload fehlgeschlagen: ${sigErr.message}`);
+
+    splitSigMap = Object.fromEntries(
+      (splitGroups || []).map(g => {
+        const sharesSig = (g.budget_split_shares || [])
+          .sort((a, b) => a.member_id.localeCompare(b.member_id))
+          .map(s => `${s.member_id}:${s.share_type}:${s.share_input ?? ''}`)
+          .join(';');
+        return [g.budget_posten_id, `${g.split_mode}|${g.payer_member_id}|${g.payer_share_input ?? ''}|${sharesSig}`];
+      })
+    );
+  }
+
   // Dedup: bei mehreren wiederholen=true-Einträgen mit gleicher Signatur nur das neueste Template behalten.
   // Schützt gegen Alt-Occurrences aus dem alten UTC-Bug-Code (naechstes_datum="2026-03-31" statt "2026-04-01").
-  const dedupKey = (p) => `${p.user_id}|${p.beschreibung}|${p.betrag}|${p.intervall}|${p.app_modus}|${p.budget_scope || "haushalt"}|${p.bewohner_id || ""}|${p.zahlungskonto_id || ""}`;
+  const dedupKey = (p) =>
+    `${p.user_id}|${p.beschreibung}|${p.betrag}|${p.intervall}|${p.app_modus}|${p.budget_scope || "haushalt"}|${p.bewohner_id || ""}|${p.zahlungskonto_id || ""}|${splitSigMap[p.id] || ""}`;
   const newestByKey = new Map();
   for (const p of faellige || []) {
     const key = dedupKey(p);
@@ -142,6 +168,66 @@ export const ensureRecurringBudgetEntries = async ({
         { onConflict: "ursprung_template_id,datum", ignoreDuplicates: true }
       );
       if (upsertError) throw upsertError;
+
+      // Split-Kopie auf Occurrence übertragen (nur wenn Template einen Split hat)
+      if (householdId && splitSigMap[p.id]) {
+        const { data: occ, error: occErr } = await supabase
+          .from("budget_posten")
+          .select("id")
+          .eq("ursprung_template_id", p.id)
+          .eq("datum", next)
+          .maybeSingle();
+        if (occErr) {
+          console.error(`[budgetRecurring] Occurrence-Laden fehlgeschlagen:`, occErr);
+        } else if (occ?.id) {
+          try {
+            const { data: templateGroup, error: tgErr } = await supabase
+              .from("budget_split_groups")
+              .select("*, budget_split_shares(member_id, amount_owed, share_type, share_input)")
+              .eq("budget_posten_id", p.id)
+              .eq("household_id", householdId)
+              .maybeSingle();
+            if (tgErr) { console.error(`[budgetRecurring] templateGroup-Laden fehlgeschlagen:`, tgErr); }
+            else if (templateGroup) {
+              // Gruppe upserten (ignoreDuplicates: true bei bereits vorhandener Occurrence-Gruppe)
+              const { error: ugErr } = await supabase.from("budget_split_groups").upsert({
+                budget_posten_id: occ.id,
+                household_id: templateGroup.household_id,
+                payer_member_id: templateGroup.payer_member_id,
+                split_mode: templateGroup.split_mode,
+                payer_share_input: templateGroup.payer_share_input ?? null,
+              }, { onConflict: "budget_posten_id", ignoreDuplicates: true });
+              if (ugErr) { console.error(`[budgetRecurring] Gruppe-Upsert fehlgeschlagen:`, ugErr); }
+              else {
+                // WICHTIG: Gruppe NACH dem Upsert erneut lesen (ignoreDuplicates liefert ggf. keine Daten zurück)
+                const { data: occGroup, error: ogErr } = await supabase
+                  .from("budget_split_groups")
+                  .select("id")
+                  .eq("budget_posten_id", occ.id)
+                  .maybeSingle();
+                if (ogErr) { console.error(`[budgetRecurring] occGroup-Laden fehlgeschlagen:`, ogErr); }
+                else if (occGroup?.id) {
+                  const { error: usErr } = await supabase.from("budget_split_shares").upsert(
+                    (templateGroup.budget_split_shares || []).map(s => ({
+                      split_group_id: occGroup.id,
+                      household_id: templateGroup.household_id,
+                      member_id: s.member_id,
+                      amount_owed: s.amount_owed,
+                      share_type: s.share_type || 'equal',
+                      share_input: s.share_input ?? null,
+                    })),
+                    { onConflict: "split_group_id,member_id", ignoreDuplicates: true }
+                  );
+                  if (usErr) console.error(`[budgetRecurring] Shares-Upsert fehlgeschlagen:`, usErr);
+                }
+              }
+            }
+          } catch (splitErr) {
+            console.error(`[budgetRecurring] Split-Kopie für Occurrence ${occ.id} fehlgeschlagen:`, splitErr);
+            // Nicht werfen — Haupt-Flow nicht blockieren
+          }
+        }
+      }
 
       next = calcNaechstesDatum(next, p.intervall);
     }
