@@ -82,6 +82,36 @@ code {
   .glass-dark  { background: rgba(10,20,26,0.75); backdrop-filter: blur(12px); }
   .glass-light { background: rgba(241,245,249,0.80); backdrop-filter: blur(12px); }
 
+  .mobile-modal-overlay {
+    align-items: flex-start;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-top: calc(1rem + var(--safe-area-top));
+    padding-right: calc(1rem + var(--safe-area-right));
+    padding-bottom: max(1rem, var(--mobile-bottom-offset));
+    padding-left: calc(1rem + var(--safe-area-left));
+  }
+
+  .mobile-modal-dialog {
+    max-height: calc(100dvh - var(--safe-area-top) - var(--mobile-bottom-offset) - 2rem);
+    margin-top: auto;
+  }
+
+  .mobile-modal-body {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mobile-modal-footer {
+    padding-bottom: max(0.75rem, calc(var(--mobile-bottom-offset) - 0.75rem));
+  }
+
+  .invoice-preview-dialog {
+    max-height: calc(100dvh - var(--safe-area-top) - var(--mobile-bottom-offset) - 1.5rem);
+  }
+
   /* Scrollbar verstecken (cross-browser) */
   .scrollbar-hide {
     -ms-overflow-style: none;
@@ -108,6 +138,39 @@ code {
   .topbar-safe-x {
     padding-left:  calc(1.5rem + var(--safe-area-left));
     padding-right: calc(1.5rem + var(--safe-area-right));
+  }
+}
+
+@media (min-width: 1024px) {
+  .mobile-modal-overlay {
+    align-items: center;
+    padding-top: 1rem;
+    padding-right: 1rem;
+    padding-bottom: 1rem;
+    padding-left: 1rem;
+  }
+
+  .mobile-modal-dialog {
+    max-height: min(90dvh, calc(100dvh - 2rem));
+    margin-top: 0;
+  }
+
+  .mobile-modal-footer {
+    padding-bottom: 0.75rem;
+  }
+
+  .invoice-preview-dialog {
+    max-height: min(90dvh, calc(100dvh - 2rem));
+  }
+}
+
+@media (max-width: 1023px) and (min-height: 720px) {
+  .invoice-preview-overlay {
+    align-items: center;
+  }
+
+  .invoice-preview-dialog {
+    margin-top: 0;
   }
 }
 
