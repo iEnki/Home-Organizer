@@ -28,8 +28,10 @@ import {
   buildYearStatsData,
 } from "../../utils/budgetStats";
 import {
+  getBewohnerDisplayName,
   getScopeKontoHinweis,
   groupSpendByAccount,
+  resolveSplitPayerFromBudgetSelection,
   resolveKontoIdFromAiResult,
   selectDefaultKontoForEntry,
 } from "../../utils/budgetAccounts";
@@ -52,10 +54,11 @@ import {
   serializeBudgetViewState,
 } from "../../utils/budgetViewState";
 import {
-  buildEqualShares,
+  buildShares,
   haushaltsHatSettlements,
   istSplitGleich,
   splitAmountInCents,
+  validateSplitConfig,
 } from "../../utils/budgetSplits";
 import BudgetFilterBar from "./budget/BudgetFilterBar";
 import BudgetFilterSheet from "./budget/BudgetFilterSheet";
@@ -74,6 +77,7 @@ import BudgetSavedViewsSheet from "./budget/BudgetSavedViewsSheet";
 import BudgetViewBadgeBar from "./budget/BudgetViewBadgeBar";
 import KostenAufteilungAuswahl from "./KostenAufteilungAuswahl";
 import BudgetAusgleichTab from "./BudgetAusgleichTab";
+import BudgetSplitDefaults from "./BudgetSplitDefaults";
 
 // ─────────────── Constants ───────────────
 const HOME_KATEGORIEN = [
@@ -141,6 +145,7 @@ const INPUT_CLS = "w-full px-3 py-2 text-sm rounded-card-sm border border-light-
 const BudgetForm = ({
   initial,
   initialSplit,
+  householdId,
   onSpeichern,
   onAbbrechen,
   bewohner,
@@ -166,9 +171,17 @@ const BudgetForm = ({
   const [splitAktiv, setSplitAktiv] = useState(initialSplit?.aktiv ?? false);
   const [splitVorgestrecktVon, setSplitVorgestrecktVon] = useState(initialSplit?.payerMemberId || null);
   const [splitTeilnehmer, setSplitTeilnehmer] = useState(initialSplit?.teilnehmer || []);
+  const [splitMode, setSplitMode] = useState(initialSplit?.splitMode || 'equal');
+  const [sharesInput, setSharesInput] = useState(initialSplit?.sharesInput || {});
+  const [splitManuellBearbeitet, setSplitManuellBearbeitet] = useState(!!initialSplit);
+  const [splitValidierungsFehler, setSplitValidierungsFehler] = useState(null);
   const bewohnerById = useMemo(
     () => Object.fromEntries((bewohner || []).map((eintrag) => [eintrag.id, eintrag])),
     [bewohner],
+  );
+  const kontenById = useMemo(
+    () => Object.fromEntries((finanzkonten || []).map((konto) => [konto.id, konto])),
+    [finanzkonten],
   );
   const aktiveFinanzkonten = useMemo(() => {
     const alleKonten = finanzkonten || [];
@@ -206,7 +219,7 @@ const BudgetForm = ({
     setZahlungskontoId(defaultKonto?.id || "");
   }, [aktiveFinanzkonten, budgetScope, form.bewohner_id, kontoAutoModus]);
 
-  const splitVerfuegbar = !wiederholen && (bewohner || []).length >= 2 && form.typ === "ausgabe";
+  const splitVerfuegbar = (bewohner || []).length >= 2 && form.typ === "ausgabe";
 
   useEffect(() => {
     if (!splitVerfuegbar) {
@@ -215,8 +228,27 @@ const BudgetForm = ({
     }
     if (!splitAktiv) return;
     if (splitVorgestrecktVon) return;
-    setSplitVorgestrecktVon(form.bewohner_id || bewohner?.[0]?.id || null);
-  }, [bewohner, form.bewohner_id, splitAktiv, splitVerfuegbar, splitVorgestrecktVon]);
+    if (splitManuellBearbeitet) return;
+
+    const payerId = resolveSplitPayerFromBudgetSelection({
+      bewohnerId: form.bewohner_id || null,
+      zahlungskontoId: zahlungskontoId || null,
+      kontenById,
+      bewohnerById,
+    });
+    if (!payerId) return;
+
+    setSplitVorgestrecktVon(payerId);
+  }, [
+    bewohnerById,
+    kontenById,
+    form.bewohner_id,
+    splitAktiv,
+    splitManuellBearbeitet,
+    splitVerfuegbar,
+    splitVorgestrecktVon,
+    zahlungskontoId,
+  ]);
 
   useEffect(() => {
     if (!splitVerfuegbar || !splitAktiv || !splitVorgestrecktVon) return;
@@ -224,6 +256,69 @@ const BudgetForm = ({
       Array.from(new Set([splitVorgestrecktVon, ...(prev || []).filter(Boolean)])),
     );
   }, [splitAktiv, splitVerfuegbar, splitVorgestrecktVon]);
+
+  // Kategorie-Standardverteilungen: Auto-Fill, wenn nicht manuell bearbeitet
+  useEffect(() => {
+    if (splitManuellBearbeitet) return;
+    if (!splitVerfuegbar) return;
+    if (!householdId || !form.kategorie) return;
+
+    let cancelled = false;
+
+    supabase
+      .from("home_budget_split_defaults")
+      .select("*")
+      .eq("household_id", householdId)
+      .eq("kategorie", form.kategorie)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled) return;
+
+        const resetSplit = () => {
+          setSplitAktiv(false); setSplitVorgestrecktVon(null);
+          setSplitTeilnehmer([]); setSplitMode("equal");
+          setSharesInput({}); setSplitValidierungsFehler(null);
+        };
+
+        if (error) {
+          console.error("[kategorie-default-effect] Query fehlgeschlagen:", error);
+          return;
+        }
+        if (!data) { resetSplit(); return; }
+
+        // Sanitizing: Default gegen aktuelle Bewohner bereinigen
+        const gueltigeIds = new Set((bewohner || []).map(b => b.id));
+        const payerId = gueltigeIds.has(data.payer_member_id) ? data.payer_member_id : null;
+        const teilnehmerBereinigt = (data.teilnehmer_ids || []).filter(id => gueltigeIds.has(id));
+        const sharesInputRaw = data.shares_input && typeof data.shares_input === "object" ? data.shares_input : {};
+        const sharesInputBereinigt = Object.fromEntries(Object.entries(sharesInputRaw).filter(([id]) => gueltigeIds.has(id)));
+        const splitModeBereinigt = data.split_mode || "equal";
+        const teilnehmerMitPayer = payerId ? Array.from(new Set([payerId, ...teilnehmerBereinigt])) : teilnehmerBereinigt;
+
+        const sanitizedConfig = {
+          aktiv: true, payerMemberId: payerId, teilnehmer: teilnehmerMitPayer,
+          splitMode: splitModeBereinigt, sharesInput: sharesInputBereinigt,
+          betrag: Math.abs(Number(form.betrag)) || 0,
+        };
+        if (!payerId || validateSplitConfig(sanitizedConfig)) { resetSplit(); return; }
+
+        setSplitAktiv(true);
+        setSplitVorgestrecktVon(payerId);
+        setSplitTeilnehmer(teilnehmerMitPayer);
+        setSplitMode(splitModeBereinigt);
+        setSharesInput(sharesInputBereinigt);
+        setSplitValidierungsFehler(null);
+      });
+
+    return () => { cancelled = true; };
+  }, [form.kategorie, form.betrag, splitManuellBearbeitet, splitVerfuegbar, householdId, bewohner]);
+
+  // Wrapper-Callbacks: setzen splitManuellBearbeitet auf true
+  const handleSplitAktivChange      = (v) => { setSplitAktiv(v);            setSplitManuellBearbeitet(true); };
+  const handleSplitModeChange       = (v) => { setSplitMode(v);             setSplitManuellBearbeitet(true); };
+  const handleSharesInputChange     = (v) => { setSharesInput(v);           setSplitManuellBearbeitet(true); };
+  const handleVorgestrecktVonChange = (v) => { setSplitVorgestrecktVon(v);  setSplitManuellBearbeitet(true); };
+  const handleTeilnehmerChange      = (v) => { setSplitTeilnehmer(v);       setSplitManuellBearbeitet(true); };
 
   const handleSpeichern = () => {
     if (!form.beschreibung.trim() || !form.betrag) return;
@@ -240,18 +335,22 @@ const BudgetForm = ({
       zahlungskonto_id: zahlungskontoId || null,
     };
 
-    onSpeichern({
-      ...budgetPayload,
-      splitConfig:
-        splitVerfuegbar && splitAktiv && splitVorgestrecktVon
-          ? {
-              aktiv: true,
-              payerMemberId: splitVorgestrecktVon,
-              teilnehmer: splitTeilnehmer,
-              betrag: Math.abs(Number(form.betrag)) || 0,
-            }
-          : { aktiv: false },
-    });
+    const splitConfig = splitVerfuegbar && splitAktiv && splitVorgestrecktVon
+      ? {
+          aktiv: true,
+          payerMemberId: splitVorgestrecktVon,
+          teilnehmer: splitTeilnehmer,
+          betrag: Math.abs(Number(form.betrag)) || 0,
+          splitMode,
+          sharesInput,
+        }
+      : { aktiv: false };
+
+    const splitFehler = validateSplitConfig(splitConfig);
+    if (splitFehler) { setSplitValidierungsFehler(splitFehler); return; }
+    setSplitValidierungsFehler(null);
+
+    onSpeichern({ ...budgetPayload, splitConfig });
   };
 
   return (
@@ -333,7 +432,7 @@ const BudgetForm = ({
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Person</label>
           <select value={form.bewohner_id} onChange={e => setForm(p => ({ ...p, bewohner_id: e.target.value }))} className={INPUT_CLS}>
             <option value="">— Kein Bewohner —</option>
-            {bewohner.map(b => <option key={b.id} value={b.id}>{b.emoji} {b.name}</option>)}
+            {bewohner.map(b => <option key={b.id} value={b.id}>{b.emoji} {getBewohnerDisplayName(b)}</option>)}
           </select>
         </div>
       )}
@@ -374,32 +473,30 @@ const BudgetForm = ({
         </div>
       )}
       {splitVerfuegbar ? (
-        <KostenAufteilungAuswahl
-          bewohner={bewohner}
-          betrag={form.betrag}
-          splitAktiv={splitAktiv}
-          onSplitAktivChange={(nextValue) => {
-            setSplitAktiv(nextValue);
-            if (nextValue && !splitVorgestrecktVon) {
-              setSplitVorgestrecktVon(form.bewohner_id || bewohner?.[0]?.id || null);
-            }
-          }}
-          vorgestrecktVon={splitVorgestrecktVon}
-          teilnehmer={splitTeilnehmer}
-          onVorgestrecktVonChange={(nextPayerId) => {
-            setSplitVorgestrecktVon(nextPayerId);
-            setSplitTeilnehmer((prev) =>
-              Array.from(new Set([nextPayerId, ...(prev || []).filter(Boolean)])),
-            );
-          }}
-          onTeilnehmerChange={setSplitTeilnehmer}
-          showSettlementHinweis={showSettlementHinweis}
-        />
+        <>
+          <KostenAufteilungAuswahl
+            bewohner={bewohner}
+            betrag={form.betrag}
+            splitAktiv={splitAktiv}
+            onSplitAktivChange={handleSplitAktivChange}
+            vorgestrecktVon={splitVorgestrecktVon}
+            teilnehmer={splitTeilnehmer}
+            onVorgestrecktVonChange={handleVorgestrecktVonChange}
+            onTeilnehmerChange={handleTeilnehmerChange}
+            showSettlementHinweis={showSettlementHinweis}
+            splitMode={splitMode}
+            onSplitModeChange={handleSplitModeChange}
+            sharesInput={sharesInput}
+            onSharesInputChange={handleSharesInputChange}
+            modeVariant="full"
+          />
+          {splitValidierungsFehler && (
+            <p className="text-sm text-accent-danger mt-1">{splitValidierungsFehler}</p>
+          )}
+        </>
       ) : (
         <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 px-3 py-2 text-xs text-light-text-secondary dark:text-dark-text-secondary">
-          {wiederholen
-            ? "Kostenaufteilung ist im MVP nur für nicht wiederkehrende Ausgaben verfügbar."
-            : "Kostenaufteilung ist verfügbar, sobald mindestens zwei Bewohner angelegt sind."}
+          Kostenaufteilung ist verfügbar, sobald mindestens zwei Bewohner angelegt sind.
         </div>
       )}
       <div className="flex gap-2">
@@ -541,7 +638,7 @@ const KontoForm = ({ initial, bewohner, onSpeichern, onDeaktivieren, onAbbrechen
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Inhaber</label>
           <select value={form.inhaber_bewohner_id} onChange={e => setForm(p => ({ ...p, inhaber_bewohner_id: e.target.value, inhaber_typ: e.target.value ? "bewohner" : "household" }))} className={INPUT_CLS}>
             <option value="">— Haushalt —</option>
-            {bewohner.map(b => <option key={b.id} value={b.id}>{b.emoji} {b.name}</option>)}
+            {bewohner.map(b => <option key={b.id} value={b.id}>{b.emoji} {getBewohnerDisplayName(b)}</option>)}
           </select>
         </div>
       )}
@@ -773,13 +870,17 @@ const HomeBudget = ({ session }) => {
     if (!userId) return;
     setLoading(true);
     try {
+      const financeHouseholdId = budgetViewHouseholdId || getActiveHouseholdId();
+
       supabase.rpc("get_bewohner_overview")
         .then(({ data, error }) => {
           if (!error && Array.isArray(data)) {
             setBewohner(
               data.map((b) => ({
                 id: b.id,
-                name: b.display_name || b.name || "Bewohner",
+                name: b.name || "Bewohner",
+                display_name: b.display_name || b.name || "Bewohner",
+                linked_user_id: b.linked_user_id || null,
                 farbe: b.farbe || "#10B981",
                 emoji: b.emoji || "👤",
               })),
@@ -793,11 +894,18 @@ const HomeBudget = ({ session }) => {
       supabase.from("home_sparziele").select("*").eq("user_id", userId).order("created_at")
         .then(({ data }) => { if (data) setSparziele(data); });
 
-      // Finanzkonten laden (Proxy schreibt user_id → household_id um → lädt Haushaltskonten)
-      supabase.from("home_finanzkonten").select("*").eq("user_id", userId).order("sortierung")
-        .then(({ data }) => { if (data) setFinanzkonten(data); });
+      if (financeHouseholdId) {
+        supabase
+          .from("home_finanzkonten")
+          .select("id, name, konto_typ, inhaber_typ, inhaber_bewohner_id, aktiv, sortierung, farbe")
+          .eq("household_id", financeHouseholdId)
+          .order("sortierung")
+          .then(({ data }) => { if (data) setFinanzkonten(data); });
+      } else {
+        setFinanzkonten([]);
+      }
 
-      await ensureRecurringBudgetEntries({ supabase, userId, appModi: ["home", "beides"] });
+      await ensureRecurringBudgetEntries({ supabase, userId, householdId: budgetViewHouseholdId, appModi: ["home", "beides"] });
 
       const { data: refreshed, error: refreshError } = await supabase
         .from("budget_posten").select("*").eq("user_id", userId)
@@ -812,7 +920,7 @@ const HomeBudget = ({ session }) => {
     } finally {
       setLoading(false);
     }
-  }, [ladeBudgetRechnungen, userId]);
+  }, [budgetViewHouseholdId, ladeBudgetRechnungen, userId]);
 
   useEffect(() => { ladeDaten(); }, [ladeDaten]);
 
@@ -882,61 +990,115 @@ const HomeBudget = ({ session }) => {
     return splitAmountInCents(nextSplitConfig) !== splitAmountInCents(originalSplitConfig);
   }, []);
 
+  // Best-effort Restore nach fehlgeschlagenem Delete-then-Insert
+  const _restoreSplit = async (supa, postenId, householdId, alteSplit) => {
+    if (!alteSplit) return;
+    try {
+      const { data: restoredGroup, error: gErr } = await supa
+        .from("budget_split_groups")
+        .insert({
+          budget_posten_id: postenId,
+          household_id:     alteSplit.household_id,
+          payer_member_id:  alteSplit.payer_member_id,
+          split_mode:       alteSplit.split_mode,
+          payer_share_input: alteSplit.payer_share_input ?? null,
+        })
+        .select("id").single();
+      if (gErr || !restoredGroup) { console.error("[_restoreSplit] Gruppe:", gErr); return; }
+
+      if ((alteSplit.budget_split_shares || []).length > 0) {
+        const { error: sErr } = await supa.from("budget_split_shares").insert(
+          alteSplit.budget_split_shares.map(s => ({
+            split_group_id: restoredGroup.id,
+            household_id:   alteSplit.household_id,
+            member_id:      s.member_id,
+            amount_owed:    s.amount_owed,
+            share_type:     s.share_type || 'equal',
+            share_input:    s.share_input ?? null,
+          }))
+        );
+        if (sErr) console.error("[_restoreSplit] Shares:", sErr);
+      }
+    } catch (err) {
+      console.error("[_restoreSplit] Unerwarteter Fehler:", err);
+    }
+  };
+
   const aktualisiereSplit = useCallback(async (postenId, splitConfig) => {
     if (!budgetViewHouseholdId) {
       setFehler("Aktiver Haushalt konnte nicht bestimmt werden.");
       return false;
     }
 
-    const { error: deleteError } = await supabase
-      .from("budget_split_groups")
-      .delete()
-      .eq("budget_posten_id", postenId);
-    if (deleteError) throw deleteError;
-
-    if (!splitConfig?.aktiv || !splitConfig?.payerMemberId) {
+    // FALL 1: Split deaktiviert → alten Split löschen
+    if (!splitConfig?.aktiv) {
+      const { error: delErr } = await supabase.from("budget_split_groups")
+        .delete().eq("budget_posten_id", postenId);
+      if (delErr) {
+        console.error("[aktualisiereSplit] Deaktivierung: Delete fehlgeschlagen:", delErr);
+        return false;
+      }
       return true;
     }
 
-    const shares = buildEqualShares(
-      splitConfig.betrag,
-      splitConfig.teilnehmer,
-      splitConfig.payerMemberId,
-    );
+    // FALL 2: Split aktiv, aber ungültig → false zurückgeben
+    const result = buildShares(splitConfig);
+    if (!result) return false;
+    const { shares, payerShareInput } = result;
 
-    if (shares.length === 0) {
-      return true;
-    }
+    // FALL 3: Split aktiv und gültig → Delete-then-Insert mit Restore-on-Failure
+    try {
+      // 3a: Alten Split vorher in-memory sichern
+      const { data: alteSplit, error: oldErr } = await supabase
+        .from("budget_split_groups")
+        .select("*, budget_split_shares(member_id, amount_owed, share_type, share_input)")
+        .eq("budget_posten_id", postenId)
+        .maybeSingle();
+      if (oldErr) {
+        console.error("[aktualisiereSplit] Backup-Read fehlgeschlagen:", oldErr);
+        return false;
+      }
 
-    const { data: group, error: groupError } = await supabase
-      .from("budget_split_groups")
-      .insert({
-        budget_posten_id: postenId,
-        household_id: budgetViewHouseholdId,
-        payer_member_id: splitConfig.payerMemberId,
-        split_mode: "equal",
-      })
-      .select("id")
-      .single();
+      // 3b: Alten Split löschen
+      const { error: delErr } = await supabase.from("budget_split_groups")
+        .delete().eq("budget_posten_id", postenId);
+      if (delErr) {
+        console.error("[aktualisiereSplit] Delete fehlgeschlagen:", delErr);
+        return false;
+      }
 
-    if (groupError) {
-      setFehler("Buchung gespeichert, Kostenaufteilung fehlgeschlagen.");
-      return false;
-    }
+      // 3c: Neue Gruppe anlegen
+      const { data: group, error: groupErr } = await supabase
+        .from("budget_split_groups")
+        .insert({
+          budget_posten_id: postenId,
+          household_id: budgetViewHouseholdId,
+          payer_member_id: splitConfig.payerMemberId,
+          split_mode: splitConfig.splitMode || 'equal',
+          payer_share_input: payerShareInput ?? null,
+        })
+        .select("id").single();
 
-    const { error: sharesError } = await supabase
-      .from("budget_split_shares")
-      .insert(
-        shares.map((share) => ({
-          ...share,
+      if (groupErr || !group) {
+        await _restoreSplit(supabase, postenId, budgetViewHouseholdId, alteSplit);
+        return false;
+      }
+
+      // 3d: Shares anlegen
+      const { error: sharesErr } = await supabase.from("budget_split_shares").insert(
+        shares.map(s => ({
+          ...s,
           split_group_id: group.id,
           household_id: budgetViewHouseholdId,
-        })),
+        }))
       );
-
-    if (sharesError) {
-      await supabase.from("budget_split_groups").delete().eq("id", group.id);
-      setFehler("Buchung gespeichert, Kostenaufteilung fehlgeschlagen.");
+      if (sharesErr) {
+        await supabase.from("budget_split_groups").delete().eq("id", group.id);
+        await _restoreSplit(supabase, postenId, budgetViewHouseholdId, alteSplit);
+        return false;
+      }
+    } catch (err) {
+      console.error("[aktualisiereSplit] Unerwarteter Fehler:", err);
       return false;
     }
 
@@ -947,7 +1109,7 @@ const HomeBudget = ({ session }) => {
     try {
       const { data: group, error } = await supabase
         .from("budget_split_groups")
-        .select("*, budget_split_shares(member_id)")
+        .select("*, budget_split_shares(member_id, amount_owed, share_type, share_input)")
         .eq("budget_posten_id", postenEintrag.id)
         .maybeSingle();
 
@@ -957,8 +1119,21 @@ const HomeBudget = ({ session }) => {
         ? {
             aktiv: true,
             payerMemberId: group.payer_member_id,
+            splitMode: group.split_mode || 'equal',
             teilnehmer: [group.payer_member_id, ...(group.budget_split_shares || []).map((share) => share.member_id)],
             betrag: Math.abs(Number(postenEintrag.betrag || 0)),
+            sharesInput: group.split_mode !== 'equal'
+              ? (() => {
+                  const map = Object.fromEntries(
+                    (group.budget_split_shares || []).map(s => [s.member_id, s.share_input])
+                  );
+                  // Bei percent: Zahler-Anteil aus payer_share_input wiederherstellen
+                  if (group.split_mode === 'percent' && group.payer_share_input != null) {
+                    map[group.payer_member_id] = group.payer_share_input;
+                  }
+                  return map;
+                })()
+              : {},
           }
         : null;
 
@@ -970,6 +1145,26 @@ const HomeBudget = ({ session }) => {
     } catch (error) {
       setFehler("Kostenaufteilung konnte nicht geladen werden.");
     }
+  }, []);
+
+  const findeAllokierteBudgetPosten = useCallback(async (budgetPostenIds) => {
+    const ids = Array.from(new Set([...(Array.isArray(budgetPostenIds) ? budgetPostenIds : [budgetPostenIds])].filter(Boolean)));
+    if (ids.length === 0) return [];
+
+    const { data, error } = await supabase
+      .from("budget_split_groups")
+      .select("budget_posten_id, budget_split_shares(id, budget_settlement_allocations(id))")
+      .in("budget_posten_id", ids);
+
+    if (error) throw error;
+
+    return (data || [])
+      .filter((group) =>
+        (group.budget_split_shares || []).some(
+          (share) => Array.isArray(share.budget_settlement_allocations) && share.budget_settlement_allocations.length > 0,
+        ),
+      )
+      .map((group) => group.budget_posten_id);
   }, []);
 
   const frageSplitLoeschWarnung = useCallback(async (budgetPostenIds) => {
@@ -1024,16 +1219,36 @@ const HomeBudget = ({ session }) => {
         }
 
         if (splitRelevantGeaendert || splitConfig?.aktiv || modal.originalSplit?.aktiv) {
-          await aktualisiereSplit(modal.id, splitConfig);
+          const splitOk = await aktualisiereSplit(modal.id, splitConfig);
+          if (!splitOk) {
+            setFehler("Kostenaufteilung konnte nicht aktualisiert werden.");
+            return;
+          }
         }
       } else {
-        const { data: neuerPosten, error: insertError } = await supabase
-          .from("budget_posten")
-          .insert(payload)
-          .select("id")
-          .single();
-        if (insertError) throw insertError;
-        await aktualisiereSplit(neuerPosten.id, splitConfig);
+        // Create-Pfad: budget_posten + Split — mit Partial-Save-Schutz
+        try {
+          const { data: neuerPosten, error: insertError } = await supabase
+            .from("budget_posten")
+            .insert(payload)
+            .select("id")
+            .single();
+          if (insertError || !neuerPosten) {
+            setFehler("Buchung konnte nicht gespeichert werden.");
+            return;
+          }
+
+          const splitOk = await aktualisiereSplit(neuerPosten.id, splitConfig);
+          if (!splitOk) {
+            // budget_posten schon gespeichert — Modal auf Edit-Modus umschalten
+            setModal(prev => ({ ...prev, id: neuerPosten.id }));
+            setFehler("Buchung gespeichert, Kostenaufteilung konnte nicht angelegt werden.");
+            return;
+          }
+        } catch (err) {
+          setFehler("Unerwarteter Fehler beim Speichern. Bitte prüfen.");
+          return;
+        }
       }
       setModal(null);
       await ladeDaten();
@@ -1051,12 +1266,27 @@ const HomeBudget = ({ session }) => {
     if (eintrag.wiederholen) {
       const { data: occurrences } = await supabase
         .from("budget_posten").select("id").eq("ursprung_template_id", id);
+      const occurrenceIds = [id, ...(occurrences || []).map((entry) => entry.id)];
+      const allokierteIds = await findeAllokierteBudgetPosten(occurrenceIds);
       const anzahl = (occurrences || []).length;
-      const msg = anzahl > 0
-        ? `Wiederkehrende Zahlung und ${anzahl} zugehörige Buchung${anzahl !== 1 ? "en" : ""} löschen?`
-        : "Wiederkehrende Zahlung löschen?";
+      const hatAllocierteHistorie = allokierteIds.length > 0;
+      const msg = hatAllocierteHistorie
+        ? "Diese wiederkehrende Zahlung hat bereits allokierte Historie. Die Serie wird nur für die Zukunft gestoppt."
+        : anzahl > 0
+            ? `Wiederkehrende Zahlung und ${anzahl} zugehörige Buchung${anzahl !== 1 ? "en" : ""} löschen?`
+            : "Wiederkehrende Zahlung löschen?";
       if (!window.confirm(msg)) return;
-      if (!(await frageSplitLoeschWarnung([id, ...(occurrences || []).map((entry) => entry.id)]))) return;
+      if (hatAllocierteHistorie) {
+        const { error: stopErr } = await supabase
+          .from("budget_posten")
+          .update({ wiederholen: false, naechstes_datum: null })
+          .eq("id", id);
+        if (stopErr) throw stopErr;
+        await ladeDaten();
+        await ladeSplitDaten();
+        return;
+      }
+      if (!(await frageSplitLoeschWarnung(occurrenceIds))) return;
       if (anzahl > 0) {
         await supabase.from("budget_posten").delete().eq("ursprung_template_id", id);
       }
@@ -1068,6 +1298,11 @@ const HomeBudget = ({ session }) => {
 
     const verknuepfteRechnungen = budgetRechnungMap[id] || [];
     if (verknuepfteRechnungen.length === 0) {
+      const allokierteIds = await findeAllokierteBudgetPosten([id]);
+      if (allokierteIds.length > 0) {
+        setFehler("Diese Budget-Buchung hat bereits allokierte Ausgleiche und kann nicht gelöscht werden.");
+        return;
+      }
       if (!(await frageSplitLoeschWarnung(id))) return;
       if (!window.confirm("Eintrag löschen?")) return;
       await supabase.from("budget_posten").delete().eq("id", id);
@@ -1084,6 +1319,10 @@ const HomeBudget = ({ session }) => {
     setLoeschenLaeuft(true);
     try {
       const budgetId = rechnungsLoeschDialog.eintrag.id;
+      const allokierteIds = await findeAllokierteBudgetPosten([budgetId]);
+      if (allokierteIds.length > 0) {
+        throw new Error("Diese Budget-Buchung hat bereits allokierte Ausgleiche und kann nicht entfernt werden.");
+      }
       if (!(await frageSplitLoeschWarnung(budgetId))) return;
       const { error: budgetErr } = await supabase.from("budget_posten").delete().eq("id", budgetId);
       if (budgetErr) throw budgetErr;
@@ -1121,6 +1360,10 @@ const HomeBudget = ({ session }) => {
         if (linksError) throw linksError;
 
         const budgetIds = Array.from(new Set((links || []).map((entry) => entry.entity_id).filter(Boolean)));
+        const allokierteIds = await findeAllokierteBudgetPosten(budgetIds);
+        if (allokierteIds.length > 0) {
+          throw new Error("Mindestens eine verknüpfte Budget-Buchung hat bereits allokierte Ausgleiche und kann nicht komplett gelöscht werden.");
+        }
         if (!(await frageSplitLoeschWarnung(budgetIds))) return;
       }
       for (const dokumentId of dokumentIds) {
@@ -1417,7 +1660,7 @@ const HomeBudget = ({ session }) => {
     bewohnerFilter && bewohnerById[bewohnerFilter]
       ? {
           id: "person",
-          label: `Person: ${bewohnerById[bewohnerFilter].name}`,
+          label: `Person: ${getBewohnerDisplayName(bewohnerById[bewohnerFilter])}`,
           onRemove: () => setBewohnerFilter(""),
         }
       : null,
@@ -2090,7 +2333,7 @@ const HomeBudget = ({ session }) => {
                     }`}
                     style={bewohnerFilter === b.id ? { backgroundColor: b.farbe } : {}}
                   >
-                    {b.emoji} {b.name}
+                    {b.emoji} {getBewohnerDisplayName(b)}
                   </button>
                 ))}
               </div>
@@ -2196,6 +2439,10 @@ const HomeBudget = ({ session }) => {
             bewohner={bewohner}
             householdId={budgetViewHouseholdId}
             onDataChanged={ladeSplitDaten}
+          />
+          <BudgetSplitDefaults
+            householdId={budgetViewHouseholdId}
+            bewohner={bewohner}
           />
         </div>
       )}
@@ -2367,6 +2614,7 @@ const HomeBudget = ({ session }) => {
           <BudgetForm
             initial={modal.id ? modal : null}
             initialSplit={modal.initialSplit || null}
+            householdId={budgetViewHouseholdId}
             onSpeichern={speichere}
             onAbbrechen={() => setModal(null)}
             bewohner={bewohner}
@@ -2485,7 +2733,11 @@ const HomeBudget = ({ session }) => {
                 setKontenFormDaten(null);
                 setFehler(null);
 
-                supabase.from("home_finanzkonten").select("*").eq("user_id", userId).order("sortierung")
+                supabase
+                  .from("home_finanzkonten")
+                  .select("id, name, konto_typ, inhaber_typ, inhaber_bewohner_id, aktiv, sortierung, farbe")
+                  .eq("household_id", householdId)
+                  .order("sortierung")
                   .then(({ data }) => { if (data) setFinanzkonten(data); });
               } catch (error) {
                 setFehler(`Konto konnte nicht gespeichert werden: ${error.message}`);
@@ -2521,7 +2773,7 @@ const HomeBudget = ({ session }) => {
             for (const item of items) {
               const normalize = (value) => String(value || "").trim().toLowerCase();
               const resolvedBewohner = item.bewohner_name
-                ? bewohner.find((eintrag) => normalize(eintrag.name) === normalize(item.bewohner_name)) || null
+                ? bewohner.find((eintrag) => normalize(getBewohnerDisplayName(eintrag)) === normalize(item.bewohner_name)) || null
                 : null;
               const resolvedScope =
                 item.budget_scope === "haushalt" || item.budget_scope === "privat"
@@ -2571,4 +2823,3 @@ const HomeBudget = ({ session }) => {
 };
 
 export default HomeBudget;
-

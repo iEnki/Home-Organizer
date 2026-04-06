@@ -1,5 +1,6 @@
 import React from "react";
 import { ChevronRight, Plus } from "lucide-react";
+import { getBewohnerDisplayName } from "../../../utils/budgetAccounts";
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("de-AT", {
@@ -68,7 +69,11 @@ export default function BudgetAccountsSummaryCard({
                   </p>
                   <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
                     {konto.konto_typ}
-                    {inhaber ? ` · ${inhaber.name}` : konto.inhaber_typ === "household" ? " · Haushalt" : ""}
+                    {inhaber
+                      ? ` · ${getBewohnerDisplayName(inhaber)}`
+                      : konto.inhaber_typ === "household"
+                        ? " · Haushalt"
+                        : ""}
                   </p>
                 </div>
 

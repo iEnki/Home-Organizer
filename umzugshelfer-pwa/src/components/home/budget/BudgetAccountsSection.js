@@ -1,5 +1,6 @@
 import React from "react";
 import { ChevronRight, Plus } from "lucide-react";
+import { getBewohnerDisplayName } from "../../../utils/budgetAccounts";
 
 export default function BudgetAccountsSection({
   konten,
@@ -53,7 +54,7 @@ export default function BudgetAccountsSection({
                   </p>
                   <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
                     {konto.konto_typ}
-                    {inhaber ? ` · ${inhaber.name}` : ""}
+                    {inhaber ? ` · ${getBewohnerDisplayName(inhaber)}` : ""}
                   </p>
                 </div>
                 <ChevronRight size={15} className="flex-shrink-0 text-light-text-secondary dark:text-dark-text-secondary" />

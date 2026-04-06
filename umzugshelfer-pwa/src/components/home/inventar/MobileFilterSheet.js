@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
+import { getBewohnerDisplayName } from "../../../utils/budgetAccounts";
 
 const MobileFilterSheet = ({
   open,
@@ -89,7 +90,7 @@ const MobileFilterSheet = ({
                 <option value="">Alle Bewohner</option>
                 {bewohner.map((eintrag) => (
                   <option key={eintrag.id} value={eintrag.id}>
-                    {eintrag.emoji} {eintrag.name}
+                    {eintrag.emoji} {getBewohnerDisplayName(eintrag)}
                   </option>
                 ))}
               </select>

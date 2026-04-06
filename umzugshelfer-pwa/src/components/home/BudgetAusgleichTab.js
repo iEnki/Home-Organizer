@@ -1,13 +1,80 @@
-import React, { useMemo, useState } from "react";
-import { ArrowLeftRight, Info, Trash2 } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowLeftRight, Info, RefreshCw, Trash2 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
-import { berechneNettoSalden } from "../../utils/budgetSplits";
+import { getBewohnerDisplayName } from "../../utils/budgetAccounts";
+import { centsToEuro, buildOpenPairBalances, buildOpenSaldoMap, buildSettlementSuggestions } from "../../utils/budgetLedger";
 import { formatGermanCurrency } from "../../utils/formatUtils";
 
 const currency = (value) => `${formatGermanCurrency(value)} €`;
+const INPUT_CLS = "w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500";
+const todayIso = () => new Date().toISOString().slice(0, 10);
+const pairKey = (fromMemberId, toMemberId) => `${fromMemberId || ""}::${toMemberId || ""}`;
+const saldoAmountClass = (value) => {
+  if (value > 0) return "text-emerald-400 dark:text-emerald-300";
+  if (value < 0) return "text-rose-400 dark:text-rose-300";
+  return "text-light-text-main dark:text-dark-text-main";
+};
+const debtAmountClass = (value) => {
+  if (value > 0) return "text-rose-400 dark:text-rose-300";
+  return "text-light-text-main dark:text-dark-text-main";
+};
+const settledAmountClass = (value) => {
+  if (value > 0) return "text-emerald-400 dark:text-emerald-300";
+  if (value < 0) return "text-rose-400 dark:text-rose-300";
+  return "text-light-text-main dark:text-dark-text-main";
+};
+const summaryCardTone = (tone) => {
+  switch (tone) {
+    case "carry":
+      return "border-sky-500/25 bg-sky-500/8";
+    case "created":
+      return "border-amber-500/25 bg-amber-500/8";
+    case "settled":
+      return "border-emerald-500/25 bg-emerald-500/8";
+    case "open":
+      return "border-rose-500/25 bg-rose-500/8";
+    default:
+      return "border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1";
+  }
+};
+const formatIsoDate = (value) => {
+  if (!value) return "unbekannt";
+
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString("de-AT");
+};
+const currentMonthValue = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+};
+
+const loadMonthCloseDetails = async (householdId, monthValue) => {
+  if (!householdId || !monthValue) {
+    return { close: null, members: [] };
+  }
+
+  const monthDate = `${monthValue}-01`;
+  const { data: close, error: closeError } = await supabase
+    .from("budget_month_closes")
+    .select("*")
+    .eq("household_id", householdId)
+    .eq("month", monthDate)
+    .maybeSingle();
+
+  if (closeError) throw closeError;
+  if (!close?.id) return { close: null, members: [] };
+
+  const { data: members, error: membersError } = await supabase
+    .from("budget_month_close_members")
+    .select("*")
+    .eq("month_close_id", close.id)
+    .order("closing_balance_cents", { ascending: true });
+
+  if (membersError) throw membersError;
+  return { close, members: members || [] };
+};
 
 export default function BudgetAusgleichTab({
-  splitGroups = [],
   settlements = [],
   bewohner = [],
   householdId,
@@ -18,18 +85,138 @@ export default function BudgetAusgleichTab({
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [applyingShareId, setApplyingShareId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [fehler, setFehler] = useState(null);
+  const [ledgerRows, setLedgerRows] = useState([]);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [ledgerState, setLedgerState] = useState(null);
+  const [abschlussMonat, setAbschlussMonat] = useState(currentMonthValue);
+  const [monthClose, setMonthClose] = useState(null);
+  const [monthCloseMembers, setMonthCloseMembers] = useState([]);
+  const [closingMonth, setClosingMonth] = useState(false);
+  const [monthCloseLoading, setMonthCloseLoading] = useState(false);
+  const [expandedSuggestions, setExpandedSuggestions] = useState({});
+
+  const [filterMonat, setFilterMonat] = useState("");
+  const [filterMemberId, setFilterMemberId] = useState("");
 
   const bewohnerById = useMemo(
     () => Object.fromEntries((bewohner || []).map((eintrag) => [eintrag.id, eintrag])),
     [bewohner],
   );
 
-  const salden = useMemo(
-    () => berechneNettoSalden(splitGroups, settlements),
-    [settlements, splitGroups],
-  );
+  const loadLedgerState = useCallback(async () => {
+    if (!householdId) {
+      setLedgerState(null);
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from("budget_ledger_state")
+      .select("*")
+      .eq("household_id", householdId)
+      .maybeSingle();
+
+    if (error) throw error;
+    setLedgerState(data || null);
+    return data || null;
+  }, [householdId]);
+
+  const loadLedgerRows = useCallback(async () => {
+    if (!householdId) {
+      setLedgerRows([]);
+      return [];
+    }
+
+    setLedgerLoading(true);
+    try {
+      const { data, error } = await supabase.rpc("get_budget_open_split_ledger", {
+        p_household_id: householdId,
+        p_as_of_date: todayIso(),
+      });
+      if (error) throw error;
+      setLedgerRows(data || []);
+      return data || [];
+    } finally {
+      setLedgerLoading(false);
+    }
+  }, [householdId]);
+
+  const loadMonthClose = useCallback(async () => {
+    if (!householdId) {
+      setMonthClose(null);
+      setMonthCloseMembers([]);
+      return;
+    }
+
+    setMonthCloseLoading(true);
+    try {
+      const { close, members } = await loadMonthCloseDetails(householdId, abschlussMonat);
+      setMonthClose(close);
+      setMonthCloseMembers(members);
+    } finally {
+      setMonthCloseLoading(false);
+    }
+  }, [abschlussMonat, householdId]);
+
+  const refreshAll = useCallback(async () => {
+    await Promise.all([
+      loadLedgerState().catch(() => null),
+      loadLedgerRows(),
+      loadMonthClose(),
+      onDataChanged?.(),
+    ]);
+  }, [loadLedgerRows, loadLedgerState, loadMonthClose, onDataChanged]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      try {
+        await Promise.all([loadLedgerState(), loadLedgerRows(), loadMonthClose()]);
+      } catch (error) {
+        if (!cancelled) {
+          setFehler(`Open-Item-Daten konnten nicht geladen werden: ${error.message}`);
+        }
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadLedgerRows, loadLedgerState, loadMonthClose]);
+
+  const pairBalances = useMemo(() => buildOpenPairBalances(ledgerRows), [ledgerRows]);
+  const salden = useMemo(() => buildOpenSaldoMap(ledgerRows), [ledgerRows]);
+  const suggestions = useMemo(() => buildSettlementSuggestions(ledgerRows), [ledgerRows]);
+  const ledgerRowsByPair = useMemo(() => {
+    const groups = new Map();
+
+    (ledgerRows || []).forEach((row) => {
+      const cents = Number(row?.open_amount_cents || 0);
+      if (cents <= 0 || !row?.from_member_id || !row?.to_member_id) return;
+
+      const key = pairKey(row.from_member_id, row.to_member_id);
+      const rows = groups.get(key) || [];
+      rows.push(row);
+      groups.set(key, rows);
+    });
+
+    groups.forEach((rows, key) => {
+      groups.set(
+        key,
+        [...rows].sort((left, right) =>
+          `${left.origin_date || ""}${left.beschreibung || ""}${left.share_id || ""}`.localeCompare(
+            `${right.origin_date || ""}${right.beschreibung || ""}${right.share_id || ""}`,
+          ),
+        ),
+      );
+    });
+
+    return groups;
+  }, [ledgerRows]);
 
   const saldoRows = useMemo(
     () =>
@@ -42,21 +229,60 @@ export default function BudgetAusgleichTab({
     [bewohner, salden],
   );
 
+  const gefilterteSettlements = useMemo(() => (settlements || []).filter((settlement) => {
+    if (filterMonat && !settlement.date?.startsWith(filterMonat)) return false;
+    if (filterMemberId && settlement.from_member_id !== filterMemberId && settlement.to_member_id !== filterMemberId) return false;
+    return true;
+  }), [filterMemberId, filterMonat, settlements]);
+
   const historyRows = useMemo(
     () =>
-      [...(settlements || [])].sort((left, right) =>
+      [...(gefilterteSettlements || [])].sort((left, right) =>
         `${right.date || ""}${right.created_at || ""}`.localeCompare(
           `${left.date || ""}${left.created_at || ""}`,
         ),
       ),
-    [settlements],
+    [gefilterteSettlements],
   );
 
-  const fromSaldo = Number(salden[fromMemberId] || 0);
-  const warnungKeinNegativSaldo = Boolean(fromMemberId) && fromSaldo >= 0;
+  const ausgewaehltePaarSchuld = useMemo(
+    () => pairBalances.find((row) => row.from_member_id === fromMemberId && row.to_member_id === toMemberId) || null,
+    [fromMemberId, pairBalances, toMemberId],
+  );
+
+  const offenePaarSchuldEuro = centsToEuro(ausgewaehltePaarSchuld?.open_amount_cents || 0);
+  const numericAmount = Number.parseFloat(amount);
+  const migrationBlocked = ledgerState?.migration_status === "blocked";
+  const staleFromMonth = ledgerState?.stale_from_month || null;
+  const selectedMonthDate = `${abschlussMonat}-01`;
+  const selectedMonthIsStale = Boolean(
+    monthClose?.is_stale || (staleFromMonth && selectedMonthDate >= staleFromMonth),
+  );
+  const toggleSuggestionDetails = useCallback((suggestionKey) => {
+    setExpandedSuggestions((current) => ({
+      ...current,
+      [suggestionKey]: !current[suggestionKey],
+    }));
+  }, []);
+
+  const saveSettlement = useCallback(async ({
+    fromMemberId: nextFromMemberId,
+    toMemberId: nextToMemberId,
+    amountEuro,
+    noteText = "",
+  }) => {
+    const { error } = await supabase.rpc("create_budget_settlement_with_allocations", {
+      p_household_id: householdId,
+      p_from_member_id: nextFromMemberId,
+      p_to_member_id: nextToMemberId,
+      p_amount: amountEuro,
+      p_date: todayIso(),
+      p_note: noteText || null,
+    });
+    if (error) throw error;
+  }, [householdId]);
 
   const handleSave = async () => {
-    const numericAmount = Number.parseFloat(amount);
     if (!householdId) {
       setFehler("Aktiver Haushalt konnte nicht bestimmt werden.");
       return;
@@ -73,36 +299,31 @@ export default function BudgetAusgleichTab({
       setFehler("Bitte einen gültigen Betrag eingeben.");
       return;
     }
+    if (numericAmount - offenePaarSchuldEuro > 0.0001) {
+      setFehler("Der Betrag übersteigt den offenen Ausgleich dieses Paars.");
+      return;
+    }
 
     setSaving(true);
     setFehler(null);
     try {
-      const { error } = await supabase.from("budget_settlements").insert({
-        household_id: householdId,
-        from_member_id: fromMemberId,
-        to_member_id: toMemberId,
-        amount: numericAmount,
-        date: new Date().toISOString().slice(0, 10),
-        note: note.trim() || null,
+      await saveSettlement({
+        fromMemberId,
+        toMemberId,
+        amountEuro: numericAmount,
+        noteText: note.trim(),
       });
-      if (error) throw error;
 
       setFromMemberId("");
       setToMemberId("");
       setAmount("");
       setNote("");
-      await onDataChanged?.();
+      await refreshAll();
     } catch (error) {
       setFehler(`Ausgleich konnte nicht gespeichert werden: ${error.message}`);
     } finally {
       setSaving(false);
     }
-  };
-
-  const handleSwap = () => {
-    setFromMemberId(toMemberId);
-    setToMemberId(fromMemberId);
-    setFehler(null);
   };
 
   const handleDeleteSettlement = async (settlementId) => {
@@ -112,13 +333,12 @@ export default function BudgetAusgleichTab({
     setDeletingId(settlementId);
     setFehler(null);
     try {
-      const { error } = await supabase
-        .from("budget_settlements")
-        .delete()
-        .eq("id", settlementId);
+      const { error } = await supabase.rpc("delete_budget_settlement", {
+        p_settlement_id: settlementId,
+      });
       if (error) throw error;
 
-      await onDataChanged?.();
+      await refreshAll();
     } catch (error) {
       setFehler(`Ausgleich konnte nicht gelöscht werden: ${error.message}`);
     } finally {
@@ -126,39 +346,151 @@ export default function BudgetAusgleichTab({
     }
   };
 
+  const handleApplySuggestion = async (suggestion) => {
+    if (!suggestion?.open_amount_cents || saving) return;
+
+    setSaving(true);
+    setFehler(null);
+    try {
+      await saveSettlement({
+        fromMemberId: suggestion.from_member_id,
+        toMemberId: suggestion.to_member_id,
+        amountEuro: centsToEuro(suggestion.open_amount_cents),
+        noteText: "Vorschlag übernommen",
+      });
+      await refreshAll();
+    } catch (error) {
+      setFehler(`Vorschlag konnte nicht übernommen werden: ${error.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleApplyAllSuggestions = async () => {
+    if (!suggestions.length || saving) return;
+
+    setSaving(true);
+    setFehler(null);
+    try {
+      for (const suggestion of suggestions) {
+        // eslint-disable-next-line no-await-in-loop
+        await saveSettlement({
+          fromMemberId: suggestion.from_member_id,
+          toMemberId: suggestion.to_member_id,
+          amountEuro: centsToEuro(suggestion.open_amount_cents),
+          noteText: "Alle Vorschläge übernommen",
+        });
+      }
+      await refreshAll();
+    } catch (error) {
+      setFehler(`Vorschläge konnten nicht vollständig übernommen werden: ${error.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleApplyShareSuggestion = async (row) => {
+    if (!row?.share_id || applyingShareId || saving) return;
+
+    setApplyingShareId(row.share_id);
+    setFehler(null);
+    try {
+      const { error } = await supabase.rpc("create_budget_settlement_for_split_share", {
+        p_household_id: householdId,
+        p_split_share_id: row.share_id,
+        p_amount: centsToEuro(row.open_amount_cents),
+        p_date: todayIso(),
+        p_note: row.beschreibung ? `Einzelposten übernommen: ${row.beschreibung}` : "Einzelposten übernommen",
+      });
+      if (error) throw error;
+
+      await refreshAll();
+    } catch (error) {
+      setFehler(`Einzelposten konnte nicht übernommen werden: ${error.message}`);
+    } finally {
+      setApplyingShareId(null);
+    }
+  };
+
+  const handleCloseMonth = async () => {
+    if (!householdId || !abschlussMonat) return;
+
+    setClosingMonth(true);
+    setFehler(null);
+    try {
+      const { error } = await supabase.rpc("close_budget_month", {
+        p_household_id: householdId,
+        p_month: `${abschlussMonat}-01`,
+      });
+      if (error) throw error;
+      await Promise.all([loadMonthClose(), loadLedgerState()]);
+    } catch (error) {
+      setFehler(`Monatsabschluss konnte nicht berechnet werden: ${error.message}`);
+    } finally {
+      setClosingMonth(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
+      {fehler && (
+        <div className="rounded-card-sm border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400">
+          {fehler}
+        </div>
+      )}
+
+      {migrationBlocked && (
+        <div className="rounded-card-sm border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-sm text-amber-700 dark:text-amber-300">
+          Die historische Settlement-Migration ist blockiert. Offene Ausgleiche sind erst wieder verfügbar, wenn die Alt-Daten bereinigt wurden.
+          {ledgerState?.migration_error ? ` ${ledgerState.migration_error}` : ""}
+        </div>
+      )}
+
+      <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 p-4">
+        <div className="flex flex-wrap gap-3 items-end">
+          <div>
+            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Monat</label>
+            <input type="month" value={filterMonat} onChange={(event) => setFilterMonat(event.target.value)} className={INPUT_CLS} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Bewohner</label>
+            <select value={filterMemberId} onChange={(event) => setFilterMemberId(event.target.value)} className={INPUT_CLS}>
+              <option value="">Alle</option>
+              {bewohner.map((eintrag) => (
+                <option key={eintrag.id} value={eintrag.id}>
+                  {eintrag.emoji} {getBewohnerDisplayName(eintrag)}
+                </option>
+              ))}
+            </select>
+          </div>
+          {(filterMonat || filterMemberId) && (
+            <button onClick={() => { setFilterMonat(""); setFilterMemberId(""); }} className="text-sm text-primary-500 hover:underline pb-2">
+              Filter zurücksetzen
+            </button>
+          )}
+        </div>
+      </div>
+
       <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2">
         <div className="flex items-center justify-between gap-3 p-4 border-b border-light-border dark:border-dark-border">
-          <div className="min-w-0">
-            <p className="text-xs uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-              Ausgleich
-            </p>
-            <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
-              Nettosalden im Haushalt
-            </h3>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">Ausgleich</p>
+            <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">Offene Nettosalden im Haushalt</h3>
           </div>
           <ArrowLeftRight size={18} className="text-primary-500" />
         </div>
         <div className="p-4 space-y-3">
-          {saldoRows.length === 0 ? (
-            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-              Noch keine Bewohner oder Kostenaufteilungen vorhanden.
-            </p>
+          {ledgerLoading ? (
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Open-Item-Ledger wird geladen…</p>
+          ) : saldoRows.length === 0 ? (
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Noch keine offenen Kostenaufteilungen vorhanden.</p>
           ) : (
             saldoRows.map((row) => (
-              <div
-                key={row.id}
-                className="flex items-center justify-between gap-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-2"
-              >
+              <div key={row.id} className="flex items-center justify-between gap-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-2">
                 <span className="text-sm text-light-text-main dark:text-dark-text-main">
-                  {row.emoji} {row.name}
+                  {row.emoji} {getBewohnerDisplayName(row)}
                 </span>
-                <span
-                  className={`text-sm font-medium tabular-nums ${
-                    row.saldo > 0 ? "text-green-500" : row.saldo < 0 ? "text-red-500" : "text-light-text-secondary dark:text-dark-text-secondary"
-                  }`}
-                >
+                <span className={`text-sm font-semibold tabular-nums ${saldoAmountClass(row.saldo)}`}>
                   {row.saldo > 0 ? "+" : row.saldo < 0 ? "−" : ""}
                   {currency(Math.abs(row.saldo))}
                 </span>
@@ -169,156 +501,258 @@ export default function BudgetAusgleichTab({
       </div>
 
       <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2">
-        <div className="p-4 border-b border-light-border dark:border-dark-border">
-          <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
-            Ausgleich erfassen
-          </h3>
+        <div className="flex items-center justify-between gap-3 p-4 border-b border-light-border dark:border-dark-border">
+          <div>
+            <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">Offene Ausgleichsvorschläge</h3>
+            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Brutto pro Schuldner-/Empfänger-Richtung, allocation-sicher aus dem Open-Item-Ledger</p>
+          </div>
+          {suggestions.length > 1 && (
+            <button onClick={handleApplyAllSuggestions} disabled={saving || migrationBlocked} className="px-3 py-1.5 rounded-card-sm bg-primary-500 text-white text-sm disabled:opacity-60">
+              Alle übernehmen
+            </button>
+          )}
         </div>
         <div className="p-4 space-y-3">
-          {fehler && (
-            <div className="rounded-card-sm border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400">
-              {fehler}
-            </div>
+          {!suggestions.length ? (
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Aktuell gibt es keine offenen Paar-Schulden.</p>
+          ) : (
+            <>
+              <div className="rounded-card-sm border border-primary-500/20 bg-primary-500/5 px-3 py-2 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                Jeder Vorschlag basiert auf offenen Split-Positionen je Richtungspaar. Gegenläufige Forderungen zwischen denselben zwei Bewohnern werden hier getrennt angezeigt, im Monatsabschluss und bei den Nettosalden aber miteinander verrechnet.
+              </div>
+              {suggestions.map((suggestion) => {
+                const suggestionKey = pairKey(suggestion.from_member_id, suggestion.to_member_id);
+                const detailRows = ledgerRowsByPair.get(suggestionKey) || [];
+                const isExpanded = Boolean(expandedSuggestions[suggestionKey]);
+
+                return (
+              <div key={suggestion.id} className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1">
+                <div className="flex flex-col gap-3 px-3 py-3 md:flex-row md:items-center md:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">
+                    {bewohnerById[suggestion.from_member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[suggestion.from_member_id] || { name: "Unbekannt" })} → {bewohnerById[suggestion.to_member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[suggestion.to_member_id] || { name: "Unbekannt" })}
+                  </p>
+                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                    Offen seit {formatIsoDate(suggestion.oldest_origin_date)} · {suggestion.share_count} Position{suggestion.share_count === 1 ? "" : "en"}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className={`text-base font-semibold tabular-nums ${debtAmountClass(centsToEuro(suggestion.open_amount_cents))}`}>
+                    {currency(centsToEuro(suggestion.open_amount_cents))}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSuggestionDetails(suggestionKey)}
+                    className="px-3 py-1.5 rounded-card-sm border border-light-border dark:border-dark-border text-sm text-light-text-main dark:text-dark-text-main hover:border-primary-500"
+                  >
+                    {isExpanded ? "Details ausblenden" : "Details anzeigen"}
+                  </button>
+                  <button onClick={() => handleApplySuggestion(suggestion)} disabled={saving || migrationBlocked} className="px-3 py-1.5 rounded-card-sm border border-primary-500 text-primary-500 text-sm disabled:opacity-60">
+                    Übernehmen
+                  </button>
+                </div>
+                </div>
+                {isExpanded && (
+                  <div className="border-t border-light-border dark:border-dark-border px-3 py-3">
+                    {!detailRows.length ? (
+                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                        Keine Detailpositionen gefunden. Bitte Ledger neu laden.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {detailRows.map((row) => (
+                          <div key={row.share_id} className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 px-3 py-2">
+                            <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                              <div className="min-w-0">
+                                <p className="text-sm text-light-text-main dark:text-dark-text-main">
+                                  {row.beschreibung || "Ohne Beschreibung"}
+                                </p>
+                                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                                  {formatIsoDate(row.origin_date)} · Offen seit {row.age_days} Tag{Number(row.age_days) === 1 ? "" : "en"}
+                                </p>
+                              </div>
+                              <div className="text-left md:text-right">
+                                <p className={`text-base font-semibold tabular-nums ${debtAmountClass(centsToEuro(row.open_amount_cents))}`}>
+                                  Offen: {currency(centsToEuro(row.open_amount_cents))}
+                                </p>
+                                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                                  Anteil <span className="text-amber-300 dark:text-amber-200">{currency(centsToEuro(row.amount_owed_cents))}</span> · Bereits zugeordnet <span className="text-emerald-400 dark:text-emerald-300">{currency(centsToEuro(row.allocated_cents))}</span>
+                                </p>
+                                <div className="mt-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleApplyShareSuggestion(row)}
+                                    disabled={saving || Boolean(applyingShareId) || migrationBlocked}
+                                    className="px-3 py-1.5 rounded-card-sm border border-primary-500 text-primary-500 text-sm disabled:opacity-60"
+                                  >
+                                    {applyingShareId === row.share_id ? "Wird übernommen..." : "Diesen Posten übernehmen"}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        <div className="flex items-center justify-between rounded-card-sm border border-dashed border-light-border dark:border-dark-border px-3 py-2 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                          <span>Summe dieses Vorschlags</span>
+                          <span className={`text-sm font-semibold tabular-nums ${debtAmountClass(centsToEuro(suggestion.open_amount_cents))}`}>
+                            {currency(centsToEuro(suggestion.open_amount_cents))}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+                );
+              })}
+            </>
           )}
-
-          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-end">
-            <div>
-              <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-                Zahlt
-              </label>
-              <select
-                value={fromMemberId}
-                onChange={(event) => setFromMemberId(event.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main"
-              >
-                <option value="">Bewohner wählen</option>
-                {bewohner.map((eintrag) => (
-                  <option key={eintrag.id} value={eintrag.id}>
-                    {eintrag.emoji} {eintrag.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex md:justify-center">
-              <button
-                type="button"
-                onClick={handleSwap}
-                disabled={!fromMemberId && !toMemberId}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main hover:border-primary-500/50 hover:text-primary-500 disabled:opacity-50"
-                aria-label="Zahler und Empfänger tauschen"
-                title="Zahler und Empfänger tauschen"
-              >
-                <ArrowLeftRight size={16} />
-              </button>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-                Empfänger
-              </label>
-              <select
-                value={toMemberId}
-                onChange={(event) => setToMemberId(event.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main"
-              >
-                <option value="">Bewohner wählen</option>
-                {bewohner.map((eintrag) => (
-                  <option key={eintrag.id} value={eintrag.id}>
-                    {eintrag.emoji} {eintrag.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-[160px_1fr]">
-            <div>
-              <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-                Betrag (€)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={amount}
-                onChange={(event) => setAmount(event.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main"
-                placeholder="0,00"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-                Notiz
-              </label>
-              <input
-                type="text"
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main"
-                placeholder="Optional"
-              />
-            </div>
-          </div>
-
-          {warnungKeinNegativSaldo && (
-            <div className="rounded-card-sm border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
-              <Info size={14} className="mt-0.5 flex-shrink-0" />
-              <span>
-                Der ausgewählte Zahler hat aktuell keinen negativen Saldo. Der Ausgleich ist trotzdem möglich.
-              </span>
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="inline-flex items-center justify-center rounded-pill bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
-          >
-            {saving ? "Speichere..." : "Ausgleich speichern"}
-          </button>
         </div>
       </div>
 
       <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2">
         <div className="p-4 border-b border-light-border dark:border-dark-border">
-          <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
-            Historie
-          </h3>
+          <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">Ausgleich erfassen</h3>
         </div>
-        <div className="p-4 space-y-2">
-          {historyRows.length === 0 ? (
-            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-              Noch keine Ausgleichsbuchungen vorhanden.
-            </p>
+        <div className="p-4 space-y-3">
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <div>
+              <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Zahlt</label>
+              <select value={fromMemberId} onChange={(event) => setFromMemberId(event.target.value)} className={INPUT_CLS}>
+                <option value="">Bewohner wählen</option>
+                {bewohner.map((eintrag) => (
+                  <option key={eintrag.id} value={eintrag.id}>
+                    {eintrag.emoji} {getBewohnerDisplayName(eintrag)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Empfänger</label>
+              <select value={toMemberId} onChange={(event) => setToMemberId(event.target.value)} className={INPUT_CLS}>
+                <option value="">Bewohner wählen</option>
+                {bewohner.map((eintrag) => (
+                  <option key={eintrag.id} value={eintrag.id}>
+                    {eintrag.emoji} {getBewohnerDisplayName(eintrag)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-[220px_minmax(0,1fr)]">
+            <div>
+              <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Betrag (€)</label>
+              <input type="number" step="0.01" min="0" value={amount} onChange={(event) => setAmount(event.target.value)} className={INPUT_CLS} placeholder="0,00" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Notiz</label>
+              <input value={note} onChange={(event) => setNote(event.target.value)} className={INPUT_CLS} placeholder="Optional" />
+            </div>
+          </div>
+
+          <div className={`rounded-card-sm border px-3 py-2 text-sm ${offenePaarSchuldEuro > 0 ? "border-rose-500/25 bg-rose-500/8" : "border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1"}`}>
+            <span className="text-light-text-secondary dark:text-dark-text-secondary">Offener Paar-Saldo: </span>
+            <span className={`font-semibold tabular-nums ${debtAmountClass(offenePaarSchuldEuro)}`}>{currency(offenePaarSchuldEuro)}</span>
+          </div>
+
+          {fromMemberId && toMemberId && offenePaarSchuldEuro <= 0 && (
+            <div className="rounded-card-sm border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300 flex items-start gap-2">
+              <Info size={16} className="mt-0.5 flex-shrink-0" />
+              Für dieses Paar besteht aktuell keine offene Schuld.
+            </div>
+          )}
+
+          <button onClick={handleSave} disabled={saving || migrationBlocked} className="px-4 py-2 rounded-card-sm bg-primary-500 text-white text-sm disabled:opacity-60">
+            Ausgleich speichern
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2">
+        <div className="flex items-center justify-between gap-3 p-4 border-b border-light-border dark:border-dark-border">
+          <div>
+            <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">Monatsabschluss</h3>
+            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Netto-Snapshot der offenen Salden pro Monat</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input type="month" value={abschlussMonat} onChange={(event) => setAbschlussMonat(event.target.value)} className={INPUT_CLS} />
+            <button onClick={handleCloseMonth} disabled={closingMonth || migrationBlocked} className="px-3 py-1.5 rounded-card-sm bg-primary-500 text-white text-sm disabled:opacity-60">
+              {selectedMonthIsStale || !monthClose ? "Neu berechnen" : "Aktualisieren"}
+            </button>
+          </div>
+        </div>
+        <div className="p-4 space-y-3">
+          {monthCloseLoading ? (
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Monatsabschluss wird geladen…</p>
+          ) : !monthClose ? (
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Für diesen Monat existiert noch kein Abschluss.</p>
           ) : (
-            historyRows.map((entry) => (
-              <div
-                key={entry.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-2"
-              >
+            <>
+              <div className={`rounded-card-sm border px-3 py-2 text-sm ${selectedMonthIsStale ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300" : "border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main"}`}>
+                {selectedMonthIsStale ? "Dieser Monatsabschluss ist veraltet und sollte neu berechnet werden." : `Berechnet am ${new Date(monthClose.calculated_at).toLocaleString("de-AT")}`}
+              </div>
+              <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-2 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                Der Monatsabschluss zeigt Netto-Salden. Gegenseitige Forderungen zwischen denselben Bewohnern werden gegeneinander saldiert.
+              </div>
+              <div className="grid gap-3 md:grid-cols-4">
+                <div className={`rounded-card-sm border px-3 py-3 ${summaryCardTone("carry")}`}>
+                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Offen aus Vormonat</p>
+                  <p className="text-lg font-semibold tabular-nums text-sky-300 dark:text-sky-200">{currency(centsToEuro(monthClose.opening_total_cents))}</p>
+                </div>
+                <div className={`rounded-card-sm border px-3 py-3 ${summaryCardTone("created")}`}>
+                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Neu im Monat</p>
+                  <p className="text-lg font-semibold tabular-nums text-amber-300 dark:text-amber-200">{currency(centsToEuro(monthClose.created_total_cents))}</p>
+                </div>
+                <div className={`rounded-card-sm border px-3 py-3 ${summaryCardTone("settled")}`}>
+                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Bereits beglichen</p>
+                  <p className="text-lg font-semibold tabular-nums text-emerald-400 dark:text-emerald-300">{currency(centsToEuro(monthClose.settled_total_cents))}</p>
+                </div>
+                <div className={`rounded-card-sm border px-3 py-3 ${summaryCardTone("open")}`}>
+                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Rest offen</p>
+                  <p className={`text-lg font-semibold tabular-nums ${debtAmountClass(centsToEuro(monthClose.closing_total_cents))}`}>{currency(centsToEuro(monthClose.closing_total_cents))}</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {monthCloseMembers.map((row) => (
+                  <div key={row.id} className="grid gap-2 rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-3 md:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))]">
+                    <div className="text-sm font-medium text-light-text-main dark:text-dark-text-main">
+                      {bewohnerById[row.member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[row.member_id] || { name: "Unbekannt" })}
+                    </div>
+                    <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Vormonat: <span className="font-medium tabular-nums text-sky-300 dark:text-sky-200">{currency(centsToEuro(row.opening_balance_cents))}</span></div>
+                    <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Neu: <span className={`font-medium tabular-nums ${saldoAmountClass(centsToEuro(row.created_in_month_cents))}`}>{currency(centsToEuro(row.created_in_month_cents))}</span></div>
+                    <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Beglichen: <span className={`font-medium tabular-nums ${settledAmountClass(centsToEuro(row.settled_in_month_cents))}`}>{currency(centsToEuro(row.settled_in_month_cents))}</span></div>
+                    <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Offen: <span className={`font-semibold tabular-nums ${saldoAmountClass(centsToEuro(row.closing_balance_cents))}`}>{currency(centsToEuro(row.closing_balance_cents))}</span></div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2">
+        <div className="p-4 border-b border-light-border dark:border-dark-border">
+          <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">Historie</h3>
+        </div>
+        <div className="p-4 space-y-3">
+          {!historyRows.length ? (
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Noch keine Ausgleichsbuchungen vorhanden.</p>
+          ) : (
+            historyRows.map((row) => (
+              <div key={row.id} className="flex items-center justify-between gap-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-3">
                 <div className="min-w-0">
                   <p className="text-sm text-light-text-main dark:text-dark-text-main">
-                    {bewohnerById[entry.from_member_id]?.emoji} {bewohnerById[entry.from_member_id]?.name || "Bewohner"} →{" "}
-                    {bewohnerById[entry.to_member_id]?.emoji} {bewohnerById[entry.to_member_id]?.name || "Bewohner"}
+                    {bewohnerById[row.from_member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[row.from_member_id] || { name: "Unbekannt" })} → {bewohnerById[row.to_member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[row.to_member_id] || { name: "Unbekannt" })}
                   </p>
                   <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                    {entry.date}
-                    {entry.note ? ` · ${entry.note}` : ""}
+                    {row.date} {row.note ? `· ${row.note}` : ""}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-sm font-medium tabular-nums text-light-text-main dark:text-dark-text-main">
-                    {currency(entry.amount)}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteSettlement(entry.id)}
-                    disabled={deletingId === entry.id}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-red-500/20 text-red-500 hover:bg-red-500/10 disabled:opacity-50"
-                    aria-label="Ausgleich löschen"
-                    title="Ausgleich löschen"
-                  >
-                    <Trash2 size={15} />
+                  <span className="text-base font-semibold tabular-nums text-emerald-400 dark:text-emerald-300">{currency(Number(row.amount || 0))}</span>
+                  <button onClick={() => handleDeleteSettlement(row.id)} disabled={deletingId === row.id || migrationBlocked} className="p-2 rounded-full text-red-500 hover:bg-red-500/10 disabled:opacity-60">
+                    {deletingId === row.id ? <RefreshCw size={16} className="animate-spin" /> : <Trash2 size={16} />}
                   </button>
                 </div>
               </div>

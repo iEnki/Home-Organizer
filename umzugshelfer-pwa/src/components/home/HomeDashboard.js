@@ -8,7 +8,7 @@ import {
 import { motion, animate, useMotionValue, useTransform } from "framer-motion";
 import { getActiveHouseholdId, supabase } from "../../supabaseClient";
 import { ensureRecurringBudgetEntries, getMonthBounds, getLocalDateString } from "../../utils/budgetRecurring";
-import { berechneNettoSalden } from "../../utils/budgetSplits";
+import { buildOpenPairBalances } from "../../utils/budgetLedger";
 import { formatGermanCurrency } from "../../utils/formatUtils";
 import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
@@ -119,8 +119,7 @@ const HomeDashboard = ({ session }) => {
     verlauf: [],
     timeline: [],
   });
-  const [splitGroups, setSplitGroups] = useState([]);
-  const [settlements, setSettlements] = useState([]);
+  const [openLedgerRows, setOpenLedgerRows] = useState([]);
 
   const resolveDashboardHouseholdId = useCallback(async () => {
     const activeHouseholdId = getActiveHouseholdId();
@@ -140,7 +139,8 @@ const HomeDashboard = ({ session }) => {
     if (!userId) return;
     setLoading(true);
     try {
-      await ensureRecurringBudgetEntries({ supabase, userId, appModi: ["home", "beides"] });
+      const householdId = await resolveDashboardHouseholdId();
+      await ensureRecurringBudgetEntries({ supabase, userId, householdId, appModi: ["home", "beides"] });
 
       const heute = getLocalDateString();
       const todayDate = new Date();
@@ -170,23 +170,19 @@ const HomeDashboard = ({ session }) => {
         supabase.from("dokumente").select("id", { count: "exact", head: true }).eq("user_id", userId),
       ]);
 
-      const householdId = await resolveDashboardHouseholdId();
       if (householdId) {
-        const [{ data: groups }, { data: setts }] = await Promise.all([
-          supabase
-            .from("budget_split_groups")
-            .select("*, budget_split_shares(*)")
-            .eq("household_id", householdId),
-          supabase
-            .from("budget_settlements")
-            .select("*")
-            .eq("household_id", householdId),
-        ]);
-        setSplitGroups(groups || []);
-        setSettlements(setts || []);
+        const { data: ledgerRows, error: ledgerError } = await supabase.rpc("get_budget_open_split_ledger", {
+          p_household_id: householdId,
+          p_as_of_date: heute,
+        });
+        if (ledgerError) {
+          console.error("[HomeDashboard] Open-Item-Ledger konnte nicht geladen werden:", ledgerError);
+          setOpenLedgerRows([]);
+        } else {
+          setOpenLedgerRows(ledgerRows || []);
+        }
       } else {
-        setSplitGroups([]);
-        setSettlements([]);
+        setOpenLedgerRows([]);
       }
 
       // ── Basis Stats ──
@@ -405,12 +401,10 @@ const HomeDashboard = ({ session }) => {
   }
 
   const { budgetMonat, aktiveProjekte, timeline, verlauf } = erweitert;
-  const salden = berechneNettoSalden(splitGroups, settlements);
-  const offeneSaldoCount = Object.values(salden).filter((saldo) => saldo < 0).length;
+  const offenePairBalances = buildOpenPairBalances(openLedgerRows);
+  const offeneSaldoCount = offenePairBalances.length;
   const gesamtOffeneSchulden =
-    Object.values(salden)
-      .filter((saldo) => saldo < 0)
-      .reduce((sum, saldo) => sum + Math.round(Math.abs(saldo) * 100), 0) / 100;
+    offenePairBalances.reduce((sum, row) => sum + Number(row.open_amount_cents || 0), 0) / 100;
 
   // ── Timeline Helpers ──
   const TIMELINE_ICON = { wartung: "🔧", ablauf: "⚠️", aufgabe: "✅", projekt: "📋" };
@@ -630,7 +624,7 @@ const HomeDashboard = ({ session }) => {
               {formatGermanCurrency(gesamtOffeneSchulden)} €
             </div>
             <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-              Offene Schulden gesamt
+              Offene Schulden gesamt, brutto je Richtung
             </p>
             <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
               {offeneSaldoCount} offene Position{offeneSaldoCount !== 1 ? "en" : ""}

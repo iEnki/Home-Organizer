@@ -8,7 +8,10 @@ import {
   Trash2,
 } from "lucide-react";
 import { getBudgetEntryMeta } from "../../../utils/budgetOverview";
-import { getScopeKontoHinweis } from "../../../utils/budgetAccounts";
+import {
+  getBewohnerDisplayName,
+  getScopeKontoHinweis,
+} from "../../../utils/budgetAccounts";
 import BudgetAccountBadge from "./BudgetAccountBadge";
 
 const DETAIL_LABEL_CLS =
@@ -89,7 +92,7 @@ export default function BudgetEntryRow({
                 <div className="mt-1 flex items-center gap-2 text-xs text-light-text-secondary dark:text-dark-text-secondary flex-wrap">
                   <span>{entry.kategorie || "Ohne Kategorie"}</span>
                   <span>{meta.anzeigeDatumLabel}</span>
-                  {meta.bewohner?.name && <span>{meta.bewohner.name}</span>}
+                  {meta.bewohner && <span>{getBewohnerDisplayName(meta.bewohner)}</span>}
                   {meta.konto?.name && <BudgetAccountBadge konto={meta.konto} compact />}
                 </div>
               </div>
@@ -140,7 +143,9 @@ export default function BudgetEntryRow({
             </div>
             <div>
               <p className={DETAIL_LABEL_CLS}>Person</p>
-              <p className={DETAIL_VALUE_CLS}>{meta.bewohner?.name || "Ohne Person"}</p>
+              <p className={DETAIL_VALUE_CLS}>
+                {meta.bewohner ? getBewohnerDisplayName(meta.bewohner) : "Ohne Person"}
+              </p>
             </div>
             <div>
               <p className={DETAIL_LABEL_CLS}>Scope</p>

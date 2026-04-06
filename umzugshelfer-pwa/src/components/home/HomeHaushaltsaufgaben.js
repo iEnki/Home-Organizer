@@ -2,6 +2,7 @@
 import { CheckSquare, Plus, Trash2, X, Check, Loader2, RefreshCw, AlertCircle, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../../supabaseClient";
+import { getBewohnerDisplayName } from "../../utils/budgetAccounts";
 import KiHomeAssistent from "./KiHomeAssistent";
 import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
@@ -18,7 +19,7 @@ const BewohnerBadge = ({ bewohner }) => {
       className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium"
       style={{ backgroundColor: bewohner.farbe + "22", color: bewohner.farbe }}
     >
-      {bewohner.emoji} {bewohner.name}
+      {bewohner.emoji} {getBewohnerDisplayName(bewohner)}
     </span>
   );
 };
@@ -82,7 +83,7 @@ const AufgabeForm = ({ initial, onSpeichern, onAbbrechen, bewohner }) => {
           >
             <option value="">— Niemand zugewiesen —</option>
             {bewohner.map((b) => (
-              <option key={b.id} value={b.id}>{b.emoji} {b.name}</option>
+              <option key={b.id} value={b.id}>{b.emoji} {getBewohnerDisplayName(b)}</option>
             ))}
           </select>
         </div>
@@ -141,7 +142,8 @@ const HomeHaushaltsaufgaben = ({ session }) => {
       if (!error && Array.isArray(data)) {
         setBewohner(data.map((b) => ({
           id: b.id,
-          name: b.display_name || b.name || "Bewohner",
+          name: b.name || "Bewohner",
+          display_name: b.display_name || b.name || "Bewohner",
           emoji: b.emoji || "👤",
           farbe: b.farbe || "#10B981",
           is_current_user: b.is_current_user === true,
@@ -248,7 +250,7 @@ const HomeHaushaltsaufgaben = ({ session }) => {
                 ${bewohnerFilter === b.id ? "text-white" : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"}`}
               style={bewohnerFilter === b.id ? { backgroundColor: b.farbe } : {}}
             >
-              {b.emoji} {b.name}
+              {b.emoji} {getBewohnerDisplayName(b)}
             </button>
           ))}
         </div>

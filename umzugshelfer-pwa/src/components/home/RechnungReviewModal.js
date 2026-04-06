@@ -5,7 +5,11 @@ import {
 } from "lucide-react";
 import { supabase, getActiveHouseholdId } from "../../supabaseClient";
 import { useToast } from "../../hooks/useToast";
-import { buildEqualShares } from "../../utils/budgetSplits";
+import { buildEqualShares, validateSplitConfig } from "../../utils/budgetSplits";
+import {
+  getBewohnerDisplayName,
+  resolveSplitPayerFromBudgetSelection,
+} from "../../utils/budgetAccounts";
 import KostenAufteilungAuswahl from "./KostenAufteilungAuswahl";
 
 // ============================================================
@@ -215,20 +219,111 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
   const [splitVorgestrecktVon, setSplitVorgestrecktVon] = useState(null);
   const [splitTeilnehmer, setSplitTeilnehmer]   = useState([]);
   const [splitSpeichern, setSplitSpeichern]     = useState(false);
+  const [splitValidierungsFehler, setSplitValidierungsFehler] = useState(null);
+  const autoBewohnerErstellenRef = React.useRef(false);
+  const bewohnerById = useMemo(
+    () => Object.fromEntries((bewohner || []).map((eintrag) => [eintrag.id, eintrag])),
+    [bewohner],
+  );
+  const finanzkontenById = useMemo(
+    () => Object.fromEntries((finanzkonten || []).map((konto) => [konto.id, konto])),
+    [finanzkonten],
+  );
+
+  const mapBewohnerOverview = useCallback((data) => (
+    (data || []).map((eintrag) => ({
+      id: eintrag.id,
+      name: eintrag.name || "Bewohner",
+      display_name: eintrag.display_name || eintrag.name || "Bewohner",
+      linked_user_id: eintrag.linked_user_id || null,
+      farbe: eintrag.farbe || "#10B981",
+      emoji: eintrag.emoji || "👤",
+    }))
+  ), []);
+
+  const loadBewohnerOverview = useCallback(async () => {
+    const { data, error } = await supabase.rpc("get_bewohner_overview");
+    if (error) throw error;
+    const mapped = mapBewohnerOverview(data);
+    setBewohner(mapped);
+    setBewohnerGeladen(true);
+    return mapped;
+  }, [mapBewohnerOverview]);
+
+  const loadFinanzkonten = useCallback(async () => {
+    const userId = session?.user?.id;
+    if (!userId) {
+      setFinanzkonten([]);
+      return [];
+    }
+
+    let householdId = getActiveHouseholdId();
+    if (!householdId) {
+      const { data, error } = await supabase
+        .from("household_members")
+        .select("household_id")
+        .eq("user_id", userId)
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      householdId = data?.household_id || null;
+    }
+
+    if (!householdId) {
+      setFinanzkonten([]);
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .from("home_finanzkonten")
+      .select("id, name, konto_typ, inhaber_typ, inhaber_bewohner_id, aktiv, sortierung, farbe")
+      .eq("household_id", householdId)
+      .eq("aktiv", true)
+      .order("sortierung");
+    if (error) throw error;
+
+    const nextKonten = data || [];
+    setFinanzkonten(nextKonten);
+    return nextKonten;
+  }, [session?.user?.id]);
 
   useEffect(() => {
     if (!session?.user?.id) return;
-    supabase.from("home_finanzkonten").select("id, name, konto_typ").eq("user_id", session.user.id).eq("aktiv", true).order("sortierung")
-      .then(({ data }) => { if (data) setFinanzkonten(data); });
-    supabase.from("home_bewohner").select("id, name, linked_user_id").eq("user_id", session.user.id).order("name")
-      .then(({ data }) => { setBewohner(data || []); setBewohnerGeladen(true); });
-  }, [session?.user?.id]);
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const [konten, residents] = await Promise.all([
+          loadFinanzkonten(),
+          loadBewohnerOverview(),
+        ]);
+        if (cancelled) return;
+        setFinanzkonten(konten);
+        setBewohner(residents);
+      } catch {
+        if (!cancelled) {
+          setFinanzkonten([]);
+          setBewohner([]);
+          setBewohnerGeladen(true);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadBewohnerOverview, loadFinanzkonten, session?.user?.id]);
 
   useEffect(() => {
     if (!splitSchritt) return;
     if (bewohner.length < 2) return;
-
-    const defaultPayerId = budgetBewohnerId || bewohner[0]?.id || null;
+    const defaultPayerId = resolveSplitPayerFromBudgetSelection({
+      bewohnerId: budgetBewohnerId || null,
+      zahlungskontoId: zahlungskontoId || null,
+      kontenById: finanzkontenById,
+      bewohnerById,
+    });
     if (!defaultPayerId) return;
 
     setSplitAktiv(true);
@@ -237,7 +332,14 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
       if (prev.length > 0) return Array.from(new Set([defaultPayerId, ...prev]));
       return Array.from(new Set([defaultPayerId, ...bewohner.map((b) => b.id).filter(Boolean)]));
     });
-  }, [bewohner, budgetBewohnerId, splitSchritt]);
+  }, [
+    bewohner,
+    bewohnerById,
+    budgetBewohnerId,
+    finanzkontenById,
+    splitSchritt,
+    zahlungskontoId,
+  ]);
 
   // Auto-Bewohner: wenn "Privat" gewählt und noch kein Bewohner gesetzt,
   // wird der eigene verlinkte Bewohnereintrag automatisch vorausgewählt.
@@ -252,37 +354,56 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
     // Fall 1: Verlinkter Bewohnereintrag vorhanden → setzen
     const eigener = bewohner.find((b) => b.linked_user_id === userId);
     if (eigener) {
+      autoBewohnerErstellenRef.current = false;
       setBudgetBewohnerId(eigener.id);
       return;
     }
 
     // Fall 2: Kein verlinkter Eintrag → automatisch anlegen
     const activeHouseholdId = getActiveHouseholdId();
-    if (!activeHouseholdId) return;
+    if (!activeHouseholdId || autoBewohnerErstellenRef.current) return;
+    autoBewohnerErstellenRef.current = true;
     const displayName =
       session.user.user_metadata?.username ||
-      session.user.user_metadata?.display_name ||
+      session.user.user_metadata?.full_name ||
       session.user.email?.split("@")[0] ||
       "Ich";
-    supabase
-      .from("home_bewohner")
-      .insert({ household_id: activeHouseholdId, user_id: userId, linked_user_id: userId, name: displayName })
-      .select("id, name, linked_user_id")
-      .single()
-      .then(({ data }) => {
-        if (data?.id) {
-          setBewohner((prev) => [...prev, data]);
-          setBudgetBewohnerId(data.id);
-        }
+
+    (async () => {
+      const { error } = await supabase.from("home_bewohner").insert({
+        household_id: activeHouseholdId,
+        user_id: userId,
+        linked_user_id: userId,
+        name: displayName,
       });
+      if (error) {
+        autoBewohnerErstellenRef.current = false;
+        return;
+      }
+
+      try {
+        const overview = await loadBewohnerOverview();
+        const aktuellerBewohner = overview.find((eintrag) => eintrag.linked_user_id === userId);
+        if (aktuellerBewohner?.id) {
+          setBudgetBewohnerId(aktuellerBewohner.id);
+          return;
+        }
+        autoBewohnerErstellenRef.current = false;
+      } catch {
+        autoBewohnerErstellenRef.current = false;
+        // Bei Reload-Fehler bleibt nur die Bewohner-Vorauswahl leer.
+      }
+    })();
   }, [
     budgetScope,
     budgetBewohnerId,
     bewohner,
     bewohnerGeladen,
+    loadBewohnerOverview,
     session?.user?.email,
     session?.user?.id,
     session?.user?.user_metadata?.display_name,
+    session?.user?.user_metadata?.full_name,
     session?.user?.user_metadata?.username,
   ]);
 
@@ -401,8 +522,21 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
       return;
     }
 
-    if (!splitAktiv || !splitVorgestrecktVon) {
+    if (!splitAktiv) {
+      setSplitValidierungsFehler(null);
       onGespeichert();
+      return;
+    }
+
+    const splitFehler = validateSplitConfig({
+      aktiv: true,
+      payerMemberId: splitVorgestrecktVon,
+      teilnehmer: splitTeilnehmer,
+      splitMode: "equal",
+      betrag: normalizeNumber(gesamt) || 0,
+    });
+    if (splitFehler) {
+      setSplitValidierungsFehler(splitFehler);
       return;
     }
 
@@ -413,10 +547,11 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
     );
 
     if (shares.length === 0) {
-      onGespeichert();
+      setSplitValidierungsFehler("Bitte mindestens eine weitere beteiligte Person waehlen.");
       return;
     }
 
+    setSplitValidierungsFehler(null);
     setSplitSpeichern(true);
     try {
       const householdId = await resolveHouseholdId(session?.user?.id);
@@ -474,6 +609,21 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
     const gesamtNum = parseFloat(gesamt.replace(",", "."));
     return !datum || isNaN(gesamtNum) || gesamtNum <= 0;
   }, [datum, gesamt]);
+
+  const handleSplitAktivChange = useCallback((value) => {
+    setSplitAktiv(value);
+    setSplitValidierungsFehler(null);
+  }, []);
+
+  const handleSplitVorgestrecktVonChange = useCallback((value) => {
+    setSplitVorgestrecktVon(value);
+    setSplitValidierungsFehler(null);
+  }, []);
+
+  const handleSplitTeilnehmerChange = useCallback((value) => {
+    setSplitTeilnehmer(value);
+    setSplitValidierungsFehler(null);
+  }, []);
 
   // Positionen-Aenderung
   const updatePosition = useCallback((idx, feld, wert) => {
@@ -840,21 +990,9 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
             <X size={20} />
           </button>
           <h2 className="text-lg font-semibold text-dark-text-main flex-1">Kostenaufteilung</h2>
-          <button
-            onClick={handleSplitSpeichern}
-            disabled={splitSpeichern || !gespeicherterPostenId}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-card-sm bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-white text-sm font-semibold transition-colors shadow-sm"
-          >
-            {splitSpeichern ? (
-              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <Check size={16} />
-            )}
-            Aufteilen
-          </button>
         </div>
 
-        <div className="max-w-3xl mx-auto px-4 py-5 space-y-4">
+        <div className="max-w-3xl mx-auto px-4 pt-5 pb-28 space-y-4">
           <div className="rounded-card border border-canvas-3 bg-canvas-1 p-4">
             <h3 className="text-base font-semibold text-dark-text-main mb-1">
               Rechnung gespeichert
@@ -881,16 +1019,20 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
               bewohner={bewohner}
               betrag={normalizeNumber(gesamt) || 0}
               splitAktiv={splitAktiv}
-              onSplitAktivChange={setSplitAktiv}
+              onSplitAktivChange={handleSplitAktivChange}
               vorgestrecktVon={splitVorgestrecktVon}
               teilnehmer={splitTeilnehmer}
-              onVorgestrecktVonChange={setSplitVorgestrecktVon}
-              onTeilnehmerChange={setSplitTeilnehmer}
+              onVorgestrecktVonChange={handleSplitVorgestrecktVonChange}
+              onTeilnehmerChange={handleSplitTeilnehmerChange}
               showSettlementHinweis={false}
+              modeVariant="equalOnly"
             />
+            {splitValidierungsFehler && (
+              <p className="text-sm text-accent-danger">{splitValidierungsFehler}</p>
+            )}
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+          <div className="hidden">
             <button
               type="button"
               onClick={() => {
@@ -900,6 +1042,33 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
               className="px-4 py-2 rounded-card-sm border border-canvas-3 text-sm text-dark-text-main hover:bg-canvas-2 transition-colors"
             >
               Überspringen
+            </button>
+          </div>
+        </div>
+        <div className="sticky bottom-0 z-10 border-t border-canvas-3 bg-canvas-1/95 backdrop-blur px-4 py-3">
+          <div className="max-w-3xl mx-auto flex flex-col sm:flex-row gap-2 sm:justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setSplitSchritt(false);
+                onGespeichert();
+              }}
+              className="px-4 py-3 rounded-card-sm border border-canvas-3 text-sm text-dark-text-main hover:bg-canvas-2 transition-colors"
+            >
+              Ãœberspringen
+            </button>
+            <button
+              type="button"
+              onClick={handleSplitSpeichern}
+              disabled={splitSpeichern || !gespeicherterPostenId}
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-card-sm bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-white text-sm font-semibold transition-colors shadow-sm"
+            >
+              {splitSpeichern ? (
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Check size={16} />
+              )}
+              Aufteilen
             </button>
           </div>
         </div>
@@ -1145,7 +1314,10 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
                     label="Bewohner"
                     value={budgetBewohnerId}
                     onChange={setBudgetBewohnerId}
-                    optionen={[{ value: "", label: "Kein Bewohner" }, ...bewohner.map(b => ({ value: b.id, label: b.name }))]}
+                    optionen={[
+                      { value: "", label: "Kein Bewohner" },
+                      ...bewohner.map((b) => ({ value: b.id, label: getBewohnerDisplayName(b) })),
+                    ]}
                   />
                 )}
               </>

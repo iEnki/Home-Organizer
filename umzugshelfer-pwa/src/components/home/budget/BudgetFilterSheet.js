@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
+import { getBewohnerDisplayName } from "../../../utils/budgetAccounts";
 
 const SELECT_CLS =
   "w-full px-3 py-2.5 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none";
@@ -105,7 +106,7 @@ export default function BudgetFilterSheet({
               <option value="">Alle Personen</option>
               {bewohner.map((eintrag) => (
                 <option key={eintrag.id} value={eintrag.id}>
-                  {eintrag.emoji} {eintrag.name}
+                  {eintrag.emoji} {getBewohnerDisplayName(eintrag)}
                 </option>
               ))}
             </select>

@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { QRCodeSVG } from "qrcode.react";
+import { getBewohnerDisplayName } from "../../utils/budgetAccounts";
 import KiHomeAssistent from "./KiHomeAssistent";
 import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
@@ -23,7 +24,7 @@ const BewohnerBadge = ({ bewohner }) => {
       style={{ backgroundColor: bewohner.farbe + "22", color: bewohner.farbe }}
     >
       <span>{bewohner.emoji}</span>
-      <span>{bewohner.name}</span>
+      <span>{getBewohnerDisplayName(bewohner)}</span>
     </span>
   );
 };
@@ -195,7 +196,7 @@ const ObjektForm = ({ ortId, lagerortId, initial, bewohner, onSpeichern, onAbbre
           >
             <option value="">— Niemanden zuordnen —</option>
             {bewohner.map((b) => (
-              <option key={b.id} value={b.id}>{b.emoji} {b.name}</option>
+              <option key={b.id} value={b.id}>{b.emoji} {getBewohnerDisplayName(b)}</option>
             ))}
           </select>
         </div>
@@ -268,7 +269,8 @@ const HomeInventar = ({ session }) => {
           setBewohner(
             data.map((b) => ({
               id: b.id,
-              name: b.display_name || b.name || "Bewohner",
+              name: b.name || "Bewohner",
+              display_name: b.display_name || b.name || "Bewohner",
               farbe: b.farbe || "#10B981",
               emoji: b.emoji || "👤",
             })),
@@ -781,7 +783,7 @@ const HomeInventar = ({ session }) => {
               >
                 <option value="">Alle Bewohner</option>
                 {bewohner.map((b) => (
-                  <option key={b.id} value={b.id}>{b.emoji} {b.name}</option>
+                  <option key={b.id} value={b.id}>{b.emoji} {getBewohnerDisplayName(b)}</option>
                 ))}
               </select>
             )}
