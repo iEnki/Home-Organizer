@@ -34,6 +34,24 @@ const addMessageForRecipients = (
   });
 };
 
+function daysBetween(dateStr: string, today: string): number {
+  const [y1, m1, d1] = dateStr.split("-").map(Number);
+  const [y2, m2, d2] = today.split("-").map(Number);
+  return Math.floor((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000);
+}
+
+function resolveEmpfaenger(
+  buch: any,
+  recipientSet: Set<string>,
+  recipients: string[],
+): string[] {
+  if (buch.erinnerung_empfaenger_user_id && recipientSet.has(buch.erinnerung_empfaenger_user_id))
+    return [buch.erinnerung_empfaenger_user_id];
+  if (buch.created_by_user_id && recipientSet.has(buch.created_by_user_id))
+    return [buch.created_by_user_id];
+  return recipients;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -107,6 +125,7 @@ Deno.serve(async (req: Request) => {
           { data: openShoppingItems },
           { data: bewohnerRows },
           { data: openLedgerRows, error: openLedgerError },
+          { data: faelligeBuecher },
         ] = await Promise.all([
           supabase
             .from("todo_aufgaben")
@@ -156,6 +175,13 @@ Deno.serve(async (req: Request) => {
             p_household_id: householdId,
             p_as_of_date: today,
           }),
+          supabase
+            .from("home_buecher")
+            .select("id, titel, verliehen_an_name, rueckgabe_erwartet_am, letzte_erinnerung_am, " +
+                    "erinnerung_intervall_tage, erinnerung_empfaenger_user_id, created_by_user_id, household_id")
+            .eq("household_id", householdId)
+            .eq("status", "verliehen")
+            .eq("erinnerung_aktiv", true),
         ]);
 
         const msgs: PushMessage[] = [];
@@ -260,6 +286,31 @@ Deno.serve(async (req: Request) => {
             });
 
             cospendProfileUpdates.push(profile.id);
+          }
+        }
+
+        // Buch-Verleih-Reminder
+        if (faelligeBuecher?.length) {
+          const recipientSet = new Set(recipients);
+          for (const buch of faelligeBuecher) {
+            const rueckgabeUeberfaellig = buch.rueckgabe_erwartet_am && buch.rueckgabe_erwartet_am <= today;
+            const intervallFaellig = !buch.letzte_erinnerung_am ||
+              daysBetween(buch.letzte_erinnerung_am, today) >= (buch.erinnerung_intervall_tage ?? 7);
+            if (!rueckgabeUeberfaellig && !intervallFaellig) continue;
+
+            const empfaenger = resolveEmpfaenger(buch, recipientSet, recipients);
+            for (const uid of empfaenger) {
+              msgs.push({
+                user_id: uid,
+                title: "Buch-Erinnerung",
+                body: `„${buch.titel}" ist${rueckgabeUeberfaellig ? " überfällig" : " bald fällig"} — ausgeliehen an ${buch.verliehen_an_name ?? "unbekannt"}.`,
+                url: "/home/inventar?tab=buecher",
+                tag: `buch-reminder-${buch.id}`,
+              });
+            }
+            await supabase.from("home_buecher")
+              .update({ letzte_erinnerung_am: today })
+              .eq("id", buch.id);
           }
         }
 
