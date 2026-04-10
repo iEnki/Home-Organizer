@@ -18,6 +18,7 @@
  */
 
 import { cleanKiJsonResponse } from "./kiClient";
+import { compressImage, fileToBase64 } from "./imageTools";
 
 // ============================================================
 // Konstanten: Klassifizierungs-System
@@ -291,52 +292,8 @@ const KI_RECHNUNG_PROMPT_TEXT = `Du bist ein Rechnungs-Analyse-Assistent. Hier i
 // Hilfsfunktionen
 // ============================================================
 
-/**
- * Konvertiert eine Datei zu Base64-String.
- */
-export function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result;
-      const base64 = dataUrl.split(",")[1];
-      resolve(base64);
-    };
-    reader.onerror = () => reject(new Error("Datei konnte nicht gelesen werden."));
-    reader.readAsDataURL(file);
-  });
-}
-
-/**
- * Komprimiert ein Bild auf maxPx Pixel (laengste Seite) via Canvas.
- * PDFs und nicht-Bild-Dateien werden unveraendert zurueckgegeben.
- * HEIC-Unterstuetzung ist browserabhaengig (Safari/iOS: nativ; Chrome/Firefox: nicht garantiert).
- */
-async function compressImage(file, maxPx = 1200) {
-  if (!file.type.startsWith("image/")) return file;
-  return new Promise((resolve) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      let { width, height } = img;
-      if (width <= maxPx && height <= maxPx) { resolve(file); return; }
-      const ratio = Math.min(maxPx / width, maxPx / height);
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(width * ratio);
-      canvas.height = Math.round(height * ratio);
-      const ctx = canvas.getContext("2d");
-      if (!ctx) { resolve(file); return; }
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob((blob) => {
-        if (!blob) { resolve(file); return; }
-        resolve(new File([blob], file.name.replace(/\.\w+$/, ".jpg"), { type: "image/jpeg" }));
-      }, "image/jpeg", 0.85);
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
-    img.src = url;
-  });
-}
+// fileToBase64 und compressImage kommen aus imageTools.js (gemeinsame Utility); re-export für Abwärtskompatibilität
+export { fileToBase64 } from "./imageTools";
 
 /**
  * Normalisiert einen Zahlenwert aus KI-Antworten.
