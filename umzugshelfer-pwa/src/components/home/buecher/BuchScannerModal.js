@@ -7,6 +7,7 @@ import {
 import { supabase } from "../../../supabaseClient";
 import { normalizeIsbn, isValidIsbn } from "../../../utils/isbn";
 import { erstelleImportBatch } from "../../../utils/buchImportMapping";
+import { getBuchCoverUrl } from "../../../utils/buchCoverUtils";
 
 const SCANNER_DIV_ID = "buch-scanner-region";
 const SUPPORTED_FORMATS = [
@@ -22,7 +23,7 @@ async function suchePerIsbn(isbn, token) {
   const res = await fetch(`${supabaseUrl}/functions/v1/book-search`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ query: isbn, mode: "isbn", limit: 5 }),
+    body: JSON.stringify({ query: isbn, mode: "isbn", limit: 5, language: "de" }),
   });
   if (!res.ok) return [];
   const data = await res.json();
@@ -54,8 +55,11 @@ export default function BuchScannerModal({
   const [lagerortId, setLagerortId] = useState("");
   const [zuletzt, setZuletzt] = useState(null); // zuletzt gescannte ISBN (Stapel)
 
+  const [hatGescannt, setHatGescannt] = useState(false);
+
   const scannerRef = useRef(null);
   const aktiv = useRef(false); // verhindert Race-Conditions im Callback
+  const processingRef = useRef(false); // verhindert Doppelverarbeitung desselben Scans
 
   const getToken = async () => {
     const { data: { session: sess } } = await supabase.auth.getSession();
@@ -116,13 +120,23 @@ export default function BuchScannerModal({
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 250, height: 120 }, aspectRatio: 1.5 },
         (decodedText) => {
-          if (!aktiv.current) return;
+          if (!aktiv.current || processingRef.current) return;
+          processingRef.current = true;
           if (modus === "einzel") {
-            // Im Einzel-Modus: nach erstem Fund Scanner pausieren
             aktiv.current = false;
-            verarbeiteIsbn(decodedText);
+            (async () => {
+              try {
+                await stopScanner();
+                await verarbeiteIsbn(decodedText);
+              } finally {
+                processingRef.current = false;
+                setHatGescannt(true);
+              }
+            })();
           } else {
-            verarbeiteIsbn(decodedText);
+            verarbeiteIsbn(decodedText).finally(() => {
+              processingRef.current = false;
+            });
           }
         },
         () => { /* Scan-Fehler ignorieren */ }
@@ -154,6 +168,17 @@ export default function BuchScannerModal({
     if (!manuelleIsbn.trim()) return;
     await verarbeiteIsbn(manuelleIsbn.trim());
     setManuelleIsbn("");
+  };
+
+  const handleErneut = () => {
+    setTreffer([]);
+    setFehler(null);
+    setLadeTreffer(false);
+    setHatGescannt(false);
+    setManuelleIsbn("");
+    setZuletzt(null);
+    processingRef.current = false;
+    startScanner();
   };
 
   const handleKandidatEntfernen = (isbn) => {
@@ -245,6 +270,17 @@ export default function BuchScannerModal({
             </div>
           )}
 
+          {/* Einzel-Modus: Erneut scannen nach abgeschlossenem Versuch */}
+          {modus === "einzel" && hatGescannt && !scanning && !ladeTreffer && (
+            <button
+              onClick={handleErneut}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-card-sm border-2 border-dashed border-teal-500/40 text-teal-500 hover:bg-teal-500/5 transition-colors text-sm"
+            >
+              <ScanLine size={16} />
+              Erneut scannen
+            </button>
+          )}
+
           {/* Einzel-Modus: Trefferliste */}
           {modus === "einzel" && treffer.length > 0 && (
             <div className="space-y-2">
@@ -257,8 +293,8 @@ export default function BuchScannerModal({
                   onClick={() => { stopScanner(); onBuchGefunden(buch); }}
                   className="w-full flex items-center gap-3 p-2.5 rounded-card-sm border border-light-border dark:border-dark-border hover:border-teal-500/40 text-left transition-colors"
                 >
-                  {buch.thumbnailUrl ? (
-                    <img src={buch.thumbnailUrl} alt="" className="w-8 h-10 object-cover rounded shrink-0" />
+                  {getBuchCoverUrl(buch) ? (
+                    <img src={getBuchCoverUrl(buch)} alt="" className="w-8 h-10 object-cover rounded shrink-0" />
                   ) : (
                     <div className="w-8 h-10 bg-teal-500/10 rounded flex items-center justify-center shrink-0">
                       <BookOpen size={13} className="text-teal-500" />
@@ -284,8 +320,8 @@ export default function BuchScannerModal({
               </p>
               {kandidaten.map(({ isbn, bookResult }) => (
                 <div key={isbn} className="flex items-center gap-3 p-2.5 rounded-card-sm border border-light-border dark:border-dark-border">
-                  {bookResult?.thumbnailUrl ? (
-                    <img src={bookResult.thumbnailUrl} alt="" className="w-7 h-9 object-cover rounded shrink-0" />
+                  {getBuchCoverUrl(bookResult) ? (
+                    <img src={getBuchCoverUrl(bookResult)} alt="" className="w-7 h-9 object-cover rounded shrink-0" />
                   ) : (
                     <div className="w-7 h-9 bg-teal-500/10 rounded flex items-center justify-center shrink-0">
                       <BookOpen size={11} className="text-teal-500" />

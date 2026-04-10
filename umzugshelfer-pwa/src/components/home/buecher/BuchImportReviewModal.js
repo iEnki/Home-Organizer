@@ -198,7 +198,6 @@ export default function BuchImportReviewModal({
 
   const handleSpeichern = async () => {
     const bestaetigte = kandidaten.filter((k) => k.review_status === "bestaetigt");
-    if (!bestaetigte.length) return;
     setSpeichern(true);
     try {
       const ortId = importDaten?.ort_id ?? null;
@@ -343,11 +342,13 @@ export default function BuchImportReviewModal({
           </button>
           <button
             onClick={handleSpeichern}
-            disabled={speichern || bestaetigte === 0}
+            disabled={speichern}
             className="flex items-center gap-2 px-3 py-2 text-sm rounded-card-sm bg-teal-500 text-white font-medium disabled:opacity-40"
           >
             {speichern && <Loader2 size={14} className="animate-spin" />}
-            Speichern ({bestaetigte} {bestaetigte === 1 ? "Buch" : "Bücher"})
+            {bestaetigte > 0
+              ? `Speichern (${bestaetigte} ${bestaetigte === 1 ? "Buch" : "Bücher"})`
+              : "Import verwerfen"}
           </button>
         </div>
       </div>

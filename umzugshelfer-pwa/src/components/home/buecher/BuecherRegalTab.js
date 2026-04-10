@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Loader2, AlertCircle, BookOpen } from "lucide-react";
+import { Loader2, AlertCircle, BookOpen, RefreshCw, ArrowLeftRight } from "lucide-react";
 import { supabase } from "../../../supabaseClient";
 import { logVerlauf } from "../../../utils/homeVerlauf";
 import { BUCH_STATUS } from "../../../utils/buecher";
@@ -40,11 +40,11 @@ export default function BuecherRegalTab({
     setLaden(true);
     setFehler(null);
     try {
+      // Hard Delete — kein status-Filter nötig
       const { data, error } = await supabase
         .from("home_buecher")
         .select("*")
         .eq("household_id", householdId)
-        .neq("status", "entsorgt")
         .order("titel", { ascending: true });
       if (error) throw error;
       setBuecher(data ?? []);
@@ -97,9 +97,11 @@ export default function BuecherRegalTab({
   };
 
   const handleVerleihenOpen = (buch) => {
-    let modus = "verleihen";
-    if (buch.status === "verliehen") modus = "verlaengern";
-    setModal({ typ: "verleih", buch, modus });
+    if (buch.status === "verliehen") {
+      setModal({ typ: "verleih_auswahl", buch }); // Zwischenschritt: Verlängern oder Zurückgeben
+    } else {
+      setModal({ typ: "verleih", buch, modus: "verleihen" });
+    }
   };
 
   // Einzel-Scan: Scanner öffnet, bei Fund → Formular vorausfüllen
@@ -241,6 +243,43 @@ export default function BuecherRegalTab({
           onImportBatchErstellt={handleImportBatchErstellt}
           onAbbrechen={() => setModal(null)}
         />
+      )}
+
+      {modal?.typ === "verleih_auswahl" && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 pb-[calc(var(--safe-area-bottom)+1rem)] bg-black/60">
+          <div className="bg-light-card dark:bg-canvas-2 rounded-card w-full max-w-xs flex flex-col border border-light-border dark:border-dark-border shadow-elevation-3">
+            <div className="shrink-0 px-4 py-3 border-b border-light-border dark:border-dark-border">
+              <p className="text-sm font-semibold text-light-text-main dark:text-dark-text-main truncate">
+                {modal.buch?.titel}
+              </p>
+              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                Aktuell verliehen — was möchtest du tun?
+              </p>
+            </div>
+            <div className="p-3 flex flex-col gap-2">
+              <button
+                onClick={() => setModal({ typ: "verleih", buch: modal.buch, modus: "verlaengern" })}
+                className="flex items-center gap-2 px-3 py-2.5 text-sm rounded-card-sm border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:bg-light-hover dark:hover:bg-canvas-3"
+              >
+                <RefreshCw size={14} className="text-light-text-secondary dark:text-dark-text-secondary" />
+                Ausleihe verlängern
+              </button>
+              <button
+                onClick={() => setModal({ typ: "verleih", buch: modal.buch, modus: "zurueckgeben" })}
+                className="flex items-center gap-2 px-3 py-2.5 text-sm rounded-card-sm border border-green-500/40 text-green-700 dark:text-green-400 hover:bg-green-500/10"
+              >
+                <ArrowLeftRight size={14} />
+                Zurückgeben
+              </button>
+              <button
+                onClick={() => setModal(null)}
+                className="px-3 py-2 text-sm rounded-card-sm text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
+              >
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {modal?.typ === "review" && (

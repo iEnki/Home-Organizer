@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, Edit2, Trash2, BookOpen, ArrowRightLeft, Refres
 import { BUCH_STATUS, BUCH_STATUS_FARBEN, BUCH_ZUSTAND } from "../../../utils/buecher";
 import { supabase } from "../../../supabaseClient";
 import { normalizeIsbn, isValidIsbn } from "../../../utils/isbn";
+import { getBuchCoverUrl } from "../../../utils/buchCoverUtils";
 
 export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen }) {
   const [offen, setOffen] = useState(false);
@@ -36,7 +37,7 @@ export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen 
       const res = await fetch(`${supabaseUrl}/functions/v1/book-search`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ query, mode, limit: 3 }),
+        body: JSON.stringify({ query, mode, limit: 3, language: "de" }),
       });
 
       if (!res.ok) { setRefreshStatus("fehler"); return; }
@@ -84,8 +85,8 @@ export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen 
         className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-light-bg dark:hover:bg-canvas-1 transition-colors"
       >
         <div className="flex items-center gap-3 min-w-0">
-          {buch.thumbnail_url ? (
-            <img src={buch.thumbnail_url} alt="" className="w-8 h-10 object-cover rounded shrink-0" />
+          {getBuchCoverUrl(buch) ? (
+            <img src={getBuchCoverUrl(buch)} alt="" className="w-8 h-10 object-cover rounded shrink-0" />
           ) : (
             <div className="w-8 h-10 rounded bg-teal-500/10 flex items-center justify-center shrink-0">
               <BookOpen size={14} className="text-teal-500" />

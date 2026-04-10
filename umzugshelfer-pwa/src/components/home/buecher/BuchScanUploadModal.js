@@ -5,6 +5,7 @@ import { compressImage, fileToBase64 } from "../../../utils/imageTools";
 import { cleanKiJsonResponse } from "../../../utils/kiClient";
 import { normalizeIsbn, isValidIsbn } from "../../../utils/isbn";
 import { erstelleImportBatch } from "../../../utils/buchImportMapping";
+import { getBuchCoverUrl } from "../../../utils/buchCoverUtils";
 
 const REGAL_PROMPT = `Du bist ein Bucherkennungs-Assistent. Analysiere dieses Regal-Foto und erkenne nur klar lesbare Buchtitel auf den Buchrücken. Antworte ausschließlich mit einem JSON-Objekt (kein Markdown, keine Erklärungen):
 
@@ -21,7 +22,7 @@ async function suchePerIsbn(isbn, token) {
   const res = await fetch(`${supabaseUrl}/functions/v1/book-search`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ query: isbn, mode: "isbn", limit: 3 }),
+    body: JSON.stringify({ query: isbn, mode: "isbn", limit: 3, language: "de" }),
   });
   if (!res.ok) return [];
   const data = await res.json();
@@ -93,8 +94,8 @@ function KandidatZeile({ eintrag, idx, onStatusChange, onEditChange }) {
     }`}>
       <div className="flex items-center gap-2.5 p-2.5">
         {/* Cover */}
-        {eintrag.bookResult?.thumbnailUrl ? (
-          <img src={eintrag.bookResult.thumbnailUrl} alt="" className="w-7 h-9 object-cover rounded shrink-0" />
+        {getBuchCoverUrl(eintrag.bookResult) ? (
+          <img src={getBuchCoverUrl(eintrag.bookResult)} alt="" className="w-7 h-9 object-cover rounded shrink-0" />
         ) : (
           <div className="w-7 h-9 bg-teal-500/10 rounded flex items-center justify-center shrink-0">
             <BookOpen size={11} className="text-teal-500" />
@@ -319,11 +320,13 @@ export default function BuchScanUploadModal({
               ...bookResult,
               title: titelOverride ?? bookResult.title,
               authorDisplay: autorOverride ?? bookResult.authorDisplay,
+              authors: autorOverride ? [autorOverride] : (bookResult.authors ?? []),
               confidence,
             }
           : {
               title: titelOverride ?? kiEintrag.titel,
               authorDisplay: autorOverride ?? kiEintrag.autor ?? "",
+              authors: autorOverride ? [autorOverride] : (kiEintrag.autor ? [kiEintrag.autor] : []),
               confidence,
             };
         return {

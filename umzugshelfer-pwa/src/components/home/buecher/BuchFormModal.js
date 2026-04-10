@@ -133,7 +133,7 @@ export default function BuchFormModal({
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ query: suchbegriff, mode: "title", limit: 8 }),
+          body: JSON.stringify({ query: suchbegriff, mode: "title", limit: 8, language: "de" }),
           signal: abortRef.current.signal,
         });
         if (res.ok) {
@@ -214,7 +214,7 @@ export default function BuchFormModal({
       const res = await fetch(`${supabaseUrl}/functions/v1/book-search`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ query: norm, mode: "isbn", limit: 5 }),
+        body: JSON.stringify({ query: norm, mode: "isbn", limit: 5, language: "de" }),
       });
       if (res.ok) {
         const ergebnisse = await res.json();
