@@ -1,0 +1,495 @@
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { X, Search, Loader2, AlertTriangle, BookOpen, ScanLine } from "lucide-react";
+import { supabase } from "../../../supabaseClient";
+import {
+  BUCH_STATUS,
+  BUCH_ZUSTAND,
+  formatAutoren,
+} from "../../../utils/buecher";
+import { pruefeAufDubletten } from "../../../utils/buchDuplikate";
+import { normalizeIsbn, isValidIsbn } from "../../../utils/isbn";
+import BuchScannerModal from "./BuchScannerModal";
+
+const inputCls =
+  "w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500";
+const labelCls =
+  "block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1";
+
+const DEFAULT_FORM = {
+  titel: "",
+  untertitel: "",
+  autoren: "",        // kommagetrennt im UI, wird als Array gespeichert
+  isbn_13: "",
+  verlag: "",
+  erscheinungsjahr: "",
+  sprache: "de",
+  seitenzahl: "",
+  beschreibung: "",
+  tags: "",           // kommagetrennt
+  ort_id: "",
+  lagerort_id: "",
+  status: "im_regal",
+  zustand: "",
+  anzahl: "1",
+  notizen: "",
+  // interne Felder (aus API, kein Eingabefeld)
+  isbn_10: "",
+  cover_url: "",
+  thumbnail_url: "",
+  api_quelle: "",
+  api_ref: "",
+};
+
+const mapBuchToForm = (b) => ({
+  titel:           b.titel ?? "",
+  untertitel:      b.untertitel ?? "",
+  autoren:         formatAutoren(b.autoren),
+  isbn_13:         b.isbn_13 ?? "",
+  verlag:          b.verlag ?? "",
+  erscheinungsjahr: b.erscheinungsjahr?.toString() ?? "",
+  sprache:         b.sprache ?? "de",
+  seitenzahl:      b.seitenzahl?.toString() ?? "",
+  beschreibung:    b.beschreibung ?? "",
+  tags:            (b.tags ?? []).join(", "),
+  ort_id:          b.ort_id ?? "",
+  lagerort_id:     b.lagerort_id ?? "",
+  status:          b.status ?? "im_regal",
+  zustand:         b.zustand ?? "",
+  anzahl:          b.anzahl?.toString() ?? "1",
+  notizen:         b.notizen ?? "",
+  isbn_10:         b.isbn_10 ?? "",
+  cover_url:       b.cover_url ?? "",
+  thumbnail_url:   b.thumbnail_url ?? "",
+  api_quelle:      b.api_quelle ?? "",
+  api_ref:         b.api_ref ?? "",
+});
+
+const str2null = (v) => (v === "" || v == null ? null : v);
+const parseIntOrNull = (v) => {
+  const n = parseInt(v);
+  return isNaN(n) ? null : n;
+};
+const splitComma = (v) =>
+  (v ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+
+export default function BuchFormModal({
+  buch = null,         // null = Neuanlage
+  prefill = null,      // BookResult aus Scanner / Barcode zum Vorausfüllen
+  householdId,
+  session,
+  orte = [],
+  lagerorte = [],
+  onSpeichern,
+  onAbbrechen,
+}) {
+  const userId = session?.user?.id;
+  const istNeu = !buch;
+
+  const [form, setForm] = useState(() =>
+    buch ? mapBuchToForm(buch) : { ...DEFAULT_FORM },
+  );
+  const [scannerOffen, setScannerOffen] = useState(false);
+  const [fehler, setFehler] = useState(null);
+  const [speichern, setSpeichern] = useState(false);
+
+  // API-Suche
+  const [suchbegriff, setSuchbegriff] = useState("");
+  const [suchLaed, setSuchLaed] = useState(false);
+  const [suchErgebnisse, setSuchErgebnisse] = useState([]);
+  const debounceRef = useRef(null);
+  const abortRef = useRef(null);
+
+  // Dublettenwarnung
+  const [dubletten, setDubletten] = useState([]);
+
+  const filteredLagerorte = useMemo(
+    () =>
+      form.ort_id
+        ? lagerorte.filter((l) => l.ort_id === form.ort_id)
+        : lagerorte,
+    [lagerorte, form.ort_id],
+  );
+
+  // API-Suche mit Debounce
+  useEffect(() => {
+    clearTimeout(debounceRef.current);
+    if (suchbegriff.length < 3) {
+      setSuchErgebnisse([]);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      if (abortRef.current) abortRef.current.abort();
+      abortRef.current = new AbortController();
+      setSuchLaed(true);
+      try {
+        const { data: { session: sess } } = await supabase.auth.getSession();
+        const token = sess?.access_token;
+        if (!token) return;
+
+        const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+        const res = await fetch(`${supabaseUrl}/functions/v1/book-search`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ query: suchbegriff, mode: "title", limit: 8 }),
+          signal: abortRef.current.signal,
+        });
+        if (res.ok) {
+          const ergebnisse = await res.json();
+          setSuchErgebnisse(ergebnisse);
+        }
+      } catch (e) {
+        if (e.name !== "AbortError") console.error("Buchsuche Fehler:", e);
+      } finally {
+        setSuchLaed(false);
+      }
+    }, 400);
+    return () => clearTimeout(debounceRef.current);
+  }, [suchbegriff]);
+
+  // Dublettenprüfung bei Titel/Autor/ISBN-Änderung
+  useEffect(() => {
+    if (!householdId || !form.titel) { setDubletten([]); return; }
+    const timeout = setTimeout(async () => {
+      const treffer = await pruefeAufDubletten(
+        supabase,
+        householdId,
+        {
+          titel: form.titel,
+          autoren: splitComma(form.autoren),
+          isbn13: form.isbn_13 || undefined,
+          isbn10: form.isbn_10 || undefined,
+          lagerortId: form.lagerort_id || undefined,
+        },
+        buch?.id ?? null,
+      );
+      setDubletten(treffer);
+    }, 600);
+    return () => clearTimeout(timeout);
+  }, [form.titel, form.autoren, form.isbn_13, form.lagerort_id, householdId, buch?.id, form.isbn_10]);
+
+  const uebernehmeVorschlag = useCallback((ergebnis) => {
+    setForm((prev) => ({
+      ...prev,
+      titel:           ergebnis.title ?? prev.titel,
+      untertitel:      ergebnis.subtitle ?? prev.untertitel,
+      autoren:         formatAutoren(ergebnis.authors),
+      isbn_13:         ergebnis.isbn13 ?? prev.isbn_13,
+      isbn_10:         ergebnis.isbn10 ?? prev.isbn_10,
+      verlag:          ergebnis.publisher ?? prev.verlag,
+      erscheinungsjahr: ergebnis.publishedYear?.toString() ?? prev.erscheinungsjahr,
+      sprache:         ergebnis.language ?? prev.sprache,
+      seitenzahl:      ergebnis.pageCount?.toString() ?? prev.seitenzahl,
+      beschreibung:    ergebnis.description ?? prev.beschreibung,
+      cover_url:       ergebnis.coverUrl ?? prev.cover_url,
+      thumbnail_url:   ergebnis.thumbnailUrl ?? prev.thumbnail_url,
+      api_quelle:      ergebnis.source ?? prev.api_quelle,
+      api_ref:         ergebnis.sourceRef ?? prev.api_ref,
+    }));
+    setSuchbegriff("");
+    setSuchErgebnisse([]);
+  }, []);
+
+  // Prefill bei Neuanlage aus Scanner-Ergebnis
+  useEffect(() => {
+    if (prefill && istNeu) {
+      uebernehmeVorschlag(prefill);
+    }
+    // Nur beim ersten Render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ISBN-Direktsuche bei Blur (isbn_13-Feld)
+  const handleIsbnBlur = useCallback(async (raw) => {
+    const norm = normalizeIsbn(raw);
+    if (!isValidIsbn(norm)) return;
+    setSuchLaed(true);
+    try {
+      const { data: { session: sess } } = await supabase.auth.getSession();
+      const token = sess?.access_token;
+      if (!token) return;
+      const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+      const res = await fetch(`${supabaseUrl}/functions/v1/book-search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ query: norm, mode: "isbn", limit: 5 }),
+      });
+      if (res.ok) {
+        const ergebnisse = await res.json();
+        if (Array.isArray(ergebnisse) && ergebnisse.length) {
+          setSuchErgebnisse(ergebnisse);
+        }
+      }
+    } catch (e) {
+      if (e.name !== "AbortError") console.error("ISBN-Suche Fehler:", e);
+    } finally {
+      setSuchLaed(false);
+    }
+  }, []);
+
+  const handleSpeichern = async () => {
+    if (!form.titel.trim()) { setFehler("Titel ist erforderlich."); return; }
+    setSpeichern(true);
+    setFehler(null);
+    try {
+      const payload = {
+        titel:            form.titel.trim(),
+        untertitel:       str2null(form.untertitel),
+        autoren:          splitComma(form.autoren),
+        autor_anzeige:    splitComma(form.autoren).join(", ") || null,
+        isbn_13:          str2null(form.isbn_13),
+        isbn_10:          str2null(form.isbn_10),
+        verlag:           str2null(form.verlag),
+        erscheinungsjahr: parseIntOrNull(form.erscheinungsjahr),
+        sprache:          str2null(form.sprache),
+        seitenzahl:       parseIntOrNull(form.seitenzahl),
+        beschreibung:     str2null(form.beschreibung),
+        tags:             splitComma(form.tags),
+        ort_id:           str2null(form.ort_id),
+        lagerort_id:      str2null(form.lagerort_id),
+        status:           form.status,
+        zustand:          str2null(form.zustand),
+        anzahl:           parseIntOrNull(form.anzahl) ?? 1,
+        notizen:          str2null(form.notizen),
+        cover_url:        str2null(form.cover_url),
+        thumbnail_url:    str2null(form.thumbnail_url),
+        api_quelle:       str2null(form.api_quelle),
+        api_ref:          str2null(form.api_ref),
+      };
+
+      if (istNeu) {
+        payload.user_id = userId;
+        payload.created_by_user_id = userId;
+        const { error } = await supabase.from("home_buecher").insert(payload);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("home_buecher")
+          .update(payload)
+          .eq("id", buch.id);
+        if (error) throw error;
+      }
+      onSpeichern();
+    } catch (e) {
+      setFehler(e.message ?? "Fehler beim Speichern.");
+    } finally {
+      setSpeichern(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 pb-[calc(var(--safe-area-bottom)+1rem)] bg-black/60">
+      <div className="bg-light-card dark:bg-canvas-2 rounded-card max-h-[90dvh] flex flex-col w-full max-w-lg">
+        {/* Header */}
+        <div className="shrink-0 border-b border-light-border dark:border-dark-border p-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <BookOpen size={18} className="text-teal-500" />
+            <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
+              {istNeu ? "Neues Buch hinzufügen" : "Buch bearbeiten"}
+            </h2>
+          </div>
+          <button onClick={onAbbrechen} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto flex-1 p-4 pb-2 space-y-4">
+          {/* API-Suche */}
+          <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 p-3 space-y-2">
+            <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
+              Bücherdatenbank durchsuchen (optional)
+            </p>
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary" />
+              <input
+                type="text"
+                value={suchbegriff}
+                onChange={(e) => setSuchbegriff(e.target.value)}
+                placeholder="Titel oder ISBN suchen…"
+                className={`${inputCls} pl-8`}
+              />
+              {suchLaed && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-light-text-secondary dark:text-dark-text-secondary" />}
+            </div>
+            {suchErgebnisse.length > 0 && (
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {suchErgebnisse.map((e, i) => (
+                  <button
+                    key={i}
+                    onClick={() => uebernehmeVorschlag(e)}
+                    className="w-full text-left px-3 py-2 rounded-card-sm hover:bg-light-border dark:hover:bg-canvas-3 text-sm"
+                  >
+                    <p className="font-medium text-light-text-main dark:text-dark-text-main truncate">{e.title}</p>
+                    {e.authorDisplay && (
+                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">{e.authorDisplay}</p>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Dublettenwarnung */}
+          {dubletten.length > 0 && (
+            <div className="flex items-start gap-2 rounded-card-sm border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+              <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+              <span>
+                Mögliche Dublette gefunden: „{dubletten[0].titel}". Du kannst trotzdem speichern.
+              </span>
+            </div>
+          )}
+
+          {/* Pflichtfelder */}
+          <div>
+            <label className={labelCls}>Titel *</label>
+            <input type="text" value={form.titel} onChange={(e) => setForm((p) => ({ ...p, titel: e.target.value }))} className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Untertitel</label>
+            <input type="text" value={form.untertitel} onChange={(e) => setForm((p) => ({ ...p, untertitel: e.target.value }))} className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Autoren (kommagetrennt)</label>
+            <input type="text" value={form.autoren} onChange={(e) => setForm((p) => ({ ...p, autoren: e.target.value }))} className={inputCls} placeholder="z. B. Frank Herbert, Isaac Asimov" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>ISBN-13</label>
+              <div className="flex gap-1.5">
+                <input
+                  type="text"
+                  value={form.isbn_13}
+                  onChange={(e) => setForm((p) => ({ ...p, isbn_13: e.target.value }))}
+                  onBlur={(e) => handleIsbnBlur(e.target.value)}
+                  className={`${inputCls} flex-1`}
+                  placeholder="978…"
+                />
+                <button
+                  type="button"
+                  onClick={() => setScannerOffen(true)}
+                  className="flex items-center justify-center px-2 py-2 rounded-card-sm border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-border dark:hover:bg-canvas-3 shrink-0"
+                  title="ISBN scannen"
+                >
+                  <ScanLine size={14} />
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className={labelCls}>Verlag</label>
+              <input type="text" value={form.verlag} onChange={(e) => setForm((p) => ({ ...p, verlag: e.target.value }))} className={inputCls} />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className={labelCls}>Jahr</label>
+              <input type="number" value={form.erscheinungsjahr} onChange={(e) => setForm((p) => ({ ...p, erscheinungsjahr: e.target.value }))} className={inputCls} placeholder="2024" />
+            </div>
+            <div>
+              <label className={labelCls}>Sprache</label>
+              <input type="text" value={form.sprache} onChange={(e) => setForm((p) => ({ ...p, sprache: e.target.value }))} className={inputCls} placeholder="de" />
+            </div>
+            <div>
+              <label className={labelCls}>Seiten</label>
+              <input type="number" value={form.seitenzahl} onChange={(e) => setForm((p) => ({ ...p, seitenzahl: e.target.value }))} className={inputCls} />
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Beschreibung</label>
+            <textarea rows={3} value={form.beschreibung} onChange={(e) => setForm((p) => ({ ...p, beschreibung: e.target.value }))} className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Tags (kommagetrennt)</label>
+            <input type="text" value={form.tags} onChange={(e) => setForm((p) => ({ ...p, tags: e.target.value }))} className={inputCls} placeholder="z. B. SciFi, Roman" />
+          </div>
+
+          {/* Standort */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Ort</label>
+              <select value={form.ort_id} onChange={(e) => setForm((p) => ({ ...p, ort_id: e.target.value, lagerort_id: "" }))} className={inputCls}>
+                <option value="">— kein Ort —</option>
+                {orte.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Lagerort</label>
+              <select value={form.lagerort_id} onChange={(e) => setForm((p) => ({ ...p, lagerort_id: e.target.value }))} className={inputCls}>
+                <option value="">— kein Lagerort —</option>
+                {filteredLagerorte.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Status/Zustand/Anzahl */}
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className={labelCls}>Status</label>
+              <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))} className={inputCls}>
+                {Object.entries(BUCH_STATUS).map(([val, label]) => (
+                  <option key={val} value={val}>{label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Zustand</label>
+              <select value={form.zustand} onChange={(e) => setForm((p) => ({ ...p, zustand: e.target.value }))} className={inputCls}>
+                <option value="">—</option>
+                {Object.entries(BUCH_ZUSTAND).map(([val, label]) => (
+                  <option key={val} value={val}>{label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Anzahl</label>
+              <input type="number" min="1" value={form.anzahl} onChange={(e) => setForm((p) => ({ ...p, anzahl: e.target.value }))} className={inputCls} />
+            </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>Notizen</label>
+            <textarea rows={2} value={form.notizen} onChange={(e) => setForm((p) => ({ ...p, notizen: e.target.value }))} className={inputCls} />
+          </div>
+
+          {fehler && (
+            <p className="text-xs text-accent-danger">{fehler}</p>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="shrink-0 border-t border-light-border dark:border-dark-border px-4 py-3 flex gap-2 justify-end">
+          <button onClick={onAbbrechen} className="px-4 py-2 text-sm rounded-pill border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:bg-light-border dark:hover:bg-canvas-3">
+            Abbrechen
+          </button>
+          <button
+            onClick={handleSpeichern}
+            disabled={speichern || !form.titel.trim()}
+            className="px-4 py-2 text-sm rounded-pill bg-primary-500 text-white font-medium disabled:opacity-50 flex items-center gap-2"
+          >
+            {speichern && <Loader2 size={14} className="animate-spin" />}
+            Speichern
+          </button>
+        </div>
+      </div>
+
+      {/* Scanner-Modal (innerhalb BuchFormModal) */}
+      {scannerOffen && (
+        <BuchScannerModal
+          modus="einzel"
+          householdId={householdId}
+          session={session}
+          orte={orte}
+          lagerorte={lagerorte}
+          onBuchGefunden={(bookResult) => {
+            setScannerOffen(false);
+            uebernehmeVorschlag(bookResult);
+          }}
+          onImportBatchErstellt={() => setScannerOffen(false)}
+          onAbbrechen={() => setScannerOffen(false)}
+        />
+      )}
+    </div>
+  );
+}
+

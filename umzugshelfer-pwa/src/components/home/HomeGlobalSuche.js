@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { Search, Package, ShoppingCart, Wrench, CheckSquare, FileText, Loader2, Sparkles, AlertTriangle, Send } from "lucide-react";
+import { Search, Package, ShoppingCart, Wrench, CheckSquare, FileText, BookOpen, Loader2, Sparkles, AlertTriangle, Send } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { useNavigate } from "react-router-dom";
 import OpenAI from "openai";
@@ -8,11 +8,12 @@ import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
 
 const QUELLEN = [
-  { key: "objekte",  label: "Inventar", icon: Package,     farbe: "text-blue-500",   pfad: "/home/inventar" },
-  { key: "vorraete", label: "Vorräte",  icon: ShoppingCart, farbe: "text-primary-500", pfad: "/home/vorraete" },
-  { key: "geraete",  label: "Geräte",   icon: Wrench,       farbe: "text-orange-500", pfad: "/home/geraete" },
-  { key: "aufgaben",  label: "Aufgaben",   icon: CheckSquare, farbe: "text-purple-500", pfad: "/home/aufgaben" },
-  { key: "dokumente", label: "Dokumente",  icon: FileText,    farbe: "text-indigo-500", pfad: "/home/dokumente" },
+  { key: "objekte",   label: "Inventar",  icon: Package,      farbe: "text-blue-500",    pfad: "/home/inventar" },
+  { key: "vorraete",  label: "Vorräte",   icon: ShoppingCart, farbe: "text-primary-500",  pfad: "/home/vorraete" },
+  { key: "geraete",   label: "Geräte",    icon: Wrench,        farbe: "text-orange-500",  pfad: "/home/geraete" },
+  { key: "aufgaben",  label: "Aufgaben",  icon: CheckSquare,   farbe: "text-purple-500",  pfad: "/home/aufgaben" },
+  { key: "dokumente", label: "Dokumente", icon: FileText,      farbe: "text-indigo-500",  pfad: "/home/dokumente" },
+  { key: "buecher",   label: "Bücher",    icon: BookOpen,      farbe: "text-teal-500",    pfad: "/home/inventar?tab=buecher" },
 ];
 
 // ─── Schnellsuche ────────────────────────────────────────────────────────────
@@ -29,14 +30,19 @@ const Schnellsuche = ({ session }) => {
     if (!userId || q.length < 2) { setErgebnisse({}); return; }
     setLoading(true);
     try {
-      const [objekteRes, vorraeteRes, geraeteRes, aufgabenRes, dokumenteRes] = await Promise.all([
+      const [objekteRes, vorraeteRes, geraeteRes, aufgabenRes, dokumenteRes, buecherRes] = await Promise.all([
         supabase.from("home_objekte").select("id, name, status, kategorie").eq("user_id", userId).ilike("name", `%${q}%`).neq("status", "entsorgt").limit(5),
         supabase.from("home_vorraete").select("id, name, kategorie, bestand, einheit").eq("user_id", userId).ilike("name", `%${q}%`).limit(5),
         supabase.from("home_geraete").select("id, name, hersteller, naechste_wartung").eq("user_id", userId).ilike("name", `%${q}%`).limit(5),
         supabase.from("todo_aufgaben").select("id, beschreibung, erledigt, kategorie").eq("user_id", userId).in("app_modus", ["home", "beides"]).ilike("beschreibung", `%${q}%`).eq("erledigt", false).limit(5),
         supabase.from("dokumente").select("id, dateiname, kategorie").eq("user_id", userId).ilike("dateiname", `%${q}%`).limit(5),
+        supabase.from("home_buecher").select("id, titel, autor_anzeige, isbn_13, status").eq("user_id", userId).or(`titel.ilike.%${q}%,autor_anzeige.ilike.%${q}%,isbn_13.ilike.%${q}%`).neq("status", "entsorgt").limit(5),
       ]);
-      setErgebnisse({ objekte: objekteRes.data || [], vorraete: vorraeteRes.data || [], geraete: geraeteRes.data || [], aufgaben: aufgabenRes.data || [], dokumente: dokumenteRes.data || [] });
+      setErgebnisse({
+        objekte: objekteRes.data || [], vorraete: vorraeteRes.data || [],
+        geraete: geraeteRes.data || [], aufgaben: aufgabenRes.data || [],
+        dokumente: dokumenteRes.data || [], buecher: buecherRes.data || [],
+      });
     } finally { setLoading(false); }
   }, [userId]);
 
@@ -79,8 +85,8 @@ const Schnellsuche = ({ session }) => {
                     <button key={item.id} onClick={() => navigate(pfad)} className="w-full flex items-center gap-3 p-3 rounded-card shadow-elevation-2 bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border hover:border-primary-500/50 transition-colors text-left">
                       <Icon size={14} className={`${farbe} flex-shrink-0`} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-light-text-main dark:text-dark-text-main truncate">{item.name || item.dateiname || item.beschreibung}</p>
-                        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{item.kategorie || item.hersteller || (item.bestand !== undefined ? `${item.bestand} ${item.einheit}` : "")}</p>
+                        <p className="text-sm text-light-text-main dark:text-dark-text-main truncate">{item.titel || item.name || item.dateiname || item.beschreibung}</p>
+                        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{item.autor_anzeige || item.kategorie || item.hersteller || (item.bestand !== undefined ? `${item.bestand} ${item.einheit}` : "")}</p>
                       </div>
                     </button>
                   ))}
@@ -137,11 +143,12 @@ const KiAssistent = ({ session }) => {
 
     try {
       // Alle Home-Daten als Kontext laden
-      const [objekteRes, vorraeteRes, geraeteRes, lagerorteRes] = await Promise.all([
+      const [objekteRes, vorraeteRes, geraeteRes, lagerorteRes, buecherRes] = await Promise.all([
         supabase.from("home_objekte").select("name, kategorie, status, tags").eq("user_id", userId).neq("status", "entsorgt").limit(100),
         supabase.from("home_vorraete").select("name, kategorie, bestand, einheit, mindestmenge").eq("user_id", userId).limit(50),
         supabase.from("home_geraete").select("name, hersteller, modell, naechste_wartung").eq("user_id", userId).limit(50),
         supabase.from("home_lagerorte").select("name, ort_id, home_orte(name)").eq("user_id", userId).limit(50),
+        supabase.from("home_buecher").select("id, titel, autor_anzeige, isbn_13, status, verliehen_an_name, rueckgabe_erwartet_am, tags").eq("user_id", userId).limit(100),
       ]);
 
       // Objekte mit Lagerort anreichern
@@ -149,12 +156,19 @@ const KiAssistent = ({ session }) => {
       const objekte = objekteRes.data || [];
       const vorraete = vorraeteRes.data || [];
       const geraete = geraeteRes.data || [];
+      const buecher = buecherRes.data || [];
 
       const kontext = [
         objekte.length > 0 && `## Inventar (${objekte.length} Objekte)\n` + objekte.map((o) => `- ${o.name}${o.kategorie ? ` (${o.kategorie})` : ""}${o.tags?.length ? ` [${o.tags.join(", ")}]` : ""}`).join("\n"),
         lagerorte.length > 0 && `## Lagerorte\n` + lagerorte.map((l) => `- ${l.name}${l.home_orte?.name ? ` → ${l.home_orte.name}` : ""}`).join("\n"),
         vorraete.length > 0 && `## Vorräte\n` + vorraete.map((v) => `- ${v.name}: ${v.bestand} ${v.einheit || ""} (Min: ${v.mindestmenge || 0})`).join("\n"),
         geraete.length > 0 && `## Geräte\n` + geraete.map((g) => `- ${g.name}${g.hersteller ? ` (${g.hersteller})` : ""}${g.naechste_wartung ? `, Wartung: ${g.naechste_wartung}` : ""}`).join("\n"),
+        buecher.length > 0 && `## Bibliothek (${buecher.length} Bücher)\n` + buecher.map((b) => {
+          let zeile = `- ${b.titel}${b.autor_anzeige ? ` von ${b.autor_anzeige}` : ""}`;
+          if (b.status === "verliehen") zeile += ` [verliehen an ${b.verliehen_an_name ?? "unbekannt"}${b.rueckgabe_erwartet_am ? `, bis ${b.rueckgabe_erwartet_am}` : ""}]`;
+          else zeile += ` [${b.status}]`;
+          return zeile;
+        }).join("\n"),
       ].filter(Boolean).join("\n\n");
 
       const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });

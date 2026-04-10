@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef, forwardRef, useImperativeHandle } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   DollarSign, Plus, Edit2, Trash2, X, Loader2, AlertCircle,
@@ -78,6 +78,7 @@ import BudgetViewBadgeBar from "./budget/BudgetViewBadgeBar";
 import KostenAufteilungAuswahl from "./KostenAufteilungAuswahl";
 import BudgetAusgleichTab from "./BudgetAusgleichTab";
 import BudgetSplitDefaults from "./BudgetSplitDefaults";
+import ModalShell from "../ui/ModalShell";
 
 // ─────────────── Constants ───────────────
 const HOME_KATEGORIEN = [
@@ -125,33 +126,32 @@ const mapBudgetViewError = (error) => {
 };
 
 // ─────────────── Sub-Components ───────────────
-const ModalWrapper = ({ title, onClose, children }) => (
-  <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)]">
-    <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border max-h-[calc(100dvh-var(--safe-area-bottom)-2rem)] lg:max-h-[90vh] overflow-y-auto">
-      <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border sticky top-0 bg-light-card dark:bg-canvas-2">
-        <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">{title}</h3>
-        <button onClick={onClose} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main">
-          <X size={18} />
-        </button>
-      </div>
-      <div className="p-4">{children}</div>
-    </div>
-  </div>
+const ModalWrapper = ({ title, onClose, children, footer, maxWidthClass = "max-w-md", bodyClassName = "" }) => (
+  <ModalShell
+    open
+    title={title}
+    onClose={onClose}
+    footer={footer}
+    maxWidthClass={maxWidthClass}
+    bodyClassName={bodyClassName}
+  >
+    {children}
+  </ModalShell>
 );
 
 // ─────────────── BudgetForm ───────────────
 const INPUT_CLS = "w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500";
 
-const BudgetForm = ({
+const BudgetForm = forwardRef(({
   initial,
   initialSplit,
   householdId,
   onSpeichern,
-  onAbbrechen,
   bewohner,
   finanzkonten,
   showSettlementHinweis,
-}) => {
+  onValidityChange,
+}, ref) => {
   const [form, setForm] = useState({
     beschreibung: initial?.beschreibung || "",
     kategorie: initial?.kategorie || "Haushalt",
@@ -320,7 +320,7 @@ const BudgetForm = ({
   const handleVorgestrecktVonChange = (v) => { setSplitVorgestrecktVon(v);  setSplitManuellBearbeitet(true); };
   const handleTeilnehmerChange      = (v) => { setSplitTeilnehmer(v);       setSplitManuellBearbeitet(true); };
 
-  const handleSpeichern = () => {
+  const handleSpeichern = useCallback(() => {
     if (!form.beschreibung.trim() || !form.betrag) return;
     const naechstesDatum = wiederholen ? calcNaechstesDatum(form.datum, intervall) : null;
     const budgetPayload = {
@@ -351,7 +351,32 @@ const BudgetForm = ({
     setSplitValidierungsFehler(null);
 
     onSpeichern({ ...budgetPayload, splitConfig });
-  };
+  }, [
+    budgetScope,
+    endeDatum,
+    endeModus,
+    form,
+    intervall,
+    onSpeichern,
+    sharesInput,
+    splitAktiv,
+    splitMode,
+    splitTeilnehmer,
+    splitVerfuegbar,
+    splitVorgestrecktVon,
+    wiederholen,
+    zahlungskontoId,
+  ]);
+
+  const kannSpeichern = form.beschreibung.trim().length > 0 && Boolean(form.betrag);
+
+  useEffect(() => {
+    onValidityChange?.(kannSpeichern);
+  }, [kannSpeichern, onValidityChange]);
+
+  useImperativeHandle(ref, () => ({
+    submit: handleSpeichern,
+  }), [handleSpeichern]);
 
   return (
     <div className="space-y-3">
@@ -499,21 +524,9 @@ const BudgetForm = ({
           Kostenaufteilung ist verfügbar, sobald mindestens zwei Bewohner angelegt sind.
         </div>
       )}
-      <div className="flex gap-2">
-        <button onClick={onAbbrechen} className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main">
-          Abbrechen
-        </button>
-        <button
-          onClick={handleSpeichern}
-          disabled={!form.beschreibung.trim() || !form.betrag}
-          className="flex-1 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50"
-        >
-          Speichern
-        </button>
-      </div>
     </div>
   );
-};
+});
 
 // ─────────────── SparzieleModal ───────────────
 const SparzieleModal = ({ initial, onSpeichern, onAbbrechen }) => {
@@ -689,6 +702,8 @@ const HomeBudget = ({ session }) => {
   const [sparziele, setSparziele] = useState([]);
   const [splitGroups, setSplitGroups] = useState([]);
   const [settlements, setSettlements] = useState([]);
+  const [budgetModalKannSpeichern, setBudgetModalKannSpeichern] = useState(false);
+  const budgetFormRef = useRef(null);
   const [fehler, setFehler] = useState(null);
 
   // UI
@@ -2522,29 +2537,22 @@ const HomeBudget = ({ session }) => {
         </div>
       )}
       {rechnungVorschau && (
-        <div
-          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)] flex items-center justify-center"
-          onClick={() => setRechnungVorschau(null)}
+        <ModalShell
+          open
+          title={`Rechnungsvorschau: ${rechnungVorschau.dateiname || "Dokument"}`}
+          onClose={() => setRechnungVorschau(null)}
+          maxWidthClass="max-w-4xl"
+          overlayClassName="invoice-preview-overlay"
+          dialogClassName="invoice-preview-dialog"
+          bodyClassName="px-3 py-3 sm:px-4 sm:py-4"
         >
-          <div
-            className="w-full max-w-4xl max-h-[calc(100dvh-var(--safe-area-top)-var(--safe-area-bottom)-2rem)] lg:max-h-[90vh] flex flex-col rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 shadow-elevation-3"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="shrink-0 flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
-              <h3 className="font-semibold text-light-text-main dark:text-dark-text-main truncate pr-2">
-                Rechnungsvorschau: {rechnungVorschau.dateiname || "Dokument"}
-              </h3>
-              <button onClick={() => setRechnungVorschau(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="flex-1 min-h-0 overflow-auto p-4">
+            <div className="flex min-h-[18rem] flex-1 items-center justify-center">
               {rechnungVorschau.loading ? (
-                <div className="h-full flex items-center justify-center">
+                <div className="flex h-full min-h-[18rem] w-full items-center justify-center">
                   <Loader2 size={28} className="animate-spin text-light-text-secondary dark:text-dark-text-secondary" />
                 </div>
               ) : rechnungVorschau.fehler ? (
-                <div className="h-full flex items-center justify-center text-sm text-red-500">
+                <div className="flex h-full min-h-[18rem] w-full items-center justify-center text-sm text-red-500">
                   {rechnungVorschau.fehler}
                 </div>
               ) : rechnungVorschau.url ? (
@@ -2552,23 +2560,22 @@ const HomeBudget = ({ session }) => {
                   <iframe
                     src={rechnungVorschau.url}
                     title={rechnungVorschau.dateiname || "Rechnung"}
-                    className="w-full h-full rounded-card-sm border border-light-border dark:border-dark-border bg-white"
+                    className="min-h-[60dvh] w-full rounded-card-sm border border-light-border dark:border-dark-border bg-white"
                   />
                 ) : (
                   <img
                     src={rechnungVorschau.url}
                     alt={rechnungVorschau.dateiname || "Rechnung"}
-                    className="w-full h-full object-contain rounded-card-sm"
+                    className="max-h-full w-full object-contain rounded-card-sm"
                   />
                 )
               ) : (
-                <div className="h-full flex items-center justify-center text-sm text-light-text-secondary dark:text-dark-text-secondary">
+                <div className="flex h-full min-h-[18rem] w-full items-center justify-center text-sm text-light-text-secondary dark:text-dark-text-secondary">
                   Keine Vorschau verfügbar.
                 </div>
               )}
             </div>
-          </div>
-        </div>
+        </ModalShell>
       )}
 
       {rechnungsLoeschDialog && (
@@ -2610,16 +2617,37 @@ const HomeBudget = ({ session }) => {
       )}
 
       {modal !== null && (
-        <ModalWrapper title={modal.id ? "Eintrag bearbeiten" : "Neuer Eintrag"} onClose={() => setModal(null)}>
+        <ModalWrapper
+          title={modal.id ? "Eintrag bearbeiten" : "Neuer Eintrag"}
+          onClose={() => setModal(null)}
+          footer={
+            <div className="flex gap-2">
+              <button
+                onClick={() => setModal(null)}
+                className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={() => budgetFormRef.current?.submit()}
+                disabled={!budgetModalKannSpeichern}
+                className="flex-1 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50"
+              >
+                Speichern
+              </button>
+            </div>
+          }
+        >
           <BudgetForm
+            ref={budgetFormRef}
             initial={modal.id ? modal : null}
             initialSplit={modal.initialSplit || null}
             householdId={budgetViewHouseholdId}
             onSpeichern={speichere}
-            onAbbrechen={() => setModal(null)}
             bewohner={bewohner}
             finanzkonten={finanzkonten}
             showSettlementHinweis={haushaltsHatSettlements(settlements)}
+            onValidityChange={setBudgetModalKannSpeichern}
           />
         </ModalWrapper>
       )}

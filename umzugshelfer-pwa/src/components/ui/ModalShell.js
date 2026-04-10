@@ -20,6 +20,11 @@ export default function ModalShell({
   maxWidthClass = "max-w-md",
   closeOnBackdrop = true,
   closeOnEscape = true,
+  overlayClassName = "",
+  dialogClassName = "",
+  headerClassName = "",
+  bodyClassName = "",
+  footerClassName = "",
 }) {
   // Scroll-Lock
   useEffect(() => {
@@ -41,15 +46,15 @@ export default function ModalShell({
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm p-4 pb-safe flex items-center justify-center"
+      className={`mobile-modal-overlay fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex justify-center ${overlayClassName}`}
       onClick={closeOnBackdrop ? onClose : undefined}
     >
       <div
-        className={`bg-light-card-bg dark:bg-canvas-2 w-full ${maxWidthClass} rounded-card shadow-elevation-3 border border-light-border dark:border-dark-border max-h-[90dvh] flex flex-col`}
+        className={`mobile-modal-dialog bg-light-card-bg dark:bg-canvas-2 w-full ${maxWidthClass} rounded-card shadow-elevation-3 border border-light-border dark:border-dark-border flex min-h-0 flex-col ${dialogClassName}`}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
-          <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-light-border dark:border-dark-border">
+          <div className={`shrink-0 flex items-center justify-between px-4 py-3 border-b border-light-border dark:border-dark-border ${headerClassName}`}>
             <h3 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main">{title}</h3>
             <button
               onClick={onClose}
@@ -59,9 +64,9 @@ export default function ModalShell({
             </button>
           </div>
         )}
-        <div className="flex-1 overflow-y-auto px-4 py-3">{children}</div>
+        <div className={`mobile-modal-body flex-1 px-4 py-3 ${bodyClassName}`}>{children}</div>
         {footer && (
-          <div className="shrink-0 border-t border-light-border dark:border-dark-border px-4 py-3">
+          <div className={`mobile-modal-footer shrink-0 border-t border-light-border dark:border-dark-border px-4 py-3 ${footerClassName}`}>
             {footer}
           </div>
         )}

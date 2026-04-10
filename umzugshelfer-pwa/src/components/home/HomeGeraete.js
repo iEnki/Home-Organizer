@@ -368,8 +368,8 @@ const HomeGeraete = ({ session }) => {
 
       {/* Gerät-Formular-Modal */}
       {modal !== null && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-safe">
-          <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border max-h-[90vh] flex flex-col">
+        <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
+          <div className="mobile-modal-dialog bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border flex min-h-0 flex-col">
             <div className="shrink-0 flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border sticky top-0 bg-light-card dark:bg-canvas-2 rounded-t-card">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
                 {formData.id ? "Gerät bearbeiten" : "Neues Gerät"}
@@ -378,10 +378,10 @@ const HomeGeraete = ({ session }) => {
                 <X size={18} />
               </button>
             </div>
-            <div className="overflow-y-auto flex-1 p-4">
+            <div className="mobile-modal-body flex-1 p-4">
               <GeraetForm value={formData} onChange={setFormData} />
             </div>
-            <div className="shrink-0 border-t border-light-border dark:border-dark-border px-4 py-3 flex gap-2">
+            <div className="mobile-modal-footer shrink-0 border-t border-light-border dark:border-dark-border px-4 py-3 flex gap-2">
               <button
                 onClick={closeModal}
                 className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main"

@@ -1104,7 +1104,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
         </button>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 pt-5 pb-[calc(var(--safe-area-bottom)+2rem)] space-y-5">
+      <div className="max-w-lg mx-auto px-4 pt-5 pb-[calc(var(--mobile-bottom-offset)+1.25rem)] space-y-5">
         {/* Warnungen */}
         {niedrigeConfidence && (
           <div className="flex items-start gap-3 p-3 rounded-card-sm bg-accent-danger/10 border border-accent-danger/30">

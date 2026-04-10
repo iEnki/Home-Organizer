@@ -9,6 +9,7 @@ const TABELLEN_META = {
   todo_aufgaben:    { label: "Aufgaben",         icon: CheckSquare, farbe: "text-purple-500", bg: "bg-purple-500/10" },
   home_projekte:    { label: "Projekte",         icon: FolderOpen,  farbe: "text-pink-500",   bg: "bg-pink-500/10" },
   home_wissen:      { label: "Wissen",           icon: BookOpen,    farbe: "text-amber-500",  bg: "bg-amber-500/10" },
+  home_buecher:     { label: "Bücher",           icon: BookOpen,    farbe: "text-teal-500",   bg: "bg-teal-500/10" },
 };
 
 const AKTIONS_META = {

@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect, useCallback } from "react";
-import { CheckSquare, Plus, Trash2, X, Check, Loader2, RefreshCw, AlertCircle, Sparkles } from "lucide-react";
+import { useRef, useImperativeHandle, forwardRef } from "react";
+import { CheckSquare, Plus, Trash2, Check, Loader2, RefreshCw, AlertCircle, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../../supabaseClient";
 import { getBewohnerDisplayName } from "../../utils/budgetAccounts";
@@ -7,6 +8,7 @@ import KiHomeAssistent from "./KiHomeAssistent";
 import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
+import ModalShell from "../ui/ModalShell";
 
 const KATEGORIEN = ["Reinigung", "Pflege", "Garten", "Einkauf", "Reparatur", "Wartung", "Organisation", "Sonstiges"];
 const PRIORITAETEN = ["Hoch", "Mittel", "Niedrig"];
@@ -24,7 +26,7 @@ const BewohnerBadge = ({ bewohner }) => {
   );
 };
 
-const AufgabeForm = ({ initial, onSpeichern, onAbbrechen, bewohner }) => {
+const AufgabeForm = forwardRef(({ initial, onSpeichern, bewohner, onValidityChange }, ref) => {
   const [form, setForm] = useState({
     beschreibung: initial?.beschreibung || "",
     kategorie: initial?.kategorie || "Reinigung",
@@ -34,6 +36,22 @@ const AufgabeForm = ({ initial, onSpeichern, onAbbrechen, bewohner }) => {
     bewohner_id: initial?.bewohner_id || "",
     app_modus: "home",
   });
+  const kannSpeichern = form.beschreibung.trim().length > 0;
+
+  useEffect(() => {
+    onValidityChange?.(kannSpeichern);
+  }, [kannSpeichern, onValidityChange]);
+
+  useImperativeHandle(ref, () => ({
+    submit: () => {
+      if (!kannSpeichern) return;
+      onSpeichern({
+        ...form,
+        faelligkeitsdatum: form.faelligkeitsdatum ? `${form.faelligkeitsdatum}T12:00:00` : null,
+        bewohner_id: form.bewohner_id || null,
+      });
+    },
+  }), [form, kannSpeichern, onSpeichern]);
 
   return (
     <div className="space-y-3">
@@ -88,23 +106,9 @@ const AufgabeForm = ({ initial, onSpeichern, onAbbrechen, bewohner }) => {
           </select>
         </div>
       )}
-      <div className="flex gap-2">
-        <button onClick={onAbbrechen} className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main">Abbrechen</button>
-        <button
-          onClick={() => form.beschreibung.trim() && onSpeichern({
-            ...form,
-            faelligkeitsdatum: form.faelligkeitsdatum ? `${form.faelligkeitsdatum}T12:00:00` : null,
-            bewohner_id: form.bewohner_id || null,
-          })}
-          disabled={!form.beschreibung.trim()}
-          className="flex-1 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50"
-        >
-          Speichern
-        </button>
-      </div>
     </div>
   );
-};
+});
 
 const HomeHaushaltsaufgaben = ({ session }) => {
   const userId = session?.user?.id;
@@ -117,6 +121,8 @@ const HomeHaushaltsaufgaben = ({ session }) => {
   const [kategFilter, setKategFilter] = useState("");
   const [bewohnerFilter, setBewohnerFilter] = useState("");
   const [kiOffen, setKiOffen]       = useState(false);
+  const [modalKannSpeichern, setModalKannSpeichern] = useState(false);
+  const aufgabeFormRef = useRef(null);
 
   const ladeDaten = useCallback(async () => {
     if (!userId) return;
@@ -327,22 +333,36 @@ const HomeHaushaltsaufgaben = ({ session }) => {
       )}
 
       {modal !== null && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center pt-4 pb-[calc(var(--safe-area-bottom)+1rem)] px-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border max-h-[calc(100dvh-var(--safe-area-bottom)-2rem)] lg:max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border sticky top-0 bg-light-card dark:bg-canvas-2">
-              <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">{modal.id ? "Aufgabe bearbeiten" : "Neue Aufgabe"}</h3>
-              <button onClick={() => setModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary"><X size={18} /></button>
+        <ModalShell
+          open
+          title={modal.id ? "Aufgabe bearbeiten" : "Neue Aufgabe"}
+          onClose={() => setModal(null)}
+          footer={
+            <div className="flex gap-2">
+              <button
+                onClick={() => setModal(null)}
+                className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={() => aufgabeFormRef.current?.submit()}
+                disabled={!modalKannSpeichern}
+                className="flex-1 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50"
+              >
+                Speichern
+              </button>
             </div>
-            <div className="p-4">
-              <AufgabeForm
-                initial={modal.id ? modal : null}
-                onSpeichern={speichere}
-                onAbbrechen={() => setModal(null)}
-                bewohner={bewohner}
-              />
-            </div>
-          </div>
-        </div>
+          }
+        >
+          <AufgabeForm
+            ref={aufgabeFormRef}
+            initial={modal.id ? modal : null}
+            onSpeichern={speichere}
+            bewohner={bewohner}
+            onValidityChange={setModalKannSpeichern}
+          />
+        </ModalShell>
       )}
 
       {tourAktiv && (

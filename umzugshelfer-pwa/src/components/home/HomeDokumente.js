@@ -155,8 +155,8 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 pb-safe bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 max-h-[90vh] flex flex-col">
+    <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
+      <div className="mobile-modal-dialog w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 flex min-h-0 flex-col">
 
         {/* Header — immer sichtbar */}
         <div className="shrink-0 flex items-center justify-between px-5 pt-5 pb-4 border-b border-light-border dark:border-dark-border">
@@ -172,7 +172,7 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
         </div>
 
         {/* Body — scrollbar */}
-        <div className="flex-1 overflow-y-auto px-5 pt-4 pb-2 space-y-4">
+        <div className="mobile-modal-body flex-1 px-5 pt-4 pb-2 space-y-4">
           {/* Dropzone */}
           <div
             onDrop={handleDrop}
@@ -297,8 +297,8 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)] bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4 max-h-[calc(100dvh-var(--safe-area-bottom)-2rem)] overflow-y-auto lg:max-h-[90vh]">
+    <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
+      <div className="mobile-modal-dialog w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4 overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
             <BookOpen size={16} className="text-amber-500" /> Als Wissenseintrag speichern
@@ -385,8 +385,8 @@ const BudgetZuordnungModal = ({ dok, initial, onSchliessen, onSpeichern, speiche
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)] bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4 max-h-[calc(100dvh-var(--safe-area-bottom)-2rem)] overflow-y-auto lg:max-h-[90vh]">
+    <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
+      <div className="mobile-modal-dialog w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4 overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
             <Plus size={16} className="text-primary-500" /> Zum Budget hinzufügen
@@ -518,8 +518,8 @@ const BearbeitenModal = ({ dok, userId, onSchliessen, onGespeichert }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 pb-safe bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 max-h-[90vh] flex flex-col">
+    <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
+      <div className="mobile-modal-dialog w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 flex min-h-0 flex-col">
 
         {/* Header */}
         <div className="shrink-0 flex items-center justify-between px-5 pt-5 pb-4 border-b border-light-border dark:border-dark-border">

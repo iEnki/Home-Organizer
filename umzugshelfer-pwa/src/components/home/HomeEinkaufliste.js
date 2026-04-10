@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertCircle,
@@ -7,19 +7,22 @@ import {
   ChevronDown,
   ChevronUp,
   Circle,
+  Edit2,
   Loader2,
+  Mic,
+  MicOff,
   Pencil,
   Plus,
   Search,
   ShoppingCart,
-  Sparkles,
   Trash2,
+  Undo2,
   X,
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
+import { startSpeechRecognition } from "../../utils/kiClient";
 import { useToast } from "../../hooks/useToast";
 import useViewport from "../../hooks/useViewport";
-import KiHomeAssistent from "./KiHomeAssistent";
 import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
@@ -138,6 +141,214 @@ const buildPreviewDecisions = (duplicates) => {
   return map;
 };
 
+function EntryPreviewRow({
+  draft,
+  editedValues,
+  isAusgeschlossen,
+  duplicate,
+  decision,
+  onToggleAblehnen,
+  onEditSpeichern,
+  onUpdateDecision,
+}) {
+  const [editOffen, setEditOffen] = useState(false);
+  const [name, setName] = useState(editedValues?.name ?? draft.name);
+  const [menge, setMenge] = useState(String(editedValues?.menge ?? draft.menge ?? 1));
+  const [einheit, setEinheit] = useState(editedValues?.einheit ?? draft.einheit ?? "Stück");
+
+  useEffect(() => {
+    if (!editedValues) {
+      setName(draft.name);
+      setMenge(String(draft.menge ?? 1));
+      setEinheit(draft.einheit ?? "Stück");
+      setEditOffen(false);
+    }
+  }, [editedValues]); // draft ist stabil innerhalb einer Preview-Session
+
+  const handleSpeichern = () => {
+    const trimmedName = name.trim() || draft.name;
+    const classified = applyLegacyShoppingFields({
+      name: trimmedName,
+      normalized_name: normalizeShoppingName(trimmedName),
+    });
+    onEditSpeichern(draft.client_id, {
+      name: trimmedName,
+      menge,
+      einheit,
+      hauptkategorie: classified.hauptkategorie,
+      unterkategorie: classified.unterkategorie ?? null,
+    });
+    setEditOffen(false);
+  };
+
+  return (
+    <div
+      className={`rounded-card border p-3 space-y-3 transition-colors ${
+        isAusgeschlossen
+          ? "border-red-500/20 bg-red-500/5 opacity-60"
+          : "border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className={`text-sm font-semibold text-light-text-main dark:text-dark-text-main ${isAusgeschlossen ? "line-through" : ""}`}>
+              {editedValues?.name ?? draft.name}
+            </h3>
+            {getShoppingCategoryBadgeLabel(
+              editedValues?.hauptkategorie != null
+                ? { ...draft, hauptkategorie: editedValues.hauptkategorie, unterkategorie: editedValues.unterkategorie }
+                : draft,
+              true
+            ) && (
+              <span
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${
+                  getShoppingCategoryStyle(
+                    editedValues?.hauptkategorie ?? draft.hauptkategorie
+                  ).soft
+                }`}
+              >
+                {getShoppingCategoryBadgeLabel(
+                  editedValues?.hauptkategorie != null
+                    ? { ...draft, hauptkategorie: editedValues.hauptkategorie, unterkategorie: editedValues.unterkategorie }
+                    : draft,
+                  true
+                )}
+              </span>
+            )}
+            {draft.review_noetig && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[11px] font-medium">
+                <AlertTriangle size={12} />
+                Prüfen
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1">
+            {editedValues?.menge != null || editedValues?.einheit != null
+              ? `${editedValues?.menge ?? draft.menge ?? 1} ${editedValues?.einheit ?? draft.einheit ?? "Stück"}`
+              : getShoppingEntrySubtitle(draft)}
+          </p>
+          {draft.merged_original_texts?.length > 1 && (
+            <p className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary mt-1">
+              Batch-intern zusammengeführt aus {draft.merged_original_texts.length} Roh-Einträgen
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">
+            Confidence {Math.round((draft.confidence || 0) * 100)}%
+          </span>
+          {!isAusgeschlossen && (
+            <button
+              onClick={() => setEditOffen((v) => !v)}
+              title="Bearbeiten"
+              className={`p-1 rounded transition-colors ${
+                editOffen
+                  ? "text-primary-500 bg-primary-500/10"
+                  : "text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500"
+              }`}
+            >
+              <Edit2 size={13} />
+            </button>
+          )}
+          <button
+            onClick={() => onToggleAblehnen(draft.client_id)}
+            title={isAusgeschlossen ? "Reaktivieren" : "Ablehnen"}
+            className={`p-1 rounded transition-colors ${
+              isAusgeschlossen
+                ? "text-green-600 dark:text-green-400 hover:bg-green-500/10"
+                : "text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger"
+            }`}
+          >
+            {isAusgeschlossen ? <Undo2 size={13} /> : <X size={13} />}
+          </button>
+        </div>
+      </div>
+
+      {/* Inline-Edit-Felder */}
+      {editOffen && !isAusgeschlossen && (
+        <div className="border-t border-light-border dark:border-dark-border pt-3 space-y-2">
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Name"
+            className="w-full px-3 py-1.5 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
+          />
+          <div className="flex gap-2">
+            <input
+              type="number"
+              value={menge}
+              onChange={(e) => setMenge(e.target.value)}
+              min="0"
+              step="any"
+              className="w-20 px-3 py-1.5 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
+            />
+            <input
+              type="text"
+              value={einheit}
+              onChange={(e) => setEinheit(e.target.value)}
+              placeholder="Einheit"
+              className="flex-1 px-3 py-1.5 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleSpeichern}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-card-sm bg-primary-500 text-white font-medium"
+            >
+              <Check size={11} /> Übernehmen
+            </button>
+            <button
+              onClick={() => setEditOffen(false)}
+              className="px-3 py-1.5 text-xs rounded-card-sm border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary"
+            >
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Duplikat-Block (unverändert, nur via Props) */}
+      {duplicate && (
+        <div className="rounded-card-sm border border-amber-500/30 bg-amber-500/10 p-3 space-y-2">
+          <p className="text-xs text-amber-700 dark:text-amber-300">
+            Bereits offen vorhanden: <strong>{duplicate.existing_entry.name}</strong>{" "}
+            ({getShoppingEntrySubtitle(duplicate.existing_entry)})
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() =>
+                onUpdateDecision(draft.client_id, {
+                  action: "merge",
+                  existingEntry: duplicate.existing_entry,
+                })
+              }
+              className={`px-3 py-1.5 rounded-full text-xs border ${
+                decision?.action === "merge"
+                  ? "bg-amber-500 text-white border-amber-500"
+                  : "border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary"
+              }`}
+            >
+              Zusammenführen
+            </button>
+            <button
+              onClick={() => onUpdateDecision(draft.client_id, { action: "insert" })}
+              className={`px-3 py-1.5 rounded-full text-xs border ${
+                decision?.action === "insert"
+                  ? "bg-primary-500 text-white border-primary-500"
+                  : "border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary"
+              }`}
+            >
+              Separat lassen
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const HomeEinkaufliste = ({ session }) => {
   const userId = session?.user?.id;
   const toast = useToast();
@@ -147,7 +358,8 @@ const HomeEinkaufliste = ({ session }) => {
   const [loading, setLoading] = useState(true);
   const [eintraege, setEintraege] = useState([]);
   const [fehler, setFehler] = useState("");
-  const [kiOffen, setKiOffen] = useState(false);
+  const [spracheAktiv, setSpracheAktiv] = useState(false);
+  const recognitionRef = useRef(null);
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("Alle");
@@ -159,6 +371,8 @@ const HomeEinkaufliste = ({ session }) => {
   const [submittingCreate, setSubmittingCreate] = useState(false);
 
   const [previewState, setPreviewState] = useState(null);
+  const [previewAusgeschlossen, setPreviewAusgeschlossen] = useState(new Set());
+  const [previewEdits, setPreviewEdits] = useState({});
 
   const [editForm, setEditForm] = useState(DEFAULT_EDIT_FORM);
   const [savingEdit, setSavingEdit] = useState(false);
@@ -227,14 +441,34 @@ const HomeEinkaufliste = ({ session }) => {
         ...result,
         decisions: buildPreviewDecisions(result.duplicates),
       });
+      setPreviewAusgeschlossen(new Set());
+      setPreviewEdits({});
       setCreateModalOpen(false);
-      setKiOffen(false);
     } catch (error) {
       console.error("Fehler beim Vorbereiten des Einkaufs-Batches", error);
       setFehler("Einträge konnten nicht vorbereitet werden.");
     } finally {
       setSubmittingCreate(false);
     }
+  };
+
+  const handleSpracheStarten = () => {
+    if (spracheAktiv) {
+      recognitionRef.current?.stop();
+      setSpracheAktiv(false);
+      return;
+    }
+    setSpracheAktiv(true);
+    recognitionRef.current = startSpeechRecognition(
+      (transcript) => {
+        setCreateText((prev) => prev ? prev + ", " + transcript : transcript);
+        setSpracheAktiv(false);
+      },
+      (err) => {
+        toast.error(err);
+        setSpracheAktiv(false);
+      }
+    );
   };
 
   const handleCreateAnalyse = async () => {
@@ -263,14 +497,30 @@ const HomeEinkaufliste = ({ session }) => {
     });
   };
 
+  const handleToggleAblehnen = (clientId) => {
+    setPreviewAusgeschlossen((prev) => {
+      const s = new Set(prev);
+      s.has(clientId) ? s.delete(clientId) : s.add(clientId);
+      return s;
+    });
+  };
+
+  const handleEditSpeichern = (clientId, edits) => {
+    setPreviewEdits((prev) => ({ ...prev, [clientId]: edits }));
+  };
+
   const commitPreview = async () => {
     if (!previewState || !userId) return;
     setSubmittingCreate(true);
     setFehler("");
     try {
+      const draftsGefiltert = previewState.drafts
+        .filter((d) => !previewAusgeschlossen.has(d.client_id))
+        .map((d) => ({ ...d, ...(previewEdits[d.client_id] ?? {}) }));
+
       const result = await applyShoppingBatch({
         userId,
-        drafts: previewState.drafts,
+        drafts: draftsGefiltert,
         decisions: previewState.decisions,
       });
 
@@ -460,13 +710,6 @@ const HomeEinkaufliste = ({ session }) => {
               Erledigte löschen
             </button>
           )}
-          <button
-            onClick={() => setKiOffen(true)}
-            className="flex items-center gap-2 px-3 py-2 rounded-pill text-sm font-medium bg-primary-500/10 hover:bg-primary-500/20 text-primary-500 border border-primary-500/30 transition-colors"
-          >
-            <Sparkles size={15} />
-            <span>KI</span>
-          </button>
           <button
             data-tour="tour-einkauf-hinzufuegen"
             onClick={() => setCreateModalOpen(true)}
@@ -799,13 +1042,27 @@ const HomeEinkaufliste = ({ session }) => {
             </div>
 
             <div className="p-4 space-y-4">
-              <textarea
-                value={createText}
-                onChange={(event) => setCreateText(event.target.value)}
-                placeholder={"Milch, Bananen, Hendlbrust 500 g, Küchenrolle"}
-                className="w-full min-h-[180px] rounded-card border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-4 py-3 text-sm text-light-text-main dark:text-dark-text-main outline-none focus:ring-2 focus:ring-primary-500"
-                autoFocus
-              />
+              <div className="relative">
+                <textarea
+                  value={createText}
+                  onChange={(event) => setCreateText(event.target.value)}
+                  placeholder={"Milch, Bananen, Hendlbrust 500 g, Küchenrolle"}
+                  className="w-full min-h-[180px] rounded-card border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-4 py-3 pr-12 text-sm text-light-text-main dark:text-dark-text-main outline-none focus:ring-2 focus:ring-primary-500"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={handleSpracheStarten}
+                  title={spracheAktiv ? "Aufnahme stoppen" : "Spracheingabe starten"}
+                  className={`absolute bottom-3 right-3 p-2 rounded-full transition-colors ${
+                    spracheAktiv
+                      ? "bg-red-500 text-white animate-pulse"
+                      : "bg-light-border dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 hover:bg-primary-500/10"
+                  }`}
+                >
+                  {spracheAktiv ? <MicOff size={15} /> : <Mic size={15} />}
+                </button>
+              </div>
 
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
@@ -855,118 +1112,49 @@ const HomeEinkaufliste = ({ session }) => {
             </div>
 
             <div className="p-4 max-h-[70vh] overflow-auto space-y-3">
-              {previewState.drafts.map((draft) => {
-                const duplicate = previewState.duplicates.find(
-                  (item) => item.client_id === draft.client_id
-                );
-                const decision = previewState.decisions[draft.client_id] || { action: "insert" };
+              {previewState.drafts.map((draft) => (
+                <EntryPreviewRow
+                  key={draft.client_id}
+                  draft={draft}
+                  editedValues={previewEdits[draft.client_id]}
+                  isAusgeschlossen={previewAusgeschlossen.has(draft.client_id)}
+                  duplicate={previewState.duplicates.find((d) => d.client_id === draft.client_id)}
+                  decision={previewState.decisions[draft.client_id] || { action: "insert" }}
+                  onToggleAblehnen={handleToggleAblehnen}
+                  onEditSpeichern={handleEditSpeichern}
+                  onUpdateDecision={updatePreviewDecision}
+                />
+              ))}
+            </div>
 
-                return (
-                  <div
-                    key={draft.client_id}
-                    className="rounded-card border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 p-3 space-y-3"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-                            {draft.name}
-                          </h3>
-                          {getShoppingCategoryBadgeLabel(draft, true) && (
-                            <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${getShoppingCategoryStyle(
-                                draft.hauptkategorie
-                              ).soft}`}
-                            >
-                              {getShoppingCategoryBadgeLabel(draft, true)}
-                            </span>
-                          )}
-                          {draft.review_noetig && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[11px] font-medium">
-                              <AlertTriangle size={12} />
-                              Prüfen
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1">
-                          {getShoppingEntrySubtitle(draft)}
-                        </p>
-                        {draft.merged_original_texts?.length > 1 && (
-                          <p className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary mt-1">
-                            Batch-intern zusammengeführt aus {draft.merged_original_texts.length} Roh-Einträgen
-                          </p>
-                        )}
-                      </div>
-                      <span className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">
-                        Confidence {Math.round((draft.confidence || 0) * 100)}%
-                      </span>
-                    </div>
-
-                    {duplicate && (
-                      <div className="rounded-card-sm border border-amber-500/30 bg-amber-500/10 p-3 space-y-2">
-                        <p className="text-xs text-amber-700 dark:text-amber-300">
-                          Bereits offen vorhanden: <strong>{duplicate.existing_entry.name}</strong>{" "}
-                          ({getShoppingEntrySubtitle(duplicate.existing_entry)})
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            onClick={() =>
-                              updatePreviewDecision(draft.client_id, {
-                                action: "merge",
-                                existingEntry: duplicate.existing_entry,
-                              })
-                            }
-                            className={`px-3 py-1.5 rounded-full text-xs border ${
-                              decision.action === "merge"
-                                ? "bg-amber-500 text-white border-amber-500"
-                                : "border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary"
-                            }`}
-                          >
-                            Zusammenführen
-                          </button>
-                          <button
-                            onClick={() =>
-                              updatePreviewDecision(draft.client_id, {
-                                action: "insert",
-                              })
-                            }
-                            className={`px-3 py-1.5 rounded-full text-xs border ${
-                              decision.action === "insert"
-                                ? "bg-primary-500 text-white border-primary-500"
-                                : "border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary"
-                            }`}
-                          >
-                            Separat lassen
-                          </button>
-                        </div>
-                      </div>
-                    )}
+            {(() => {
+              const aktiveAnzahl = previewState.drafts.filter(
+                (d) => !previewAusgeschlossen.has(d.client_id)
+              ).length;
+              return (
+                <div className="px-4 py-3 border-t border-light-border dark:border-dark-border flex items-center justify-between gap-3">
+                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                    {aktiveAnzahl} {aktiveAnzahl === 1 ? "Eintrag" : "Einträge"} bereit zum Speichern
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setPreviewState(null)}
+                      className="px-3 py-2 rounded-pill text-sm border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
+                    >
+                      Schließen
+                    </button>
+                    <button
+                      onClick={commitPreview}
+                      disabled={submittingCreate || aktiveAnzahl === 0}
+                      className="px-4 py-2 rounded-pill text-sm font-medium bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white flex items-center gap-2"
+                    >
+                      {submittingCreate && <Loader2 size={14} className="animate-spin" />}
+                      <span>Speichern</span>
+                    </button>
                   </div>
-                );
-              })}
-            </div>
-
-            <div className="px-4 py-3 border-t border-light-border dark:border-dark-border flex items-center justify-between gap-3">
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                {previewState.drafts.length} Einträge bereit zum Speichern
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setPreviewState(null)}
-                  className="px-3 py-2 rounded-pill text-sm border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
-                >
-                  Schließen
-                </button>
-                <button
-                  onClick={commitPreview}
-                  disabled={submittingCreate}
-                  className="px-4 py-2 rounded-pill text-sm font-medium bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white flex items-center gap-2"
-                >
-                  {submittingCreate && <Loader2 size={14} className="animate-spin" />}
-                  <span>Speichern</span>
-                </button>
-              </div>
-            </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -1096,15 +1284,6 @@ const HomeEinkaufliste = ({ session }) => {
             </div>
           </div>
         </div>
-      )}
-
-      {kiOffen && (
-        <KiHomeAssistent
-          session={session}
-          modul="einkaufliste"
-          onClose={() => setKiOffen(false)}
-          onErgebnis={(items) => handleIncomingShoppingItems(items, "ki")}
-        />
       )}
 
       {tourAktiv && (

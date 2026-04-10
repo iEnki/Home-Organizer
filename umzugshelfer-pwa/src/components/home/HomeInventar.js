@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Package, Plus, ChevronRight, ChevronDown, Trash2, Edit2, MoreVertical,
   QrCode, Tag, X, Loader2, Search, MapPin, Box, SlidersHorizontal,
-  AlertCircle, Sparkles,
+  AlertCircle, Sparkles, BookOpen,
 } from "lucide-react";
-import { supabase } from "../../supabaseClient";
+import { supabase, getActiveHouseholdId } from "../../supabaseClient";
 import { QRCodeSVG } from "qrcode.react";
 import { getBewohnerDisplayName } from "../../utils/budgetAccounts";
 import KiHomeAssistent from "./KiHomeAssistent";
@@ -14,6 +15,7 @@ import { TOUR_STEPS } from "./tour/tourSteps";
 import useViewport from "../../hooks/useViewport";
 import MobileLocationSheet from "./inventar/MobileLocationSheet";
 import MobileFilterSheet from "./inventar/MobileFilterSheet";
+import BuecherRegalTab from "./buecher/BuecherRegalTab";
 
 // --- BewohnerBadge ---
 const BewohnerBadge = ({ bewohner }) => {
@@ -227,6 +229,13 @@ const HomeInventar = ({ session }) => {
   const userId = session?.user?.id;
   const { isMobile } = useViewport();
   const { active: tourAktiv, schritt, setSchritt, beenden: tourBeenden } = useTour("inventar");
+  const [searchParams] = useSearchParams();
+
+  // Bereichs-Umschalter: "objekte" | "buecher"
+  const [bereich, setBereich] = useState("objekte");
+  const [householdId, setHouseholdId] = useState(null);
+  const [kontakte, setKontakte] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [orte, setOrte] = useState([]);
   const [lagerorte, setLagerorte] = useState([]);
@@ -244,6 +253,44 @@ const HomeInventar = ({ session }) => {
   const [mobileLocationSheetOpen, setMobileLocationSheetOpen] = useState(false);
   const [mobileFilterSheetOpen, setMobileFilterSheetOpen] = useState(false);
   const [offenesObjektMenue, setOffenesObjektMenue] = useState(null);
+
+  // Query-Param ?tab=buecher
+  useEffect(() => {
+    if (searchParams.get("tab") === "buecher") setBereich("buecher");
+  }, [searchParams]);
+
+  // householdId auflösen (wie HomeBudget.js)
+  const resolveHouseholdId = useCallback(async () => {
+    const active = getActiveHouseholdId();
+    if (active) { setHouseholdId(active); return active; }
+    const { data } = await supabase
+      .from("household_members")
+      .select("household_id")
+      .eq("user_id", userId)
+      .limit(1)
+      .maybeSingle();
+    const id = data?.household_id ?? null;
+    setHouseholdId(id);
+    return id;
+  }, [userId]);
+
+  // Kontakte für Verleih laden (nur wenn Bücherbereich aktiv)
+  const ladeKontakte = useCallback(async () => {
+    if (!userId) return;
+    const { data } = await supabase
+      .from("kontakte")
+      .select("id, name")
+      .eq("user_id", userId)
+      .order("name");
+    setKontakte(data ?? []);
+  }, [userId]);
+
+  useEffect(() => {
+    if (bereich === "buecher") {
+      resolveHouseholdId();
+      ladeKontakte();
+    }
+  }, [bereich, resolveHouseholdId, ladeKontakte]);
 
   const ladeDaten = useCallback(async () => {
     if (!userId) return;
@@ -394,11 +441,55 @@ const HomeInventar = ({ session }) => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4 relative">
-      <div className="flex items-center justify-between mb-5">
+      {/* Titel + Tab-Navigation */}
+      <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <Package size={22} className="text-primary-500" />
           <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">Inventar</h1>
         </div>
+      </div>
+
+      {/* Tab-Switcher */}
+      <div className="flex border-b border-light-border dark:border-dark-border mb-4">
+        <button
+          onClick={() => setBereich("objekte")}
+          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            bereich === "objekte"
+              ? "border-primary-500 text-primary-500"
+              : "border-transparent text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
+          }`}
+        >
+          <Package size={14} />
+          Objekte
+        </button>
+        <button
+          onClick={() => setBereich("buecher")}
+          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            bereich === "buecher"
+              ? "border-teal-500 text-teal-500"
+              : "border-transparent text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
+          }`}
+        >
+          <BookOpen size={14} />
+          Bücherregal
+        </button>
+      </div>
+
+      {/* Bücherregal-Bereich */}
+      {bereich === "buecher" && (
+        <BuecherRegalTab
+          householdId={householdId}
+          session={session}
+          orte={orte}
+          lagerorte={lagerorte}
+          kontakte={kontakte}
+        />
+      )}
+
+      {/* Objekte-Bereich — nur rendern wenn aktiv */}
+      {bereich === "objekte" && (<>
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-2">
         <div className="flex items-center gap-2">
           <button
             onClick={() => setKiOffen(true)}
@@ -419,6 +510,7 @@ const HomeInventar = ({ session }) => {
             <span className="sm:hidden">Standort</span>
           </button>
         </div>
+      </div>
       </div>
 
       {fehler && (
@@ -888,13 +980,13 @@ const HomeInventar = ({ session }) => {
             </div>
           )}
         </div>
-      </div>
-      }
+      </div>}
+      </>)}
 
       {/* Modals */}
       {modal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center pt-4 pb-[calc(var(--safe-area-bottom)+1rem)] px-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border max-h-[calc(100dvh-var(--safe-area-bottom)-2rem)] lg:max-h-[90vh] overflow-y-auto">
+        <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
+          <div className="mobile-modal-dialog bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border flex min-h-0 flex-col">
             <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border sticky top-0 bg-light-card dark:bg-canvas-2">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
                 {modal.typ === "ort" && (modal.daten?.id ? "Standort bearbeiten" : "Neuer Standort")}
@@ -904,7 +996,7 @@ const HomeInventar = ({ session }) => {
               </h3>
               <button onClick={() => setModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"><X size={18} /></button>
             </div>
-            <div className="p-4">
+            <div className="mobile-modal-body p-4">
               {modal.typ === "ort" && (
                 <OrtForm initial={modal.daten} onSpeichern={speichereOrt} onAbbrechen={() => setModal(null)} />
               )}
@@ -939,7 +1031,7 @@ const HomeInventar = ({ session }) => {
                 user_id: session.user.id,
                 name: item.name || "Unbenannt",
                 kategorie: item.kategorie || null,
-                status: "Vorhanden",
+                status: "in_verwendung",
                 menge: item.menge || 1,
               });
             }
