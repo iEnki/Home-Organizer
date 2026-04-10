@@ -123,7 +123,7 @@ function dedup(results: BookResult[]): BookResult[] {
   return out;
 }
 
-async function fetchWithTimeout(url: string, timeoutMs = 5000): Promise<Response> {
+async function fetchWithTimeout(url: string, timeoutMs = 8000): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -133,19 +133,21 @@ async function fetchWithTimeout(url: string, timeoutMs = 5000): Promise<Response
   }
 }
 
-async function searchOpenLibrary(query: string, mode: string, limit: number): Promise<BookResult[]> {
+async function searchOpenLibrary(query: string, mode: string, limit: number, language?: string): Promise<BookResult[]> {
   let param: string;
   if (mode === "isbn") {
     param = `isbn=${encodeURIComponent(query)}`;
   } else if (mode === "author") {
     param = `author=${encodeURIComponent(query)}`;
   } else {
-    param = `title=${encodeURIComponent(query)}`;
+    param = `q=${encodeURIComponent(query)}`;
   }
+
+  const langParam = language ? `&language=${encodeURIComponent(language)}` : "";
 
   try {
     const res = await fetchWithTimeout(
-      `https://openlibrary.org/search.json?${param}&limit=${limit}&fields=key,title,author_name,isbn,publisher,first_publish_year,number_of_pages_median,language,cover_i`,
+      `https://openlibrary.org/search.json?${param}&limit=${limit}&fields=key,title,author_name,isbn,publisher,first_publish_year,number_of_pages_median,language,cover_i${langParam}`,
     );
     if (!res.ok) return [];
     const data = await res.json();
@@ -164,13 +166,16 @@ async function searchGoogleBooks(query: string, mode: string, limit: number, lan
   } else if (mode === "author") {
     q = `inauthor:${query}`;
   } else {
-    q = `intitle:${query}`;
+    // Plain query works better than intitle: for multilingual/German titles
+    q = query;
   }
-  if (language) q += `+langRestrict=${language}`;
+
+  // langRestrict must be a separate URL param, not part of q
+  const langParam = language ? `&langRestrict=${encodeURIComponent(language)}` : "";
 
   try {
     const res = await fetchWithTimeout(
-      `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=${limit}&printType=books`,
+      `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=${limit}&printType=books${langParam}`,
     );
     if (!res.ok) return [];
     const data = await res.json();
@@ -232,7 +237,7 @@ Deno.serve(async (req: Request) => {
 
   // Beide APIs parallel abfragen
   const [olResults, gbResults] = await Promise.all([
-    searchOpenLibrary(query, mode, Math.ceil(limit / 2) + 2),
+    searchOpenLibrary(query, mode, Math.ceil(limit / 2) + 2, language),
     searchGoogleBooks(query, mode, Math.ceil(limit / 2) + 2, language),
   ]);
 
