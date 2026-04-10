@@ -98,8 +98,49 @@ function normalizeGoogleBooks(item: any): BookResult | null {
     thumbnailUrl: imageLinks.thumbnail ?? imageLinks.smallThumbnail,
     source: "google_books",
     sourceRef: item.id as string ?? "",
-    confidence: isbn13 || isbn10 ? 0.85 : 0.55,
+    // Angeglichen auf 0.9 (wie Open Library) — Google Books hat bei deutschen Büchern
+    // oft bessere Metadaten und soll beim Ranking nicht strukturell benachteiligt werden.
+    confidence: isbn13 || isbn10 ? 0.9 : 0.55,
   };
+}
+
+// Normalisiert Sprachcodes: "de-DE" → "de", "ger"/"deu" → "de", Array → erstes Element
+function normalizeLang(lang: string | string[] | undefined): string {
+  const raw = Array.isArray(lang) ? lang[0] : lang;
+  if (!raw) return "";
+  const base = raw.split("-")[0].toLowerCase();
+  const map: Record<string, string> = { ger: "de", deu: "de", eng: "en" };
+  return map[base] ?? base;
+}
+
+// Berechnet einen kombinierten Score für einen Treffer
+function scoreResult(r: BookResult, query: string, mode: string, requestedLang?: string): number {
+  let score = r.confidence;
+
+  // 1. Exakter ISBN-Match (stärkster Bonus)
+  if (mode === "isbn") {
+    const normQuery = normalizeIsbn(query) ?? "";
+    const exactMatch = normQuery && (r.isbn13 === normQuery || r.isbn10 === normQuery);
+    if (exactMatch) {
+      score += 0.5;
+    } else if (r.isbn13 || r.isbn10) {
+      score += 0.1; // Hat irgendeine ISBN, aber nicht exakt die gesuchte
+    }
+  }
+
+  // 2. Language-Bonus — kein Malus wenn Sprachfeld fehlt
+  if (requestedLang && r.language) {
+    if (normalizeLang(r.language) === normalizeLang(requestedLang)) {
+      score += 0.3;
+    }
+  }
+
+  // 3. Cover vorhanden (kleiner Qualitätsbonus)
+  if (r.thumbnailUrl || r.coverUrl) {
+    score += 0.05;
+  }
+
+  return score;
 }
 
 // Dedup: isbn13 → isbn10 → normalisierter title + first author
@@ -241,9 +282,14 @@ Deno.serve(async (req: Request) => {
     searchGoogleBooks(query, mode, Math.ceil(limit / 2) + 2, language),
   ]);
 
-  // Open Library zuerst, dann Google Books ergänzen (Dedup)
-  const combined = dedup([...olResults, ...gbResults]);
-  const sorted = combined.sort((a, b) => b.confidence - a.confidence).slice(0, limit);
+  // Score → Sort → Dedup → Slice
+  // Wichtig: Dedup NACH Sort, damit der bestbewertete Treffer pro ISBN-Key gewinnt
+  // (nicht mehr Open Library automatisch bevorzugt durch Array-Reihenfolge).
+  const allResults = [...olResults, ...gbResults];
+  const scored = allResults
+    .map((r) => ({ r, score: scoreResult(r, query, mode, language) }))
+    .sort((a, b) => b.score - a.score);
+  const sorted = dedup(scored.map((s) => s.r)).slice(0, limit);
 
   return new Response(JSON.stringify(sorted), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
