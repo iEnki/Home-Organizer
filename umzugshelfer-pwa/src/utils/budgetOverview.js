@@ -100,6 +100,7 @@ export const getBudgetEntryMeta = (entry, ctx = {}) => {
   const konto = accountMeta.konto;
   const verknuepfteRechnungen = ctx.budgetRechnungMap?.[entry?.id] || [];
   const splitGroup = ctx.splitGroupByPostenId?.[entry?.id] || null;
+  const splitOrigin = splitGroup?.split_origin || null;
   const scope = entry?.budget_scope || "haushalt";
   const anzeigeDatum = getProjectedDate(entry, ctx);
   const datumIstProjiziert =
@@ -120,6 +121,18 @@ export const getBudgetEntryMeta = (entry, ctx = {}) => {
     verknuepfteRechnungen,
     hatSplit: Boolean(splitGroup),
     splitGroup,
+    splitOrigin,
+    splitOriginLabel:
+      splitOrigin === "template_default"
+        ? "Serien-Default"
+        : splitOrigin === "inherited_occurrence"
+          ? "Vererbt"
+          : splitOrigin === "manual_occurrence"
+            ? "Individuell"
+            : null,
+    istVererbterSplit: splitOrigin === "inherited_occurrence",
+    istIndividuellerSplit: splitOrigin === "manual_occurrence",
+    istTemplateSplitDefault: splitOrigin === "template_default",
     istTemplate: Boolean(entry?.wiederholen),
     istOccurrence: Boolean(entry?.ursprung_template_id),
     istRecurring: Boolean(entry?.wiederholen || entry?.ursprung_template_id),
