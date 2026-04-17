@@ -165,7 +165,39 @@ const HomeHaushaltsaufgaben = ({ session }) => {
     if (modal?.id) {
       await supabase.from("todo_aufgaben").update(daten).eq("id", modal.id);
     } else {
-      await supabase.from("todo_aufgaben").insert(payload);
+      const { data: neueAufgabe } = await supabase
+        .from("todo_aufgaben")
+        .insert(payload)
+        .select("id")
+        .single();
+
+      if (neueAufgabe?.id && userId) {
+        try {
+          const { data: myMembership } = await supabase
+            .from("household_members")
+            .select("household_id")
+            .eq("user_id", userId)
+            .single();
+          const memberIds = myMembership?.household_id
+            ? ((await supabase.from("household_members").select("user_id").eq("household_id", myMembership.household_id)).data?.map((m) => m.user_id) ?? [userId])
+            : [userId];
+          for (const uid of memberIds) {
+            try {
+              await supabase.functions.invoke("send-push", {
+                body: {
+                  user_id: uid,
+                  title: "Neue Aufgabe",
+                  body: `„${daten.beschreibung}" wurde hinzugefügt.`,
+                  url: "/home/aufgaben",
+                  tag: `aufgabe-neu-${neueAufgabe.id}`,
+                },
+              });
+            } catch (_) {}
+          }
+        } catch (_) {
+          // Push-Fehler darf Save-Flow nicht unterbrechen
+        }
+      }
     }
     setModal(null);
     ladeDaten();
@@ -389,6 +421,34 @@ const HomeHaushaltsaufgaben = ({ session }) => {
                 app_modus: "home",
                 erledigt: false,
               });
+            }
+            if (items.length > 0 && userId) {
+              try {
+                const { data: myMembership } = await supabase
+                  .from("household_members")
+                  .select("household_id")
+                  .eq("user_id", userId)
+                  .single();
+                const memberIds = myMembership?.household_id
+                  ? ((await supabase.from("household_members").select("user_id").eq("household_id", myMembership.household_id)).data?.map((m) => m.user_id) ?? [userId])
+                  : [userId];
+                const bulkTag = `aufgaben-ki-bulk-${Date.now()}`;
+                for (const uid of memberIds) {
+                  try {
+                    await supabase.functions.invoke("send-push", {
+                      body: {
+                        user_id: uid,
+                        title: "Neue Aufgaben",
+                        body: `${items.length} ${items.length === 1 ? "Aufgabe wurde" : "Aufgaben wurden"} hinzugefügt.`,
+                        url: "/home/aufgaben",
+                        tag: bulkTag,
+                      },
+                    });
+                  } catch (_) {}
+                }
+              } catch (_) {
+                // Push-Fehler darf Save-Flow nicht unterbrechen
+              }
             }
             ladeDaten();
           }}

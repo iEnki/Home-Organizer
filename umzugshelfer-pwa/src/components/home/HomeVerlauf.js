@@ -1,27 +1,49 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { History, Package, ShoppingCart, Wrench, CheckSquare, FolderOpen, BookOpen, Loader2, RefreshCw, Plus, Edit2, Trash2 } from "lucide-react";
+import {
+  History,
+  Package,
+  ShoppingCart,
+  Wrench,
+  CheckSquare,
+  FolderOpen,
+  BookOpen,
+  Loader2,
+  RefreshCw,
+  Plus,
+  Edit2,
+  Trash2,
+} from "lucide-react";
 import { supabase } from "../../supabaseClient";
+import {
+  getVerlaufActionMeta,
+  getVerlaufDisplayText,
+  getVerlaufTableMeta,
+} from "../../utils/homeVerlaufPresentation";
 
 const TABELLEN_META = {
-  home_objekte:     { label: "Inventar",       icon: Package,     farbe: "text-blue-500",   bg: "bg-blue-500/10" },
-  home_vorraete:    { label: "Vorräte",         icon: ShoppingCart,farbe: "text-primary-500", bg: "bg-primary-500/10" },
-  home_geraete:     { label: "Geräte",          icon: Wrench,      farbe: "text-orange-500", bg: "bg-orange-500/10" },
-  todo_aufgaben:    { label: "Aufgaben",         icon: CheckSquare, farbe: "text-purple-500", bg: "bg-purple-500/10" },
-  home_projekte:    { label: "Projekte",         icon: FolderOpen,  farbe: "text-pink-500",   bg: "bg-pink-500/10" },
-  home_wissen:      { label: "Wissen",           icon: BookOpen,    farbe: "text-amber-500",  bg: "bg-amber-500/10" },
-  home_buecher:     { label: "Bücher",           icon: BookOpen,    farbe: "text-teal-500",   bg: "bg-teal-500/10" },
+  home_objekte: { label: "Inventar", icon: Package, farbe: "text-blue-500", bg: "bg-blue-500/10" },
+  home_vorraete: { label: "Vorräte", icon: ShoppingCart, farbe: "text-primary-500", bg: "bg-primary-500/10" },
+  home_geraete: { label: "Geräte", icon: Wrench, farbe: "text-orange-500", bg: "bg-orange-500/10" },
+  todo_aufgaben: { label: "Aufgaben", icon: CheckSquare, farbe: "text-purple-500", bg: "bg-purple-500/10" },
+  home_projekte: { label: "Projekte", icon: FolderOpen, farbe: "text-pink-500", bg: "bg-pink-500/10" },
+  home_wissen: { label: "Wissen", icon: BookOpen, farbe: "text-amber-500", bg: "bg-amber-500/10" },
+  home_buecher: { label: "Bücher", icon: BookOpen, farbe: "text-teal-500", bg: "bg-teal-500/10" },
 };
 
 const AKTIONS_META = {
-  erstellt:   { label: "erstellt",  icon: Plus,    farbe: "text-green-600 dark:text-green-400" },
-  geaendert:  { label: "geändert",  icon: Edit2,   farbe: "text-blue-600 dark:text-blue-400" },
-  geloescht:  { label: "gelöscht",  icon: Trash2,  farbe: "text-red-600 dark:text-red-400" },
+  erstellt: { label: "erstellt", icon: Plus, farbe: "text-green-600 dark:text-green-400" },
+  geaendert: { label: "geändert", icon: Edit2, farbe: "text-blue-600 dark:text-blue-400" },
+  geloescht: { label: "gelöscht", icon: Trash2, farbe: "text-red-600 dark:text-red-400" },
 };
 
 const gruppiereNachDatum = (eintraege) => {
   const gruppen = {};
   eintraege.forEach((e) => {
-    const datum = new Date(e.created_at).toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" });
+    const datum = new Date(e.created_at).toLocaleDateString("de-DE", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    });
     if (!gruppen[datum]) gruppen[datum] = [];
     gruppen[datum].push(e);
   });
@@ -52,7 +74,9 @@ const HomeVerlauf = ({ session }) => {
     }
   }, [userId, tabelleFilter]);
 
-  useEffect(() => { ladeDaten(); }, [ladeDaten]);
+  useEffect(() => {
+    ladeDaten();
+  }, [ladeDaten]);
 
   const gruppen = gruppiereNachDatum(eintraege);
   const datumKeys = Object.keys(gruppen);
@@ -64,16 +88,30 @@ const HomeVerlauf = ({ session }) => {
           <History size={22} className="text-indigo-500" />
           <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">Verlauf</h1>
         </div>
-        <button onClick={ladeDaten} className="p-2 rounded-card-sm hover:bg-light-border dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary transition-colors" title="Aktualisieren">
+        <button
+          onClick={ladeDaten}
+          className="p-2 rounded-card-sm hover:bg-light-border dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary transition-colors"
+          title="Aktualisieren"
+        >
           <RefreshCw size={15} />
         </button>
       </div>
 
-      {/* Filter nach Bereich */}
       <div className="flex flex-wrap gap-2">
-        <button onClick={() => setTabelleFilter("")} className={`px-3 py-1.5 rounded-pill text-xs font-medium transition-colors ${!tabelleFilter ? "bg-indigo-500 text-white" : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"}`}>Alle</button>
+        <button
+          onClick={() => setTabelleFilter("")}
+          className={`px-3 py-1.5 rounded-pill text-xs font-medium transition-colors ${!tabelleFilter ? "bg-indigo-500 text-white" : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"}`}
+        >
+          Alle
+        </button>
         {Object.entries(TABELLEN_META).map(([key, meta]) => (
-          <button key={key} onClick={() => setTabelleFilter(key)} className={`px-3 py-1.5 rounded-pill text-xs font-medium transition-colors ${tabelleFilter === key ? "bg-indigo-500 text-white" : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"}`}>{meta.label}</button>
+          <button
+            key={key}
+            onClick={() => setTabelleFilter(key)}
+            className={`px-3 py-1.5 rounded-pill text-xs font-medium transition-colors ${tabelleFilter === key ? "bg-indigo-500 text-white" : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"}`}
+          >
+            {meta.label}
+          </button>
         ))}
       </div>
 
@@ -91,38 +129,61 @@ const HomeVerlauf = ({ session }) => {
         </div>
       )}
 
-      {!loading && datumKeys.map((datum) => (
-        <div key={datum} className="mb-6">
-          <p className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider mb-3">{datum}</p>
-          <div className="space-y-2">
-            {gruppen[datum].map((e) => {
-              const tabMeta = TABELLEN_META[e.tabelle] || { label: e.tabelle, icon: History, farbe: "text-gray-500", bg: "bg-gray-500/10" };
-              const aktMeta = AKTIONS_META[e.aktion] || { label: e.aktion, icon: History, farbe: "text-gray-500" };
-              const TabIcon = tabMeta.icon;
-              const AktIcon = aktMeta.icon;
-              const uhrzeit = new Date(e.created_at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+      {!loading &&
+        datumKeys.map((datum) => (
+          <div key={datum} className="mb-6">
+            <p className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider mb-3">
+              {datum}
+            </p>
+            <div className="space-y-2">
+              {gruppen[datum].map((e) => {
+                const fallbackTableMeta = getVerlaufTableMeta(e.tabelle);
+                const fallbackActionMeta = getVerlaufActionMeta(e.aktion);
+                const tabMeta = TABELLEN_META[e.tabelle] || {
+                  label: fallbackTableMeta.label,
+                  icon: History,
+                  farbe: "text-gray-500",
+                  bg: "bg-gray-500/10",
+                };
+                const aktMeta = AKTIONS_META[e.aktion] || {
+                  label: fallbackActionMeta.label,
+                  icon: History,
+                  farbe: "text-gray-500",
+                };
+                const TabIcon = tabMeta.icon;
+                const AktIcon = aktMeta.icon;
+                const uhrzeit = new Date(e.created_at).toLocaleTimeString("de-DE", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                });
 
-              return (
-                <div key={e.id} className="flex items-center gap-3 p-3 bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border shadow-elevation-2">
-                  <div className={`p-2 rounded-card-sm ${tabMeta.bg} flex-shrink-0`}>
-                    <TabIcon size={14} className={tabMeta.farbe} />
+                return (
+                  <div
+                    key={e.id}
+                    className="flex items-center gap-3 p-3 bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border shadow-elevation-2"
+                  >
+                    <div className={`p-2 rounded-card-sm ${tabMeta.bg} flex-shrink-0`}>
+                      <TabIcon size={14} className={tabMeta.farbe} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-light-text-main dark:text-dark-text-main truncate font-medium">
+                        {getVerlaufDisplayText(e)}
+                      </p>
+                      <p className={`text-xs ${aktMeta.farbe}`}>
+                        <AktIcon size={10} className="inline mr-0.5" />
+                        {aktMeta.label}
+                      </p>
+                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{tabMeta.label}</p>
+                    </div>
+                    <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary flex-shrink-0">
+                      {uhrzeit}
+                    </span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-light-text-main dark:text-dark-text-main truncate">
-                      <span className="font-medium">{e.datensatz_name}</span>
-                      <span className={`ml-2 text-xs ${aktMeta.farbe}`}>
-                        <AktIcon size={10} className="inline mr-0.5" />{aktMeta.label}
-                      </span>
-                    </p>
-                    <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{tabMeta.label}</p>
-                  </div>
-                  <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary flex-shrink-0">{uhrzeit}</span>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
     </div>
   );
 };

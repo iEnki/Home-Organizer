@@ -11,6 +11,7 @@ import {
   resolveSplitPayerFromBudgetSelection,
 } from "../../utils/budgetAccounts";
 import KostenAufteilungAuswahl from "./KostenAufteilungAuswahl";
+import ModalShell from "../ui/ModalShell";
 
 // ============================================================
 // Konstanten
@@ -977,8 +978,45 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
 
   if (splitSchritt) {
     return (
-      <div className="fixed inset-0 z-[100] bg-canvas-0 overflow-y-auto">
-        <div className="sticky top-0 z-10 bg-canvas-1 border-b border-canvas-3 px-4 py-3 flex items-center gap-3">
+      <ModalShell
+        open
+        title="Kostenaufteilung"
+        onClose={() => {
+          setSplitSchritt(false);
+          onGespeichert();
+        }}
+        closeOnBackdrop={false}
+        closeOnEscape={false}
+        maxWidthClass="max-w-3xl"
+        footer={
+          <div className="max-w-3xl mx-auto flex flex-col sm:flex-row gap-2 sm:justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setSplitSchritt(false);
+                onGespeichert();
+              }}
+              className="px-4 py-3 rounded-card-sm border border-canvas-3 text-sm text-dark-text-main hover:bg-canvas-2 transition-colors"
+            >
+              Ueberspringen
+            </button>
+            <button
+              type="button"
+              onClick={handleSplitSpeichern}
+              disabled={splitSpeichern || !gespeicherterPostenId}
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-card-sm bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-white text-sm font-semibold transition-colors shadow-sm"
+            >
+              {splitSpeichern ? (
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Check size={16} />
+              )}
+              Aufteilen
+            </button>
+          </div>
+        }
+      >
+        {false && <div className="sticky top-0 z-10 bg-canvas-1 border-b border-canvas-3 px-4 py-3 flex items-center gap-3">
           <button
             onClick={() => {
               setSplitSchritt(false);
@@ -990,9 +1028,9 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
             <X size={20} />
           </button>
           <h2 className="text-lg font-semibold text-dark-text-main flex-1">Kostenaufteilung</h2>
-        </div>
+        </div>}
 
-        <div className="max-w-3xl mx-auto px-4 pt-5 pb-28 space-y-4">
+        <div className="max-w-3xl mx-auto w-full space-y-4">
           <div className="rounded-card border border-canvas-3 bg-canvas-1 p-4">
             <h3 className="text-base font-semibold text-dark-text-main mb-1">
               Rechnung gespeichert
@@ -1045,7 +1083,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
             </button>
           </div>
         </div>
-        <div className="sticky bottom-0 z-10 border-t border-canvas-3 bg-canvas-1/95 backdrop-blur px-4 py-3">
+        {false && <div className="sticky bottom-0 z-10 border-t border-canvas-3 bg-canvas-1/95 backdrop-blur px-4 py-3">
           <div className="max-w-3xl mx-auto flex flex-col sm:flex-row gap-2 sm:justify-end">
             <button
               type="button"
@@ -1071,8 +1109,8 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
               Aufteilen
             </button>
           </div>
-        </div>
-      </div>
+        </div>}
+      </ModalShell>
     );
   }
 

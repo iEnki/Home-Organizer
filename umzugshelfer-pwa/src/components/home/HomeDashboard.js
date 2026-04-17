@@ -10,6 +10,7 @@ import { getActiveHouseholdId, supabase } from "../../supabaseClient";
 import { ensureRecurringBudgetEntries, getMonthBounds, getLocalDateString } from "../../utils/budgetRecurring";
 import { buildOpenPairBalances } from "../../utils/budgetLedger";
 import { formatGermanCurrency } from "../../utils/formatUtils";
+import { getVerlaufDisplayText, getVerlaufTableMeta } from "../../utils/homeVerlaufPresentation";
 import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
@@ -293,7 +294,7 @@ const HomeDashboard = ({ session }) => {
       // ── Verlauf (silent fail) ──
       supabase
         .from("home_verlauf")
-        .select("aktion, created_at, tabelle")
+        .select("aktion, created_at, tabelle, datensatz_name")
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(6)
@@ -821,11 +822,16 @@ const HomeDashboard = ({ session }) => {
             {verlauf.map((v, i) => (
               <motion.div key={i} variants={listItemVariants} className="flex items-center gap-2.5">
                 <span className="text-sm flex-shrink-0">
-                  {MODUL_ICON[v.tabelle] || "📝"}
+                  {MODUL_ICON[v.tabelle] || getVerlaufTableMeta(v.tabelle).emoji || "📝"}
                 </span>
-                <span className="text-xs text-light-text-main dark:text-dark-text-main flex-1 truncate">
-                  {v.aktion}
-                </span>
+                <div className="min-w-0 flex-1">
+                  <span className="block text-xs text-light-text-main dark:text-dark-text-main truncate">
+                    {getVerlaufDisplayText(v)}
+                  </span>
+                  <span className="block text-[11px] text-light-text-secondary dark:text-dark-text-secondary truncate">
+                    {getVerlaufTableMeta(v.tabelle).label}
+                  </span>
+                </div>
                 <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary flex-shrink-0">
                   {relativeZeit(v.created_at)}
                 </span>

@@ -17,16 +17,57 @@ import { logVerlauf } from "../../utils/homeVerlauf";
 import { deleteInvoiceCascade } from "../../utils/invoiceCascadeDelete";
 
 const KATEGORIEN = [
+  "Versicherungen",
+  "Vertraege",
+  "Behoerden",
   "Rechnungen & Belege",
-  "Farben & Oberflaechen",
   "Masse & Abmessungen",
   "Geraete-Info",
   "Kontakte & Dienste",
   "Anleitungen",
-  "Rezepte",
   "Notizen",
   "Sonstiges",
 ];
+
+const mergeUniqueTags = (...groups) => {
+  const seen = new Set();
+  const merged = [];
+  for (const group of groups) {
+    for (const entry of group || []) {
+      const tag = String(entry || "").trim();
+      if (!tag) continue;
+      const key = tag.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(tag);
+    }
+  }
+  return merged;
+};
+
+const buildFilterKategorien = (eintraege) => {
+  const dynamic = Array.from(new Set(
+    (eintraege || [])
+      .map((entry) => String(entry?.kategorie || "").trim())
+      .filter(Boolean)
+  ));
+
+  return Array.from(new Set([...KATEGORIEN, ...dynamic]));
+};
+
+const isManualOverride = (entry) =>
+  Boolean(entry?.summary?.manual_override) || entry?.herkunft === "manuell";
+
+const getSummaryHeadline = (entry) => entry?.summary?.headline || "";
+
+const getSummaryHighlights = (entry) =>
+  Array.isArray(entry?.summary?.highlights) ? entry.summary.highlights.filter(Boolean) : [];
+
+const getSummaryWarnings = (entry) =>
+  Array.isArray(entry?.summary?.warnings) ? entry.summary.warnings.filter(Boolean) : [];
+
+const getSummaryDetails = (entry) =>
+  Array.isArray(entry?.summary?.details) ? entry.summary.details.filter((item) => item?.label && item?.value) : [];
 
 const WissenForm = ({ initial, onSpeichern, onAbbrechen }) => {
   const [form, setForm] = useState({
@@ -194,12 +235,29 @@ const HomeWissen = ({ session }) => {
   }, [holeRechnungId, positionenByEintrag]);
 
   const speichere = async (daten) => {
-    const payload = { ...daten, user_id: userId };
+    const nextTags = mergeUniqueTags(modal?.tags, daten.tags);
     if (modal?.id) {
-      await supabase.from("home_wissen").update(daten).eq("id", modal.id);
+      const nextSummary = {
+        ...(modal?.summary || {}),
+        manual_override: true,
+      };
+      await supabase.from("home_wissen").update({
+        ...daten,
+        tags: nextTags,
+        summary: nextSummary,
+        herkunft: modal?.herkunft || "manuell",
+      }).eq("id", modal.id);
       await logVerlauf(supabase, userId, "home_wissen", daten.titel, "geaendert");
     } else {
-      await supabase.from("home_wissen").insert(payload);
+      await supabase.from("home_wissen").insert({
+        ...daten,
+        user_id: userId,
+        tags: nextTags,
+        herkunft: "manuell",
+        summary: {
+          manual_override: true,
+        },
+      });
       await logVerlauf(supabase, userId, "home_wissen", daten.titel, "erstellt");
     }
     setModal(null);
@@ -208,7 +266,7 @@ const HomeWissen = ({ session }) => {
 
   const loesche = async (eintrag) => {
     if (!eintrag) return;
-    if (!window.confirm(`\"${eintrag.titel}\" loeschen?`)) return;
+    if (!window.confirm(`"${eintrag.titel}" loeschen?`)) return;
 
     try {
       if (eintrag.dokument_id && isInvoiceEntry(eintrag)) {
@@ -245,18 +303,32 @@ const HomeWissen = ({ session }) => {
   const gefiltertEintraege = eintraege.filter((e) => {
     const matchKateg = !kategFilter || e.kategorie === kategFilter;
     const q = suchbegriff.toLowerCase();
+    const summaryHeadline = getSummaryHeadline(e).toLowerCase();
+    const summaryHighlights = getSummaryHighlights(e).join(" ").toLowerCase();
+    const summaryDetails = getSummaryDetails(e)
+      .map((detail) => `${detail.label} ${detail.value}`)
+      .join(" ")
+      .toLowerCase();
     const matchSuche =
       !q ||
       e.titel.toLowerCase().includes(q) ||
       e.inhalt?.toLowerCase().includes(q) ||
+      summaryHeadline.includes(q) ||
+      summaryHighlights.includes(q) ||
+      summaryDetails.includes(q) ||
       (e.tags || []).some((t) => t.toLowerCase().includes(q));
     return matchKateg && matchSuche;
   });
 
   const detailEintrag = eintraege.find((e) => e.id === detailId);
+  const filterKategorien = buildFilterKategorien(eintraege);
 
   const renderDetailInhalt = (eintrag, compact = false) => {
     if (!eintrag) return null;
+
+    const summaryDetails = getSummaryDetails(eintrag);
+    const summaryWarnings = getSummaryWarnings(eintrag);
+    const summaryHighlights = getSummaryHighlights(eintrag);
 
     if (isInvoiceEntry(eintrag)) {
       const loadingPos = positionenLoading[eintrag.id];
@@ -298,6 +370,62 @@ const HomeWissen = ({ session }) => {
           </div>
         );
       }
+    }
+
+    if (summaryDetails.length > 0 || summaryHighlights.length > 0 || summaryWarnings.length > 0) {
+      return (
+        <div className="space-y-3">
+          {summaryHighlights.length > 0 && (
+            <div className="space-y-1.5">
+              {summaryHighlights.map((item) => (
+                <div
+                  key={item}
+                  className={`${compact ? "text-xs" : "text-sm"} rounded-card-sm bg-amber-500/10 px-3 py-2 text-amber-700 dark:text-amber-300`}
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {summaryWarnings.length > 0 && (
+            <div className="space-y-1.5">
+              {summaryWarnings.map((item) => (
+                <div
+                  key={item}
+                  className={`${compact ? "text-xs" : "text-sm"} rounded-card-sm border border-red-500/20 bg-red-500/10 px-3 py-2 text-red-600 dark:text-red-400`}
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {summaryDetails.length > 0 && (
+            <div className="space-y-2">
+              {summaryDetails.map((detail) => (
+                <div
+                  key={`${detail.label}-${detail.value}`}
+                  className="flex items-start justify-between gap-3"
+                >
+                  <span className={`${compact ? "text-xs" : "text-sm"} text-light-text-secondary dark:text-dark-text-secondary`}>
+                    {detail.label}
+                  </span>
+                  <span className={`${compact ? "text-xs" : "text-sm"} text-right text-light-text-main dark:text-dark-text-main`}>
+                    {detail.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {eintrag.inhalt && (
+            <pre className={`${compact ? "text-xs" : "text-sm"} text-light-text-main dark:text-dark-text-main whitespace-pre-wrap font-sans`}>
+              {eintrag.inhalt}
+            </pre>
+          )}
+        </div>
+      );
     }
 
     if (eintrag.inhalt) {
@@ -363,7 +491,7 @@ const HomeWissen = ({ session }) => {
         >
           Alle
         </button>
-        {KATEGORIEN.map((k) => (
+        {filterKategorien.map((k) => (
           <button
             key={k}
             onClick={() => setKategFilter(k)}
@@ -416,8 +544,50 @@ const HomeWissen = ({ session }) => {
                   </button>
                 </div>
               </div>
-              <p className="text-xs text-amber-500 mb-2">{e.kategorie}</p>
-              {e.inhalt && <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary line-clamp-2">{e.inhalt}</p>}
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <p className="text-xs text-amber-500">{e.kategorie}</p>
+                {Number.isFinite(Number(e.analysis_confidence)) && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-pill bg-primary-500/10 text-primary-500">
+                    {Math.round(Number(e.analysis_confidence) * 100)} %
+                  </span>
+                )}
+                {isManualOverride(e) && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-pill bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    Manuell ergaenzt
+                  </span>
+                )}
+              </div>
+              {getSummaryHeadline(e) ? (
+                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary line-clamp-2">
+                  {getSummaryHeadline(e)}
+                </p>
+              ) : e.inhalt ? (
+                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary line-clamp-2">{e.inhalt}</p>
+              ) : null}
+              {getSummaryHighlights(e).length > 0 && (
+                <div className="flex flex-col gap-1 mt-2">
+                  {getSummaryHighlights(e).slice(0, 2).map((item) => (
+                    <div
+                      key={item}
+                      className="text-[11px] rounded-card-sm bg-amber-500/10 px-2 py-1 text-amber-700 dark:text-amber-300 line-clamp-1"
+                    >
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {getSummaryWarnings(e).length > 0 && (
+                <div className="flex flex-col gap-1 mt-2">
+                  {getSummaryWarnings(e).slice(0, 2).map((item) => (
+                    <div
+                      key={item}
+                      className="text-[11px] rounded-card-sm border border-red-500/20 bg-red-500/10 px-2 py-1 text-red-600 dark:text-red-400 line-clamp-1"
+                    >
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              )}
               {(e.tags || []).length > 0 && (
                 <div className="flex gap-1 flex-wrap mt-2">
                   {e.tags.map((t) => (

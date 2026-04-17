@@ -13,7 +13,16 @@ import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
 import { deleteInvoiceCascade } from "../../utils/invoiceCascadeDelete";
-import { calcNaechstesDatum, ensureRecurringBudgetEntries, getLocalDateString } from "../../utils/budgetRecurring";
+import {
+  calcNaechstesDatum,
+  ensureRecurringBudgetEntries,
+  ensureTemplateOccurrenceForMonth,
+  findOccurrenceForTemplateMonth,
+  getLocalDateString,
+  getRecurringOccurrenceDateForMonth,
+  propagateTemplateSplitToOccurrences,
+  SPLIT_ORIGINS,
+} from "../../utils/budgetRecurring";
 import { sumScope } from "../../utils/budgetAggregation";
 import { syncInvoiceDate } from "../../utils/invoiceDateSync";
 import {
@@ -125,6 +134,51 @@ const mapBudgetViewError = (error) => {
   return error instanceof Error ? error : new Error("Ansicht konnte nicht gespeichert werden.");
 };
 
+const buildInitialSplitFromGroup = (group, betrag) => {
+  if (!group) return null;
+  return {
+    aktiv: true,
+    payerMemberId: group.payer_member_id,
+    splitMode: group.split_mode || "equal",
+    teilnehmer: [group.payer_member_id, ...(group.budget_split_shares || []).map((share) => share.member_id)],
+    betrag: Math.abs(Number(betrag || 0)),
+    sharesInput: group.split_mode !== "equal"
+      ? (() => {
+          const map = Object.fromEntries(
+            (group.budget_split_shares || []).map((share) => [share.member_id, share.share_input]),
+          );
+          if (group.split_mode === "percent" && group.payer_share_input != null) {
+            map[group.payer_member_id] = group.payer_share_input;
+          }
+          return map;
+        })()
+      : {},
+    splitOrigin: group.split_origin || null,
+    sourceTemplateId: group.source_template_id || null,
+  };
+};
+
+const isSplitOriginSchemaError = (error) => {
+  const message = String(error?.message || error?.details || error?.hint || "");
+  return /split_origin|source_template_id/i.test(message);
+};
+
+const resolveEditSplitWritePlan = (modal) => {
+  if (!modal?.id) return null;
+  if (modal.wiederholen) {
+    return {
+      postenId: modal.id,
+      splitOrigin: SPLIT_ORIGINS.TEMPLATE_DEFAULT,
+      sourceTemplateId: null,
+    };
+  }
+  return {
+    postenId: modal.id,
+    splitOrigin: SPLIT_ORIGINS.MANUAL_OCCURRENCE,
+    sourceTemplateId: modal?.ursprung_template_id || null,
+  };
+};
+
 // ─────────────── Sub-Components ───────────────
 const ModalWrapper = ({ title, onClose, children, footer, maxWidthClass = "max-w-md", bodyClassName = "" }) => (
   <ModalShell
@@ -228,7 +282,6 @@ const BudgetForm = forwardRef(({
     }
     if (!splitAktiv) return;
     if (splitVorgestrecktVon) return;
-    if (splitManuellBearbeitet) return;
 
     const payerId = resolveSplitPayerFromBudgetSelection({
       bewohnerId: form.bewohner_id || null,
@@ -244,7 +297,6 @@ const BudgetForm = forwardRef(({
     kontenById,
     form.bewohner_id,
     splitAktiv,
-    splitManuellBearbeitet,
     splitVerfuegbar,
     splitVorgestrecktVon,
     zahlungskontoId,
@@ -322,7 +374,11 @@ const BudgetForm = forwardRef(({
 
   const handleSpeichern = useCallback(() => {
     if (!form.beschreibung.trim() || !form.betrag) return;
-    const naechstesDatum = wiederholen ? calcNaechstesDatum(form.datum, intervall) : null;
+    const naechstesDatum = wiederholen
+      ? (form.datum === (initial?.datum ?? form.datum) && intervall === (initial?.intervall ?? intervall)
+          ? (initial?.naechstes_datum ?? calcNaechstesDatum(form.datum, intervall))
+          : calcNaechstesDatum(form.datum, intervall))
+      : null;
     const budgetPayload = {
       ...form,
       betrag: Math.abs(Number(form.betrag)),
@@ -860,6 +916,98 @@ const HomeBudget = ({ session }) => {
     return data?.household_id || null;
   }, [userId]);
 
+  const getSplitEditMonthContext = useCallback((entry) => {
+    const nowYear = today.getFullYear();
+    const nowMonth = today.getMonth();
+    const monthIsExplicit = zeitraum === "monat";
+    const targetYear = monthIsExplicit ? selJahr : nowYear;
+    const targetMonth = monthIsExplicit ? selMonat : nowMonth;
+    const isFutureTarget = targetYear > nowYear || (targetYear === nowYear && targetMonth > nowMonth);
+    const projectedDate = getRecurringOccurrenceDateForMonth(entry, targetYear, targetMonth);
+
+    return {
+      targetYear,
+      targetMonth,
+      isFutureTarget,
+      projectedDate,
+      isProjectedFutureTemplate: Boolean(entry?.wiederholen && isFutureTarget && projectedDate),
+    };
+  }, [selJahr, selMonat, today, zeitraum]);
+
+  const resolveTemplateSplitWriteTarget = useCallback(async (templateEntry) => {
+    if (!templateEntry?.wiederholen) {
+      return {
+        templatePostenId: null,
+        effectiveOccurrence: null,
+        effectiveOccurrenceHasOwnSplit: false,
+        effectiveOccurrenceSplitOrigin: null,
+        isProjectedFutureTemplate: false,
+      };
+    }
+
+    const monthCtx = getSplitEditMonthContext(templateEntry);
+    if (monthCtx.isProjectedFutureTemplate) {
+      return {
+        templatePostenId: templateEntry.id,
+        effectiveOccurrence: null,
+        effectiveOccurrenceHasOwnSplit: false,
+        effectiveOccurrenceSplitOrigin: null,
+        isProjectedFutureTemplate: true,
+      };
+    }
+
+    let effectiveOccurrence = await findOccurrenceForTemplateMonth({
+      supabase,
+      templateId: templateEntry.id,
+      year: monthCtx.targetYear,
+      month: monthCtx.targetMonth,
+    });
+
+    if (!effectiveOccurrence && monthCtx.projectedDate) {
+      effectiveOccurrence = await ensureTemplateOccurrenceForMonth({
+        supabase,
+        template: templateEntry,
+        userId,
+        year: monthCtx.targetYear,
+        month: monthCtx.targetMonth,
+      });
+    }
+
+    let effectiveOccurrenceHasOwnSplit = false;
+    let effectiveOccurrenceSplitOrigin = null;
+    if (effectiveOccurrence?.id) {
+      let existingGroup = null;
+      let existingGroupError = null;
+      ({ data: existingGroup, error: existingGroupError } = await supabase
+        .from("budget_split_groups")
+        .select("id, split_origin")
+        .eq("budget_posten_id", effectiveOccurrence.id)
+        .maybeSingle());
+
+      if (existingGroupError && isSplitOriginSchemaError(existingGroupError)) {
+        ({ data: existingGroup, error: existingGroupError } = await supabase
+          .from("budget_split_groups")
+          .select("id")
+          .eq("budget_posten_id", effectiveOccurrence.id)
+          .maybeSingle());
+      }
+
+      if (existingGroupError) throw existingGroupError;
+      effectiveOccurrenceSplitOrigin = existingGroup?.split_origin || null;
+      effectiveOccurrenceHasOwnSplit = existingGroup?.split_origin
+        ? existingGroup.split_origin === SPLIT_ORIGINS.MANUAL_OCCURRENCE
+        : Boolean(existingGroup?.id);
+    }
+
+    return {
+      templatePostenId: templateEntry.id,
+      effectiveOccurrence,
+      effectiveOccurrenceHasOwnSplit,
+      effectiveOccurrenceSplitOrigin,
+      isProjectedFutureTemplate: false,
+    };
+  }, [getSplitEditMonthContext, userId]);
+
   const refreshBudgetViews = useCallback(async (householdId) => {
     if (!userId || !householdId) {
       setBudgetViews([]);
@@ -949,7 +1097,7 @@ const HomeBudget = ({ session }) => {
     const [{ data: groups, error: groupsError }, { data: setts, error: settlementsError }] = await Promise.all([
       supabase
         .from("budget_split_groups")
-        .select("*, budget_split_shares(*), budget_posten(id, beschreibung, betrag, datum)")
+        .select("*, budget_split_shares(*), budget_posten!budget_split_groups_budget_posten_id_fkey(id, beschreibung, betrag, datum)")
         .eq("household_id", budgetViewHouseholdId)
         .order("created_at", { ascending: false }),
       supabase
@@ -1009,16 +1157,31 @@ const HomeBudget = ({ session }) => {
   const _restoreSplit = async (supa, postenId, householdId, alteSplit) => {
     if (!alteSplit) return;
     try {
-      const { data: restoredGroup, error: gErr } = await supa
+      const restorePayload = {
+        budget_posten_id: postenId,
+        household_id:     alteSplit.household_id,
+        payer_member_id:  alteSplit.payer_member_id,
+        split_mode:       alteSplit.split_mode,
+        payer_share_input: alteSplit.payer_share_input ?? null,
+        split_origin: alteSplit.split_origin || SPLIT_ORIGINS.MANUAL_OCCURRENCE,
+        source_template_id: alteSplit.source_template_id ?? null,
+      };
+
+      let restoredGroup = null;
+      let gErr = null;
+      ({ data: restoredGroup, error: gErr } = await supa
         .from("budget_split_groups")
-        .insert({
-          budget_posten_id: postenId,
-          household_id:     alteSplit.household_id,
-          payer_member_id:  alteSplit.payer_member_id,
-          split_mode:       alteSplit.split_mode,
-          payer_share_input: alteSplit.payer_share_input ?? null,
-        })
-        .select("id").single();
+        .insert(restorePayload)
+        .select("id").single());
+
+      if (gErr && isSplitOriginSchemaError(gErr)) {
+        const { split_origin, source_template_id, ...legacyPayload } = restorePayload;
+        ({ data: restoredGroup, error: gErr } = await supa
+          .from("budget_split_groups")
+          .insert(legacyPayload)
+          .select("id").single());
+      }
+
       if (gErr || !restoredGroup) { console.error("[_restoreSplit] Gruppe:", gErr); return; }
 
       if ((alteSplit.budget_split_shares || []).length > 0) {
@@ -1039,11 +1202,14 @@ const HomeBudget = ({ session }) => {
     }
   };
 
-  const aktualisiereSplit = useCallback(async (postenId, splitConfig) => {
+  const aktualisiereSplit = useCallback(async (postenId, splitConfig, options = {}) => {
     if (!budgetViewHouseholdId) {
       setFehler("Aktiver Haushalt konnte nicht bestimmt werden.");
       return false;
     }
+
+    const splitOrigin = options.splitOrigin || SPLIT_ORIGINS.MANUAL_OCCURRENCE;
+    const sourceTemplateId = options.sourceTemplateId || null;
 
     // FALL 1: Split deaktiviert → alten Split löschen
     if (!splitConfig?.aktiv) {
@@ -1083,16 +1249,30 @@ const HomeBudget = ({ session }) => {
       }
 
       // 3c: Neue Gruppe anlegen
-      const { data: group, error: groupErr } = await supabase
+      const insertPayload = {
+        budget_posten_id: postenId,
+        household_id: budgetViewHouseholdId,
+        payer_member_id: splitConfig.payerMemberId,
+        split_mode: splitConfig.splitMode || 'equal',
+        payer_share_input: payerShareInput ?? null,
+        split_origin: splitOrigin,
+        source_template_id: sourceTemplateId,
+      };
+
+      let group = null;
+      let groupErr = null;
+      ({ data: group, error: groupErr } = await supabase
         .from("budget_split_groups")
-        .insert({
-          budget_posten_id: postenId,
-          household_id: budgetViewHouseholdId,
-          payer_member_id: splitConfig.payerMemberId,
-          split_mode: splitConfig.splitMode || 'equal',
-          payer_share_input: payerShareInput ?? null,
-        })
-        .select("id").single();
+        .insert(insertPayload)
+        .select("id").single());
+
+      if (groupErr && isSplitOriginSchemaError(groupErr)) {
+        const { split_origin, source_template_id, ...legacyPayload } = insertPayload;
+        ({ data: group, error: groupErr } = await supabase
+          .from("budget_split_groups")
+          .insert(legacyPayload)
+          .select("id").single());
+      }
 
       if (groupErr || !group) {
         await _restoreSplit(supabase, postenId, budgetViewHouseholdId, alteSplit);
@@ -1130,37 +1310,40 @@ const HomeBudget = ({ session }) => {
 
       if (error) throw error;
 
-      const initialSplit = group
-        ? {
-            aktiv: true,
-            payerMemberId: group.payer_member_id,
-            splitMode: group.split_mode || 'equal',
-            teilnehmer: [group.payer_member_id, ...(group.budget_split_shares || []).map((share) => share.member_id)],
-            betrag: Math.abs(Number(postenEintrag.betrag || 0)),
-            sharesInput: group.split_mode !== 'equal'
-              ? (() => {
-                  const map = Object.fromEntries(
-                    (group.budget_split_shares || []).map(s => [s.member_id, s.share_input])
-                  );
-                  // Bei percent: Zahler-Anteil aus payer_share_input wiederherstellen
-                  if (group.split_mode === 'percent' && group.payer_share_input != null) {
-                    map[group.payer_member_id] = group.payer_share_input;
-                  }
-                  return map;
-                })()
-              : {},
-          }
-        : null;
+      let inheritedTemplateSplit = null;
+      if (!group && postenEintrag?.ursprung_template_id) {
+        const { data: templateGroup, error: templateGroupError } = await supabase
+          .from("budget_split_groups")
+          .select("*, budget_split_shares(member_id, amount_owed, share_type, share_input)")
+          .eq("budget_posten_id", postenEintrag.ursprung_template_id)
+          .maybeSingle();
+        if (templateGroupError) throw templateGroupError;
+        inheritedTemplateSplit = buildInitialSplitFromGroup(templateGroup, postenEintrag.betrag);
+      }
+
+      const initialSplit = buildInitialSplitFromGroup(group, postenEintrag.betrag) || inheritedTemplateSplit;
+      const splitEditContext = postenEintrag?.wiederholen
+        ? await resolveTemplateSplitWriteTarget(postenEintrag)
+        : {
+            templatePostenId: postenEintrag?.ursprung_template_id || null,
+            effectiveOccurrence: postenEintrag?.ursprung_template_id ? postenEintrag : null,
+            isProjectedFutureTemplate: false,
+          };
 
       setModal({
         ...postenEintrag,
         initialSplit,
         originalSplit: initialSplit,
+        splitInheritedFromTemplate: Boolean(
+          (group && group.split_origin === SPLIT_ORIGINS.INHERITED_OCCURRENCE) ||
+          (!group && inheritedTemplateSplit)
+        ),
+        splitEditContext,
       });
     } catch (error) {
       setFehler("Kostenaufteilung konnte nicht geladen werden.");
     }
-  }, []);
+  }, [resolveTemplateSplitWriteTarget]);
 
   const findeAllokierteBudgetPosten = useCallback(async (budgetPostenIds) => {
     const ids = Array.from(new Set([...(Array.isArray(budgetPostenIds) ? budgetPostenIds : [budgetPostenIds])].filter(Boolean)));
@@ -1199,15 +1382,128 @@ const HomeBudget = ({ session }) => {
     );
   }, []);
 
+  const loescheBudgetEintragNachRegeln = useCallback(async (eintrag, options = {}) => {
+    const id = eintrag?.id;
+    if (!id) return null;
+
+    const skipConfirm = options.skipConfirm === true;
+    const confirmAction = (message) => (skipConfirm ? true : window.confirm(message));
+
+    if (eintrag.wiederholen) {
+      const { data: occurrences, error: occurrenceError } = await supabase
+        .from("budget_posten")
+        .select("id")
+        .eq("ursprung_template_id", id);
+      if (occurrenceError) throw occurrenceError;
+
+      const occurrenceIds = (occurrences || []).map((entry) => entry.id);
+      const allRelevantIds = [id, ...occurrenceIds];
+      const allokierteIds = await findeAllokierteBudgetPosten(allRelevantIds);
+      const hatAllocierteHistorie = allokierteIds.length > 0;
+
+      if (hatAllocierteHistorie) {
+        if (!confirmAction("Diese wiederkehrende Zahlung hat bereits allokierte Historie. Die Serie wird nur für die Zukunft gestoppt.")) {
+          return null;
+        }
+
+        const { error: stopErr } = await supabase
+          .from("budget_posten")
+          .update({ wiederholen: false, naechstes_datum: null })
+          .eq("id", id);
+        if (stopErr) throw stopErr;
+
+        return {
+          deletedBudgetIds: [],
+          stoppedTemplateId: id,
+          keptManualOccurrenceIds: occurrenceIds,
+        };
+      }
+
+      let manualOccurrenceIds = [];
+      if (occurrenceIds.length > 0) {
+        let occurrenceGroups = null;
+        let groupError = null;
+        ({ data: occurrenceGroups, error: groupError } = await supabase
+          .from("budget_split_groups")
+          .select("budget_posten_id, split_origin")
+          .in("budget_posten_id", occurrenceIds));
+
+        if (groupError && isSplitOriginSchemaError(groupError)) {
+          ({ data: occurrenceGroups, error: groupError } = await supabase
+            .from("budget_split_groups")
+            .select("budget_posten_id")
+            .in("budget_posten_id", occurrenceIds));
+        }
+        if (groupError) throw groupError;
+
+        manualOccurrenceIds = (occurrenceGroups || [])
+          .filter((group) => !group.split_origin || group.split_origin === SPLIT_ORIGINS.MANUAL_OCCURRENCE)
+          .map((group) => group.budget_posten_id);
+      }
+
+      const manualOccurrenceIdSet = new Set(manualOccurrenceIds);
+      const inheritedOrPlainOccurrenceIds = occurrenceIds.filter((occurrenceId) => !manualOccurrenceIdSet.has(occurrenceId));
+      const deletedBudgetIds = [id, ...inheritedOrPlainOccurrenceIds];
+
+      const confirmMessage = manualOccurrenceIds.length > 0
+        ? `Vorlage und ${inheritedOrPlainOccurrenceIds.length} vererbte Buchung${inheritedOrPlainOccurrenceIds.length === 1 ? "" : "en"} löschen? ${manualOccurrenceIds.length} individuell angepasste Buchung${manualOccurrenceIds.length === 1 ? "" : "en"} bleiben erhalten.`
+        : occurrenceIds.length > 0
+          ? `Wiederkehrende Zahlung und ${occurrenceIds.length} zugehörige Buchung${occurrenceIds.length === 1 ? "" : "en"} löschen?`
+          : "Wiederkehrende Zahlung löschen?";
+
+      if (!confirmAction(confirmMessage)) return null;
+      if (!(await frageSplitLoeschWarnung(deletedBudgetIds))) return null;
+
+      if (inheritedOrPlainOccurrenceIds.length > 0) {
+        const { error: deleteOccurrencesError } = await supabase
+          .from("budget_posten")
+          .delete()
+          .in("id", inheritedOrPlainOccurrenceIds);
+        if (deleteOccurrencesError) throw deleteOccurrencesError;
+      }
+
+      const { error: deleteTemplateError } = await supabase
+        .from("budget_posten")
+        .delete()
+        .eq("id", id);
+      if (deleteTemplateError) throw deleteTemplateError;
+
+      return {
+        deletedBudgetIds,
+        keptManualOccurrenceIds: manualOccurrenceIds,
+      };
+    }
+
+    const allokierteIds = await findeAllokierteBudgetPosten([id]);
+    if (allokierteIds.length > 0) {
+      throw new Error("Diese Budget-Buchung hat bereits allokierte Ausgleiche und kann nicht gelöscht werden.");
+    }
+    if (!(await frageSplitLoeschWarnung(id))) return null;
+    if (!confirmAction("Eintrag löschen?")) return null;
+
+    const { error: deleteError } = await supabase.from("budget_posten").delete().eq("id", id);
+    if (deleteError) throw deleteError;
+
+    return { deletedBudgetIds: [id], keptManualOccurrenceIds: [] };
+  }, [findeAllokierteBudgetPosten, frageSplitLoeschWarnung]);
+
   const speichere = async (daten) => {
     const { splitConfig, ...budgetDaten } = daten;
     const payload = { ...budgetDaten, user_id: userId };
     try {
       if (modal?.id) {
+        const isProjectedFutureTemplate = Boolean(modal?.splitEditContext?.isProjectedFutureTemplate);
         const splitRelevantGeaendert = splitHatSichRelevantGeaendert(
           splitConfig,
           modal.originalSplit ? { ...modal.originalSplit, betrag: Math.abs(Number(modal.betrag || 0)) } : modal.originalSplit,
         );
+        const brauchtSplitWrite = splitRelevantGeaendert || splitConfig?.aktiv || modal.originalSplit?.aktiv;
+        const splitWritePlan = brauchtSplitWrite ? resolveEditSplitWritePlan(modal) : null;
+
+        if (brauchtSplitWrite && !splitWritePlan) {
+          setFehler("Kostenaufteilung konnte nicht gespeichert werden: kein gueltiges Ziel fuer diese Buchung gefunden.");
+          return;
+        }
 
         if (splitRelevantGeaendert && haushaltsHatSettlements(settlements)) {
           const fortfahren = window.confirm(
@@ -1233,11 +1529,32 @@ const HomeBudget = ({ session }) => {
           await supabase.from("budget_posten").update(budgetDaten).eq("id", modal.id);
         }
 
-        if (splitRelevantGeaendert || splitConfig?.aktiv || modal.originalSplit?.aktiv) {
-          const splitOk = await aktualisiereSplit(modal.id, splitConfig);
-          if (!splitOk) {
-            setFehler("Kostenaufteilung konnte nicht aktualisiert werden.");
-            return;
+        if (brauchtSplitWrite) {
+          if (modal?.wiederholen) {
+            const templateSplitOk = await aktualisiereSplit(splitWritePlan.postenId, splitConfig, {
+              splitOrigin: splitWritePlan.splitOrigin,
+            });
+            if (!templateSplitOk) {
+              setFehler("Kostenaufteilung konnte nicht als Serien-Default gespeichert werden.");
+              return;
+            }
+
+            if (!isProjectedFutureTemplate) {
+              await propagateTemplateSplitToOccurrences({
+                supabase,
+                householdId: budgetViewHouseholdId,
+                templateId: modal.id,
+              });
+            }
+          } else {
+            const splitOk = await aktualisiereSplit(splitWritePlan.postenId, splitConfig, {
+              splitOrigin: splitWritePlan.splitOrigin,
+              sourceTemplateId: splitWritePlan.sourceTemplateId,
+            });
+            if (!splitOk) {
+              setFehler("Kostenaufteilung konnte nicht für diese Buchung aktualisiert werden.");
+              return;
+            }
           }
         }
       } else {
@@ -1253,12 +1570,42 @@ const HomeBudget = ({ session }) => {
             return;
           }
 
-          const splitOk = await aktualisiereSplit(neuerPosten.id, splitConfig);
-          if (!splitOk) {
-            // budget_posten schon gespeichert — Modal auf Edit-Modus umschalten
-            setModal(prev => ({ ...prev, id: neuerPosten.id }));
-            setFehler("Buchung gespeichert, Kostenaufteilung konnte nicht angelegt werden.");
-            return;
+          if (payload.wiederholen) {
+            const createdTemplate = { ...payload, id: neuerPosten.id };
+            const splitTarget = await resolveTemplateSplitWriteTarget(createdTemplate);
+
+            const templateSplitOk = await aktualisiereSplit(neuerPosten.id, splitConfig, {
+              splitOrigin: SPLIT_ORIGINS.TEMPLATE_DEFAULT,
+            });
+            if (!templateSplitOk) {
+              setModal(prev => ({ ...prev, id: neuerPosten.id }));
+              setFehler("Buchung gespeichert, Serien-Default für die Kostenaufteilung konnte nicht angelegt werden.");
+              return;
+            }
+
+            if (splitTarget?.effectiveOccurrence?.id) {
+              try {
+                await propagateTemplateSplitToOccurrences({
+                  supabase,
+                  householdId: budgetViewHouseholdId,
+                  templateId: neuerPosten.id,
+                });
+              } catch (propagationError) {
+                setModal(prev => ({ ...prev, id: neuerPosten.id }));
+                setFehler("Buchung gespeichert, Kostenaufteilung für die wirksame Buchung konnte nicht angelegt werden.");
+                return;
+              }
+            }
+          } else {
+            const splitOk = await aktualisiereSplit(neuerPosten.id, splitConfig, {
+              splitOrigin: SPLIT_ORIGINS.MANUAL_OCCURRENCE,
+            });
+            if (!splitOk) {
+              // budget_posten schon gespeichert — Modal auf Edit-Modus umschalten
+              setModal(prev => ({ ...prev, id: neuerPosten.id }));
+              setFehler("Buchung gespeichert, Kostenaufteilung konnte nicht angelegt werden.");
+              return;
+            }
           }
         } catch (err) {
           setFehler("Unerwarteter Fehler beim Speichern. Bitte prüfen.");
@@ -1277,53 +1624,18 @@ const HomeBudget = ({ session }) => {
     const id = eintrag?.id;
     if (!id) return;
 
-    // Vorlage (wiederholen=true): zugehörige Occurrences mitlöschen
-    if (eintrag.wiederholen) {
-      const { data: occurrences } = await supabase
-        .from("budget_posten").select("id").eq("ursprung_template_id", id);
-      const occurrenceIds = [id, ...(occurrences || []).map((entry) => entry.id)];
-      const allokierteIds = await findeAllokierteBudgetPosten(occurrenceIds);
-      const anzahl = (occurrences || []).length;
-      const hatAllocierteHistorie = allokierteIds.length > 0;
-      const msg = hatAllocierteHistorie
-        ? "Diese wiederkehrende Zahlung hat bereits allokierte Historie. Die Serie wird nur für die Zukunft gestoppt."
-        : anzahl > 0
-            ? `Wiederkehrende Zahlung und ${anzahl} zugehörige Buchung${anzahl !== 1 ? "en" : ""} löschen?`
-            : "Wiederkehrende Zahlung löschen?";
-      if (!window.confirm(msg)) return;
-      if (hatAllocierteHistorie) {
-        const { error: stopErr } = await supabase
-          .from("budget_posten")
-          .update({ wiederholen: false, naechstes_datum: null })
-          .eq("id", id);
-        if (stopErr) throw stopErr;
+    const verknuepfteRechnungen = budgetRechnungMap[id] || [];
+    if (verknuepfteRechnungen.length === 0) {
+      try {
+        const result = await loescheBudgetEintragNachRegeln(eintrag);
+        if (!result) return;
         await ladeDaten();
         await ladeSplitDaten();
         return;
-      }
-      if (!(await frageSplitLoeschWarnung(occurrenceIds))) return;
-      if (anzahl > 0) {
-        await supabase.from("budget_posten").delete().eq("ursprung_template_id", id);
-      }
-      await supabase.from("budget_posten").delete().eq("id", id);
-      await ladeDaten();
-      await ladeSplitDaten();
-      return;
-    }
-
-    const verknuepfteRechnungen = budgetRechnungMap[id] || [];
-    if (verknuepfteRechnungen.length === 0) {
-      const allokierteIds = await findeAllokierteBudgetPosten([id]);
-      if (allokierteIds.length > 0) {
-        setFehler("Diese Budget-Buchung hat bereits allokierte Ausgleiche und kann nicht gelöscht werden.");
+      } catch (err) {
+        setFehler(err.message || "Löschen fehlgeschlagen.");
         return;
       }
-      if (!(await frageSplitLoeschWarnung(id))) return;
-      if (!window.confirm("Eintrag löschen?")) return;
-      await supabase.from("budget_posten").delete().eq("id", id);
-      await ladeDaten();
-      await ladeSplitDaten();
-      return;
     }
 
     setRechnungsLoeschDialog({ eintrag, rechnungen: verknuepfteRechnungen });
@@ -1333,21 +1645,17 @@ const HomeBudget = ({ session }) => {
     if (!rechnungsLoeschDialog?.eintrag?.id) return;
     setLoeschenLaeuft(true);
     try {
-      const budgetId = rechnungsLoeschDialog.eintrag.id;
-      const allokierteIds = await findeAllokierteBudgetPosten([budgetId]);
-      if (allokierteIds.length > 0) {
-        throw new Error("Diese Budget-Buchung hat bereits allokierte Ausgleiche und kann nicht entfernt werden.");
-      }
-      if (!(await frageSplitLoeschWarnung(budgetId))) return;
-      const { error: budgetErr } = await supabase.from("budget_posten").delete().eq("id", budgetId);
-      if (budgetErr) throw budgetErr;
+      const result = await loescheBudgetEintragNachRegeln(rechnungsLoeschDialog.eintrag, { skipConfirm: true });
+      if (!result) return;
 
-      const { error: linkErr } = await supabase
-        .from("dokument_links")
-        .delete()
-        .eq("entity_type", "budget_posten")
-        .eq("entity_id", budgetId);
-      if (linkErr) throw linkErr;
+      if ((result.deletedBudgetIds || []).length > 0) {
+        const { error: linkErr } = await supabase
+          .from("dokument_links")
+          .delete()
+          .eq("entity_type", "budget_posten")
+          .in("entity_id", result.deletedBudgetIds);
+        if (linkErr) throw linkErr;
+      }
 
       setRechnungsLoeschDialog(null);
       await ladeDaten();
@@ -1366,21 +1674,11 @@ const HomeBudget = ({ session }) => {
       const dokumentIds = Array.from(
         new Set(rechnungsLoeschDialog.rechnungen.map((r) => r.dokument_id).filter(Boolean)),
       );
-      if (dokumentIds.length > 0) {
-        const { data: links, error: linksError } = await supabase
-          .from("dokument_links")
-          .select("entity_id")
-          .eq("entity_type", "budget_posten")
-          .in("dokument_id", dokumentIds);
-        if (linksError) throw linksError;
 
-        const budgetIds = Array.from(new Set((links || []).map((entry) => entry.entity_id).filter(Boolean)));
-        const allokierteIds = await findeAllokierteBudgetPosten(budgetIds);
-        if (allokierteIds.length > 0) {
-          throw new Error("Mindestens eine verknüpfte Budget-Buchung hat bereits allokierte Ausgleiche und kann nicht komplett gelöscht werden.");
-        }
-        if (!(await frageSplitLoeschWarnung(budgetIds))) return;
+      if (rechnungsLoeschDialog?.eintrag) {
+        await loescheBudgetEintragNachRegeln(rechnungsLoeschDialog.eintrag, { skipConfirm: true });
       }
+
       for (const dokumentId of dokumentIds) {
         await deleteInvoiceCascade({ supabase, dokumentId });
       }
@@ -1456,7 +1754,7 @@ const HomeBudget = ({ session }) => {
   const isFutureMonth     = zeitraum === "monat" && selMonatStart > currentMonthStart;
 
   /** Projiziertes Datum eines Templates für den aktuell gewählten Monat berechnen */
-  const getProjiziertesDatum = (p) => {
+  const getProjiziertesDatum = useCallback((p) => {
     if (!isFutureMonth || !p.wiederholen || !p.naechstes_datum || !p.intervall) return p.datum;
     const targetStart = `${selJahr}-${String(selMonat + 1).padStart(2, "0")}-01`;
     let projected = p.naechstes_datum;
@@ -1467,30 +1765,44 @@ const HomeBudget = ({ session }) => {
     }
     const pd = new Date(projected + "T00:00:00");
     return (pd.getFullYear() === selJahr && pd.getMonth() === selMonat) ? projected : p.datum;
-  };
+  }, [isFutureMonth, selJahr, selMonat]);
 
-  const nachZeitraumGefiltert = posten.filter(p => {
-    if (zeitraum === "alle" || !p.datum) return true;
-    const d = new Date(p.datum + "T00:00:00"); // T00:00:00 verhindert UTC-Offset-Fehler für den 1. des Monats
-    if (zeitraum === "jahr") return d.getFullYear() === selJahr;
-    if (d.getFullYear() === selJahr && d.getMonth() === selMonat) return true;
-    // Zukunftsmonat: wiederkehrende Templates mitanzeigen — naechstes_datum iterativ vorwärtsprojizieren
-    if (isFutureMonth && p.wiederholen && p.naechstes_datum && p.intervall) {
-      const targetStart = `${selJahr}-${String(selMonat + 1).padStart(2, "0")}-01`;
-      let projected = p.naechstes_datum;
-      let iterations = 0;
-      while (projected < targetStart && iterations < 500) {
-        projected = calcNaechstesDatum(projected, p.intervall);
-        iterations++;
-      }
-      const pd = new Date(projected + "T00:00:00");
-      if (pd.getFullYear() === selJahr && pd.getMonth() === selMonat) {
-        return !p.ende_datum || projected <= p.ende_datum;
+  const nachZeitraumGefiltert = useMemo(() => {
+    const raw = posten.filter((p) => {
+      if (zeitraum === "alle" || !p.datum) return true;
+      const d = new Date(p.datum + "T00:00:00"); // T00:00:00 verhindert UTC-Offset-Fehler für den 1. des Monats
+      if (zeitraum === "jahr") return d.getFullYear() === selJahr;
+      if (d.getFullYear() === selJahr && d.getMonth() === selMonat) return true;
+      // Zukunftsmonat: wiederkehrende Templates mitanzeigen — naechstes_datum iterativ vorwärtsprojizieren
+      if (isFutureMonth && p.wiederholen && p.naechstes_datum && p.intervall) {
+        const targetStart = `${selJahr}-${String(selMonat + 1).padStart(2, "0")}-01`;
+        let projected = p.naechstes_datum;
+        let iterations = 0;
+        while (projected < targetStart && iterations < 500) {
+          projected = calcNaechstesDatum(projected, p.intervall);
+          iterations++;
+        }
+        const pd = new Date(projected + "T00:00:00");
+        if (pd.getFullYear() === selJahr && pd.getMonth() === selMonat) {
+          return !p.ende_datum || projected <= p.ende_datum;
+        }
+        return false;
       }
       return false;
-    }
-    return false;
-  });
+    });
+
+    const occurrenceKeys = new Set(
+      raw
+        .filter((p) => p.ursprung_template_id)
+        .map((p) => `${p.ursprung_template_id}::${p.datum}`),
+    );
+
+    return raw.filter((p) => {
+      if (!p.wiederholen) return true;
+      const visibleDate = getProjiziertesDatum(p);
+      return !occurrenceKeys.has(`${p.id}::${visibleDate}`);
+    });
+  }, [getProjiziertesDatum, isFutureMonth, posten, selJahr, selMonat, zeitraum]);
 
   // Vollständig gefilterte Menge — Basis für Karten UND Liste
   const sichtbarePosten = nachZeitraumGefiltert.filter(p => {
@@ -2618,7 +2930,15 @@ const HomeBudget = ({ session }) => {
 
       {modal !== null && (
         <ModalWrapper
-          title={modal.id ? "Eintrag bearbeiten" : "Neuer Eintrag"}
+          title={
+            modal.id
+              ? modal.wiederholen
+                ? "Serienvorlage bearbeiten"
+                : modal.ursprung_template_id
+                  ? "Wiederkehrende Buchung bearbeiten"
+                  : "Eintrag bearbeiten"
+              : "Neuer Eintrag"
+          }
           onClose={() => setModal(null)}
           footer={
             <div className="flex gap-2">
@@ -2638,6 +2958,19 @@ const HomeBudget = ({ session }) => {
             </div>
           }
         >
+          {modal.id && (modal.wiederholen || modal.ursprung_template_id) && (
+            <div className="mb-3 rounded-card-sm border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+              {modal.wiederholen
+                ? modal?.splitEditContext?.isProjectedFutureTemplate
+                  ? "Du bearbeitest eine Serienvorlage in einer Zukunftsansicht. Die Aufteilung wird als Default gespeichert, erzeugt aber noch keine echte Buchung."
+                  : modal?.splitEditContext?.effectiveOccurrenceHasOwnSplit
+                    ? "Du bearbeitest eine Serienvorlage. Die Aufteilung wird als Default gespeichert; vorhandene Buchungen mit eigenem Split bleiben unverändert."
+                    : "Du bearbeitest eine Serienvorlage. Der Split wird als Default für künftige Buchungen gespeichert; nur echte Occurrences wirken im Ausgleich."
+                : modal.splitInheritedFromTemplate
+                  ? "Diese wiederkehrende Buchung hat noch keinen eigenen Split. Angezeigt wird aktuell der Default der Serienvorlage."
+                  : "Du bearbeitest eine einzelne wiederkehrende Buchung. Änderungen wirken nur auf diese Occurrence."}
+            </div>
+          )}
           <BudgetForm
             ref={budgetFormRef}
             initial={modal.id ? modal : null}

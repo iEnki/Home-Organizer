@@ -78,7 +78,11 @@ export default function BudgetEntryRow({
 
                   {meta.hatSplit && (
                     <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-300">
-                      Geteilt
+                      {meta.istIndividuellerSplit
+                        ? "Geteilt"
+                        : meta.splitOriginLabel
+                          ? `Geteilt · ${meta.splitOriginLabel}`
+                          : "Geteilt"}
                     </span>
                   )}
 
@@ -154,7 +158,7 @@ export default function BudgetEntryRow({
             <div>
               <p className={DETAIL_LABEL_CLS}>Kostenaufteilung</p>
               <p className={DETAIL_VALUE_CLS}>
-                {meta.hatSplit ? "Aktiv" : "Keine"}
+                {meta.hatSplit ? meta.splitOriginLabel || "Aktiv" : "Keine"}
               </p>
             </div>
             <div>
@@ -182,6 +186,15 @@ export default function BudgetEntryRow({
                     Nächstes Datum: {entry.naechstes_datum}
                   </p>
                 )}
+                <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  {meta.istTemplate
+                    ? "Nur echte Buchungen wirken im Ausgleich; die Vorlage speichert den Default."
+                    : meta.istVererbterSplit
+                      ? "Diese Buchung nutzt aktuell die vererbte Aufteilung der Serie."
+                      : meta.istIndividuellerSplit
+                        ? "Diese Buchung hat eine individuell angepasste Aufteilung."
+                        : "Diese Buchung wirkt direkt im Ausgleich."}
+                </p>
               </div>
             )}
           </div>

@@ -14,6 +14,7 @@ import { getDokDatum, getMonatsKey, formatMonatLabel, compareDokDatum, sortMonth
 import { syncInvoiceDate } from "../../utils/invoiceDateSync";
 import DokumentFilterBar from "./documents/DokumentFilterBar";
 import DokumentArchivListe from "./documents/DokumentArchivListe";
+import DokumentWissenAnalyseModal from "./documents/DokumentWissenAnalyseModal";
 
 // ── Konstanten ────────────────────────────────────────────────────────────────
 const KATEGORIEN = [
@@ -263,6 +264,7 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
 };
 
 // ── Wissenseintrag-Modal ───────────────────────────────────────────────────────
+// eslint-disable-next-line no-unused-vars
 const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
   const katHinweis = effektiveKategorie(dok);
   const [titel, setTitel] = useState(dok.dateiname.replace(/\.[^.]+$/, ""));
@@ -1019,7 +1021,7 @@ const HomeDokumente = ({ session }) => {
     try {
       const { data, error } = await supabase
         .from("dokumente")
-        .select("id, dateiname, datei_typ, storage_pfad, beschreibung, groesse_kb, kategorie, dokument_typ, erstellt_am")
+        .select("id, dateiname, datei_typ, storage_pfad, beschreibung, groesse_kb, kategorie, dokument_typ, tags, meta, extrahierter_text, erstellt_am")
         .eq("user_id", userId)
         .order("erstellt_am", { ascending: false });
       if (error) throw error;
@@ -1140,13 +1142,9 @@ const HomeDokumente = ({ session }) => {
 
   // ── Wissen-Erfolg ──────────────────────────────────────────────────────────
   const handleWissensErfolg = () => {
-    setDokumente((prev) =>
-      prev.map((d) =>
-        d.id === wissenModalDok?.id ? { ...d, hat_wissen: true } : d
-      )
-    );
     setWissenModalDok(null);
     setWissenErfolgreich(true);
+    ladeDaten();
     setTimeout(() => setWissenErfolgreich(false), 3000);
   };
 
@@ -1418,9 +1416,10 @@ const HomeDokumente = ({ session }) => {
         />
       )}
       {wissenModalDok && (
-        <WissensEintragModal
+        <DokumentWissenAnalyseModal
           dok={wissenModalDok}
           userId={userId}
+          session={session}
           onSchliessen={() => setWissenModalDok(null)}
           onErfolgreich={handleWissensErfolg}
         />
