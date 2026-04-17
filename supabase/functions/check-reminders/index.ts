@@ -52,6 +52,20 @@ function resolveEmpfaenger(
   return recipients;
 }
 
+function resolveAufgabeEmpfaenger(
+  task: any,
+  bewohnerUserMap: Map<string, string>,
+  recipients: string[],
+): string[] {
+  // 1. Zugewiesener Bewohner → linked User
+  if (task.bewohner_id) {
+    const linked = bewohnerUserMap.get(task.bewohner_id);
+    if (linked && recipients.includes(linked)) return [linked];
+  }
+  // 2. Keine spezifische Zuweisung → alle Haushaltsmitglieder
+  return recipients;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -67,6 +81,7 @@ Deno.serve(async (req: Request) => {
   const before1MinIso = new Date(now.getTime() - 1 * 60 * 1000).toISOString();
   const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
   const in1Day = new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const in24hIso = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
   const today = now.toISOString().split("T")[0];
 
   try {
@@ -126,10 +141,11 @@ Deno.serve(async (req: Request) => {
           { data: bewohnerRows },
           { data: openLedgerRows, error: openLedgerError },
           { data: faelligeBuecher },
+          { data: faelligeTasks },
         ] = await Promise.all([
           supabase
             .from("todo_aufgaben")
-            .select("id, beschreibung")
+            .select("id, beschreibung, erinnerungs_datum, letzte_push_erinnerung_am, bewohner_id, user_id")
             .eq("household_id", householdId)
             .eq("erledigt", false)
             .not("erinnerungs_datum", "is", null)
@@ -182,6 +198,13 @@ Deno.serve(async (req: Request) => {
             .eq("household_id", householdId)
             .eq("status", "verliehen")
             .eq("erinnerung_aktiv", true),
+          supabase
+            .from("todo_aufgaben")
+            .select("id, beschreibung, faelligkeitsdatum, erinnerungs_datum, bewohner_id, user_id, letzte_push_bald_faellig_am, letzte_push_bald_faellig_fuer, letzte_push_ueberfaellig_am")
+            .eq("household_id", householdId)
+            .eq("erledigt", false)
+            .not("faelligkeitsdatum", "is", null)
+            .lte("faelligkeitsdatum", in24hIso),
         ]);
 
         const msgs: PushMessage[] = [];
@@ -192,13 +215,76 @@ Deno.serve(async (req: Request) => {
           }
         }
 
+        const aufgabeDbUpdates: Array<() => Promise<unknown>> = [];
+
+        // Block A — Explizite Reminder (mit Dedupe + gezielter Empfänger-Auflösung)
         for (const task of dueTasks ?? []) {
-          addMessageForRecipients(msgs, recipients, {
+          if (task.letzte_push_erinnerung_am &&
+              new Date(task.letzte_push_erinnerung_am) >= new Date(task.erinnerungs_datum)) continue;
+
+          const empfaenger = resolveAufgabeEmpfaenger(task, bewohnerUserMap, recipients);
+          addMessageForRecipients(msgs, empfaenger, {
             title: "Aufgaben-Erinnerung",
             body: task.beschreibung,
             url: "/home/aufgaben",
             tag: `aufgabe-${task.id}`,
           });
+          aufgabeDbUpdates.push(() =>
+            supabase.from("todo_aufgaben")
+              .update({ letzte_push_erinnerung_am: now.toISOString() })
+              .eq("id", task.id)
+          );
+        }
+
+        // Block B+C — Bald fällig / Überfällig
+        for (const task of faelligeTasks ?? []) {
+          const faelligDate = (task.faelligkeitsdatum as string).split("T")[0];
+          const isOverdue = faelligDate < today;
+
+          if (!isOverdue) {
+            // Block B — bald fällig
+            // Kein Push wenn expliziter Reminder für dieselbe Aufgabe im aktuellen Fenster aktiv
+            const hasActiveReminder = task.erinnerungs_datum &&
+              task.erinnerungs_datum >= before1MinIso &&
+              task.erinnerungs_datum <= in15MinIso;
+            if (hasActiveReminder) continue;
+
+            // Dedupe: letzte_push_bald_faellig_fuer muss sich geändert haben
+            if (task.letzte_push_bald_faellig_fuer === faelligDate) continue;
+
+            const empfaenger = resolveAufgabeEmpfaenger(task, bewohnerUserMap, recipients);
+            addMessageForRecipients(msgs, empfaenger, {
+              title: "Aufgabe bald fällig",
+              body: `„${task.beschreibung}" ist bald fällig.`,
+              url: "/home/aufgaben",
+              tag: `aufgabe-due-soon-${task.id}`,
+            });
+            aufgabeDbUpdates.push(() =>
+              supabase.from("todo_aufgaben")
+                .update({
+                  letzte_push_bald_faellig_am: now.toISOString(),
+                  letzte_push_bald_faellig_fuer: faelligDate,
+                })
+                .eq("id", task.id)
+            );
+          } else {
+            // Block C — überfällig (max. 1x pro 24h)
+            const last = task.letzte_push_ueberfaellig_am;
+            if (last && now.getTime() - new Date(last).getTime() < 24 * 60 * 60 * 1000) continue;
+
+            const empfaenger = resolveAufgabeEmpfaenger(task, bewohnerUserMap, recipients);
+            addMessageForRecipients(msgs, empfaenger, {
+              title: "Aufgabe überfällig",
+              body: `„${task.beschreibung}" ist überfällig.`,
+              url: "/home/aufgaben",
+              tag: `aufgabe-overdue-${task.id}`,
+            });
+            aufgabeDbUpdates.push(() =>
+              supabase.from("todo_aufgaben")
+                .update({ letzte_push_ueberfaellig_am: now.toISOString() })
+                .eq("id", task.id)
+            );
+          }
         }
 
         for (const row of (inventoryRows ?? []).filter((item: any) => Number(item.menge) <= Number(item.mindest_menge))) {
@@ -312,6 +398,10 @@ Deno.serve(async (req: Request) => {
               .update({ letzte_erinnerung_am: today })
               .eq("id", buch.id);
           }
+        }
+
+        if (aufgabeDbUpdates.length > 0) {
+          await Promise.all(aufgabeDbUpdates.map((fn) => fn()));
         }
 
         return msgs;

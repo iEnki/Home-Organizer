@@ -3739,6 +3739,97 @@ $$;
 
 -- Ã¢â€â‚¬Ã¢â€â‚¬ Datenmigration fÃƒÂ¼r bestehende Installationen Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
+-- ── Legacy-Migration: haushalt_mitglieder → household_members ─────────────────
+-- Nur ausführen wenn Legacy-Tabellen existieren (bestehende Installationen).
+-- Stellt sicher dass alle Mitglieder im selben household_id-Bucket landen und
+-- push-reminders korrekt an alle Haushaltsmitglieder senden kann.
+DO $$
+DECLARE
+  v_legacy_vorhanden boolean;
+BEGIN
+  SELECT (
+    EXISTS (SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'haushalt_mitglieder')
+    AND
+    EXISTS (SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'haushalte')
+  ) INTO v_legacy_vorhanden;
+
+  IF NOT v_legacy_vorhanden THEN
+    RAISE NOTICE 'Legacy-Tabellen nicht vorhanden – Migration übersprungen.';
+    RETURN;
+  END IF;
+
+  DROP TABLE IF EXISTS tmp_falsch_haushalte;
+  CREATE TEMP TABLE tmp_falsch_haushalte ON COMMIT DROP AS
+  SELECT DISTINCT hm_new.user_id, hm_new.household_id AS falscher_haushalt
+  FROM public.household_members hm_new
+  JOIN public.haushalt_mitglieder hm_old ON hm_old.user_id = hm_new.user_id
+  WHERE hm_new.household_id IS DISTINCT FROM hm_old.haushalt_id;
+
+  -- 1. households mit gleicher UUID wie haushalte anlegen (IDs bleiben identisch)
+  INSERT INTO public.households (id, name, created_by, created_at)
+  SELECT id, name, admin_id, created_at FROM public.haushalte
+  ON CONFLICT (id) DO NOTHING;
+
+  INSERT INTO public.household_settings (household_id)
+  SELECT id FROM public.households ON CONFLICT (household_id) DO NOTHING;
+
+  -- 2. Falsch zugeordnete Mitglieder + isolierte Auto-Create-Haushalte löschen
+  DELETE FROM public.household_members
+  WHERE user_id IN (SELECT user_id FROM tmp_falsch_haushalte);
+
+  DELETE FROM public.household_settings
+  WHERE household_id IN (SELECT falscher_haushalt FROM tmp_falsch_haushalte);
+
+  DELETE FROM public.households
+  WHERE id IN (SELECT falscher_haushalt FROM tmp_falsch_haushalte)
+    AND id NOT IN (SELECT DISTINCT household_id FROM public.household_members);
+
+  -- 3. Mitglieder korrekt eintragen (haushalt_mitglieder → household_members)
+  INSERT INTO public.household_members (household_id, user_id, role, joined_at)
+  SELECT
+    hm_old.haushalt_id,
+    hm_old.user_id,
+    CASE WHEN hm_old.rolle = 'admin' THEN 'admin' ELSE 'member' END,
+    COALESCE(hm_old.created_at, NOW())
+  FROM public.haushalt_mitglieder hm_old
+  WHERE hm_old.user_id NOT IN (SELECT user_id FROM public.household_members)
+  ON CONFLICT (user_id) DO NOTHING;
+
+  -- 4. Sync-Trigger für zukünftige haushalt_mitglieder-Einträge
+  EXECUTE $func$
+    CREATE OR REPLACE FUNCTION public.sync_haushalt_mitglieder_insert()
+    RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+    AS $inner$
+    BEGIN
+      INSERT INTO public.households (id, name, created_by)
+      SELECT NEW.haushalt_id, h.name, h.admin_id
+      FROM public.haushalte h WHERE h.id = NEW.haushalt_id
+      ON CONFLICT (id) DO NOTHING;
+
+      INSERT INTO public.household_members (household_id, user_id, role)
+      VALUES (NEW.haushalt_id, NEW.user_id,
+              CASE WHEN NEW.rolle = 'admin' THEN 'admin' ELSE 'member' END)
+      ON CONFLICT (user_id) DO NOTHING;
+
+      INSERT INTO public.household_settings (household_id)
+      VALUES (NEW.haushalt_id) ON CONFLICT (household_id) DO NOTHING;
+
+      RETURN NEW;
+    END;
+    $inner$
+  $func$;
+
+  DROP TRIGGER IF EXISTS sync_haushalt_mitglieder_trigger ON public.haushalt_mitglieder;
+  CREATE TRIGGER sync_haushalt_mitglieder_trigger
+    AFTER INSERT ON public.haushalt_mitglieder
+    FOR EACH ROW EXECUTE FUNCTION public.sync_haushalt_mitglieder_insert();
+
+  RAISE NOTICE 'Legacy-Migration: household_members korrekt synchronisiert.';
+END;
+$$;
+
 -- Pro bestehendem User Haushalt + Admin-Mitglied sicherstellen
 WITH missing_users AS (
   SELECT
@@ -4513,7 +4604,9 @@ CREATE INDEX IF NOT EXISTS idx_dokumente_household_id
 
 ALTER TABLE public.home_wissen
   ADD COLUMN IF NOT EXISTS dokument_id uuid REFERENCES public.dokumente(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS rechnung_id uuid; -- FK zu rechnungen wird in 12f nachgezogen
+  ADD COLUMN IF NOT EXISTS rechnung_id uuid, -- FK zu rechnungen wird in 12f nachgezogen
+  ADD COLUMN IF NOT EXISTS summary jsonb NOT NULL DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS analysis_confidence numeric(4,3);
 
 CREATE INDEX IF NOT EXISTS idx_home_wissen_household_id
   ON public.home_wissen (household_id);
@@ -4876,6 +4969,7 @@ $$;
 
 REVOKE ALL ON FUNCTION public.claim_doc_processing(uuid, text, uuid, boolean) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.claim_doc_processing(uuid, text, uuid, boolean) FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_doc_processing(uuid, text, uuid, boolean) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.claim_doc_processing(uuid, text, uuid, boolean) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.sync_invoice_date(
@@ -4975,6 +5069,9 @@ CREATE TABLE IF NOT EXISTS public.budget_split_groups (
   payer_member_id  uuid NOT NULL REFERENCES public.home_bewohner(id) ON DELETE RESTRICT,
   split_mode       text NOT NULL DEFAULT 'equal'
     CHECK (split_mode IN ('equal','fixed','percent','custom')),
+  split_origin     text NOT NULL DEFAULT 'manual_occurrence'
+    CHECK (split_origin IN ('template_default','inherited_occurrence','manual_occurrence')),
+  source_template_id uuid REFERENCES public.budget_posten(id) ON DELETE SET NULL,
   created_at       timestamptz NOT NULL DEFAULT now()
 );
 
@@ -5179,7 +5276,23 @@ CREATE POLICY budget_settlements_household ON public.budget_settlements FOR ALL
 
 -- 1a. budget_split_groups: Zahler-Prozentanteil speichern
 ALTER TABLE public.budget_split_groups
-  ADD COLUMN IF NOT EXISTS payer_share_input numeric(12,4);
+  ADD COLUMN IF NOT EXISTS payer_share_input numeric(12,4),
+  ADD COLUMN IF NOT EXISTS split_origin text NOT NULL DEFAULT 'manual_occurrence'
+    CHECK (split_origin IN ('template_default','inherited_occurrence','manual_occurrence')),
+  ADD COLUMN IF NOT EXISTS source_template_id uuid REFERENCES public.budget_posten(id) ON DELETE SET NULL;
+
+UPDATE public.budget_split_groups bsg
+SET split_origin = CASE
+  WHEN bp.wiederholen = true THEN 'template_default'
+  WHEN bp.ursprung_template_id IS NOT NULL THEN 'manual_occurrence'
+  ELSE COALESCE(bsg.split_origin, 'manual_occurrence')
+END,
+source_template_id = CASE
+  WHEN bp.ursprung_template_id IS NOT NULL THEN COALESCE(bsg.source_template_id, bp.ursprung_template_id)
+  ELSE bsg.source_template_id
+END
+FROM public.budget_posten bp
+WHERE bp.id = bsg.budget_posten_id;
 
 -- 1b. budget_split_shares: Split-Typ und Eingabewert speichern
 ALTER TABLE public.budget_split_shares
@@ -5473,6 +5586,15 @@ CREATE POLICY household_member_access ON public.home_buch_import_kandidaten
 
 -- Kein set_household_scope_defaults_trigger: weder user_id noch created_by_user_id.
 -- household_id wird vom SHARED_TABLES-Proxy injiziert.
+
+-- ── Push-Dedupe-Spalten für todo_aufgaben ────────────────────────────────────
+-- Verhindert Spam bei periodischen Cron-Reminder-Checks.
+ALTER TABLE public.todo_aufgaben
+  ADD COLUMN IF NOT EXISTS letzte_push_erinnerung_am     timestamptz,
+  ADD COLUMN IF NOT EXISTS letzte_push_bald_faellig_am   timestamptz,
+  ADD COLUMN IF NOT EXISTS letzte_push_bald_faellig_fuer date,
+  ADD COLUMN IF NOT EXISTS letzte_push_ueberfaellig_am   timestamptz,
+  ADD COLUMN IF NOT EXISTS letzte_push_neu_am             timestamptz;
 
 SELECT pg_notify('pgrst', 'reload schema');
 
