@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { X, Search, Loader2, AlertTriangle, BookOpen, ScanLine } from "lucide-react";
+import { X, Search, Loader2, AlertTriangle, BookOpen, ScanLine, Trash2 } from "lucide-react";
 import { supabase } from "../../../supabaseClient";
 import {
   BUCH_STATUS,
   BUCH_ZUSTAND,
   formatAutoren,
 } from "../../../utils/buecher";
+import { getBuchCoverUrl } from "../../../utils/buchCoverUtils";
 import { pruefeAufDubletten } from "../../../utils/buchDuplikate";
 import { normalizeIsbn, isValidIsbn } from "../../../utils/isbn";
+import { getBookSearchContext, removePersistedBookCover, resolveBookMatches, searchBooks } from "../../../utils/bookSearch";
 import BuchScannerModal from "./BuchScannerModal";
 
 const inputCls =
@@ -38,6 +40,7 @@ const DEFAULT_FORM = {
   thumbnail_url: "",
   api_quelle: "",
   api_ref: "",
+  api_payload: null,
 };
 
 const mapBuchToForm = (b) => ({
@@ -62,6 +65,7 @@ const mapBuchToForm = (b) => ({
   thumbnail_url:   b.thumbnail_url ?? "",
   api_quelle:      b.api_quelle ?? "",
   api_ref:         b.api_ref ?? "",
+  api_payload:     b.api_payload ?? null,
 });
 
 const str2null = (v) => (v === "" || v == null ? null : v);
@@ -71,6 +75,21 @@ const parseIntOrNull = (v) => {
 };
 const splitComma = (v) =>
   (v ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+
+const clearSelectedCoverInPayload = (apiPayload) => {
+  if (!apiPayload || typeof apiPayload !== "object") return null;
+  if (!apiPayload.selectedCover) return apiPayload;
+
+  return {
+    ...apiPayload,
+    selectedCover: {
+      ...apiPayload.selectedCover,
+      url: null,
+      storedUrl: null,
+      storagePath: null,
+    },
+  };
+};
 
 export default function BuchFormModal({
   buch = null,         // null = Neuanlage
@@ -110,6 +129,11 @@ export default function BuchFormModal({
     [lagerorte, form.ort_id],
   );
 
+  const aktuellesCover = useMemo(
+    () => getBuchCoverUrl(form),
+    [form],
+  );
+
   // API-Suche mit Debounce
   useEffect(() => {
     clearTimeout(debounceRef.current);
@@ -122,24 +146,24 @@ export default function BuchFormModal({
       abortRef.current = new AbortController();
       setSuchLaed(true);
       try {
-        const { data: { session: sess } } = await supabase.auth.getSession();
-        const token = sess?.access_token;
-        if (!token) return;
-
-        const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
-        const res = await fetch(`${supabaseUrl}/functions/v1/book-search`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ query: suchbegriff, mode: "title", limit: 8, language: "de" }),
-          signal: abortRef.current.signal,
+        const context = getBookSearchContext({
+          titel: form.titel,
+          untertitel: form.untertitel,
+          autoren: splitComma(form.autoren),
+          isbn_13: form.isbn_13,
+          isbn_10: form.isbn_10,
+          verlag: form.verlag,
+          erscheinungsjahr: form.erscheinungsjahr ? Number(form.erscheinungsjahr) : null,
+          sprache: form.sprache,
         });
-        if (res.ok) {
-          const ergebnisse = await res.json();
-          setSuchErgebnisse(ergebnisse);
-        }
+        const ergebnisse = await searchBooks({
+          query: suchbegriff,
+          mode: "title",
+          limit: 8,
+          language: context.language || "de",
+          context,
+        });
+        setSuchErgebnisse(ergebnisse);
       } catch (e) {
         if (e.name !== "AbortError") console.error("Buchsuche Fehler:", e);
       } finally {
@@ -147,7 +171,7 @@ export default function BuchFormModal({
       }
     }, 400);
     return () => clearTimeout(debounceRef.current);
-  }, [suchbegriff]);
+  }, [suchbegriff, form.autoren, form.erscheinungsjahr, form.isbn_10, form.isbn_13, form.sprache, form.titel, form.untertitel, form.verlag]);
 
   // Dublettenprüfung bei Titel/Autor/ISBN-Änderung
   useEffect(() => {
@@ -187,6 +211,7 @@ export default function BuchFormModal({
       thumbnail_url:   ergebnis.thumbnailUrl ?? prev.thumbnail_url,
       api_quelle:      ergebnis.source ?? prev.api_quelle,
       api_ref:         ergebnis.sourceRef ?? prev.api_ref,
+      api_payload:     clearSelectedCoverInPayload(prev.api_payload),
     }));
     setSuchbegriff("");
     setSuchErgebnisse([]);
@@ -207,26 +232,39 @@ export default function BuchFormModal({
     if (!isValidIsbn(norm)) return;
     setSuchLaed(true);
     try {
-      const { data: { session: sess } } = await supabase.auth.getSession();
-      const token = sess?.access_token;
-      if (!token) return;
-      const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
-      const res = await fetch(`${supabaseUrl}/functions/v1/book-search`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ query: norm, mode: "isbn", limit: 5, language: "de" }),
+      const resolved = await resolveBookMatches({
+        query: norm,
+        mode: "isbn",
+        limit: 5,
+        language: form.sprache || "de",
+        context: getBookSearchContext({
+          titel: form.titel,
+          untertitel: form.untertitel,
+          autoren: splitComma(form.autoren),
+          isbn_13: form.isbn_13 || norm,
+          isbn_10: form.isbn_10,
+          verlag: form.verlag,
+          erscheinungsjahr: form.erscheinungsjahr ? Number(form.erscheinungsjahr) : null,
+          sprache: form.sprache,
+        }),
       });
-      if (res.ok) {
-        const ergebnisse = await res.json();
-        if (Array.isArray(ergebnisse) && ergebnisse.length) {
-          setSuchErgebnisse(ergebnisse);
-        }
+      if (resolved.results.length) {
+        setSuchErgebnisse(resolved.results);
       }
     } catch (e) {
       if (e.name !== "AbortError") console.error("ISBN-Suche Fehler:", e);
     } finally {
       setSuchLaed(false);
     }
+  }, [form.autoren, form.erscheinungsjahr, form.isbn_10, form.isbn_13, form.sprache, form.titel, form.untertitel, form.verlag]);
+
+  const handleCoverEntfernen = useCallback(() => {
+    setForm((prev) => ({
+      ...prev,
+      cover_url: "",
+      thumbnail_url: "",
+      api_payload: clearSelectedCoverInPayload(prev.api_payload),
+    }));
   }, []);
 
   const handleSpeichern = async () => {
@@ -234,6 +272,13 @@ export default function BuchFormModal({
     setSpeichern(true);
     setFehler(null);
     try {
+      const originalCoverUrl = buch ? getBuchCoverUrl(buch) : null;
+      const finalCoverUrl = aktuellesCover;
+      const shouldRemovePreviousStoredCover =
+        !istNeu &&
+        Boolean(buch?.api_payload?.selectedCover?.storagePath) &&
+        originalCoverUrl !== finalCoverUrl;
+
       const payload = {
         titel:            form.titel.trim(),
         untertitel:       str2null(form.untertitel),
@@ -257,6 +302,7 @@ export default function BuchFormModal({
         thumbnail_url:    str2null(form.thumbnail_url),
         api_quelle:       str2null(form.api_quelle),
         api_ref:          str2null(form.api_ref),
+        api_payload:      form.api_payload ?? null,
       };
 
       if (istNeu) {
@@ -271,6 +317,11 @@ export default function BuchFormModal({
           .eq("id", buch.id);
         if (error) throw error;
       }
+
+      if (shouldRemovePreviousStoredCover) {
+        await removePersistedBookCover(buch?.api_payload?.selectedCover ?? null);
+      }
+
       onSpeichern();
     } catch (e) {
       setFehler(e.message ?? "Fehler beim Speichern.");
@@ -280,8 +331,10 @@ export default function BuchFormModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 pb-[calc(var(--safe-area-bottom)+1rem)] bg-black/60">
-      <div className="bg-light-card dark:bg-canvas-2 rounded-card max-h-[90dvh] flex flex-col w-full max-w-lg">
+    <div className="fixed app-centered-modal-overlay z-[100] flex items-center justify-center bg-black/60">
+      <div
+        className="app-centered-modal-dialog bg-light-card dark:bg-canvas-2 rounded-card flex flex-col w-full max-w-lg overflow-hidden"
+      >
         {/* Header */}
         <div className="shrink-0 border-b border-light-border dark:border-dark-border p-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -296,7 +349,7 @@ export default function BuchFormModal({
         </div>
 
         {/* Body */}
-        <div className="overflow-y-auto flex-1 p-4 pb-2 space-y-4">
+        <div className="mobile-modal-body flex-1 p-4 pb-2 space-y-4">
           {/* API-Suche */}
           <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 p-3 space-y-2">
             <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
@@ -330,6 +383,36 @@ export default function BuchFormModal({
               </div>
             )}
           </div>
+
+          {aktuellesCover && (
+            <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 p-3">
+              <div className="flex items-start gap-3">
+                <img
+                  src={aktuellesCover}
+                  alt={`Cover von ${form.titel || "Buch"}`}
+                  className="w-16 h-24 rounded object-cover shrink-0 border border-light-border dark:border-dark-border"
+                />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div>
+                    <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
+                      Aktuelle Bildvorschau
+                    </p>
+                    <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                      Du kannst das Cover hier entfernen oder oben ueber die Buchsuche ersetzen.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCoverEntfernen}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-card-sm border border-accent-danger/30 text-accent-danger hover:bg-accent-danger/10"
+                  >
+                    <Trash2 size={12} />
+                    Bildvorschau loeschen
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Dublettenwarnung */}
           {dubletten.length > 0 && (
@@ -458,14 +541,14 @@ export default function BuchFormModal({
         </div>
 
         {/* Footer */}
-        <div className="shrink-0 border-t border-light-border dark:border-dark-border px-4 py-3 flex gap-2 justify-end">
-          <button onClick={onAbbrechen} className="px-4 py-2 text-sm rounded-pill border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:bg-light-border dark:hover:bg-canvas-3">
+        <div className="mobile-modal-footer shrink-0 border-t border-light-border dark:border-dark-border px-4 py-2 flex gap-2 justify-end">
+          <button onClick={onAbbrechen} className="px-4 py-1.5 text-sm rounded-pill border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:bg-light-border dark:hover:bg-canvas-3">
             Abbrechen
           </button>
           <button
             onClick={handleSpeichern}
             disabled={speichern || !form.titel.trim()}
-            className="px-4 py-2 text-sm rounded-pill bg-primary-500 text-white font-medium disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-1.5 text-sm rounded-pill bg-primary-500 text-white font-medium disabled:opacity-50 flex items-center gap-2"
           >
             {speichern && <Loader2 size={14} className="animate-spin" />}
             Speichern
@@ -492,4 +575,3 @@ export default function BuchFormModal({
     </div>
   );
 }
-

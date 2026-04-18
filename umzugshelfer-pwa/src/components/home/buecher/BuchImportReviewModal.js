@@ -260,7 +260,7 @@ export default function BuchImportReviewModal({
 
   if (laden) {
     return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 pb-[calc(var(--safe-area-bottom)+1rem)] bg-black/60">
+      <div className="fixed app-centered-modal-overlay z-[100] flex items-center justify-center bg-black/60">
         <div className="bg-light-card dark:bg-canvas-2 rounded-card p-8 flex flex-col items-center gap-3">
           <Loader2 size={24} className="animate-spin text-teal-500" />
           <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Import wird geladen…</p>
@@ -270,8 +270,10 @@ export default function BuchImportReviewModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 pb-[calc(var(--safe-area-bottom)+1rem)] bg-black/60">
-      <div className="bg-light-card dark:bg-canvas-2 rounded-card max-h-[90dvh] w-full max-w-lg flex flex-col">
+    <div className="fixed app-centered-modal-overlay z-[100] flex items-center justify-center bg-black/60">
+      <div
+        className="app-centered-modal-dialog bg-light-card dark:bg-canvas-2 rounded-card w-full max-w-lg flex flex-col overflow-hidden"
+      >
         {/* Header */}
         <div className="shrink-0 border-b border-light-border dark:border-dark-border px-4 py-3 flex items-center justify-between">
           <div>
@@ -310,7 +312,7 @@ export default function BuchImportReviewModal({
         )}
 
         {/* Body */}
-        <div className="overflow-y-auto flex-1 p-4 space-y-3">
+        <div className="mobile-modal-body flex-1 p-4 space-y-3">
           {fehler && (
             <div className="flex items-start gap-2 text-xs text-accent-danger">
               <AlertCircle size={13} className="shrink-0 mt-0.5" /> {fehler}
@@ -333,7 +335,7 @@ export default function BuchImportReviewModal({
         </div>
 
         {/* Footer */}
-        <div className="shrink-0 border-t border-light-border dark:border-dark-border px-4 py-3 flex gap-2 justify-between">
+        <div className="mobile-modal-footer shrink-0 border-t border-light-border dark:border-dark-border px-4 py-3 flex gap-2 justify-between">
           <button
             onClick={onAbbrechen}
             className="px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"

@@ -1,11 +1,12 @@
 import React, { useState, useRef } from "react";
-import { Camera, Upload, X, Loader2, AlertCircle, BookOpen, MapPin, ChevronDown, Image, Check, Edit2 } from "lucide-react";
+import { Camera, Upload, X, Loader2, AlertCircle, BookOpen, MapPin, ChevronDown, Check, Edit2 } from "lucide-react";
 import { supabase } from "../../../supabaseClient";
 import { compressImage, fileToBase64 } from "../../../utils/imageTools";
 import { cleanKiJsonResponse } from "../../../utils/kiClient";
 import { normalizeIsbn, isValidIsbn } from "../../../utils/isbn";
 import { erstelleImportBatch } from "../../../utils/buchImportMapping";
 import { getBuchCoverUrl } from "../../../utils/buchCoverUtils";
+import { getBookSearchContext, resolveBookMatches } from "../../../utils/bookSearch";
 
 const REGAL_PROMPT = `Du bist ein Bucherkennungs-Assistent. Analysiere dieses Regal-Foto und erkenne nur klar lesbare Buchtitel auf den Buchrücken. Antworte ausschließlich mit einem JSON-Objekt (kein Markdown, keine Erklärungen):
 
@@ -17,35 +18,37 @@ Regeln:
 - Keine Halluzinationen
 - Lieber weniger Treffer als unsichere Falschzuordnungen`;
 
-async function suchePerIsbn(isbn, token) {
-  const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
-  const res = await fetch(`${supabaseUrl}/functions/v1/book-search`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ query: isbn, mode: "isbn", limit: 3, language: "de" }),
+async function suchePerIsbn(isbn) {
+  return resolveBookMatches({
+    query: isbn,
+    mode: "isbn",
+    limit: 4,
+    language: "de",
+    context: getBookSearchContext({ isbn13: isbn, language: "de" }),
+    enableAi: false,
   });
-  if (!res.ok) return [];
-  const data = await res.json();
-  return Array.isArray(data) ? data : [];
 }
 
-async function suchePerTitel(titel, autor, token) {
-  const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
-  const query = `${titel} ${autor ?? ""}`.trim();
-  const res = await fetch(`${supabaseUrl}/functions/v1/book-search`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ query, mode: "title", limit: 3, language: "de" }),
+async function suchePerTitel(titel, autor) {
+  return resolveBookMatches({
+    query: `${titel} ${autor ?? ""}`.trim(),
+    mode: "title",
+    limit: 4,
+    language: "de",
+    context: getBookSearchContext({
+      title: titel,
+      authors: autor ? [autor] : [],
+      language: "de",
+    }),
+    enableAi: true,
   });
-  if (!res.ok) return [];
-  const data = await res.json();
-  return Array.isArray(data) ? data : [];
 }
 
 /**
  * Wählt aus mehreren API-Treffern den besten aus.
  * Bevorzugt: passender Autor, passende ISBN, höchstes Confidence.
  */
+// eslint-disable-next-line no-unused-vars
 function bestesTreffer(results, kiEintrag) {
   if (!results.length) return null;
   if (results.length === 1) return results[0];
@@ -263,19 +266,19 @@ export default function BuchScanUploadModal({
       // 3. Pro erkanntem Buch API-Abgleich
       const results = await Promise.all(
         erkannte.map(async (ki) => {
-          let apiResults = [];
           const isbnNorm = ki.isbn ? normalizeIsbn(ki.isbn) : null;
+          let resolved = { results: [], selected: null, needsReview: false };
 
           if (isbnNorm && isValidIsbn(isbnNorm)) {
-            apiResults = await suchePerIsbn(isbnNorm, token);
+            resolved = await suchePerIsbn(isbnNorm);
           }
-          if (!apiResults.length) {
-            apiResults = await suchePerTitel(ki.titel, ki.autor, token);
+          if (!resolved.results.length) {
+            resolved = await suchePerTitel(ki.titel, ki.autor);
           }
 
-          const bookResult = bestesTreffer(apiResults, ki);
+          const bookResult = resolved.selected ?? null;
           const confidence = bookResult
-            ? (bookResult.confidence ?? ki.confidence ?? 0.5)
+            ? Math.max(bookResult.score ?? 0, bookResult.confidence ?? ki.confidence ?? 0.5)
             : Math.min(ki.confidence ?? 0.4, 0.49);
 
           return {
@@ -354,8 +357,10 @@ export default function BuchScanUploadModal({
   const hatAktive = aktiveAnzahl > 0;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 pb-[calc(var(--safe-area-bottom)+1rem)] bg-black/60">
-      <div className="bg-light-card dark:bg-canvas-2 rounded-card max-h-[90dvh] w-full max-w-md flex flex-col">
+    <div className="fixed app-centered-modal-overlay z-[100] flex items-center justify-center bg-black/60">
+      <div
+        className="app-centered-modal-dialog bg-light-card dark:bg-canvas-2 rounded-card w-full max-w-md flex flex-col overflow-hidden"
+      >
         {/* Header */}
         <div className="shrink-0 border-b border-light-border dark:border-dark-border px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -368,7 +373,7 @@ export default function BuchScanUploadModal({
         </div>
 
         {/* Body */}
-        <div className="overflow-y-auto flex-1 p-4 space-y-4">
+        <div className="mobile-modal-body flex-1 p-4 space-y-4">
           {/* Foto-Auswahl */}
           <div>
             {/* Kamera-Input */}
@@ -507,7 +512,7 @@ export default function BuchScanUploadModal({
         </div>
 
         {/* Footer */}
-        <div className="shrink-0 border-t border-light-border dark:border-dark-border px-4 py-3 flex gap-2 justify-between">
+        <div className="mobile-modal-footer shrink-0 border-t border-light-border dark:border-dark-border px-4 py-3 flex gap-2 justify-between">
           <button
             onClick={onAbbrechen}
             className="px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"

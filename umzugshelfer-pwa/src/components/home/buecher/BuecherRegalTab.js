@@ -176,6 +176,7 @@ export default function BuecherRegalTab({
               buch={buch}
               onBearbeiten={(b) => setModal({ typ: "form", buch: b })}
               onVerleihen={handleVerleihenOpen}
+              onAktualisiert={ladeBuecher}
               onLoeschen={handleLoeschen}
             />
           ))}
@@ -246,8 +247,10 @@ export default function BuecherRegalTab({
       )}
 
       {modal?.typ === "verleih_auswahl" && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 pb-[calc(var(--safe-area-bottom)+1rem)] bg-black/60">
-          <div className="bg-light-card dark:bg-canvas-2 rounded-card w-full max-w-xs flex flex-col border border-light-border dark:border-dark-border shadow-elevation-3">
+        <div className="fixed app-centered-modal-overlay z-[100] flex items-center justify-center bg-black/60">
+          <div
+            className="app-centered-modal-dialog bg-light-card dark:bg-canvas-2 rounded-card w-full max-w-xs flex flex-col border border-light-border dark:border-dark-border shadow-elevation-3 overflow-hidden"
+          >
             <div className="shrink-0 px-4 py-3 border-b border-light-border dark:border-dark-border">
               <p className="text-sm font-semibold text-light-text-main dark:text-dark-text-main truncate">
                 {modal.buch?.titel}
@@ -256,7 +259,7 @@ export default function BuecherRegalTab({
                 Aktuell verliehen — was möchtest du tun?
               </p>
             </div>
-            <div className="p-3 flex flex-col gap-2">
+            <div className="mobile-modal-body p-3 flex flex-col gap-2">
               <button
                 onClick={() => setModal({ typ: "verleih", buch: modal.buch, modus: "verlaengern" })}
                 className="flex items-center gap-2 px-3 py-2.5 text-sm rounded-card-sm border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:bg-light-hover dark:hover:bg-canvas-3"

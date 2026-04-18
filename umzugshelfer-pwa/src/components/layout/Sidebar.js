@@ -97,7 +97,7 @@ const Sidebar = ({ activeRoute, onNavigate, appMode, onToggleMode, mobileNavigat
       {gruppen.map((gruppe, gi) => (
         <React.Fragment key={gi}>
           {gruppe.label && (
-            <div className="w-8 h-px bg-dark-border/60 my-1 shrink-0" />
+            <div className="w-8 h-px bg-light-border dark:bg-dark-border/60 my-1 shrink-0" />
           )}
           {gruppe.items.map((item) => {
             const Icon   = item.icon;
@@ -110,8 +110,8 @@ const Sidebar = ({ activeRoute, onNavigate, appMode, onToggleMode, mobileNavigat
                 className={`w-16 h-[52px] rounded-sidebar-tile flex flex-col items-center justify-center gap-0.5
                             transition-all duration-200 shrink-0
                             ${active
-                              ? "bg-canvas-4 border border-primary-500/30 shadow-sidebar-active text-primary-400"
-                              : "border border-transparent text-dark-text-secondary hover:bg-canvas-3 hover:text-dark-text-main"
+                              ? "bg-primary-50 dark:bg-canvas-4 border border-primary-500/30 shadow-sidebar-active text-primary-600 dark:text-primary-400"
+                              : "border border-transparent text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3 hover:text-light-text-main dark:hover:text-dark-text-main"
                             }`}
               >
                 <Icon size={17} />
@@ -133,7 +133,7 @@ const Sidebar = ({ activeRoute, onNavigate, appMode, onToggleMode, mobileNavigat
     <>
       {/* ── Desktop Sidebar ────────────────────────────────────────────────────── */}
       <aside data-tour="tour-sidebar" className="hidden lg:flex fixed inset-y-0 left-0 z-50 w-20 flex-col
-                        bg-canvas-1 border-r border-dark-border">
+                        bg-light-card dark:bg-canvas-1 border-r border-light-border dark:border-dark-border">
         <NavContent />
       </aside>
 
@@ -142,9 +142,9 @@ const Sidebar = ({ activeRoute, onNavigate, appMode, onToggleMode, mobileNavigat
           {/* ── Mobile Hamburger Trigger ───────────────────────────────────────────── */}
           <button
             className="fixed top-4 left-4 z-[60] lg:hidden w-10 h-10 rounded-sidebar-tile
-                       bg-canvas-2 border border-dark-border text-dark-text-secondary
+                       bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary
                        flex items-center justify-center shadow-elevation-1
-                       hover:bg-canvas-3 transition-all duration-150"
+                       hover:bg-light-hover dark:hover:bg-canvas-3 transition-all duration-150"
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label="Menü öffnen/schließen"
           >
@@ -154,7 +154,7 @@ const Sidebar = ({ activeRoute, onNavigate, appMode, onToggleMode, mobileNavigat
           {/* ── Mobile Overlay ────────────────────────────────────────────────────── */}
           {mobileOpen && (
             <div
-              className="fixed inset-0 z-40 bg-canvas-0/70 backdrop-blur-sm lg:hidden"
+              className="fixed inset-0 z-40 bg-black/20 dark:bg-canvas-0/70 backdrop-blur-sm lg:hidden"
               onClick={() => setMobileOpen(false)}
             />
           )}
@@ -162,7 +162,7 @@ const Sidebar = ({ activeRoute, onNavigate, appMode, onToggleMode, mobileNavigat
           {/* ── Mobile Drawer ─────────────────────────────────────────────────────── */}
           <aside
             className={`fixed inset-y-0 left-0 z-50 w-20 flex-col
-                        bg-canvas-1 border-r border-dark-border
+                        bg-light-card dark:bg-canvas-1 border-r border-light-border dark:border-dark-border
                         transition-transform duration-[250ms] ease-in-out
                         lg:hidden
                         ${mobileOpen ? "flex translate-x-0" : "flex -translate-x-full"}`}

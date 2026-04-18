@@ -8,6 +8,7 @@ import { supabase } from "../../../supabaseClient";
 import { normalizeIsbn, isValidIsbn } from "../../../utils/isbn";
 import { erstelleImportBatch } from "../../../utils/buchImportMapping";
 import { getBuchCoverUrl } from "../../../utils/buchCoverUtils";
+import { getBookSearchContext, resolveBookMatches, searchBooks } from "../../../utils/bookSearch";
 
 const SCANNER_DIV_ID = "buch-scanner-region";
 const SUPPORTED_FORMATS = [
@@ -18,16 +19,14 @@ const SUPPORTED_FORMATS = [
   Html5QrcodeSupportedFormats.CODE_128,
 ];
 
-async function suchePerIsbn(isbn, token) {
-  const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
-  const res = await fetch(`${supabaseUrl}/functions/v1/book-search`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ query: isbn, mode: "isbn", limit: 5, language: "de" }),
+async function suchePerIsbn(isbn) {
+  return searchBooks({
+    query: isbn,
+    mode: "isbn",
+    limit: 5,
+    language: "de",
+    context: getBookSearchContext({ isbn13: isbn, language: "de" }),
   });
-  if (!res.ok) return [];
-  const data = await res.json();
-  return Array.isArray(data) ? data : [];
 }
 
 export default function BuchScannerModal({
@@ -42,29 +41,22 @@ export default function BuchScannerModal({
 }) {
   const userId = session?.user?.id;
 
-  // scanning steuert die Kamera-Ansicht (true = läuft)
   const [scanning, setScanning] = useState(false);
   const [manuelleIsbn, setManuelleIsbn] = useState("");
   const [fehler, setFehler] = useState(null);
-  const [treffer, setTreffer] = useState([]); // Einzel-Modus: Vorschlagsliste
-  const [kandidaten, setKandidaten] = useState([]); // Stapel-Modus: { isbn, bookResult }
+  const [treffer, setTreffer] = useState([]);
+  const [kandidaten, setKandidaten] = useState([]);
   const [gescannteIsbns, setGescannteIsbns] = useState(new Set());
   const [ladeTreffer, setLadeTreffer] = useState(false);
   const [speichern, setSpeichern] = useState(false);
   const [ortId, setOrtId] = useState("");
   const [lagerortId, setLagerortId] = useState("");
-  const [zuletzt, setZuletzt] = useState(null); // zuletzt gescannte ISBN (Stapel)
-
+  const [zuletzt, setZuletzt] = useState(null);
   const [hatGescannt, setHatGescannt] = useState(false);
 
   const scannerRef = useRef(null);
-  const aktiv = useRef(false); // verhindert Race-Conditions im Callback
-  const processingRef = useRef(false); // verhindert Doppelverarbeitung desselben Scans
-
-  const getToken = async () => {
-    const { data: { session: sess } } = await supabase.auth.getSession();
-    return sess?.access_token;
-  };
+  const aktiv = useRef(false);
+  const processingRef = useRef(false);
 
   const verarbeiteIsbn = useCallback(async (rawIsbn) => {
     const norm = normalizeIsbn(rawIsbn);
@@ -75,29 +67,27 @@ export default function BuchScannerModal({
     setFehler(null);
 
     if (modus === "stapel") {
-      if (gescannteIsbns.has(norm)) return; // Duplikat ignorieren
+      if (gescannteIsbns.has(norm)) return;
       setGescannteIsbns((prev) => new Set(prev).add(norm));
       setZuletzt(norm);
       setLadeTreffer(true);
       try {
-        const token = await getToken();
-        const results = await suchePerIsbn(norm, token);
-        const bookResult = results[0] ?? null;
-        if (bookResult) {
-          setKandidaten((prev) => [...prev, { isbn: norm, bookResult }]);
-        } else {
-          setKandidaten((prev) => [...prev, { isbn: norm, bookResult: null }]);
-        }
+        const resolved = await resolveBookMatches({
+          query: norm,
+          mode: "isbn",
+          limit: 5,
+          language: "de",
+          context: getBookSearchContext({ isbn13: norm, language: "de" }),
+        });
+        setKandidaten((prev) => [...prev, { isbn: norm, bookResult: resolved.selected ?? null }]);
       } finally {
         setLadeTreffer(false);
       }
     } else {
-      // Einzel: API aufrufen, Treffer anzeigen
       setLadeTreffer(true);
       setTreffer([]);
       try {
-        const token = await getToken();
-        const results = await suchePerIsbn(norm, token);
+        const results = await suchePerIsbn(norm);
         if (!results.length) {
           setFehler(`Kein Buch für ISBN ${norm} gefunden.`);
         } else {
@@ -109,6 +99,7 @@ export default function BuchScannerModal({
     }
   }, [modus, gescannteIsbns]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const startScanner = useCallback(async () => {
     if (scannerRef.current) return;
     setFehler(null);
@@ -139,7 +130,7 @@ export default function BuchScannerModal({
             });
           }
         },
-        () => { /* Scan-Fehler ignorieren */ }
+        () => {},
       );
       setScanning(true);
     } catch (e) {
@@ -159,9 +150,7 @@ export default function BuchScannerModal({
     setScanning(false);
   }, []);
 
-  useEffect(() => {
-    return () => { stopScanner(); };
-  }, [stopScanner]);
+  useEffect(() => () => { stopScanner(); }, [stopScanner]);
 
   const handleManuelleEingabe = async (e) => {
     e.preventDefault();
@@ -216,9 +205,10 @@ export default function BuchScannerModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 pb-[calc(var(--safe-area-bottom)+1rem)] bg-black/60">
-      <div className="bg-light-card dark:bg-canvas-2 rounded-card max-h-[90dvh] w-full max-w-md flex flex-col">
-        {/* Header */}
+    <div className="fixed app-centered-modal-overlay z-[100] flex items-center justify-center bg-black/60">
+      <div
+        className="app-centered-modal-dialog bg-light-card dark:bg-canvas-2 rounded-card w-full max-w-md flex flex-col overflow-hidden"
+      >
         <div className="shrink-0 border-b border-light-border dark:border-dark-border px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ScanLine size={18} className="text-teal-500" />
@@ -231,9 +221,7 @@ export default function BuchScannerModal({
           </button>
         </div>
 
-        {/* Body */}
-        <div className="overflow-y-auto flex-1 p-4 space-y-4">
-          {/* Kamera-Bereich */}
+        <div className="mobile-modal-body flex-1 p-4 space-y-4">
           <div>
             <div
               id={SCANNER_DIV_ID}
@@ -251,7 +239,6 @@ export default function BuchScannerModal({
             )}
           </div>
 
-          {/* Status-Zeile beim Stapel-Scan */}
           {modus === "stapel" && zuletzt && (
             <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary text-center">
               Zuletzt gescannt: <span className="font-mono">{zuletzt}</span>
@@ -270,7 +257,6 @@ export default function BuchScannerModal({
             </div>
           )}
 
-          {/* Einzel-Modus: Erneut scannen nach abgeschlossenem Versuch */}
           {modus === "einzel" && hatGescannt && !scanning && !ladeTreffer && (
             <button
               onClick={handleErneut}
@@ -281,7 +267,6 @@ export default function BuchScannerModal({
             </button>
           )}
 
-          {/* Einzel-Modus: Trefferliste */}
           {modus === "einzel" && treffer.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
@@ -312,7 +297,6 @@ export default function BuchScannerModal({
             </div>
           )}
 
-          {/* Stapel-Modus: Kandidatenliste */}
           {modus === "stapel" && kandidaten.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
@@ -346,7 +330,6 @@ export default function BuchScannerModal({
                 </div>
               ))}
 
-              {/* Standort-Auswahl */}
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <div className="relative">
                   <MapPin size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary" />
@@ -375,7 +358,6 @@ export default function BuchScannerModal({
             </div>
           )}
 
-          {/* Manuelle ISBN-Eingabe */}
           <form onSubmit={handleManuelleEingabe} className="flex gap-2">
             <input
               type="text"
@@ -394,8 +376,7 @@ export default function BuchScannerModal({
           </form>
         </div>
 
-        {/* Footer */}
-        <div className="shrink-0 border-t border-light-border dark:border-dark-border px-4 py-3 flex gap-2 justify-between">
+        <div className="mobile-modal-footer shrink-0 border-t border-light-border dark:border-dark-border px-4 py-3 flex gap-2 justify-between">
           <button
             onClick={() => { stopScanner(); onAbbrechen(); }}
             className="px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"

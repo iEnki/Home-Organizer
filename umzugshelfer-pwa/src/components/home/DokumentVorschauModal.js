@@ -61,7 +61,7 @@ const DokumentVorschauModal = ({ storagePfad, dateiname, datei_typ, onSchliessen
       </div>
 
       {/* Inhalt */}
-      <div className="flex-1 overflow-hidden flex items-center justify-center p-4">
+      <div className="flex-1 overflow-hidden flex items-center justify-center p-4" onClick={onSchliessen}>
         {laden && (
           <div className="flex flex-col items-center gap-3 text-dark-text-secondary">
             <Loader2 size={32} className="animate-spin text-primary-500" />
@@ -83,7 +83,8 @@ const DokumentVorschauModal = ({ storagePfad, dateiname, datei_typ, onSchliessen
               <img
                 src={signedUrl}
                 alt={dateiname}
-                className="max-w-full max-h-full object-contain rounded-card shadow-elevation-3"
+                onClick={onSchliessen}
+                className="max-w-full max-h-full object-contain rounded-card shadow-elevation-3 cursor-pointer"
               />
             )}
             {istPdf && (
@@ -95,7 +96,7 @@ const DokumentVorschauModal = ({ storagePfad, dateiname, datei_typ, onSchliessen
               />
             )}
             {!istBild && !istPdf && (
-              <div className="flex flex-col items-center gap-4 text-dark-text-secondary">
+              <div className="flex flex-col items-center gap-4 text-dark-text-secondary" onClick={(e) => e.stopPropagation()}>
                 <FileText size={48} className="opacity-40" />
                 <p className="text-sm">Dieses Dateiformat kann nicht angezeigt werden.</p>
                 <a

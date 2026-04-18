@@ -104,19 +104,19 @@ export default function HomeRechnungScannen({ session }) {
   }, []);
 
   return (
-    <div className="min-h-dvh bg-canvas-0 pb-24">
+    <div className="min-h-dvh bg-light-bg dark:bg-canvas-0 pb-24">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-canvas-1 border-b border-canvas-3 px-4 py-3 flex items-center gap-3">
+      <div className="sticky top-0 z-10 bg-light-card dark:bg-canvas-1 border-b border-light-border dark:border-canvas-3 px-4 py-3 flex items-center gap-3">
         <button
           onClick={() => window.history.back()}
-          className="p-1.5 rounded-lg hover:bg-canvas-2 text-dark-text-main transition-colors"
+          className="p-1.5 rounded-lg hover:bg-light-hover dark:hover:bg-canvas-2 text-light-text-main dark:text-dark-text-main transition-colors"
           aria-label="Zurueck"
         >
           <ChevronLeft size={20} />
         </button>
-        <h1 className="text-lg font-semibold text-dark-text-main">Rechnung scannen</h1>
+        <h1 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main">Rechnung scannen</h1>
         {schritt === "upload" && (
-          <span className="ml-auto text-xs text-dark-text-secondary bg-canvas-2 px-2 py-1 rounded-pill">
+          <span className="ml-auto text-xs text-light-text-secondary dark:text-dark-text-secondary bg-light-surface-2 dark:bg-canvas-2 px-2 py-1 rounded-pill">
             {MODUS_LABEL[bildanalyseModus] || bildanalyseModus}
           </span>
         )}
@@ -127,7 +127,7 @@ export default function HomeRechnungScannen({ session }) {
         {schritt === "upload" && (
           <div className="space-y-5">
             {/* Hinweistext */}
-            <p className="text-sm text-dark-text-secondary">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
               Lade ein Foto oder eine PDF-Rechnung hoch. Die KI analysiert den Inhalt
               und schlaegt vor, welche Daten in welche Module uebertragen werden sollen.
               Du pruefst und bestaedigst alles im naechsten Schritt.
@@ -138,7 +138,7 @@ export default function HomeRechnungScannen({ session }) {
               className={`rounded-card border-2 border-dashed transition-colors ${
                 datei
                   ? "border-primary-500 bg-primary-500/5"
-                  : "border-canvas-3 bg-canvas-1 hover:border-canvas-4"
+                  : "border-light-border dark:border-canvas-3 bg-light-card dark:bg-canvas-1 hover:border-primary-400 dark:hover:border-canvas-4"
               } flex flex-col items-center justify-center p-6 min-h-[180px] cursor-pointer`}
               onClick={() => dateiInputRef.current?.click()}
               onDragOver={(e) => e.preventDefault()}
@@ -166,17 +166,17 @@ export default function HomeRechnungScannen({ session }) {
                         e.stopPropagation();
                         setVorschauSichtbar(true);
                       }}
-                      className="mb-3 px-3 py-2 rounded-card-sm border border-canvas-3 bg-canvas-2 hover:bg-canvas-3 text-xs text-dark-text-secondary"
+                      className="mb-3 px-3 py-2 rounded-card-sm border border-light-border dark:border-canvas-3 bg-light-surface-1 dark:bg-canvas-2 hover:bg-light-hover dark:hover:bg-canvas-3 text-xs text-light-text-secondary dark:text-dark-text-secondary"
                     >
                       Vorschau anzeigen
                     </button>
                   ) : (
                     <FileText size={48} className="text-primary-500 mb-3" />
                   )}
-                  <p className="text-sm font-medium text-dark-text-main text-center">
+                  <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main text-center">
                     {datei.name}
                   </p>
-                  <p className="text-xs text-dark-text-secondary mt-1">
+                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1">
                     {(datei.size / 1024).toFixed(0)} KB
                   </p>
                   <button
@@ -193,11 +193,11 @@ export default function HomeRechnungScannen({ session }) {
                 </>
               ) : (
                 <>
-                  <Upload size={40} className="text-canvas-4 mb-3" />
-                  <p className="text-sm text-dark-text-secondary text-center">
+                  <Upload size={40} className="text-light-text-secondary dark:text-canvas-4 mb-3" />
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary text-center">
                     Hier klicken oder Datei hierher ziehen
                   </p>
-                  <p className="text-xs text-dark-text-secondary mt-1">
+                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1">
                     JPG, PNG, WEBP, HEIC oder PDF (max. 20 MB)
                   </p>
                 </>
@@ -226,8 +226,8 @@ export default function HomeRechnungScannen({ session }) {
               <button
                 onClick={() => bildInputRef.current?.click()}
                 className="flex items-center justify-center gap-2 py-3 px-4 rounded-card-sm
-                           bg-canvas-2 hover:bg-canvas-3 text-dark-text-main text-sm font-medium
-                           transition-colors border border-canvas-3"
+                           bg-light-surface-1 dark:bg-canvas-2 hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main text-sm font-medium
+                           transition-colors border border-light-border dark:border-canvas-3"
               >
                 <Camera size={18} />
                 Foto aufnehmen
@@ -235,8 +235,8 @@ export default function HomeRechnungScannen({ session }) {
               <button
                 onClick={() => dateiInputRef.current?.click()}
                 className="flex items-center justify-center gap-2 py-3 px-4 rounded-card-sm
-                           bg-canvas-2 hover:bg-canvas-3 text-dark-text-main text-sm font-medium
-                           transition-colors border border-canvas-3"
+                           bg-light-surface-1 dark:bg-canvas-2 hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main text-sm font-medium
+                           transition-colors border border-light-border dark:border-canvas-3"
               >
                 <Upload size={18} />
                 Datei hochladen
@@ -262,12 +262,12 @@ export default function HomeRechnungScannen({ session }) {
         {schritt === "analyse" && (
           <div className="flex flex-col items-center justify-center min-h-[300px] space-y-6">
             <div className="relative">
-              <div className="w-16 h-16 border-4 border-canvas-3 border-t-primary-500 rounded-full animate-spin" />
+              <div className="w-16 h-16 border-4 border-light-border dark:border-canvas-3 border-t-primary-500 rounded-full animate-spin" />
               <Zap size={20} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-primary-500" />
             </div>
             <div className="text-center space-y-1">
-              <p className="text-base font-medium text-dark-text-main">{analyseStatus}</p>
-              <p className="text-sm text-dark-text-secondary">
+              <p className="text-base font-medium text-light-text-main dark:text-dark-text-main">{analyseStatus}</p>
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                 Dies kann je nach Modus einige Sekunden dauern.
               </p>
             </div>

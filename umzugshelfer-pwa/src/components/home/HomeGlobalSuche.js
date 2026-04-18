@@ -1,11 +1,13 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { Search, Package, ShoppingCart, Wrench, CheckSquare, FileText, BookOpen, Loader2, Sparkles, AlertTriangle, Send } from "lucide-react";
+import { Search, Package, ShoppingCart, Wrench, CheckSquare, FileText, BookOpen, Loader2, Sparkles, AlertTriangle, Send, ExternalLink } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { useNavigate } from "react-router-dom";
 import OpenAI from "openai";
 import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
+import DokumentVorschauModal from "./DokumentVorschauModal";
+import { cleanKiJsonResponse } from "../../utils/kiClient";
 
 const QUELLEN = [
   { key: "objekte",   label: "Inventar",  icon: Package,      farbe: "text-blue-500",    pfad: "/home/inventar" },
@@ -111,6 +113,7 @@ const Schnellsuche = ({ session }) => {
 
 const KiAssistent = ({ session }) => {
   const userId = session?.user?.id;
+  const navigate = useNavigate();
   const [apiKey, setApiKey] = useState("");
   const [apiKeyGeladen, setApiKeyGeladen] = useState(false);
   const [apiKeyFehler, setApiKeyFehler] = useState(false);
@@ -119,6 +122,8 @@ const KiAssistent = ({ session }) => {
   const [antwort, setAntwort] = useState(null);
   const [fehler, setFehler] = useState("");
   const [verlauf, setVerlauf] = useState([]); // [{frage, antwort}]
+  const [quellenDokumente, setQuellenDokumente] = useState([]); // [{titel, dokument_id}]
+  const [vorschauDok, setVorschauDok] = useState(null); // {storage_pfad, dateiname, datei_typ} | null
 
   // API-Key aus user_profile laden
   useEffect(() => {
@@ -140,35 +145,62 @@ const KiAssistent = ({ session }) => {
     setLoading(true);
     setFehler("");
     setAntwort(null);
+    setQuellenDokumente([]);
 
     try {
       // Alle Home-Daten als Kontext laden
-      const [objekteRes, vorraeteRes, geraeteRes, lagerorteRes, buecherRes] = await Promise.all([
+      const [objekteRes, vorraeteRes, geraeteRes, lagerorteRes, buecherRes, budgetRes, wissenRes, wartungenRes, todosRes] = await Promise.all([
         supabase.from("home_objekte").select("name, kategorie, status, tags").eq("user_id", userId).neq("status", "entsorgt").limit(100),
         supabase.from("home_vorraete").select("name, kategorie, bestand, einheit, mindestmenge").eq("user_id", userId).limit(50),
-        supabase.from("home_geraete").select("name, hersteller, modell, naechste_wartung").eq("user_id", userId).limit(50),
+        supabase.from("home_geraete").select("name, hersteller, modell, naechste_wartung, kaufdatum, garantie_bis").eq("user_id", userId).limit(50),
         supabase.from("home_lagerorte").select("name, ort_id, home_orte(name)").eq("user_id", userId).limit(50),
         supabase.from("home_buecher").select("id, titel, autor_anzeige, isbn_13, status, verliehen_an_name, rueckgabe_erwartet_am, tags").eq("user_id", userId).limit(100),
+        supabase.from("budget_posten").select("beschreibung, betrag, datum, kategorie, typ").eq("user_id", userId).order("datum", { ascending: false }).limit(200),
+        supabase.from("home_wissen").select("id, dokument_id, titel, inhalt, kategorie, tags").eq("user_id", userId).limit(100),
+        supabase.from("home_wartungen").select("datum, typ, beschreibung, home_geraete(name)").eq("user_id", userId).order("datum", { ascending: false }).limit(50),
+        supabase.from("todo_aufgaben").select("beschreibung, kategorie").eq("user_id", userId).eq("erledigt", false).limit(50),
       ]);
 
-      // Objekte mit Lagerort anreichern
       const lagerorte = lagerorteRes.data || [];
       const objekte = objekteRes.data || [];
       const vorraete = vorraeteRes.data || [];
       const geraete = geraeteRes.data || [];
       const buecher = buecherRes.data || [];
+      const budgetPosten = budgetRes.data || [];
+      const wissen = wissenRes.data || [];
+      const wartungen = wartungenRes.data || [];
+      const todos = todosRes.data || [];
+
+      const wissenRefs = {};
+      wissen.forEach((w, i) => { wissenRefs[`W${i + 1}`] = w; });
 
       const kontext = [
         objekte.length > 0 && `## Inventar (${objekte.length} Objekte)\n` + objekte.map((o) => `- ${o.name}${o.kategorie ? ` (${o.kategorie})` : ""}${o.tags?.length ? ` [${o.tags.join(", ")}]` : ""}`).join("\n"),
         lagerorte.length > 0 && `## Lagerorte\n` + lagerorte.map((l) => `- ${l.name}${l.home_orte?.name ? ` → ${l.home_orte.name}` : ""}`).join("\n"),
         vorraete.length > 0 && `## Vorräte\n` + vorraete.map((v) => `- ${v.name}: ${v.bestand} ${v.einheit || ""} (Min: ${v.mindestmenge || 0})`).join("\n"),
-        geraete.length > 0 && `## Geräte\n` + geraete.map((g) => `- ${g.name}${g.hersteller ? ` (${g.hersteller})` : ""}${g.naechste_wartung ? `, Wartung: ${g.naechste_wartung}` : ""}`).join("\n"),
+        geraete.length > 0 && `## Geräte\n` + geraete.map((g) => {
+          let zeile = `- ${g.name}`;
+          if (g.hersteller || g.modell) zeile += ` (${[g.hersteller, g.modell].filter(Boolean).join(" ")})`;
+          if (g.kaufdatum) zeile += `, Kauf: ${g.kaufdatum}`;
+          if (g.garantie_bis) zeile += `, Garantie bis: ${g.garantie_bis}`;
+          if (g.naechste_wartung) zeile += `, nächste Wartung: ${g.naechste_wartung}`;
+          return zeile;
+        }).join("\n"),
         buecher.length > 0 && `## Bibliothek (${buecher.length} Bücher)\n` + buecher.map((b) => {
           let zeile = `- ${b.titel}${b.autor_anzeige ? ` von ${b.autor_anzeige}` : ""}`;
           if (b.status === "verliehen") zeile += ` [verliehen an ${b.verliehen_an_name ?? "unbekannt"}${b.rueckgabe_erwartet_am ? `, bis ${b.rueckgabe_erwartet_am}` : ""}]`;
           else zeile += ` [${b.status}]`;
           return zeile;
         }).join("\n"),
+        budgetPosten.length > 0 && `## Budget-Einträge (${budgetPosten.length} Einträge, neueste zuerst)\n` + budgetPosten.map((b) => `- ${b.datum} | ${b.beschreibung || "–"} | ${b.typ === "einnahme" ? "+" : "-"}${b.betrag} € | ${b.kategorie || "–"}`).join("\n"),
+        wissen.length > 0 && `## Wissensdatenbank (${wissen.length} Einträge)\n` + wissen.map((w, i) => {
+          let zeile = `- [W${i + 1}] [${w.kategorie || "–"}] ${w.titel}`;
+          if (w.inhalt) zeile += `: ${w.inhalt.substring(0, 300)}`;
+          if (w.tags?.length) zeile += ` [${w.tags.join(", ")}]`;
+          return zeile;
+        }).join("\n"),
+        wartungen.length > 0 && `## Wartungshistorie\n` + wartungen.map((w) => `- ${w.datum}: ${w.home_geraete?.name || "Gerät"} – ${w.beschreibung || w.typ || "Wartung"}`).join("\n"),
+        todos.length > 0 && `## Offene Aufgaben\n` + todos.map((t) => `- ${t.beschreibung}${t.kategorie ? ` (${t.kategorie})` : ""}`).join("\n"),
       ].filter(Boolean).join("\n\n");
 
       const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
@@ -177,26 +209,51 @@ const KiAssistent = ({ session }) => {
         messages: [
           {
             role: "system",
-            content: `Du bist ein hilfreicher Haushalts-Assistent. Du kennst den kompletten Haushalt des Nutzers und beantwortest Fragen auf Basis des Inventars. Antworte immer auf Deutsch, präzise und kurz. Wenn du etwas nicht weißt, sage es ehrlich.`,
+            content: `Du bist ein hilfreicher Haushalts-Assistent mit vollständigem Zugriff auf die Haushaltsdaten des Nutzers. Die Daten umfassen: Inventar, Lagerorte, Vorräte, Geräte (mit Garantie- und Wartungsterminen), Bibliothek, alle Budget-Einträge und Ausgaben, Wissensdatenbank (Dokumente, Versicherungen, Verträge, Rechnungen), Wartungshistorie und offene Aufgaben. Beantworte alle Fragen präzise auf Deutsch anhand dieser Daten. Wenn du etwas nicht findest, sage es ehrlich. Antworte IMMER als JSON in diesem Format: {"antwort": "...", "quellen": ["W1", "W3"]}. Setze in "quellen" die Referenzschlüssel (W1, W2, ...) der Wissensdatenbank-Einträge, die du für die Antwort verwendet hast. Wenn keine Wissensdatenbank-Einträge relevant sind, gib ein leeres Array zurück.`,
           },
           {
             role: "user",
             content: `Mein Haushalt:\n${kontext || "(Noch keine Daten vorhanden)"}\n\nFrage: ${f}`,
           },
         ],
-        max_tokens: 400,
+        max_tokens: 600,
         temperature: 0.3,
       });
 
       const a = response.choices[0].message.content;
-      setAntwort(a);
-      setVerlauf((prev) => [{ frage: f, antwort: a }, ...prev].slice(0, 10));
+
+      let antwortText = a;
+      let resolvedQuellen = [];
+      try {
+        const cleaned = cleanKiJsonResponse(a, "object");
+        const parsed = JSON.parse(cleaned);
+        if (parsed?.antwort) {
+          antwortText = parsed.antwort;
+          resolvedQuellen = (parsed.quellen || [])
+            .map((ref) => wissenRefs[ref])
+            .filter((w) => w?.dokument_id)
+            .map((w) => ({ titel: w.titel, dokument_id: w.dokument_id }));
+        }
+      } catch { /* kein JSON → plain text, kein Problem */ }
+
+      setAntwort(antwortText);
+      setQuellenDokumente(resolvedQuellen);
+      setVerlauf((prev) => [{ frage: f, antwort: antwortText }, ...prev].slice(0, 10));
       setFrage("");
     } catch (e) {
       setFehler(e.message || "Fehler bei der KI-Anfrage.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const oeffneVorschau = async (dokumentId) => {
+    const { data } = await supabase
+      .from("dokumente")
+      .select("storage_pfad, dateiname, datei_typ")
+      .eq("id", dokumentId)
+      .single();
+    if (data) setVorschauDok(data);
   };
 
   if (apiKeyFehler && !apiKey) {
@@ -248,7 +305,37 @@ const KiAssistent = ({ session }) => {
             <span className="text-xs font-semibold text-purple-500 uppercase tracking-wider">KI-Antwort</span>
           </div>
           <p className="text-sm text-light-text-main dark:text-dark-text-main whitespace-pre-wrap">{antwort}</p>
+          {quellenDokumente.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-violet-500/20 flex flex-wrap gap-2">
+              {quellenDokumente.map((q, i) => (
+                <div key={i} className="flex items-center gap-1">
+                  <button
+                    onClick={() => oeffneVorschau(q.dokument_id)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-violet-500/15 text-violet-400 hover:bg-violet-500/25 transition-colors"
+                  >
+                    <FileText size={12} /> {q.titel}
+                  </button>
+                  <button
+                    onClick={() => navigate("/home/dokumente", { state: { focusDokumentId: q.dokument_id } })}
+                    className="p-1.5 rounded-card-sm bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 transition-colors"
+                    title="Im Dokumentarchiv öffnen"
+                  >
+                    <ExternalLink size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
+      )}
+
+      {vorschauDok && (
+        <DokumentVorschauModal
+          storagePfad={vorschauDok.storage_pfad}
+          dateiname={vorschauDok.dateiname}
+          datei_typ={vorschauDok.datei_typ}
+          onSchliessen={() => setVorschauDok(null)}
+        />
       )}
 
       {/* Früherer Verlauf */}

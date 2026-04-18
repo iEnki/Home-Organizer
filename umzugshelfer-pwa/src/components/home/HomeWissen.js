@@ -17,7 +17,7 @@ import { logVerlauf } from "../../utils/homeVerlauf";
 import { deleteInvoiceCascade } from "../../utils/invoiceCascadeDelete";
 
 const KATEGORIEN = [
-  "Versicherungen",
+  "Versicherung",
   "Vertraege",
   "Behoerden",
   "Rechnungen & Belege",
@@ -52,7 +52,7 @@ const buildFilterKategorien = (eintraege) => {
       .filter(Boolean)
   ));
 
-  return Array.from(new Set([...KATEGORIEN, ...dynamic]));
+  return dynamic;
 };
 
 const isManualOverride = (entry) =>

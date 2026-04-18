@@ -137,8 +137,10 @@ export default function BuchVerleihModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 pb-[calc(var(--safe-area-bottom)+1rem)] bg-black/60">
-      <div className="bg-light-card dark:bg-canvas-2 rounded-card max-h-[90dvh] flex flex-col w-full max-w-md">
+    <div className="fixed app-centered-modal-overlay z-[100] flex items-center justify-center bg-black/60">
+      <div
+        className="app-centered-modal-dialog bg-light-card dark:bg-canvas-2 rounded-card flex flex-col w-full max-w-md overflow-hidden"
+      >
         {/* Header */}
         <div className="shrink-0 border-b border-light-border dark:border-dark-border p-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -151,7 +153,7 @@ export default function BuchVerleihModal({
         </div>
 
         {/* Body */}
-        <div className="overflow-y-auto flex-1 p-4 pb-2 space-y-4">
+        <div className="mobile-modal-body flex-1 p-4 pb-2 space-y-4">
           <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">
             {buch.titel}
           </p>
@@ -235,7 +237,7 @@ export default function BuchVerleihModal({
         </div>
 
         {/* Footer */}
-        <div className="shrink-0 border-t border-light-border dark:border-dark-border px-4 py-3 flex gap-2 justify-end">
+        <div className="mobile-modal-footer shrink-0 border-t border-light-border dark:border-dark-border px-4 py-3 flex gap-2 justify-end">
           <button onClick={onAbbrechen} className="px-4 py-2 text-sm rounded-pill border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:bg-light-border dark:hover:bg-canvas-3">
             Abbrechen
           </button>
