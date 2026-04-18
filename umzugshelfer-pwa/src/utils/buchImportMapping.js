@@ -68,6 +68,11 @@ export const kandidatZuBuch = (kandidat, householdId, userId, ortId, lagerortId)
     sprache:          v.sprache ?? "de",
     api_quelle:       v.api_quelle ?? null,
     api_ref:          v.api_ref ?? null,
+    api_payload:      {
+      selectedMatch: kandidat.api_match ?? null,
+      coverCandidates: kandidat.api_match?.coverCandidates ?? [],
+      selectedCover: kandidat.api_match?.coverCandidates?.[0] ?? null,
+    },
     scan_quelle:      "import",
     scan_confidence:  kandidat.confidence ?? null,
     ort_id:           ortId ?? null,
