@@ -1450,6 +1450,11 @@ CREATE TABLE IF NOT EXISTS public.home_finanzkonten (
   updated_at           timestamptz DEFAULT NOW()
 );
 
+-- Supabase Linter: in bestehenden Instanzen kann aus älteren Migrationen
+-- zusätzlich idx_home_finanzkonten_household_id existieren. Der ist identisch
+-- zu idx_home_finanzkonten_household und wird deshalb hier defensiv entfernt.
+DROP INDEX IF EXISTS public.idx_home_finanzkonten_household_id;
+
 CREATE INDEX IF NOT EXISTS idx_home_finanzkonten_household
   ON public.home_finanzkonten(household_id);
 CREATE INDEX IF NOT EXISTS idx_home_finanzkonten_inhaber

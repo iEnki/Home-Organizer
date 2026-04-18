@@ -9,6 +9,16 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+interface CoverCandidate {
+  id: string;
+  url: string;
+  label: string;
+  kind: string;
+  source: string;
+  width?: number;
+  height?: number;
+}
+
 interface BookResult {
   title: string;
   subtitle?: string;
@@ -26,7 +36,33 @@ interface BookResult {
   source: string;
   sourceRef: string;
   confidence: number;
+  score?: number;
+  matchReasons?: string[];
+  fieldMatches?: Record<string, boolean | number>;
+  coverCandidates?: CoverCandidate[];
+  needsReview?: boolean;
 }
+
+interface SearchContext {
+  isbn13?: string;
+  isbn10?: string;
+  title?: string;
+  subtitle?: string;
+  authors?: string[] | string;
+  publisher?: string;
+  publishedYear?: number;
+  language?: string;
+  existingSource?: string;
+  existingSourceRef?: string;
+  coverUrl?: string;
+}
+
+const ALLOWED_EXTERNAL_IMAGE_HOSTS = new Set([
+  "books.google.com",
+  "books.googleusercontent.com",
+  "covers.openlibrary.org",
+  "archive.org",
+]);
 
 function normalizeIsbn(raw: string | undefined): string | undefined {
   if (!raw) return undefined;
@@ -34,10 +70,137 @@ function normalizeIsbn(raw: string | undefined): string | undefined {
 }
 
 function normalizeTitle(t: string): string {
-  return t.toLowerCase().replace(/[^a-z0-9\u00e4\u00f6\u00fc\u00df]/g, " ").replace(/\s+/g, " ").trim();
+  return (t ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\u00e4\u00f6\u00fc\u00df]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-// Open Library Normierung
+function normalizeAuthors(value: string[] | string | undefined): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map((entry) => entry?.trim()).filter(Boolean);
+  return value.split(",").map((entry) => entry.trim()).filter(Boolean);
+}
+
+function sanitizeExternalUrl(rawUrl: string | undefined): string | undefined {
+  if (!rawUrl) return undefined;
+  try {
+    const candidate = rawUrl.startsWith("//") ? `https:${rawUrl}` : rawUrl;
+    const url = new URL(candidate);
+    if (url.protocol === "http:") {
+      url.protocol = "https:";
+    }
+    if (url.protocol !== "https:") return undefined;
+    if (!ALLOWED_EXTERNAL_IMAGE_HOSTS.has(url.hostname)) return undefined;
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function uniqueBy<T>(items: T[], toKey: (entry: T) => string | undefined): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const item of items) {
+    const key = toKey(item);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
+}
+
+function normalizeLang(lang: string | string[] | undefined): string {
+  const raw = Array.isArray(lang) ? lang[0] : lang;
+  if (!raw) return "";
+  const base = raw.split("-")[0].toLowerCase();
+  const map: Record<string, string> = { ger: "de", deu: "de", eng: "en" };
+  return map[base] ?? base;
+}
+
+function tokenSimilarity(leftRaw: string | undefined, rightRaw: string | undefined): number {
+  const left = normalizeTitle(leftRaw ?? "");
+  const right = normalizeTitle(rightRaw ?? "");
+  if (!left || !right) return 0;
+  if (left === right) return 1;
+  if (left.includes(right) || right.includes(left)) return 0.92;
+
+  const leftTokens = new Set(left.split(" ").filter(Boolean));
+  const rightTokens = new Set(right.split(" ").filter(Boolean));
+  let intersection = 0;
+  for (const token of leftTokens) {
+    if (rightTokens.has(token)) intersection += 1;
+  }
+  const union = new Set([...leftTokens, ...rightTokens]).size;
+  return union ? intersection / union : 0;
+}
+
+function getAuthorSimilarity(candidateAuthors: string[], requestedAuthors: string[]): number {
+  if (!candidateAuthors.length || !requestedAuthors.length) return 0;
+  return tokenSimilarity(candidateAuthors.join(" "), requestedAuthors.join(" "));
+}
+
+function buildOpenLibraryCoverCandidates(coverId?: number): CoverCandidate[] {
+  if (!coverId) return [];
+  return [
+    {
+      id: `openlibrary-s-${coverId}`,
+      url: `https://covers.openlibrary.org/b/id/${coverId}-S.jpg`,
+      label: "Open Library S",
+      kind: "thumbnail",
+      source: "openlibrary",
+      width: 80,
+      height: 120,
+    },
+    {
+      id: `openlibrary-m-${coverId}`,
+      url: `https://covers.openlibrary.org/b/id/${coverId}-M.jpg`,
+      label: "Open Library M",
+      kind: "thumbnail",
+      source: "openlibrary",
+      width: 180,
+      height: 260,
+    },
+    {
+      id: `openlibrary-l-${coverId}`,
+      url: `https://covers.openlibrary.org/b/id/${coverId}-L.jpg`,
+      label: "Open Library L",
+      kind: "cover",
+      source: "openlibrary",
+      width: 500,
+      height: 800,
+    },
+  ];
+}
+
+function buildGoogleCoverCandidates(imageLinks: Record<string, string> | undefined): CoverCandidate[] {
+  if (!imageLinks) return [];
+  const entries = [
+    ["smallThumbnail", imageLinks.smallThumbnail, "thumbnail", 80, 120],
+    ["thumbnail", imageLinks.thumbnail, "thumbnail", 128, 190],
+    ["small", (imageLinks as any).small, "cover", 200, 300],
+    ["medium", (imageLinks as any).medium, "cover", 300, 450],
+    ["large", imageLinks.large, "cover", 500, 800],
+    ["extraLarge", (imageLinks as any).extraLarge, "cover", 800, 1200],
+  ].filter(([, url]) => !!url);
+
+  return uniqueBy(
+    entries.map(([key, url, kind, width, height]) => ({
+      id: `google-${key}`,
+      url: sanitizeExternalUrl(url as string) as string,
+      label: `Google ${key}`,
+      kind: kind as string,
+      source: "google_books",
+      width: width as number,
+      height: height as number,
+    })),
+    (entry) => entry.url,
+  ).filter((entry) => !!entry.url);
+}
+
 function normalizeOpenLibrary(doc: any): BookResult | null {
   const title = doc.title as string | undefined;
   if (!title) return null;
@@ -64,13 +227,13 @@ function normalizeOpenLibrary(doc: any): BookResult | null {
     language: (doc.language as string[] | undefined)?.[0],
     coverUrl: coverId ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg` : undefined,
     thumbnailUrl: coverId ? `https://covers.openlibrary.org/b/id/${coverId}-M.jpg` : undefined,
+    coverCandidates: buildOpenLibraryCoverCandidates(coverId),
     source: "openlibrary",
     sourceRef: doc.key as string ?? "",
     confidence: isbn13 || isbn10 ? 0.9 : 0.6,
   };
 }
 
-// Google Books Normierung
 function normalizeGoogleBooks(item: any): BookResult | null {
   const info = item.volumeInfo as any | undefined;
   if (!info?.title) return null;
@@ -79,7 +242,6 @@ function normalizeGoogleBooks(item: any): BookResult | null {
   const identifiers: Array<{ type: string; identifier: string }> = info.industryIdentifiers ?? [];
   const isbn13 = normalizeIsbn(identifiers.find((i) => i.type === "ISBN_13")?.identifier);
   const isbn10 = normalizeIsbn(identifiers.find((i) => i.type === "ISBN_10")?.identifier);
-
   const imageLinks = info.imageLinks ?? {};
 
   return {
@@ -94,56 +256,124 @@ function normalizeGoogleBooks(item: any): BookResult | null {
     description: info.description,
     pageCount: info.pageCount,
     language: info.language,
-    coverUrl: imageLinks.large ?? imageLinks.thumbnail,
-    thumbnailUrl: imageLinks.thumbnail ?? imageLinks.smallThumbnail,
+    coverUrl: sanitizeExternalUrl(imageLinks.large ?? imageLinks.thumbnail),
+    thumbnailUrl: sanitizeExternalUrl(imageLinks.thumbnail ?? imageLinks.smallThumbnail),
+    coverCandidates: buildGoogleCoverCandidates(imageLinks),
     source: "google_books",
     sourceRef: item.id as string ?? "",
-    // Angeglichen auf 0.9 (wie Open Library) — Google Books hat bei deutschen Büchern
-    // oft bessere Metadaten und soll beim Ranking nicht strukturell benachteiligt werden.
     confidence: isbn13 || isbn10 ? 0.9 : 0.55,
   };
 }
 
-// Normalisiert Sprachcodes: "de-DE" → "de", "ger"/"deu" → "de", Array → erstes Element
-function normalizeLang(lang: string | string[] | undefined): string {
-  const raw = Array.isArray(lang) ? lang[0] : lang;
-  if (!raw) return "";
-  const base = raw.split("-")[0].toLowerCase();
-  const map: Record<string, string> = { ger: "de", deu: "de", eng: "en" };
-  return map[base] ?? base;
-}
-
-// Berechnet einen kombinierten Score für einen Treffer
-function scoreResult(r: BookResult, query: string, mode: string, requestedLang?: string): number {
+function scoreResult(
+  r: BookResult,
+  query: string,
+  mode: string,
+  requestedLang?: string,
+  context?: SearchContext,
+): { score: number; matchReasons: string[]; fieldMatches: Record<string, boolean | number> } {
   let score = r.confidence;
+  const matchReasons: string[] = [];
+  const fieldMatches: Record<string, boolean | number> = {};
+  const requestedAuthors = normalizeAuthors(context?.authors);
+  const candidateAuthors = normalizeAuthors(r.authors);
 
-  // 1. Exakter ISBN-Match (stärkster Bonus)
   if (mode === "isbn") {
     const normQuery = normalizeIsbn(query) ?? "";
     const exactMatch = normQuery && (r.isbn13 === normQuery || r.isbn10 === normQuery);
     if (exactMatch) {
-      score += 0.5;
+      score += 0.9;
+      matchReasons.push("Exakte ISBN");
+      fieldMatches.isbnExact = true;
     } else if (r.isbn13 || r.isbn10) {
-      score += 0.1; // Hat irgendeine ISBN, aber nicht exakt die gesuchte
+      score += 0.1;
+      fieldMatches.isbnExact = false;
     }
   }
 
-  // 2. Language-Bonus — kein Malus wenn Sprachfeld fehlt
-  if (requestedLang && r.language) {
-    if (normalizeLang(r.language) === normalizeLang(requestedLang)) {
-      score += 0.3;
+  if (requestedLang && r.language && normalizeLang(r.language) === normalizeLang(requestedLang)) {
+    score += 0.3;
+    matchReasons.push("Passende Sprache");
+    fieldMatches.language = true;
+  }
+
+  const contextTitle = context?.title?.trim() || (mode === "title" ? query : "");
+  if (contextTitle) {
+    const titleSimilarity = tokenSimilarity(r.title, contextTitle);
+    fieldMatches.titleSimilarity = Number(titleSimilarity.toFixed(3));
+    if (titleSimilarity >= 0.98) {
+      score += 0.7;
+      matchReasons.push("Titel exakt");
+    } else if (titleSimilarity >= 0.8) {
+      score += 0.45;
+      matchReasons.push("Titel sehr ähnlich");
+    } else if (titleSimilarity >= 0.55) {
+      score += 0.2;
     }
   }
 
-  // 3. Cover vorhanden (kleiner Qualitätsbonus)
-  if (r.thumbnailUrl || r.coverUrl) {
+  if (context?.subtitle && r.subtitle) {
+    const subtitleSimilarity = tokenSimilarity(r.subtitle, context.subtitle);
+    fieldMatches.subtitleSimilarity = Number(subtitleSimilarity.toFixed(3));
+    if (subtitleSimilarity >= 0.8) {
+      score += 0.18;
+      matchReasons.push("Untertitel ähnlich");
+    }
+  }
+
+  if (requestedAuthors.length) {
+    const authorSimilarity = getAuthorSimilarity(candidateAuthors, requestedAuthors);
+    fieldMatches.authorSimilarity = Number(authorSimilarity.toFixed(3));
+    if (authorSimilarity >= 0.98) {
+      score += 0.45;
+      matchReasons.push("Autor exakt");
+    } else if (authorSimilarity >= 0.7) {
+      score += 0.25;
+      matchReasons.push("Autor ähnlich");
+    }
+  }
+
+  if (context?.publisher && r.publisher) {
+    const publisherSimilarity = tokenSimilarity(r.publisher, context.publisher);
+    fieldMatches.publisherSimilarity = Number(publisherSimilarity.toFixed(3));
+    if (publisherSimilarity >= 0.95) {
+      score += 0.2;
+      matchReasons.push("Verlag passt");
+    } else if (publisherSimilarity >= 0.7) {
+      score += 0.1;
+    }
+  }
+
+  if (context?.publishedYear && r.publishedYear) {
+    const delta = Math.abs(Number(context.publishedYear) - Number(r.publishedYear));
+    fieldMatches.yearDelta = delta;
+    if (delta === 0) {
+      score += 0.16;
+      matchReasons.push("Jahr passt");
+    } else if (delta === 1) {
+      score += 0.05;
+    }
+  }
+
+  if (context?.existingSource && context.existingSource === r.source) {
+    score += 0.08;
+    matchReasons.push("Bekannte Quelle");
+    fieldMatches.source = true;
+  }
+  if (context?.existingSourceRef && context.existingSourceRef === r.sourceRef) {
+    score += 0.45;
+    matchReasons.push("Gleiche API-Referenz");
+    fieldMatches.sourceRef = true;
+  }
+
+  if (r.thumbnailUrl || r.coverUrl || r.coverCandidates?.length) {
     score += 0.05;
+    fieldMatches.cover = true;
   }
 
-  return score;
+  return { score, matchReasons, fieldMatches };
 }
 
-// Dedup: isbn13 → isbn10 → normalisierter title + first author
 function dedup(results: BookResult[]): BookResult[] {
   const seen = new Set<string>();
   const out: BookResult[] = [];
@@ -154,7 +384,7 @@ function dedup(results: BookResult[]): BookResult[] {
     } else if (r.isbn10) {
       key = `isbn10:${r.isbn10}`;
     } else {
-      key = `title:${normalizeTitle(r.title)}|author:${normalizeTitle(r.authors[0] ?? "")}`;
+      key = `title:${normalizeTitle(r.title)}|author:${normalizeTitle(r.authors[0] ?? "")}|publisher:${normalizeTitle(r.publisher ?? "")}|year:${r.publishedYear ?? ""}`;
     }
     if (!seen.has(key)) {
       seen.add(key);
@@ -207,11 +437,9 @@ async function searchGoogleBooks(query: string, mode: string, limit: number, lan
   } else if (mode === "author") {
     q = `inauthor:${query}`;
   } else {
-    // Plain query works better than intitle: for multilingual/German titles
     q = query;
   }
 
-  // langRestrict must be a separate URL param, not part of q
   const langParam = language ? `&langRestrict=${encodeURIComponent(language)}` : "";
 
   try {
@@ -233,7 +461,6 @@ Deno.serve(async (req: Request) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  // JWT-Auth
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
     return new Response(JSON.stringify({ error: "Nicht autorisiert" }), {
@@ -269,6 +496,7 @@ Deno.serve(async (req: Request) => {
   const mode: string = body.mode ?? "title";
   const limit: number = Math.min(body.limit ?? 10, 20);
   const language: string | undefined = body.language;
+  const context: SearchContext | undefined = body.context;
 
   if (query.length < 2) {
     return new Response(JSON.stringify([]), {
@@ -276,20 +504,43 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // Beide APIs parallel abfragen
   const [olResults, gbResults] = await Promise.all([
     searchOpenLibrary(query, mode, Math.ceil(limit / 2) + 2, language),
     searchGoogleBooks(query, mode, Math.ceil(limit / 2) + 2, language),
   ]);
 
-  // Score → Sort → Dedup → Slice
-  // Wichtig: Dedup NACH Sort, damit der bestbewertete Treffer pro ISBN-Key gewinnt
-  // (nicht mehr Open Library automatisch bevorzugt durch Array-Reihenfolge).
   const allResults = [...olResults, ...gbResults];
   const scored = allResults
-    .map((r) => ({ r, score: scoreResult(r, query, mode, language) }))
+    .map((r) => {
+      const meta = scoreResult(r, query, mode, language, context);
+      return {
+        r: {
+          ...r,
+          score: Number(meta.score.toFixed(3)),
+          matchReasons: meta.matchReasons,
+          fieldMatches: meta.fieldMatches,
+        },
+        score: meta.score,
+      };
+    })
     .sort((a, b) => b.score - a.score);
-  const sorted = dedup(scored.map((s) => s.r)).slice(0, limit);
+
+  const deduped = dedup(scored.map((s) => s.r)).slice(0, limit);
+  const topScore = deduped[0]?.score ?? 0;
+  const secondScore = deduped[1]?.score ?? 0;
+  const topGap = topScore - secondScore;
+  const contextAuthors = normalizeAuthors(context?.authors);
+
+  const sorted = deduped.map((entry, index) => {
+    const titleConflict = Boolean(context?.title && tokenSimilarity(context.title, entry.title) < 0.55);
+    const authorConflict = Boolean(contextAuthors.length && getAuthorSimilarity(entry.authors, contextAuthors) < 0.45);
+    return {
+      ...entry,
+      needsReview: index === 0
+        ? titleConflict || authorConflict || (deduped.length > 1 && topGap < 0.35)
+        : false,
+    };
+  });
 
   return new Response(JSON.stringify(sorted), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
