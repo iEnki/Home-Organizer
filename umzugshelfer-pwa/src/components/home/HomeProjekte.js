@@ -6,6 +6,7 @@ import { logVerlauf } from "../../utils/homeVerlauf";
 import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
+import { applyProjectAiItems } from "../../utils/assistantDomainAdapters";
 
 const TYPEN = ["Reorganisation", "Reparatur", "Saisonwechsel", "Renovierung", "Dekoration", "Anschaffung", "Sonstiges"];
 
@@ -412,18 +413,7 @@ const HomeProjekte = ({ session }) => {
           modul="projekte"
           onClose={() => setKiOffen(false)}
           onErgebnis={async (items) => {
-            for (const item of items) {
-              await supabase.from("home_projekte").insert({
-                user_id: session.user.id,
-                name: item.name || "Neues Projekt",
-                typ: item.typ || "Sonstiges",
-                beschreibung: item.beschreibung || null,
-                budget: item.budget || null,
-                startdatum: item.startdatum || null,
-                zieldatum: item.zieldatum || null,
-                status: "geplant",
-              });
-            }
+            await applyProjectAiItems({ session, items });
             ladeDaten();
           }}
         />

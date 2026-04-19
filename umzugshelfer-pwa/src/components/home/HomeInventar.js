@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Package, Plus, ChevronRight, ChevronDown, Trash2, Edit2, MoreVertical,
   QrCode, Tag, X, Loader2, Search, MapPin, Box, SlidersHorizontal,
@@ -16,6 +16,8 @@ import useViewport from "../../hooks/useViewport";
 import MobileLocationSheet from "./inventar/MobileLocationSheet";
 import MobileFilterSheet from "./inventar/MobileFilterSheet";
 import BuecherRegalTab from "./buecher/BuecherRegalTab";
+import { applyInventoryAiItems } from "../../utils/assistantDomainAdapters";
+import { notifyHouseholdEvent } from "../../utils/pushNotifications";
 
 // --- BewohnerBadge ---
 const BewohnerBadge = ({ bewohner }) => {
@@ -229,6 +231,8 @@ const HomeInventar = ({ session }) => {
   const userId = session?.user?.id;
   const { isMobile } = useViewport();
   const { active: tourAktiv, schritt, setSchritt, beenden: tourBeenden } = useTour("inventar");
+  const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
   // Bereichs-Umschalter: "objekte" | "buecher"
@@ -258,6 +262,15 @@ const HomeInventar = ({ session }) => {
   useEffect(() => {
     if (searchParams.get("tab") === "buecher") setBereich("buecher");
   }, [searchParams]);
+
+  useEffect(() => {
+    const assistantFlow = location.state?.assistantFlow;
+    if (!assistantFlow) return;
+    if (assistantFlow.ui_state?.tab === "buecher") {
+      setBereich("buecher");
+    }
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [location.pathname, location.search, location.state, navigate]);
 
   // householdId auflösen (wie HomeBudget.js)
   const resolveHouseholdId = useCallback(async () => {
@@ -333,8 +346,29 @@ const HomeInventar = ({ session }) => {
     const payload = { ...daten, user_id: userId };
     if (modal?.daten?.id) {
       await supabase.from("home_orte").update(daten).eq("id", modal.daten.id);
+      await notifyHouseholdEvent({
+        userId,
+        table: "home_orte",
+        action: "geaendert",
+        recordName: daten.name,
+        recordId: modal.daten.id,
+        url: "/home/inventar",
+        push: false,
+      });
     } else {
-      await supabase.from("home_orte").insert(payload);
+      const { data: neuerOrt } = await supabase
+        .from("home_orte")
+        .insert(payload)
+        .select("id, name")
+        .single();
+      await notifyHouseholdEvent({
+        userId,
+        table: "home_orte",
+        action: "erstellt",
+        recordName: neuerOrt?.name || daten.name,
+        recordId: neuerOrt?.id,
+        url: "/home/inventar",
+      });
     }
     setModal(null);
     ladeDaten();
@@ -342,7 +376,16 @@ const HomeInventar = ({ session }) => {
 
   const loescheOrt = async (id) => {
     if (!window.confirm("Ort und alle Lagerorte/Objekte darin löschen?")) return;
+    const ort = orte.find((eintrag) => eintrag.id === id);
     await supabase.from("home_orte").delete().eq("id", id);
+    await notifyHouseholdEvent({
+      userId,
+      table: "home_orte",
+      action: "geloescht",
+      recordName: ort?.name,
+      recordId: id,
+      url: "/home/inventar",
+    });
     if (ausgewaehlterOrt === id) setAusgewaehlterOrt(null);
     ladeDaten();
   };
@@ -352,8 +395,29 @@ const HomeInventar = ({ session }) => {
     const payload = { ...daten, user_id: userId };
     if (modal?.daten?.id) {
       await supabase.from("home_lagerorte").update(daten).eq("id", modal.daten.id);
+      await notifyHouseholdEvent({
+        userId,
+        table: "home_lagerorte",
+        action: "geaendert",
+        recordName: daten.name,
+        recordId: modal.daten.id,
+        url: "/home/inventar",
+        push: false,
+      });
     } else {
-      await supabase.from("home_lagerorte").insert(payload);
+      const { data: neuerLagerort } = await supabase
+        .from("home_lagerorte")
+        .insert(payload)
+        .select("id, name")
+        .single();
+      await notifyHouseholdEvent({
+        userId,
+        table: "home_lagerorte",
+        action: "erstellt",
+        recordName: neuerLagerort?.name || daten.name,
+        recordId: neuerLagerort?.id,
+        url: "/home/inventar",
+      });
     }
     setModal(null);
     ladeDaten();
@@ -361,7 +425,16 @@ const HomeInventar = ({ session }) => {
 
   const loescheLagerort = async (id) => {
     if (!window.confirm("Lagerort und alle Objekte darin löschen?")) return;
+    const lagerort = lagerorte.find((eintrag) => eintrag.id === id);
     await supabase.from("home_lagerorte").delete().eq("id", id);
+    await notifyHouseholdEvent({
+      userId,
+      table: "home_lagerorte",
+      action: "geloescht",
+      recordName: lagerort?.name,
+      recordId: id,
+      url: "/home/inventar",
+    });
     if (ausgewaehlterLagerort === id) setAusgewaehlterLagerort(null);
     ladeDaten();
   };
@@ -371,8 +444,29 @@ const HomeInventar = ({ session }) => {
     const payload = { ...daten, user_id: userId };
     if (modal?.daten?.id) {
       await supabase.from("home_objekte").update(daten).eq("id", modal.daten.id);
+      await notifyHouseholdEvent({
+        userId,
+        table: "home_objekte",
+        action: "geaendert",
+        recordName: daten.name,
+        recordId: modal.daten.id,
+        url: "/home/inventar",
+        push: false,
+      });
     } else {
-      await supabase.from("home_objekte").insert(payload);
+      const { data: neuesObjekt } = await supabase
+        .from("home_objekte")
+        .insert(payload)
+        .select("id, name")
+        .single();
+      await notifyHouseholdEvent({
+        userId,
+        table: "home_objekte",
+        action: "erstellt",
+        recordName: neuesObjekt?.name || daten.name,
+        recordId: neuesObjekt?.id,
+        url: "/home/inventar",
+      });
     }
     setModal(null);
     ladeDaten();
@@ -380,7 +474,16 @@ const HomeInventar = ({ session }) => {
 
   const loescheObjekt = async (id) => {
     if (!window.confirm("Objekt löschen?")) return;
+    const objekt = objekte.find((eintrag) => eintrag.id === id);
     await supabase.from("home_objekte").delete().eq("id", id);
+    await notifyHouseholdEvent({
+      userId,
+      table: "home_objekte",
+      action: "geloescht",
+      recordName: objekt?.name,
+      recordId: id,
+      url: "/home/inventar",
+    });
     ladeDaten();
   };
 
@@ -483,6 +586,7 @@ const HomeInventar = ({ session }) => {
           orte={orte}
           lagerorte={lagerorte}
           kontakte={kontakte}
+          assistantFlow={location.state?.assistantFlow || null}
         />
       )}
 
@@ -1026,15 +1130,7 @@ const HomeInventar = ({ session }) => {
           modul="inventar"
           onClose={() => setKiOffen(false)}
           onErgebnis={async (items) => {
-            for (const item of items) {
-              await supabase.from("home_objekte").insert({
-                user_id: session.user.id,
-                name: item.name || "Unbenannt",
-                kategorie: item.kategorie || null,
-                status: "in_verwendung",
-                menge: item.menge || 1,
-              });
-            }
+            await applyInventoryAiItems({ session, items });
             ladeDaten();
           }}
         />

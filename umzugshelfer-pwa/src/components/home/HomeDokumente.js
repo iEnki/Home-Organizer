@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   FileText, FolderOpen, Upload, Download, Trash2, BookOpen,
-  Search, X, Plus, CheckCircle, File, Loader2, AlertTriangle, Pencil, ZoomIn, ZoomOut,
+  X, Plus, CheckCircle, File, Loader2, AlertTriangle, Pencil, ZoomIn, ZoomOut,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase, getActiveHouseholdId } from "../../supabaseClient";
@@ -10,7 +10,7 @@ import { deleteInvoiceCascade } from "../../utils/invoiceCascadeDelete";
 import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
-import { getDokDatum, getMonatsKey, formatMonatLabel, compareDokDatum, sortMonthKeys } from "../../utils/dokumentArchiv";
+import { getDokDatum, getMonatsKey, compareDokDatum, sortMonthKeys } from "../../utils/dokumentArchiv";
 import { syncInvoiceDate } from "../../utils/invoiceDateSync";
 import DokumentFilterBar from "./documents/DokumentFilterBar";
 import DokumentArchivListe from "./documents/DokumentArchivListe";
@@ -76,10 +76,6 @@ const istRechnungKategorie = (dok) =>
   istRechnungTyp(dok) || (dok?.kategorie || "").trim() === "Rechnung";
 
 const istBildDatei = (dok) => (dok?.datei_typ || "").startsWith("image/");
-
-const hatRechnungsBildVorschau = (dok) =>
-  istRechnungKategorie(dok) && istBildDatei(dok) && !!dok?.storage_pfad;
-
 
 const hatBildDateiExtension = (dok) =>
   /\.(png|jpe?g|webp|gif|bmp|heic|heif)$/i.test(

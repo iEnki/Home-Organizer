@@ -18,6 +18,7 @@ export default function BuecherRegalTab({
   orte = [],
   lagerorte = [],
   kontakte = [],
+  assistantFlow = null,
 }) {
   const userId = session?.user?.id;
 
@@ -56,6 +57,19 @@ export default function BuecherRegalTab({
   }, [householdId]);
 
   useEffect(() => { ladeBuecher(); }, [ladeBuecher]);
+
+  useEffect(() => {
+    if (!assistantFlow?.ui_state) return;
+    const startModal = assistantFlow.ui_state.startModal;
+    if (startModal === "scanner") {
+      setModal({
+        typ: "scanner",
+        modus: assistantFlow.ui_state.scannerMode || "einzel",
+      });
+    } else if (startModal === "upload") {
+      setModal({ typ: "upload" });
+    }
+  }, [assistantFlow]);
 
   // Gefilterte + sortierte Liste
   const gefilterteSortiert = useMemo(() => {

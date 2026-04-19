@@ -42,6 +42,7 @@ import {
   SHOPPING_SORT_MODES,
   splitShoppingInput,
 } from "../../utils/einkaufslisteUtils";
+import { notifyHouseholdBatchEvent, notifyHouseholdEvent } from "../../utils/pushNotifications";
 
 const DEFAULT_EDIT_FORM = {
   id: null,
@@ -155,15 +156,18 @@ function EntryPreviewRow({
   const [name, setName] = useState(editedValues?.name ?? draft.name);
   const [menge, setMenge] = useState(String(editedValues?.menge ?? draft.menge ?? 1));
   const [einheit, setEinheit] = useState(editedValues?.einheit ?? draft.einheit ?? "Stück");
+  const draftName = draft.name;
+  const draftMenge = draft.menge ?? 1;
+  const draftEinheit = draft.einheit ?? "Stück";
 
   useEffect(() => {
     if (!editedValues) {
-      setName(draft.name);
-      setMenge(String(draft.menge ?? 1));
-      setEinheit(draft.einheit ?? "Stück");
+      setName(draftName);
+      setMenge(String(draftMenge));
+      setEinheit(draftEinheit);
       setEditOffen(false);
     }
-  }, [editedValues]); // draft ist stabil innerhalb einer Preview-Session
+  }, [draftEinheit, draftMenge, draftName, editedValues]);
 
   const handleSpeichern = () => {
     const trimmedName = name.trim() || draft.name;
@@ -524,6 +528,23 @@ const HomeEinkaufliste = ({ session }) => {
         decisions: previewState.decisions,
       });
 
+      const neueEintraege = draftsGefiltert.filter(
+        (draft) => previewState.decisions[draft.client_id]?.action !== "merge",
+      );
+
+      if (neueEintraege.length > 0) {
+        await notifyHouseholdBatchEvent({
+          userId,
+          table: "home_einkaufliste",
+          action: "erstellt",
+          eintraege: neueEintraege.map((draft) => ({
+            datensatz_name: draft.name || draft.original_text || "Einkaufsartikel",
+          })),
+          url: "/home/einkaufsliste",
+          tag: `shopping-batch-${Date.now()}`,
+        });
+      }
+
       setPreviewState(null);
       setCreateText("");
       await ladeDaten();
@@ -573,10 +594,26 @@ const HomeEinkaufliste = ({ session }) => {
       return;
     }
 
-    toast.success(erledigt ? "Artikel abgehakt." : "Artikel wieder geöffnet.");
+    await notifyHouseholdEvent({
+      userId,
+      table: "home_einkaufliste",
+      action: "geaendert",
+      recordName: entry.name || entry.original_text,
+      recordId: entry.id,
+      url: "/home/einkaufsliste",
+      tag: `shopping-status-${entry.id}-${erledigt ? "done" : "open"}`,
+      pushPolicy: "always",
+      title: erledigt ? "Einkaufsartikel erledigt" : "Einkaufsartikel wieder offen",
+      body: erledigt
+        ? `"${entry.name || entry.original_text}" wurde abgehakt.`
+        : `"${entry.name || entry.original_text}" ist wieder offen.`,
+    });
+
+    toast.success(erledigt ? "Artikel abgehakt." : "Artikel wieder geoeffnet.");
   };
 
   const loesche = async (id) => {
+    const eintrag = eintraege.find((item) => item.id === id);
     const { error } = await supabase.from("home_einkaufliste").delete().eq("id", id);
     if (error) {
       console.error("Fehler beim Löschen", error);
@@ -584,12 +621,22 @@ const HomeEinkaufliste = ({ session }) => {
       return;
     }
 
+    await notifyHouseholdEvent({
+      userId,
+      table: "home_einkaufliste",
+      action: "geloescht",
+      recordName: eintrag?.name || eintrag?.original_text,
+      recordId: id,
+      url: "/home/einkaufsliste",
+    });
+
     setEintraege((current) => current.filter((entry) => entry.id !== id));
     toast.success("Eintrag gelöscht.");
   };
 
   const loescheErledigt = async () => {
-    if (!window.confirm("Alle erledigten Einkaufsartikel löschen?")) return;
+    if (!window.confirm("Alle erledigten Einkaufsartikel loeschen?")) return;
+    const erledigteEintraege = eintraege.filter((entry) => entry.erledigt);
 
     const { error } = await supabase
       .from("home_einkaufliste")
@@ -601,6 +648,19 @@ const HomeEinkaufliste = ({ session }) => {
       console.error("Fehler beim Löschen erledigter Einträge", error);
       toast.error("Erledigte Einträge konnten nicht gelöscht werden.");
       return;
+    }
+
+    if (erledigteEintraege.length > 0) {
+      await notifyHouseholdBatchEvent({
+        userId,
+        table: "home_einkaufliste",
+        action: "geloescht",
+        eintraege: erledigteEintraege.map((entry) => ({
+          datensatz_name: entry.name || entry.original_text || "Einkaufsartikel",
+        })),
+        url: "/home/einkaufsliste",
+        tag: `shopping-delete-completed-${Date.now()}`,
+      });
     }
 
     setEintraege((current) => current.filter((entry) => !entry.erledigt));
@@ -639,6 +699,16 @@ const HomeEinkaufliste = ({ session }) => {
       } catch (correctionError) {
         console.warn("Einkaufskorrektur konnte nicht gespeichert werden", correctionError);
       }
+
+      await notifyHouseholdEvent({
+        userId,
+        table: "home_einkaufliste",
+        action: "geaendert",
+        recordName: persistedPayload.name || editForm.name.trim(),
+        recordId: editForm.id,
+        url: "/home/einkaufsliste",
+        push: false,
+      });
 
       closeEditModal();
       await ladeDaten();
@@ -1299,3 +1369,4 @@ const HomeEinkaufliste = ({ session }) => {
 };
 
 export default HomeEinkaufliste;
+

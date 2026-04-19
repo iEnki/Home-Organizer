@@ -1,299 +1,199 @@
-import React, { useState, useEffect } from "react";
-import { supabase } from "../../supabaseClient";
-import OpenAI from "openai";
-import { ReactMic } from "react-mic";
-import { getKiClient, isKiClientReady, startSpeechRecognition } from "../../utils/kiClient";
-import { buildShoppingAiExtractionPrompt } from "../../utils/einkaufslisteUtils";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Mic, StopCircle, Send, Type, X, AlertTriangle, UploadCloud,
-  CheckSquare, Sparkles, Eye, EyeOff, Settings, HelpCircle, ChevronUp,
+  AlertTriangle,
+  CheckSquare,
+  ChevronUp,
+  HelpCircle,
+  Loader2,
+  Mic,
+  Send,
+  Sparkles,
+  Type,
+  X,
 } from "lucide-react";
+import { startSpeechRecognition } from "../../utils/kiClient";
+import { extractAssistantDomainItems } from "../../utils/assistantAi";
+import { ASSISTANT_DOMAIN_CONFIG } from "../../utils/assistantDomains";
 
-// ── Modul-Konfiguration ──────────────────────────────────────────────────────
-const MODUL_CONFIG = {
+const MODULE_UI = {
   inventar: {
-    titel: "Objekte per KI erfassen",
-    beschreibung: 'z.B. „Bohrmaschine liegt im Kellerregal"',
-    felder: "name, kategorie, ort (optional), menge (optional, default 1)",
-    schema: '{"name":"Bohrmaschine","kategorie":"Werkzeug","ort":"Keller","menge":1}',
-    ergebnisLabel: "Erkannte Objekte",
-    renderItem: (item) => `${item.name}${item.menge > 1 ? ` (${item.menge}x)` : ""}${item.kategorie ? ` — ${item.kategorie}` : ""}${item.ort ? ` @ ${item.ort}` : ""}`,
-    hilfe: [
-      '"Bohrmaschine liegt im Kellerregal" → Objekt mit Standort',
-      '"2 Winterjacken im Kleiderschrank, Kategorie Kleidung" → Menge + Kategorie',
-      '"Raclette-Grill, eingelagert, Küche" → Gerät mit Status',
+    description: 'z.B. "Bohrmaschine liegt im Kellerregal"',
+    help: [
+      '"Bohrmaschine liegt im Kellerregal" -> Objekt mit Standort',
+      '"2 Winterjacken im Kleiderschrank" -> Menge + Kategorie',
+      '"Raclette-Grill, eingelagert, Kueche" -> Objekt mit Kontext',
     ],
+    renderItem: (item) =>
+      `${item.name || "Unbenannt"}${item.menge > 1 ? ` (${item.menge}x)` : ""}${item.kategorie ? ` - ${item.kategorie}` : ""}${item.ort ? ` @ ${item.ort}` : ""}`,
   },
   vorraete: {
-    titel: "Vorräte per KI erfassen",
-    beschreibung: 'z.B. „Milch 2 Liter und Butter im Kühlschrank"',
-    felder: "name, bestand (Zahl, aktuell vorhandene Menge), einheit (Liter/Stück/kg/etc.), kategorie (optional)",
-    schema: '{"name":"Milch","bestand":2,"einheit":"Liter","kategorie":"Kühlwaren"}',
-    ergebnisLabel: "Erkannte Vorräte",
-    renderItem: (item) => `${item.name}${item.menge ? ` — ${item.menge} ${item.einheit || ""}` : ""}${item.kategorie ? ` (${item.kategorie})` : ""}`,
-    hilfe: [
-      '"Milch 2 Liter und Butter im Kühlschrank" → mehrere Vorräte auf einmal',
-      '"Kaffee 500g, Kategorie Getränke" → mit Einheit + Kategorie',
-      '"3 Flaschen Olivenöl" → Menge + Einheit',
+    description: 'z.B. "Milch 2 Liter und Butter im Kuehlschrank"',
+    help: [
+      '"Milch 2 Liter und Butter im Kuehlschrank" -> mehrere Vorraete',
+      '"Kaffee 500g, Kategorie Getraenke" -> Einheit + Kategorie',
+      '"3 Flaschen Olivenoel" -> Bestand + Einheit',
     ],
+    renderItem: (item) =>
+      `${item.name || "Unbenannt"}${item.bestand ?? item.menge ? ` - ${item.bestand ?? item.menge} ${item.einheit || ""}` : ""}${item.kategorie ? ` (${item.kategorie})` : ""}`,
   },
   einkaufliste: {
-    titel: "Einkaufsliste per KI",
-    beschreibung: 'z.B. „Lege Milch und Butter auf die Einkaufsliste"',
-    felder: "original_text, name, normalized_name, menge, einheit, hauptkategorie, unterkategorie, confidence",
-    schema: '{"original_text":"2 Liter Milch","name":"Milch","normalized_name":"Milch","menge":2,"einheit":"Liter","hauptkategorie":"Lebensmittel","unterkategorie":"Milchprodukte","confidence":0.96}',
-    ergebnisLabel: "Erkannte Einkaufsartikel",
-    renderItem: (item) =>
-      `${item.name || item.normalized_name || item.original_text}${item.menge ? ` — ${item.menge} ${item.einheit || ""}` : ""}${item.unterkategorie ? ` (${item.unterkategorie})` : item.hauptkategorie ? ` (${item.hauptkategorie})` : ""}`,
-    hilfe: [
-      '"Milch, Butter und Brot kaufen" → mehrere Artikel in einem Durchgang',
-      '"2 Liter Orangensaft und Küchenrolle" → Menge + Einheit + Taxonomie',
-      '"Shampoo und Pflaster" → KI liefert feste Haupt- und Unterkategorien',
+    description: 'z.B. "Lege Milch und Butter auf die Einkaufsliste"',
+    help: [
+      '"Milch, Butter und Brot kaufen" -> mehrere Artikel',
+      '"2 Liter Orangensaft und Kuechenrolle" -> Menge + Einheit',
+      '"Shampoo und Pflaster" -> kategorisierte Vorschlaege',
     ],
-    buildPrompt: (text) => buildShoppingAiExtractionPrompt(text),
+    renderItem: (item) =>
+      `${item.name || item.normalized_name || item.original_text}${item.menge ? ` - ${item.menge} ${item.einheit || ""}` : ""}${item.unterkategorie ? ` (${item.unterkategorie})` : item.hauptkategorie ? ` (${item.hauptkategorie})` : ""}`,
   },
   geraete: {
-    titel: "Gerät per KI erfassen",
-    beschreibung: 'z.B. „Waschmaschine Bosch Wartung alle 12 Monate"',
-    felder: "name, hersteller (optional), modell (optional), wartungsintervall_monate (Zahl, optional)",
-    schema: '{"name":"Waschmaschine","hersteller":"Bosch","modell":"Serie 6","wartungsintervall_monate":12}',
-    ergebnisLabel: "Erkannte Geräte",
-    renderItem: (item) => `${item.name}${item.hersteller ? ` — ${item.hersteller}` : ""}${item.wartungsintervall_monate ? ` (Wartung alle ${item.wartungsintervall_monate} Monate)` : ""}`,
-    hilfe: [
-      '"Waschmaschine Bosch Serie 6, Wartung alle 12 Monate" → Gerät mit Intervall',
-      '"Geschirrspüler Siemens" → Gerät ohne Wartungsplan',
-      '"Heizung Vaillant, Wartung jährlich" → Jahresintervall',
+    description: 'z.B. "Waschmaschine Bosch Wartung alle 12 Monate"',
+    help: [
+      '"Waschmaschine Bosch Serie 6, Wartung alle 12 Monate"',
+      '"Geschirrspueler Siemens"',
+      '"Heizung Vaillant, Wartung jaehrlich"',
     ],
+    renderItem: (item) =>
+      `${item.name || "Unbenannt"}${item.hersteller ? ` - ${item.hersteller}` : ""}${item.modell ? ` ${item.modell}` : ""}${item.wartungsintervall_monate ? ` (Wartung alle ${item.wartungsintervall_monate} Monate)` : ""}`,
   },
   aufgaben: {
-    titel: "Aufgaben per KI erstellen",
-    beschreibung: 'z.B. „Keller aufräumen bis Ende April, monatlich wiederholen"',
-    felder: "beschreibung, prioritaet (Hoch/Mittel/Niedrig, optional), faelligkeitsdatum (ISO-Datum, optional), wiederholung_typ (Keine/Täglich/Wöchentlich/Monatlich/Jährlich, optional)",
-    schema: '{"beschreibung":"Keller aufräumen","prioritaet":"Mittel","faelligkeitsdatum":"2026-04-30","wiederholung_typ":"Monatlich"}',
-    ergebnisLabel: "Erkannte Aufgaben",
-    renderItem: (item) => `${item.beschreibung}${item.prioritaet ? ` [${item.prioritaet}]` : ""}${item.faelligkeitsdatum ? ` — bis ${item.faelligkeitsdatum}` : ""}${item.wiederholung_typ && item.wiederholung_typ !== "Keine" ? ` (${item.wiederholung_typ})` : ""}`,
-    hilfe: [
-      '"Keller aufräumen bis Ende April, monatlich" → Aufgabe mit Datum + Wiederholung',
-      '"Rauchmelder testen, Priorität Hoch" → mit Priorität',
-      '"Reifenwechsel beauftragen nächsten Montag" → Aufgabe mit Fälligkeitsdatum',
+    description: 'z.B. "Keller aufraeumen bis Ende April, monatlich wiederholen"',
+    help: [
+      '"Keller aufraeumen bis Ende April, monatlich"',
+      '"Rauchmelder testen, Prioritaet Hoch"',
+      '"Reifenwechsel beauftragen naechsten Montag"',
     ],
+    renderItem: (item) =>
+      `${item.beschreibung || "Aufgabe"}${item.prioritaet ? ` [${item.prioritaet}]` : ""}${item.faelligkeitsdatum ? ` - bis ${item.faelligkeitsdatum}` : ""}${item.wiederholung_typ && item.wiederholung_typ !== "Keine" ? ` (${item.wiederholung_typ})` : ""}`,
   },
   budget: {
-    titel: "Zahlung per KI erfassen",
-    beschreibung: 'z.B. „Netflix 12,99 Euro monatlich" oder „Strom 80 Euro"',
-    felder: "beschreibung, betrag (Zahl), kategorie (optional), wiederholen (true/false), intervall (Monatlich/Jährlich/etc., wenn wiederholen=true), zahlungskonto_name (optional), zahlungskonto_typ (optional), budget_scope (optional: haushalt|privat), bewohner_name (optional)",
-    schema: '{"beschreibung":"Netflix","betrag":12.99,"kategorie":"Abonnement","wiederholen":true,"intervall":"Monatlich","zahlungskonto_name":"Haushaltskonto","budget_scope":"haushalt"}',
-    ergebnisLabel: "Erkannte Zahlungen",
-    renderItem: (item) =>
-      `${item.beschreibung} — ${item.betrag} €${item.kategorie ? ` (${item.kategorie})` : ""}${item.zahlungskonto_name ? ` · ${item.zahlungskonto_name}` : ""}${item.wiederholen ? ` · ${item.intervall}` : ""}`,
-    hilfe: [
-      '"Netflix 12,99 Euro monatlich vom Haushaltskonto" → wiederkehrende Ausgabe mit Konto',
-      '"Strom 80 Euro privat über Martins Kreditkarte" → Scope + Bewohner + Konto',
-      '"Miete 950 Euro monatlich, Kategorie Wohnen" → mit Kategorie',
+    description: 'z.B. "Netflix 12,99 Euro monatlich vom Haushaltskonto"',
+    help: [
+      '"Netflix 12,99 Euro monatlich vom Haushaltskonto"',
+      '"Strom 80 Euro privat ueber Martins Kreditkarte"',
+      '"Miete 950 Euro monatlich, Kategorie Wohnen"',
     ],
+    renderItem: (item) =>
+      `${item.beschreibung || "Zahlung"} - ${item.betrag || 0} EUR${item.kategorie ? ` (${item.kategorie})` : ""}${item.zahlungskonto_name ? ` · ${item.zahlungskonto_name}` : ""}${item.wiederholen ? ` · ${item.intervall || "wiederkehrend"}` : ""}`,
   },
   projekte: {
-    titel: "Projekt per KI anlegen",
-    beschreibung: 'z.B. „Badezimmer renovieren bis Oktober, Budget 2000 Euro" oder „Keller aufräumen, Reorganisation"',
-    felder: "name, typ (Reorganisation/Reparatur/Saisonwechsel/Renovierung/Dekoration/Anschaffung/Sonstiges), beschreibung (optional), budget (Zahl optional), startdatum (ISO-Datum optional), zieldatum (ISO-Datum optional)",
-    schema: '{"name":"Badezimmer renovieren","typ":"Renovierung","beschreibung":"Fliesen und Armatur erneuern","budget":2000,"zieldatum":"2026-10-01"}',
-    ergebnisLabel: "Erkannte Projekte",
-    renderItem: (item) => `${item.name}${item.typ ? ` [${item.typ}]` : ""}${item.budget ? ` — Budget: ${item.budget} €` : ""}${item.zieldatum ? ` · bis ${item.zieldatum}` : ""}`,
-    hilfe: [
-      '"Badezimmer renovieren bis Oktober, Budget 2000 Euro" → Renovierungsprojekt mit Deadline',
-      '"Keller aufräumen und reorganisieren" → Reorganisationsprojekt',
-      '"Küche streichen nächsten Monat" → Dekorationsprojekt mit Datum',
+    description: 'z.B. "Badezimmer renovieren bis Oktober, Budget 2000 Euro"',
+    help: [
+      '"Badezimmer renovieren bis Oktober, Budget 2000 Euro"',
+      '"Keller aufraeumen und reorganisieren"',
+      '"Kueche streichen naechsten Monat"',
     ],
-  },
-  // ── Umzugsplaner-Module ────────────────────────────────────────────────────
-  todos: {
-    titel: "Aufgaben per KI erstellen",
-    beschreibung: 'z.B. „Zahnarzt anrufen bis Freitag, wichtig"',
-    felder: "beschreibung, kategorie (optional), prioritaet (Hoch/Mittel/Niedrig, optional), faelligkeitsdatum (ISO-Datum, optional)",
-    schema: '{"beschreibung":"Zahnarzt anrufen","kategorie":"Gesundheit","prioritaet":"Hoch","faelligkeitsdatum":"2026-03-20"}',
-    ergebnisLabel: "Erkannte Aufgaben",
     renderItem: (item) =>
-      `${item.beschreibung}${item.prioritaet ? ` [${item.prioritaet}]` : ""}${item.faelligkeitsdatum ? ` — bis ${item.faelligkeitsdatum}` : ""}`,
-    hilfe: [
-      '"Zahnarzt anrufen bis Freitag, wichtig" → Aufgabe mit Fälligkeit + Priorität',
-      '"Reifenwechsel beauftragen nächste Woche" → Aufgabe mit Datum',
-      '"Keller aufräumen, monatlich" → Wiederholende Aufgabe',
+      `${item.name || "Projekt"}${item.typ ? ` [${item.typ}]` : ""}${item.budget ? ` - Budget: ${item.budget} EUR` : ""}${item.zieldatum ? ` · bis ${item.zieldatum}` : ""}`,
+  },
+  todos: {
+    description: 'z.B. "Zahnarzt anrufen bis Freitag, wichtig"',
+    help: [
+      '"Zahnarzt anrufen bis Freitag, wichtig"',
+      '"Reifenwechsel beauftragen naechste Woche"',
+      '"Keller aufraeumen, Prioritaet Mittel"',
     ],
+    renderItem: (item) =>
+      `${item.beschreibung || "To-Do"}${item.prioritaet ? ` [${item.prioritaet}]` : ""}${item.faelligkeitsdatum ? ` - bis ${item.faelligkeitsdatum}` : ""}`,
   },
   packliste: {
-    titel: "Packliste per KI befüllen",
-    beschreibung: 'z.B. „Bücher und Laptop in Kiste 3, Arbeitszimmer"',
-    felder: 'aktion ("gegenstand_hinzufuegen" oder "raum_zuweisen"), für gegenstand_hinzufuegen: gegenstand, menge, kiste, kategorie; für raum_zuweisen: kiste_name, raum',
-    schema: '{"aktion":"gegenstand_hinzufuegen","gegenstand":"Bücher","menge":3,"kiste":"Kiste 3","kategorie":"Büro"}',
-    ergebnisLabel: "Erkannte Packlist-Aktionen",
-    renderItem: (item) =>
-      item.aktion === "gegenstand_hinzufuegen"
-        ? `${item.gegenstand}${item.menge > 1 ? ` (${item.menge}x)` : ""} → ${item.kiste}${item.kategorie ? ` (${item.kategorie})` : ""}`
-        : `Raum: ${item.kiste_name} → ${item.raum}`,
-    hilfe: [
-      '"Bücher und Laptop in Kiste 3, Kategorie Büro" → Gegenstände mit Kiste',
-      '"Kiste 1 kommt ins Schlafzimmer" → Raum zuweisen',
-      '"5 Teller in Kiste Küche" → Menge + Kiste',
+    description: 'z.B. "Buecher und Laptop in Kiste 3, Arbeitszimmer"',
+    help: [
+      '"Buecher und Laptop in Kiste 3, Kategorie Buero"',
+      '"Kiste 1 kommt ins Schlafzimmer"',
+      '"5 Teller in Kiste Kueche"',
     ],
-    buildPrompt: (text) => `Extrahiere aus dem folgenden Text alle Aktionen bezüglich Packstücken und gib die Antwort als JSON-Array zurück. Es gibt zwei Aktionsarten:
-1. Gegenstände einer Kiste zuordnen: Erkenne Gegenstand, Kiste, optional eine Kategorie für den Gegenstand und optional die Menge. Wenn keine Menge genannt wird, ist die Menge 1.
-   Format: {"aktion": "gegenstand_hinzufuegen", "gegenstand": "Name des Gegenstands", "menge": Zahl, "kiste": "Name der Kiste", "kategorie": "Kategorie (optional)"}
-2. Einer Kiste einen Zielraum zuweisen:
-   Format: {"aktion": "raum_zuweisen", "kiste_name": "Name der Kiste", "raum": "Name des Zielraums"}
-
-Beispiel-Input: "3 Bücher und Handy in Kiste 1, Kategorie Büro. Kiste 1 ist für das Arbeitszimmer. 2 Vasen in Kiste Deko."
-Beispiel-Output:
-[
-  {"aktion": "gegenstand_hinzufuegen", "gegenstand": "Bücher", "menge": 3, "kiste": "Kiste 1", "kategorie": "Büro"},
-  {"aktion": "gegenstand_hinzufuegen", "gegenstand": "Handy", "menge": 1, "kiste": "Kiste 1", "kategorie": "Büro"},
-  {"aktion": "raum_zuweisen", "kiste_name": "Kiste 1", "raum": "Arbeitszimmer"},
-  {"aktion": "gegenstand_hinzufuegen", "gegenstand": "Vasen", "menge": 2, "kiste": "Kiste Deko"}
-]
-Input-Text: "${text}"
-Antworte nur mit dem JSON-Array. Wenn mehrere Gegenstände ohne explizite Kistenangabe aufgezählt werden, verwende den zuletzt genannten Kistennamen. Gib immer ein gültiges JSON-Array zurück, auch wenn nur ein Eintrag erkannt wird.`,
+    renderItem: (item) =>
+      item.aktion === "raum_zuweisen"
+        ? `Raum: ${item.kiste_name || "Kiste"} -> ${item.raum || "Zielraum"}`
+        : `${item.gegenstand || "Gegenstand"}${item.menge > 1 ? ` (${item.menge}x)` : ""} -> ${item.kiste || "Kiste"}${item.kategorie ? ` (${item.kategorie})` : ""}`,
   },
 };
 
-// ── JSON Parsing Hilfsfunktion (identisch mit KiPacklisteAssistent) ──────────
-const parseJsonAntwort = (raw) => {
-  let s = raw;
-  const match = s.match(/```json\s*([\s\S]*?)\s*```|```([\s\S]*?)```/);
-  if (match) s = match[1] || match[2];
-  const i1 = s.indexOf("["), i2 = s.lastIndexOf("]");
-  const i3 = s.indexOf("{"), i4 = s.lastIndexOf("}");
-  if (i1 !== -1 && i2 !== -1 && i1 < i2) return JSON.parse(s.substring(i1, i2 + 1));
-  if (i3 !== -1 && i4 !== -1 && i3 < i4) return [JSON.parse(s.substring(i3, i4 + 1))];
-  throw new Error("Kein JSON gefunden");
-};
-
-// ── Komponente ───────────────────────────────────────────────────────────────
 const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
   const userId = session?.user?.id;
-  const config = MODUL_CONFIG[modul];
+  const domainConfig = ASSISTANT_DOMAIN_CONFIG[modul];
+  const uiConfig = MODULE_UI[modul];
 
-  const [apiKey,        setApiKey]        = useState("");
-  const [apiKeySet,     setApiKeySet]     = useState(true);
-  const [apiKeyVisible, setApiKeyVisible] = useState(false);
-  const [showApiInput,  setShowApiInput]  = useState(false);
-  const [kiProvider,    setKiProvider]    = useState("edge");
-
-  const [inputModus,    setInputModus]    = useState("sprache"); // "sprache" | "text"
-  const [isRecording,   setIsRecording]   = useState(false);
-  const [textEingabe,   setTextEingabe]   = useState("");
+  const [inputModus, setInputModus] = useState("sprache");
+  const [textEingabe, setTextEingabe] = useState("");
   const [transkription, setTranskription] = useState("");
+  const [ladend, setLadend] = useState(false);
+  const [fehler, setFehler] = useState("");
+  const [ergebnisse, setErgebnisse] = useState([]);
+  const [showHelp, setShowHelp] = useState(false);
+  const [sprachAktiv, setSprachAktiv] = useState(false);
 
-  const [ladend,        setLadend]        = useState(false);
-  const [fehler,        setFehler]        = useState("");
-  const [ergebnisse,    setErgebnisse]    = useState([]);
-  const [showHelp,      setShowHelp]      = useState(false);
-  const [sprachAktiv,   setSprachAktiv]   = useState(false);
+  const handleVerarbeiten = async (text) => {
+    const trimmed = String(text || "").trim();
+    if (!trimmed) {
+      setFehler("Kein Text zum Verarbeiten.");
+      return;
+    }
 
-  // API-Key laden
-  useEffect(() => {
-    if (!userId) return;
-    supabase.from("user_profile").select("openai_api_key, ki_provider, ollama_base_url, ollama_model").eq("id", userId).single()
-      .then(({ data }) => {
-        if (data?.ki_provider) setKiProvider(data.ki_provider);
-        setApiKeySet(true);
-        setShowApiInput(false);
+    setLadend(true);
+    setFehler("");
+    setErgebnisse([]);
+
+    try {
+      const items = await extractAssistantDomainItems({
+        userId,
+        domain: modul,
+        text: trimmed,
       });
-  }, [userId]);
 
-  const handleApiKeySpeichern = async () => {
-    if (!apiKey.trim()) return;
-    await supabase.from("user_profile").update({ openai_api_key: apiKey.trim() }).eq("id", userId);
-    setApiKeySet(true);
-    setShowApiInput(false);
+      if (Array.isArray(items) && items.length > 0) {
+        setErgebnisse(items);
+      } else {
+        setFehler("KI konnte keine Eintraege im Text finden.");
+      }
+    } catch (error) {
+      setFehler(`KI-Fehler: ${error?.message || "Unbekannter Fehler"}`);
+    } finally {
+      setLadend(false);
+    }
   };
 
-  // Aufnahme-Lifecycle
   const handleStartRecording = () => {
-    setTranskription(""); setErgebnisse([]); setFehler("");
+    setTranskription("");
+    setErgebnisse([]);
+    setFehler("");
     setSprachAktiv(true);
+
     startSpeechRecognition(
       (transcript) => {
         setSprachAktiv(false);
         setTranskription(transcript);
-        if (transcript.trim()) handleVerarbeiten(transcript.trim());
+        if (String(transcript || "").trim()) {
+          handleVerarbeiten(transcript);
+        }
       },
-      (err) => {
+      (errorMessage) => {
         setSprachAktiv(false);
-        setFehler(`Spracherkennung Fehler: ${err}`);
-      }
+        setFehler(`Spracherkennung Fehler: ${errorMessage}`);
+      },
     );
   };
-  const handleStopRecording  = () => setIsRecording(false);
-  const onStopRecording = (blob) => {
-    if (blob?.blob) handleTranscription(blob.blob);
-    else setFehler("Keine Audiodaten erhalten.");
-  };
 
-  // Whisper-Transkription
-  const handleTranscription = async (audioBlob) => {
-    if (kiProvider === "ollama") {
-      // Web Speech API already handled in mic button click
-      return;
-    }
-    if (!apiKeySet || !apiKey) { setShowApiInput(true); return; }
-    setLadend(true); setFehler(""); setTranskription("");
+  const handleUebernehmen = async () => {
+    if (typeof onErgebnis !== "function" || ergebnisse.length === 0) return;
+
+    setLadend(true);
+    setFehler("");
     try {
-      const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
-      const file   = new File([audioBlob], "aufnahme.webm", { type: audioBlob.type });
-      const res    = await openai.audio.transcriptions.create({ file, model: "whisper-1" });
-      const text   = res.text;
-      setTranskription(text);
-      if (text.trim()) await handleVerarbeiten(text);
-    } catch (e) {
-      setFehler(`Transkriptionsfehler: ${e.message}`);
-      if (e.status === 401) { setApiKeySet(false); setShowApiInput(true); }
-    } finally { setLadend(false); }
-  };
-
-  // GPT-4o Verarbeitung
-  const handleVerarbeiten = async (text) => {
-    if (!text?.trim()) { setFehler("Kein Text zum Verarbeiten."); return; }
-    setLadend(true); setFehler(""); setErgebnisse([]);
-    try {
-      const { client, model, provider } = await getKiClient(userId);
-      if (!client || !isKiClientReady({ client, provider, apiKey: provider === "openai" ? apiKey : null })) {
-        setFehler("KI nicht konfiguriert. Bitte Provider in den Einstellungen einrichten.");
-        setShowApiInput(true);
-        setLadend(false);
-        return;
-      }
-      const openai = client;
-      const prompt = config.buildPrompt
-        ? config.buildPrompt(text)
-        : `Extrahiere alle Einträge aus dem folgenden Text als JSON-Array.\nFelder: ${config.felder}\nFormat-Beispiel: [${config.schema}]\nText: "${text}"\nJSON-Array:`;
-      const res = await openai.chat.completions.create({
-        model: model,
-        messages: [
-          { role: "system", content: "Du bist ein JSON-Extraktor. Antworte ausschließlich mit einem gültigen JSON-Array. Kein erklärender Text, kein Markdown." },
-          { role: "user", content: prompt },
-        ],
-        temperature: 0.2,
-      });
-      const items = parseJsonAntwort(res.choices[0].message.content);
-      if (Array.isArray(items) && items.length > 0) setErgebnisse(items);
-      else setFehler("KI konnte keine Einträge im Text finden.");
-    } catch (e) {
-      setFehler(`KI-Fehler: ${e.message}`);
-      if (e.status === 401) { setApiKeySet(false); setShowApiInput(true); }
-    } finally { setLadend(false); }
-  };
-
-  const handleUebernehmen = () => {
-    if (onErgebnis && ergebnisse.length > 0) {
-      onErgebnis(ergebnisse);
-      onClose();
+      await Promise.resolve(onErgebnis(ergebnisse));
+      onClose?.();
+    } catch (error) {
+      setFehler(`Speichern fehlgeschlagen: ${error?.message || "Unbekannter Fehler"}`);
+    } finally {
+      setLadend(false);
     }
   };
 
-  if (!config) return null;
+  if (!domainConfig || !uiConfig) return null;
 
   return (
-    /* Modal-Overlay */
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -306,11 +206,8 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 8 }}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-3 w-full max-w-lg
-                      flex flex-col max-h-[calc(100dvh-var(--safe-area-bottom)-2rem)] lg:max-h-[90vh] overflow-hidden"
+        className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-3 w-full max-w-lg flex flex-col max-h-[calc(100dvh-var(--safe-area-bottom)-2rem)] lg:max-h-[90vh] overflow-hidden"
       >
-
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-light-border dark:border-dark-border">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-card-sm bg-primary-500/10 flex items-center justify-center">
@@ -318,40 +215,41 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
             </div>
             <div>
               <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
-                {config.titel}
+                {domainConfig.title}
               </h2>
               <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                {config.beschreibung}
+                {uiConfig.description}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-1">
-            {config.hilfe && (
+            {uiConfig.help?.length > 0 && (
               <button
-                onClick={() => setShowHelp(!showHelp)}
-                title="Hilfe & Beispiele"
-                className="w-8 h-8 rounded-card-sm flex items-center justify-center
-                           text-light-text-secondary dark:text-dark-text-secondary
-                           hover:bg-light-surface-1 dark:hover:bg-canvas-3 transition-colors">
+                onClick={() => setShowHelp((prev) => !prev)}
+                title="Hilfe und Beispiele"
+                className="w-8 h-8 rounded-card-sm flex items-center justify-center text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-1 dark:hover:bg-canvas-3 transition-colors"
+              >
                 {showHelp ? <ChevronUp size={18} /> : <HelpCircle size={18} />}
               </button>
             )}
-            <button onClick={onClose} className="w-8 h-8 rounded-card-sm flex items-center justify-center
-                                                 text-light-text-secondary dark:text-dark-text-secondary
-                                                 hover:bg-light-surface-1 dark:hover:bg-canvas-3 transition-colors">
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-card-sm flex items-center justify-center text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-1 dark:hover:bg-canvas-3 transition-colors"
+            >
               <X size={18} />
             </button>
           </div>
         </div>
 
-        {/* Hilfe-Panel */}
-        {showHelp && config.hilfe && (
-          <div className="px-5 py-3 border-b border-light-border dark:border-dark-border
-                          bg-primary-500/5">
+        {showHelp && uiConfig.help?.length > 0 && (
+          <div className="px-5 py-3 border-b border-light-border dark:border-dark-border bg-primary-500/5">
             <p className="text-xs font-semibold text-primary-500 mb-2">Beispiele</p>
             <ul className="space-y-1">
-              {config.hilfe.map((tip, i) => (
-                <li key={i} className="text-xs text-light-text-secondary dark:text-dark-text-secondary flex items-start gap-1.5">
+              {uiConfig.help.map((tip, index) => (
+                <li
+                  key={index}
+                  className="text-xs text-light-text-secondary dark:text-dark-text-secondary flex items-start gap-1.5"
+                >
                   <span className="text-primary-500 mt-0.5 shrink-0">›</span>
                   {tip}
                 </li>
@@ -360,121 +258,85 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
           </div>
         )}
 
-        {/* Body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
-
-          {/* API-Key Eingabe */}
-          {false && (!apiKeySet || showApiInput) && kiProvider === "openai" && (
-            <div className="p-4 rounded-card-sm bg-light-surface-1 dark:bg-canvas-3
-                            border border-light-border dark:border-dark-border space-y-3">
-              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-                OpenAI API-Key eingeben (einmalig — wird in deinem Profil gespeichert):
-              </p>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <input
-                    type={apiKeyVisible ? "text" : "password"}
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="sk-..."
-                    className="w-full pr-9 pl-3 py-2 text-sm rounded-card-sm
-                               bg-light-bg dark:bg-canvas-1 border border-light-border dark:border-dark-border
-                               text-light-text-main dark:text-dark-text-main
-                               focus:outline-none focus:ring-2 focus:ring-secondary-500"
-                  />
-                  <button onClick={() => setApiKeyVisible(!apiKeyVisible)}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary">
-                    {apiKeyVisible ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
-                </div>
-                <button onClick={handleApiKeySpeichern}
-                        className="px-3 py-2 rounded-pill text-sm font-medium bg-primary-500 hover:bg-primary-600 text-white">
-                  Speichern
-                </button>
-              </div>
-            </div>
-          )}
-
-          {false && apiKeySet && !showApiInput && (
-            <button onClick={() => setShowApiInput(true)}
-                    className="flex items-center gap-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 transition-colors">
-              <Settings size={12} /> API-Key ändern
+          <div className="flex gap-1 p-1 rounded-card-sm bg-light-surface-1 dark:bg-canvas-3 w-fit">
+            <button
+              onClick={() => setInputModus("sprache")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-card-sm text-sm font-medium transition-all ${
+                inputModus === "sprache"
+                  ? "bg-primary-500 text-white"
+                  : "text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
+              }`}
+            >
+              <Mic size={14} />
+              Sprache
             </button>
-          )}
+            <button
+              onClick={() => setInputModus("text")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-card-sm text-sm font-medium transition-all ${
+                inputModus === "text"
+                  ? "bg-primary-500 text-white"
+                  : "text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
+              }`}
+            >
+              <Type size={14} />
+              Text
+            </button>
+          </div>
 
-          {/* Eingabe-Modus Tabs */}
-          {apiKeySet && (
-            <>
-              <div className="flex gap-1 p-1 rounded-card-sm bg-light-surface-1 dark:bg-canvas-3 w-fit">
-                <button onClick={() => setInputModus("sprache")}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-card-sm text-sm font-medium transition-all
-                          ${inputModus === "sprache" ? "bg-primary-500 text-white" : "text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"}`}>
-                  <Mic size={14} /> Sprache
-                </button>
-                <button onClick={() => setInputModus("text")}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-card-sm text-sm font-medium transition-all
-                          ${inputModus === "text" ? "bg-primary-500 text-white" : "text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"}`}>
-                  <Type size={14} /> Text
-                </button>
-              </div>
-
-              {inputModus === "sprache" ? (
-                <div className="space-y-3">
-                  {sprachAktiv ? (
-                    <div className="flex items-center justify-center gap-3 py-3 rounded-pill
-                                    bg-accent-danger/10 border border-accent-danger/30">
-                      <span className="w-2.5 h-2.5 rounded-full bg-accent-danger animate-pulse" />
-                      <span className="text-sm font-medium text-accent-danger">Aufnahme läuft – bitte sprechen…</span>
-                    </div>
-                  ) : (
-                    <button onClick={handleStartRecording} disabled={ladend}
-                            className="w-full flex items-center justify-center gap-2 py-3 rounded-pill text-sm font-medium
-                                       bg-primary-500 hover:bg-primary-600 text-white disabled:opacity-60">
-                      <Mic size={16} />
-                      {ergebnisse.length > 0 ? "Neue Aufnahme" : "Spracheingabe starten"}
-                    </button>
-                  )}
-                  {transkription && (
-                    <div className="p-3 rounded-card-sm bg-light-surface-1 dark:bg-canvas-3
-                                    border border-light-border dark:border-dark-border text-sm
-                                    text-light-text-secondary dark:text-dark-text-secondary italic">
-                      „{transkription}"
-                    </div>
-                  )}
+          {inputModus === "sprache" ? (
+            <div className="space-y-3">
+              {sprachAktiv ? (
+                <div className="flex items-center justify-center gap-3 py-3 rounded-pill bg-accent-danger/10 border border-accent-danger/30">
+                  <span className="w-2.5 h-2.5 rounded-full bg-accent-danger animate-pulse" />
+                  <span className="text-sm font-medium text-accent-danger">
+                    Aufnahme laeuft - bitte sprechen...
+                  </span>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  <textarea
-                    value={textEingabe}
-                    onChange={(e) => setTextEingabe(e.target.value)}
-                    rows={4}
-                    placeholder={config.beschreibung}
-                    className="w-full px-3 py-2.5 text-sm rounded-card-sm resize-none
-                               bg-light-bg dark:bg-canvas-1 border border-light-border dark:border-dark-border
-                               text-light-text-main dark:text-dark-text-main
-                               placeholder-light-text-secondary dark:placeholder-dark-text-secondary
-                               focus:outline-none focus:ring-2 focus:ring-secondary-500"
-                  />
-                  <button onClick={() => { if (textEingabe.trim()) { setErgebnisse([]); setFehler(""); handleVerarbeiten(textEingabe.trim()); } }}
-                          disabled={ladend || !textEingabe.trim()}
-                          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-pill text-sm font-medium
-                                     bg-primary-500 hover:bg-primary-600 text-white disabled:opacity-60">
-                    <Send size={15} /> Text analysieren
-                  </button>
+                <button
+                  onClick={handleStartRecording}
+                  disabled={ladend}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-pill text-sm font-medium bg-primary-500 hover:bg-primary-600 text-white disabled:opacity-60"
+                >
+                  <Mic size={16} />
+                  {ergebnisse.length > 0 ? "Neue Aufnahme" : "Spracheingabe starten"}
+                </button>
+              )}
+
+              {transkription && (
+                <div className="p-3 rounded-card-sm bg-light-surface-1 dark:bg-canvas-3 border border-light-border dark:border-dark-border text-sm text-light-text-secondary dark:text-dark-text-secondary italic">
+                  "{transkription}"
                 </div>
               )}
-            </>
-          )}
-
-          {/* Ladezustand */}
-          {ladend && (
-            <div className="flex items-center justify-center gap-2 py-3 text-sm text-light-text-secondary dark:text-dark-text-secondary">
-              <UploadCloud size={16} className="animate-pulse text-primary-500" />
-              KI analysiert…
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <textarea
+                value={textEingabe}
+                onChange={(event) => setTextEingabe(event.target.value)}
+                rows={4}
+                placeholder={uiConfig.description}
+                className="w-full px-3 py-2.5 text-sm rounded-card-sm resize-none bg-light-bg dark:bg-canvas-1 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-secondary-500"
+              />
+              <button
+                onClick={() => handleVerarbeiten(textEingabe)}
+                disabled={ladend || !textEingabe.trim()}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-pill text-sm font-medium bg-primary-500 hover:bg-primary-600 text-white disabled:opacity-60"
+              >
+                <Send size={15} />
+                Text analysieren
+              </button>
             </div>
           )}
 
-          {/* Fehler */}
+          {ladend && (
+            <div className="flex items-center justify-center gap-2 py-3 text-sm text-light-text-secondary dark:text-dark-text-secondary">
+              <Loader2 size={16} className="animate-spin text-primary-500" />
+              KI analysiert...
+            </div>
+          )}
+
           {fehler && !ladend && (
             <div className="flex items-center gap-2 p-3 rounded-card-sm bg-accent-danger/10 border border-accent-danger/30 text-accent-danger text-sm">
               <AlertTriangle size={16} className="shrink-0" />
@@ -482,19 +344,19 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
             </div>
           )}
 
-          {/* Ergebnisse */}
           {ergebnisse.length > 0 && !ladend && (
             <div className="space-y-2">
               <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-                {config.ergebnisLabel} ({ergebnisse.length})
+                {domainConfig.summaryLabel} ({ergebnisse.length})
               </h3>
               <ul className="space-y-1.5">
-                {ergebnisse.map((item, i) => (
-                  <li key={i} className="flex items-start gap-2 p-2.5 rounded-card-sm
-                                         bg-primary-500/5 border border-primary-500/20 text-sm
-                                         text-light-text-main dark:text-dark-text-main">
+                {ergebnisse.map((item, index) => (
+                  <li
+                    key={index}
+                    className="flex items-start gap-2 p-2.5 rounded-card-sm bg-primary-500/5 border border-primary-500/20 text-sm text-light-text-main dark:text-dark-text-main"
+                  >
                     <CheckSquare size={15} className="text-primary-500 shrink-0 mt-0.5" />
-                    {config.renderItem(item)}
+                    {uiConfig.renderItem(item)}
                   </li>
                 ))}
               </ul>
@@ -502,17 +364,19 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
           )}
         </div>
 
-        {/* Footer */}
         {ergebnisse.length > 0 && !ladend && (
           <div className="px-5 py-4 border-t border-light-border dark:border-dark-border flex gap-2">
-            <button onClick={onClose}
-                    className="flex-1 py-2.5 rounded-pill text-sm font-medium border border-light-border dark:border-dark-border
-                               text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-1 dark:hover:bg-canvas-3 transition-colors">
+            <button
+              onClick={onClose}
+              className="flex-1 py-2.5 rounded-pill text-sm font-medium border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-1 dark:hover:bg-canvas-3 transition-colors"
+            >
               Abbrechen
             </button>
-            <button onClick={handleUebernehmen}
-                    className="flex-1 py-2.5 rounded-pill text-sm font-medium bg-primary-500 hover:bg-primary-600 text-white transition-colors">
-              {ergebnisse.length} Eintrag{ergebnisse.length !== 1 ? "einträge" : ""} übernehmen
+            <button
+              onClick={handleUebernehmen}
+              className="flex-1 py-2.5 rounded-pill text-sm font-medium bg-primary-500 hover:bg-primary-600 text-white transition-colors"
+            >
+              {ergebnisse.length} Eintrag{ergebnisse.length !== 1 ? "e" : ""} uebernehmen
             </button>
           </div>
         )}

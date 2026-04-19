@@ -42,7 +42,7 @@ const EinladungAnnehmen = ({ session }) => {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-light-bg dark:bg-canvas-1 p-4">
+    <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-sm text-center">
         {status === "laden" && (
           <>

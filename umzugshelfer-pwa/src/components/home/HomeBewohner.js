@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Users, Plus, Trash2, Edit2, X, Check, Loader2, AlertCircle, Crown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../../supabaseClient";
@@ -6,6 +6,7 @@ import { useToast } from "../../hooks/useToast";
 import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
+import { notifyHouseholdEvent } from "../../utils/pushNotifications";
 
 const FARBEN = [
   "#10B981",
@@ -123,12 +124,31 @@ const HomeBewohner = ({ session }) => {
           .update({ name: form.name.trim(), farbe: form.farbe, emoji: form.emoji })
           .eq("id", modal.id);
         if (error) throw error;
+        await notifyHouseholdEvent({
+          userId,
+          table: "home_bewohner",
+          action: "geaendert",
+          recordName: form.name.trim(),
+          recordId: modal.id,
+          url: "/home/bewohner",
+          push: false,
+        });
         toast.success(`${form.name.trim()} aktualisiert.`);
       } else {
-        const { error } = await supabase
+        const { data: neuerBewohner, error } = await supabase
           .from("home_bewohner")
-          .insert({ user_id: userId, name: form.name.trim(), farbe: form.farbe, emoji: form.emoji });
+          .insert({ user_id: userId, name: form.name.trim(), farbe: form.farbe, emoji: form.emoji })
+          .select("id, name")
+          .single();
         if (error) throw error;
+        await notifyHouseholdEvent({
+          userId,
+          table: "home_bewohner",
+          action: "erstellt",
+          recordName: neuerBewohner?.name || form.name.trim(),
+          recordId: neuerBewohner?.id,
+          url: "/home/bewohner",
+        });
         toast.success(`${form.name.trim()} hinzugefuegt.`);
       }
       setModal(null);
@@ -153,6 +173,14 @@ const HomeBewohner = ({ session }) => {
       toast.error(`Fehler: ${error.message}`);
       return;
     }
+    await notifyHouseholdEvent({
+      userId,
+      table: "home_bewohner",
+      action: "geloescht",
+      recordName: b.name,
+      recordId: b.id,
+      url: "/home/bewohner",
+    });
     toast.info(`${b.name} entfernt.`);
     ladeDaten();
   };

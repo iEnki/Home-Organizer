@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Camera, Upload, FileText, AlertTriangle, ChevronLeft, Zap } from "lucide-react";
+import { Camera, Upload, FileText, ChevronLeft, Zap } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { getKiClient } from "../../utils/kiClient";
 import { starteAnalyse } from "../../utils/rechnungAnalyse";

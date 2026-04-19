@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { X, Search, Loader2, AlertTriangle, BookOpen, ScanLine, Trash2 } from "lucide-react";
+import { X, Search, Loader2, AlertTriangle, BookOpen, ScanLine, Trash2, Image as ImageIcon } from "lucide-react";
 import { supabase } from "../../../supabaseClient";
 import {
   BUCH_STATUS,
@@ -11,6 +11,7 @@ import { pruefeAufDubletten } from "../../../utils/buchDuplikate";
 import { normalizeIsbn, isValidIsbn } from "../../../utils/isbn";
 import { getBookSearchContext, removePersistedBookCover, resolveBookMatches, searchBooks } from "../../../utils/bookSearch";
 import BuchScannerModal from "./BuchScannerModal";
+import BuchCoverSucheModal from "./BuchCoverSucheModal";
 
 const inputCls =
   "w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500";
@@ -108,6 +109,7 @@ export default function BuchFormModal({
     buch ? mapBuchToForm(buch) : { ...DEFAULT_FORM },
   );
   const [scannerOffen, setScannerOffen] = useState(false);
+  const [coverSucheOffen, setCoverSucheOffen] = useState(false);
   const [fehler, setFehler] = useState(null);
   const [speichern, setSpeichern] = useState(false);
 
@@ -156,11 +158,14 @@ export default function BuchFormModal({
           erscheinungsjahr: form.erscheinungsjahr ? Number(form.erscheinungsjahr) : null,
           sprache: form.sprache,
         });
+        const normIsbn = normalizeIsbn(suchbegriff);
+        const isIsbn = isValidIsbn(normIsbn);
+        const titleQuery = suchbegriff.trim().split(/\s+/).slice(0, 6).join(" ");
         const ergebnisse = await searchBooks({
-          query: suchbegriff,
-          mode: "title",
+          query: isIsbn ? normIsbn : titleQuery,
+          mode: isIsbn ? "isbn" : "title",
           limit: 8,
-          language: context.language || "de",
+          language: "",
           context,
         });
         setSuchErgebnisse(ergebnisse);
@@ -236,7 +241,7 @@ export default function BuchFormModal({
         query: norm,
         mode: "isbn",
         limit: 5,
-        language: form.sprache || "de",
+        language: "",
         context: getBookSearchContext({
           titel: form.titel,
           untertitel: form.untertitel,
@@ -384,7 +389,7 @@ export default function BuchFormModal({
             )}
           </div>
 
-          {aktuellesCover && (
+          {aktuellesCover ? (
             <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 p-3">
               <div className="flex items-start gap-3">
                 <img
@@ -393,26 +398,41 @@ export default function BuchFormModal({
                   className="w-16 h-24 rounded object-cover shrink-0 border border-light-border dark:border-dark-border"
                 />
                 <div className="min-w-0 flex-1 space-y-2">
-                  <div>
-                    <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
-                      Aktuelle Bildvorschau
-                    </p>
-                    <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                      Du kannst das Cover hier entfernen oder oben ueber die Buchsuche ersetzen.
-                    </p>
+                  <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
+                    Aktuelle Bildvorschau
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCoverSucheOffen(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-card-sm border border-primary-500/30 text-primary-500 hover:bg-primary-500/10"
+                    >
+                      <ImageIcon size={12} />
+                      Cover ändern
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCoverEntfernen}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-card-sm border border-accent-danger/30 text-accent-danger hover:bg-accent-danger/10"
+                    >
+                      <Trash2 size={12} />
+                      Entfernen
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleCoverEntfernen}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-card-sm border border-accent-danger/30 text-accent-danger hover:bg-accent-danger/10"
-                  >
-                    <Trash2 size={12} />
-                    Bildvorschau loeschen
-                  </button>
                 </div>
               </div>
             </div>
-          )}
+          ) : form.titel.trim().length >= 2 ? (
+            <button
+              type="button"
+              onClick={() => setCoverSucheOffen(true)}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-card-sm border border-dashed border-light-border dark:border-dark-border
+                         text-xs text-light-text-secondary dark:text-dark-text-secondary hover:border-primary-500/40 hover:text-primary-500 transition-colors"
+            >
+              <ImageIcon size={14} />
+              Cover online suchen
+            </button>
+          ) : null}
 
           {/* Dublettenwarnung */}
           {dubletten.length > 0 && (
@@ -556,7 +576,6 @@ export default function BuchFormModal({
         </div>
       </div>
 
-      {/* Scanner-Modal (innerhalb BuchFormModal) */}
       {scannerOffen && (
         <BuchScannerModal
           modus="einzel"
@@ -570,6 +589,17 @@ export default function BuchFormModal({
           }}
           onImportBatchErstellt={() => setScannerOffen(false)}
           onAbbrechen={() => setScannerOffen(false)}
+        />
+      )}
+
+      {coverSucheOffen && (
+        <BuchCoverSucheModal
+          buchData={form}
+          onBestaetigen={(coverUrl) => {
+            setForm((prev) => ({ ...prev, cover_url: coverUrl, thumbnail_url: coverUrl }));
+            setCoverSucheOffen(false);
+          }}
+          onAbbrechen={() => setCoverSucheOffen(false)}
         />
       )}
     </div>

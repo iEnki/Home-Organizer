@@ -52,7 +52,7 @@ export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen,
         query,
         mode,
         limit: 5,
-        language: context.language || "de",
+        language: mode === "isbn" ? (context.language || "de") : "",
         context,
         enableAi: true,
       });
@@ -62,7 +62,7 @@ export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen,
         return;
       }
 
-      if (resolved.needsReview || resolved.results.length > 1) {
+      if (resolved.needsReview) {
         setRefreshTreffer(resolved.results);
         setRefreshConflicts(resolved.coreConflicts);
         setRefreshStatus("review");
@@ -268,7 +268,7 @@ export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen,
             )}
             {refreshStatus === "fehler" && (
               <p className="text-xs text-accent-danger flex items-center gap-1">
-                <AlertCircle size={11} /> Fehler beim Aktualisieren.
+                <AlertCircle size={11} /> Buchsuche vorübergehend nicht erreichbar.
               </p>
             )}
 

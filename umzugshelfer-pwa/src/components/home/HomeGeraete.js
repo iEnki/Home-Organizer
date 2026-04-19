@@ -17,6 +17,8 @@ import {
   STATUS_PRIORITAET,
   STATUS_CONFIG,
 } from "../../utils/geraetStatus";
+import { applyDeviceAiItems } from "../../utils/assistantDomainAdapters";
+import { notifyHouseholdEvent } from "../../utils/pushNotifications";
 
 const DEFAULT_FORM = {
   name: "",
@@ -124,8 +126,29 @@ const HomeGeraete = ({ session }) => {
     };
     if (daten.id) {
       await supabase.from("home_geraete").update(cleanDaten).eq("id", daten.id);
+      await notifyHouseholdEvent({
+        userId,
+        table: "home_geraete",
+        action: "geaendert",
+        recordName: daten.name,
+        recordId: daten.id,
+        url: "/home/geraete",
+        push: false,
+      });
     } else {
-      await supabase.from("home_geraete").insert({ ...cleanDaten, user_id: userId });
+      const { data: neuesGeraet } = await supabase
+        .from("home_geraete")
+        .insert({ ...cleanDaten, user_id: userId })
+        .select("id, name")
+        .single();
+      await notifyHouseholdEvent({
+        userId,
+        table: "home_geraete",
+        action: "erstellt",
+        recordName: neuesGeraet?.name || daten.name,
+        recordId: neuesGeraet?.id,
+        url: "/home/geraete",
+      });
     }
     closeModal();
     ladeDaten();
@@ -134,7 +157,16 @@ const HomeGeraete = ({ session }) => {
   // --- Löschen ---
   const loesche = async (id) => {
     if (!window.confirm("Gerät und alle Wartungseinträge löschen?")) return;
+    const geraet = geraete.find((eintrag) => eintrag.id === id);
     await supabase.from("home_geraete").delete().eq("id", id);
+    await notifyHouseholdEvent({
+      userId,
+      table: "home_geraete",
+      action: "geloescht",
+      recordName: geraet?.name,
+      recordId: id,
+      url: "/home/geraete",
+    });
     ladeDaten();
   };
 
@@ -155,6 +187,18 @@ const HomeGeraete = ({ session }) => {
     if (neuesDatum) {
       await supabase.from("home_geraete").update({ naechste_wartung: neuesDatum }).eq("id", geraetId);
     }
+    await notifyHouseholdEvent({
+      userId,
+      table: "home_wartungen",
+      action: "geaendert",
+      recordName: g.name,
+      recordId: geraetId,
+      url: "/home/geraete",
+      tag: `wartung-erledigt-${geraetId}`,
+      pushPolicy: "always",
+      title: "Wartung erledigt",
+      body: g.name ? `Die Wartung fuer "${g.name}" wurde erledigt.` : "Eine Wartung wurde erledigt.",
+    });
     ladeDaten();
   };
 
@@ -417,16 +461,7 @@ const HomeGeraete = ({ session }) => {
           modul="geraete"
           onClose={() => setKiOffen(false)}
           onErgebnis={async (items) => {
-            for (const item of items) {
-              await supabase.from("home_geraete").insert({
-                user_id: userId,
-                name:                     item.name || "Unbenannt",
-                hersteller:               item.hersteller || null,
-                modell:                   item.modell || null,
-                wartungsintervall_monate: item.wartungsintervall_monate || null,
-                kategorie:                item.kategorie || null,
-              });
-            }
+            await applyDeviceAiItems({ session, items });
             ladeDaten();
           }}
         />

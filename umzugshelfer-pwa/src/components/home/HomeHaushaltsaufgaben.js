@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRef, useImperativeHandle, forwardRef } from "react";
 import { CheckSquare, Plus, Trash2, Check, Loader2, RefreshCw, AlertCircle, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -9,6 +9,8 @@ import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
 import ModalShell from "../ui/ModalShell";
+import { applyHomeTaskAiItems } from "../../utils/assistantDomainAdapters";
+import { notifyHouseholdEvent } from "../../utils/pushNotifications";
 
 const KATEGORIEN = ["Reinigung", "Pflege", "Garten", "Einkauf", "Reparatur", "Wartung", "Organisation", "Sonstiges"];
 const PRIORITAETEN = ["Hoch", "Mittel", "Niedrig"];
@@ -164,40 +166,30 @@ const HomeHaushaltsaufgaben = ({ session }) => {
     const payload = { ...daten, user_id: userId };
     if (modal?.id) {
       await supabase.from("todo_aufgaben").update(daten).eq("id", modal.id);
+      await notifyHouseholdEvent({
+        userId,
+        table: "todo_aufgaben",
+        action: "geaendert",
+        recordName: daten.beschreibung,
+        recordId: modal.id,
+        push: false,
+      });
     } else {
       const { data: neueAufgabe } = await supabase
         .from("todo_aufgaben")
         .insert(payload)
-        .select("id")
+        .select("id, beschreibung")
         .single();
 
-      if (neueAufgabe?.id && userId) {
-        try {
-          const { data: myMembership } = await supabase
-            .from("household_members")
-            .select("household_id")
-            .eq("user_id", userId)
-            .single();
-          const memberIds = myMembership?.household_id
-            ? ((await supabase.from("household_members").select("user_id").eq("household_id", myMembership.household_id)).data?.map((m) => m.user_id) ?? [userId])
-            : [userId];
-          for (const uid of memberIds) {
-            try {
-              await supabase.functions.invoke("send-push", {
-                body: {
-                  user_id: uid,
-                  title: "Neue Aufgabe",
-                  body: `„${daten.beschreibung}" wurde hinzugefügt.`,
-                  url: "/home/aufgaben",
-                  tag: `aufgabe-neu-${neueAufgabe.id}`,
-                },
-              });
-            } catch (_) {}
-          }
-        } catch (_) {
-          // Push-Fehler darf Save-Flow nicht unterbrechen
-        }
-      }
+      await notifyHouseholdEvent({
+        userId,
+        table: "todo_aufgaben",
+        action: "erstellt",
+        recordName: neueAufgabe?.beschreibung || daten.beschreibung,
+        recordId: neueAufgabe?.id,
+        url: "/home/aufgaben",
+        tag: `aufgabe-neu-${neueAufgabe?.id || Date.now()}`,
+      });
     }
     setModal(null);
     ladeDaten();
@@ -209,11 +201,35 @@ const HomeHaushaltsaufgaben = ({ session }) => {
       prev.map((item) => item.id === a.id ? { ...item, erledigt: neuerWert } : item)
     );
     await supabase.from("todo_aufgaben").update({ erledigt: neuerWert }).eq("id", a.id);
+    await notifyHouseholdEvent({
+      userId,
+      table: "todo_aufgaben",
+      action: "geaendert",
+      recordName: a.beschreibung,
+      recordId: a.id,
+      url: "/home/aufgaben",
+      tag: `aufgabe-status-${a.id}-${neuerWert ? "done" : "open"}`,
+      pushPolicy: "always",
+      title: neuerWert ? "Aufgabe erledigt" : "Aufgabe wieder offen",
+      body: neuerWert
+        ? `"${a.beschreibung}" wurde als erledigt markiert.`
+        : `"${a.beschreibung}" ist wieder offen.`,
+    });
   };
 
   const loesche = async (id) => {
     if (!window.confirm("Aufgabe löschen?")) return;
+    const ziel = aufgaben.find((eintrag) => eintrag.id === id);
     await supabase.from("todo_aufgaben").delete().eq("id", id);
+    await notifyHouseholdEvent({
+      userId,
+      table: "todo_aufgaben",
+      action: "geloescht",
+      recordName: ziel?.beschreibung,
+      recordId: id,
+      url: "/home/aufgaben",
+      tag: `aufgabe-delete-${id}`,
+    });
     ladeDaten();
   };
 
@@ -410,46 +426,7 @@ const HomeHaushaltsaufgaben = ({ session }) => {
       {kiOffen && (
         <KiHomeAssistent session={session} modul="aufgaben" onClose={() => setKiOffen(false)}
           onErgebnis={async (items) => {
-            for (const item of items) {
-              await supabase.from("todo_aufgaben").insert({
-                user_id: session.user.id,
-                beschreibung: item.beschreibung || "Aufgabe",
-                kategorie: item.kategorie || "Sonstiges",
-                prioritaet: item.prioritaet || "Mittel",
-                faelligkeitsdatum: item.faelligkeitsdatum || null,
-                wiederholung_typ: item.wiederholung_typ || "Keine",
-                app_modus: "home",
-                erledigt: false,
-              });
-            }
-            if (items.length > 0 && userId) {
-              try {
-                const { data: myMembership } = await supabase
-                  .from("household_members")
-                  .select("household_id")
-                  .eq("user_id", userId)
-                  .single();
-                const memberIds = myMembership?.household_id
-                  ? ((await supabase.from("household_members").select("user_id").eq("household_id", myMembership.household_id)).data?.map((m) => m.user_id) ?? [userId])
-                  : [userId];
-                const bulkTag = `aufgaben-ki-bulk-${Date.now()}`;
-                for (const uid of memberIds) {
-                  try {
-                    await supabase.functions.invoke("send-push", {
-                      body: {
-                        user_id: uid,
-                        title: "Neue Aufgaben",
-                        body: `${items.length} ${items.length === 1 ? "Aufgabe wurde" : "Aufgaben wurden"} hinzugefügt.`,
-                        url: "/home/aufgaben",
-                        tag: bulkTag,
-                      },
-                    });
-                  } catch (_) {}
-                }
-              } catch (_) {
-                // Push-Fehler darf Save-Flow nicht unterbrechen
-              }
-            }
+            await applyHomeTaskAiItems({ session, items });
             ladeDaten();
           }}
         />

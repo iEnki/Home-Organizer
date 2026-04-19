@@ -24,8 +24,8 @@ async function suchePerIsbn(isbn) {
     query: isbn,
     mode: "isbn",
     limit: 5,
-    language: "de",
-    context: getBookSearchContext({ isbn13: isbn, language: "de" }),
+    language: "",
+    context: getBookSearchContext({ isbn13: isbn }),
   });
 }
 
@@ -76,8 +76,8 @@ export default function BuchScannerModal({
           query: norm,
           mode: "isbn",
           limit: 5,
-          language: "de",
-          context: getBookSearchContext({ isbn13: norm, language: "de" }),
+          language: "",
+          context: getBookSearchContext({ isbn13: norm }),
         });
         setKandidaten((prev) => [...prev, { isbn: norm, bookResult: resolved.selected ?? null }]);
       } finally {
@@ -99,7 +99,18 @@ export default function BuchScannerModal({
     }
   }, [modus, gescannteIsbns]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const stopScanner = useCallback(async () => {
+    aktiv.current = false;
+    if (scannerRef.current) {
+      try {
+        if (scannerRef.current.isScanning) await scannerRef.current.stop();
+        await scannerRef.current.clear();
+      } catch (_) {}
+      scannerRef.current = null;
+    }
+    setScanning(false);
+  }, []);
+
   const startScanner = useCallback(async () => {
     if (scannerRef.current) return;
     setFehler(null);
@@ -136,19 +147,7 @@ export default function BuchScannerModal({
     } catch (e) {
       setFehler("Kamera konnte nicht gestartet werden: " + (e?.message ?? e));
     }
-  }, [modus, verarbeiteIsbn]);
-
-  const stopScanner = useCallback(async () => {
-    aktiv.current = false;
-    if (scannerRef.current) {
-      try {
-        if (scannerRef.current.isScanning) await scannerRef.current.stop();
-        await scannerRef.current.clear();
-      } catch (_) {}
-      scannerRef.current = null;
-    }
-    setScanning(false);
-  }, []);
+  }, [modus, stopScanner, verarbeiteIsbn]);
 
   useEffect(() => () => { stopScanner(); }, [stopScanner]);
 

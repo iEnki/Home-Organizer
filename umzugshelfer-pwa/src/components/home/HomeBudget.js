@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, forwardRef, useImperativeHandle } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   DollarSign, Plus, Edit2, Trash2, X, Loader2, AlertCircle,
   Sparkles, RefreshCw,
@@ -41,7 +41,6 @@ import {
   getScopeKontoHinweis,
   groupSpendByAccount,
   resolveSplitPayerFromBudgetSelection,
-  resolveKontoIdFromAiResult,
   selectDefaultKontoForEntry,
 } from "../../utils/budgetAccounts";
 import {
@@ -56,6 +55,7 @@ import {
   getGoalStatus,
   groupGoalsByStatus,
 } from "../../utils/budgetGoals";
+import { applyBudgetAiItems } from "../../utils/assistantDomainAdapters";
 import {
   applyBudgetViewState,
   DEFAULT_BUDGET_VIEW_STATE,
@@ -88,6 +88,7 @@ import KostenAufteilungAuswahl from "./KostenAufteilungAuswahl";
 import BudgetAusgleichTab from "./BudgetAusgleichTab";
 import BudgetSplitDefaults from "./BudgetSplitDefaults";
 import ModalShell from "../ui/ModalShell";
+import { notifyHouseholdBatchEvent, notifyHouseholdEvent } from "../../utils/pushNotifications";
 
 // ─────────────── Constants ───────────────
 const HOME_KATEGORIEN = [
@@ -222,6 +223,9 @@ const BudgetForm = forwardRef(({
   const [budgetScope, setBudgetScope] = useState(initial?.budget_scope || "haushalt");
   const [zahlungskontoId, setZahlungskontoId] = useState(initial?.zahlungskonto_id || "");
   const [kontoAutoModus, setKontoAutoModus] = useState(!initial?.zahlungskonto_id);
+  const initialDatum = initial?.datum ?? null;
+  const initialIntervall = initial?.intervall ?? null;
+  const initialNaechstesDatum = initial?.naechstes_datum ?? null;
   const [splitAktiv, setSplitAktiv] = useState(initialSplit?.aktiv ?? false);
   const [splitVorgestrecktVon, setSplitVorgestrecktVon] = useState(initialSplit?.payerMemberId || null);
   const [splitTeilnehmer, setSplitTeilnehmer] = useState(initialSplit?.teilnehmer || []);
@@ -375,8 +379,8 @@ const BudgetForm = forwardRef(({
   const handleSpeichern = useCallback(() => {
     if (!form.beschreibung.trim() || !form.betrag) return;
     const naechstesDatum = wiederholen
-      ? (form.datum === (initial?.datum ?? form.datum) && intervall === (initial?.intervall ?? intervall)
-          ? (initial?.naechstes_datum ?? calcNaechstesDatum(form.datum, intervall))
+      ? (form.datum === (initialDatum ?? form.datum) && intervall === (initialIntervall ?? intervall)
+          ? (initialNaechstesDatum ?? calcNaechstesDatum(form.datum, intervall))
           : calcNaechstesDatum(form.datum, intervall))
       : null;
     const budgetPayload = {
@@ -412,6 +416,9 @@ const BudgetForm = forwardRef(({
     endeDatum,
     endeModus,
     form,
+    initialDatum,
+    initialIntervall,
+    initialNaechstesDatum,
     intervall,
     onSpeichern,
     sharesInput,
@@ -747,6 +754,8 @@ const KontoForm = ({ initial, bewohner, onSpeichern, onDeaktivieren, onAbbrechen
 const HomeBudget = ({ session }) => {
   const userId = session?.user?.id;
   const today = useMemo(() => new Date(), []);
+  const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { active: tourAktiv, schritt, setSchritt, beenden: tourBeenden } = useTour("budget");
 
@@ -1468,6 +1477,19 @@ const HomeBudget = ({ session }) => {
         .eq("id", id);
       if (deleteTemplateError) throw deleteTemplateError;
 
+      await notifyHouseholdBatchEvent({
+        userId,
+        table: "budget_posten",
+        action: "geloescht",
+        eintraege: deletedBudgetIds.map(() => ({
+          datensatz_name: eintrag?.beschreibung || "Budget-Eintrag",
+        })),
+        url: "/home/budget",
+        tag: `budget-delete-series-${id}-${Date.now()}`,
+        title: "Budget-Serie geloescht",
+        body: `${deletedBudgetIds.length} Budget-Eintraege wurden geloescht.`,
+      });
+
       return {
         deletedBudgetIds,
         keptManualOccurrenceIds: manualOccurrenceIds,
@@ -1484,12 +1506,23 @@ const HomeBudget = ({ session }) => {
     const { error: deleteError } = await supabase.from("budget_posten").delete().eq("id", id);
     if (deleteError) throw deleteError;
 
+    await notifyHouseholdEvent({
+      userId,
+      table: "budget_posten",
+      action: "geloescht",
+      recordName: eintrag?.beschreibung,
+      recordId: id,
+      url: "/home/budget",
+      tag: `budget-delete-${id}`,
+    });
+
     return { deletedBudgetIds: [id], keptManualOccurrenceIds: [] };
-  }, [findeAllokierteBudgetPosten, frageSplitLoeschWarnung]);
+  }, [findeAllokierteBudgetPosten, frageSplitLoeschWarnung, userId]);
 
   const speichere = async (daten) => {
     const { splitConfig, ...budgetDaten } = daten;
     const payload = { ...budgetDaten, user_id: userId };
+    let createdBudgetEvent = null;
     try {
       if (modal?.id) {
         const isProjectedFutureTemplate = Boolean(modal?.splitEditContext?.isProjectedFutureTemplate);
@@ -1563,12 +1596,17 @@ const HomeBudget = ({ session }) => {
           const { data: neuerPosten, error: insertError } = await supabase
             .from("budget_posten")
             .insert(payload)
-            .select("id")
+            .select("id, beschreibung")
             .single();
           if (insertError || !neuerPosten) {
             setFehler("Buchung konnte nicht gespeichert werden.");
             return;
           }
+
+          createdBudgetEvent = {
+            id: neuerPosten.id,
+            beschreibung: neuerPosten.beschreibung || payload.beschreibung,
+          };
 
           if (payload.wiederholen) {
             const createdTemplate = { ...payload, id: neuerPosten.id };
@@ -1611,6 +1649,17 @@ const HomeBudget = ({ session }) => {
           setFehler("Unerwarteter Fehler beim Speichern. Bitte prüfen.");
           return;
         }
+      }
+      if (createdBudgetEvent?.id) {
+        await notifyHouseholdEvent({
+          userId,
+          table: "budget_posten",
+          action: "erstellt",
+          recordName: createdBudgetEvent.beschreibung,
+          recordId: createdBudgetEvent.id,
+          url: "/home/budget",
+          tag: `budget-create-${createdBudgetEvent.id}`,
+        });
       }
       setModal(null);
       await ladeDaten();
@@ -2146,6 +2195,33 @@ const HomeBudget = ({ session }) => {
       setViewStateLoaded(true);
     });
   }, [loadBudgetViewState]);
+
+  useEffect(() => {
+    const assistantFlow = location.state?.assistantFlow;
+    const prefillState = assistantFlow?.ui_state?.prefillState;
+    if (!prefillState) return;
+
+    applyBudgetViewState(prefillState, {
+      setSuchbegriff,
+      setKategFilter,
+      setBewohnerFilter,
+      setKontoFilter,
+      setScopeFilter,
+      setZeitraum,
+      setSelJahr,
+      setSelMonat,
+      setSortierung,
+      setGruppierung,
+      setNurWiederkehrend,
+      setNurMitRechnung,
+    }, today);
+
+    if (assistantFlow?.ui_state?.targetTab && GUELTIGE_TAB_IDS.includes(assistantFlow.ui_state.targetTab)) {
+      wechselTab(assistantFlow.ui_state.targetTab);
+    }
+
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [location.pathname, location.search, location.state, navigate, today, wechselTab]);
 
   useEffect(() => {
     const activeHouseholdId = getActiveHouseholdId();
@@ -3131,50 +3207,17 @@ const HomeBudget = ({ session }) => {
           modul="budget"
           onClose={() => setKiOffen(false)}
           onErgebnis={async (items) => {
-            for (const item of items) {
-              const normalize = (value) => String(value || "").trim().toLowerCase();
-              const resolvedBewohner = item.bewohner_name
-                ? bewohner.find((eintrag) => normalize(getBewohnerDisplayName(eintrag)) === normalize(item.bewohner_name)) || null
-                : null;
-              const resolvedScope =
-                item.budget_scope === "haushalt" || item.budget_scope === "privat"
-                  ? item.budget_scope
-                  : scopeFilter !== "alle"
-                    ? scopeFilter
-                    : "haushalt";
-              const defaultKonto = selectDefaultKontoForEntry({
-                budgetScope: resolvedScope,
-                bewohnerId: resolvedBewohner?.id || null,
-                konten: aktiveFinanzkonten,
-              });
-              const kontoAusFilter = kontoFilter
-                ? aktiveFinanzkonten.find((konto) => konto.id === kontoFilter) || null
-                : null;
-              const resolvedKontoId =
-                (item.typ || "ausgabe") === "einnahme"
-                  ? null
-                  : resolveKontoIdFromAiResult(item, aktiveFinanzkonten, bewohner)
-                    || kontoAusFilter?.id
-                    || defaultKonto?.id
-                    || null;
-              const datum = new Date().toISOString().split("T")[0];
-              const naechstesDatum = item.wiederholen && item.intervall ? calcNaechstesDatum(datum, item.intervall) : null;
-              await supabase.from("budget_posten").insert({
-                user_id: session.user.id,
-                beschreibung: item.beschreibung || "Zahlung",
-                betrag: item.betrag || 0,
-                kategorie: item.kategorie || null,
-                typ: item.typ || "ausgabe",
-                datum,
-                app_modus: "home",
-                budget_scope: resolvedScope,
-                bewohner_id: resolvedBewohner?.id || null,
-                zahlungskonto_id: resolvedKontoId,
-                wiederholen: item.wiederholen || false,
-                intervall: item.intervall || null,
-                naechstes_datum: naechstesDatum,
-              });
-            }
+            await applyBudgetAiItems({
+              session,
+              items,
+              budgetContext: {
+                bewohner,
+                aktiveFinanzkonten,
+                scopeFilter,
+                kontoFilter,
+                appModus: "home",
+              },
+            });
             ladeDaten();
           }}
         />

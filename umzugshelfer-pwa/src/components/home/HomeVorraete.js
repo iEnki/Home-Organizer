@@ -9,12 +9,14 @@ import { useToast } from "../../hooks/useToast";
 import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
+import { applySupplyAiItems } from "../../utils/assistantDomainAdapters";
 import { applyShoppingBatch, prepareShoppingBatch } from "../../utils/einkaufslisteUtils";
+import { notifyHouseholdEvent } from "../../utils/pushNotifications";
 
 const KATEGORIEN = ["Haushalt", "Lebensmittel", "Hygiene", "Reinigung", "Technik", "Sonstiges"];
 const EINHEITEN = [
-  "Stück", "Packung", "Liter", "ml", "kg", "g",
-  "Dose", "Flasche", "Rolle", "Sack", "Beutel", "Tüte",
+  "StÃ¼ck", "Packung", "Liter", "ml", "kg", "g",
+  "Dose", "Flasche", "Rolle", "Sack", "Beutel", "TÃ¼te",
   "Tube", "Glas", "Becher", "Kasten", "Karton", "Paar", "Satz",
 ];
 
@@ -22,7 +24,7 @@ const VorratForm = ({ initial, onSpeichern, onAbbrechen }) => {
   const [form, setForm] = useState({
     name: initial?.name || "",
     kategorie: initial?.kategorie || "Haushalt",
-    einheit: initial?.einheit || "Stück",
+    einheit: initial?.einheit || "StÃ¼ck",
     bestand: initial?.bestand ?? 0,
     mindestmenge: initial?.mindestmenge ?? 1,
     ablaufdatum: initial?.ablaufdatum || "",
@@ -99,7 +101,7 @@ const HomeVorraete = ({ session }) => {
       if (error) throw error;
       setVorraete(data || []);
     } catch (e) {
-      setFehler("Fehler beim Laden der Vorräte.");
+      setFehler("Fehler beim Laden der VorrÃ¤te.");
     } finally {
       setLoading(false);
     }
@@ -111,16 +113,46 @@ const HomeVorraete = ({ session }) => {
     const payload = { ...daten, user_id: userId };
     if (modal?.id) {
       await supabase.from("home_vorraete").update(daten).eq("id", modal.id);
+      await notifyHouseholdEvent({
+        userId,
+        table: "home_vorraete",
+        action: "geaendert",
+        recordName: daten.name,
+        recordId: modal.id,
+        url: "/home/vorraete",
+        push: false,
+      });
     } else {
-      await supabase.from("home_vorraete").insert(payload);
+      const { data: neuerVorrat } = await supabase
+        .from("home_vorraete")
+        .insert(payload)
+        .select("id, name")
+        .single();
+      await notifyHouseholdEvent({
+        userId,
+        table: "home_vorraete",
+        action: "erstellt",
+        recordName: neuerVorrat?.name || daten.name,
+        recordId: neuerVorrat?.id,
+        url: "/home/vorraete",
+      });
     }
     setModal(null);
     ladeDaten();
   };
 
   const loesche = async (id) => {
-    if (!window.confirm("Vorrat löschen?")) return;
+    if (!window.confirm("Vorrat lÃ¶schen?")) return;
+    const vorrat = vorraete.find((eintrag) => eintrag.id === id);
     await supabase.from("home_vorraete").delete().eq("id", id);
+    await notifyHouseholdEvent({
+      userId,
+      table: "home_vorraete",
+      action: "geloescht",
+      recordName: vorrat?.name,
+      recordId: id,
+      url: "/home/vorraete",
+    });
     ladeDaten();
   };
 
@@ -159,13 +191,13 @@ const HomeVorraete = ({ session }) => {
 
       const parts = [];
       if (persisted.inserted > 0) parts.push(`${persisted.inserted} neu`);
-      if (persisted.merged > 0) parts.push(`${persisted.merged} zusammengeführt`);
+      if (persisted.merged > 0) parts.push(`${persisted.merged} zusammengefÃ¼hrt`);
       toast.success(
         `Einkaufsliste aktualisiert${parts.length ? `: ${parts.join(", ")}` : ""}.`
       );
     } catch (error) {
-      console.error("Fehler beim Übertragen auf die Einkaufsliste", error);
-      toast.error("Artikel konnten nicht auf die Einkaufsliste übertragen werden.");
+      console.error("Fehler beim Ãœbertragen auf die Einkaufsliste", error);
+      toast.error("Artikel konnten nicht auf die Einkaufsliste Ã¼bertragen werden.");
     }
   };
 
@@ -199,7 +231,7 @@ const HomeVorraete = ({ session }) => {
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
           <ShoppingCart size={22} className="text-primary-500" />
-          <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">Vorräte</h1>
+          <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">VorrÃ¤te</h1>
         </div>
         <div className="flex flex-wrap gap-2">
           {rot.length > 0 && (
@@ -239,7 +271,7 @@ const HomeVorraete = ({ session }) => {
         </div>
       )}
 
-      {/* Ampel-Übersicht */}
+      {/* Ampel-Ãœbersicht */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
         {[
           { label: "Nachkaufen", count: vorraete.filter((v) => Number(v.bestand) < Number(v.mindestmenge)).length, farbe: "red" },
@@ -265,7 +297,7 @@ const HomeVorraete = ({ session }) => {
       {gefiltertVorraete.length === 0 ? (
         <div className="text-center py-12 text-light-text-secondary dark:text-dark-text-secondary">
           <ShoppingCart size={40} className="mx-auto mb-3 opacity-30" />
-          <p className="text-sm">Noch keine Vorräte</p>
+          <p className="text-sm">Noch keine VorrÃ¤te</p>
           <button onClick={() => setModal({})} className="mt-3 flex items-center gap-1.5 mx-auto px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-pill text-sm">
             <Plus size={14} />Ersten Vorrat anlegen
           </button>
@@ -285,7 +317,7 @@ const HomeVorraete = ({ session }) => {
                     {(beinaheAbgelaufen || abgelaufen) && (
                       <span className={`flex items-center gap-0.5 text-xs ${abgelaufen ? "text-red-500" : "text-amber-500"}`}>
                         <AlertTriangle size={11} />
-                        {abgelaufen ? "Abgelaufen" : "Läuft bald ab"}
+                        {abgelaufen ? "Abgelaufen" : "LÃ¤uft bald ab"}
                       </span>
                     )}
                   </div>
@@ -325,17 +357,8 @@ const HomeVorraete = ({ session }) => {
           modul="vorraete"
           onClose={() => setKiOffen(false)}
           onErgebnis={async (items) => {
-            for (const item of items) {
-              await supabase.from("home_vorraete").insert({
-                user_id: session.user.id,
-                name: item.name || "Unbenannt",
-                kategorie: item.kategorie || null,
-                bestand: item.bestand ?? item.menge ?? 1,
-                mindestmenge: item.mindestmenge ?? 1,
-                einheit: item.einheit || "Stück",
-              });
-            }
-            ladeDaten();
+            await applySupplyAiItems({ session, items });
+            await ladeDaten();
           }}
         />
       )}

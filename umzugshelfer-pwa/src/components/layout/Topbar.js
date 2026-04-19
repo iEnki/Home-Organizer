@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Search, Bell, Home, Truck, ChevronDown, Settings, LogOut, Crown, Users } from "lucide-react";
+import { Search, Bell, Home, Truck, ChevronDown, Settings, LogOut, Crown, Users, Sparkles } from "lucide-react";
 import ThemeSwitch from "../ThemeSwitch";
 import { useAppMode } from "../../contexts/AppModeContext";
 import { supabase } from "../../supabaseClient";
@@ -25,6 +25,7 @@ const Topbar = ({
   onNavigate,
   onOpenMobileSearch,
   onLogout,
+  onOpenAssistant,
 }) => {
   const [suchOffen, setSuchOffen] = useState(false);
   const [avatarMenuOffen, setAvatarMenuOffen] = useState(false);
@@ -204,6 +205,23 @@ const Topbar = ({
         </button>
 
         <ThemeSwitch />
+
+        {/* KI-Assistent-Button */}
+        {onOpenAssistant && (
+          <button
+            onClick={onOpenAssistant}
+            className="w-10 h-10 rounded-sidebar-tile flex items-center justify-center
+                       bg-primary-500/10 dark:bg-primary-500/15
+                       border border-primary-500/30 dark:border-primary-500/25
+                       text-primary-500 dark:text-primary-400
+                       hover:bg-primary-500/20 dark:hover:bg-primary-500/25
+                       transition-all duration-150"
+            title="KI-Assistent"
+            aria-label="KI-Assistent öffnen"
+          >
+            <Sparkles size={18} />
+          </button>
+        )}
 
         {/* Benachrichtigungs-Button */}
         <button
