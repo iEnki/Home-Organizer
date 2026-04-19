@@ -234,9 +234,7 @@ Antworte nur mit dem JSON.`;
   return (
     <div
       className={`max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4 min-h-screen ${
-        theme === "dark"
-          ? "bg-dark-bg text-dark-text-main"
-          : "bg-light-bg text-light-text-main"
+        theme === "dark" ? "text-dark-text-main" : "text-light-text-main"
       }`}
     >
       <h1 className="text-2xl font-bold mb-6">Meine Dokumente</h1>

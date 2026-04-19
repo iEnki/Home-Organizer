@@ -32,6 +32,7 @@ import KiHomeAssistent from "./home/KiHomeAssistent";
 import { PDFDownloadLink } from "@react-pdf/renderer";
 import PacklistePDF from "./PacklistePDF";
 import useViewport from "../hooks/useViewport";
+import { applyPacklisteAiActions } from "../utils/assistantDomainAdapters";
 
 const gegenstandIconsDark = {
   buch: <Book size={14} className="mr-1.5 text-gray-400" />,
@@ -2314,6 +2315,8 @@ const PacklisteManager = ({ session }) => {
     );
   };
 
+  // Legacy handler bleibt vorerst im File, bis die Alt-UI komplett entfernt ist.
+  // eslint-disable-next-line no-unused-vars
   const handleKiExtractedItems = async (items) => {
     if (!userId) {
       alert("Bitte einloggen, um Items zu speichern.");
@@ -2481,6 +2484,35 @@ const PacklisteManager = ({ session }) => {
     setLoading(false);
     alert("KI-Anweisungen wurden verarbeitet!");
     setShowKiAssistent(false);
+  };
+
+  const handleKiAssistantResult = async (items) => {
+    if (!userId) {
+      alert("Bitte einloggen, um Items zu speichern.");
+      return;
+    }
+    if (!items || items.length === 0) {
+      alert("Keine Items von KI extrahiert.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await applyPacklisteAiActions({
+        session,
+        items,
+        kisten,
+        suggestCategory: schlageKategorieVor,
+      });
+      await fetchKisten();
+      alert("KI-Anweisungen wurden verarbeitet!");
+      setShowKiAssistent(false);
+    } catch (error) {
+      console.error("Fehler beim Verarbeiten der KI-Anweisungen:", error);
+      alert(`Ein Fehler ist aufgetreten: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDownloadQrCode = () => {
@@ -3377,7 +3409,7 @@ const PacklisteManager = ({ session }) => {
           session={session}
           modul="packliste"
           onClose={() => setShowKiAssistent(false)}
-          onErgebnis={handleKiExtractedItems}
+          onErgebnis={handleKiAssistantResult}
         />
       )}
       <div className="relative mb-4">

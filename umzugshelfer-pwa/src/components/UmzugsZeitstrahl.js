@@ -1173,7 +1173,7 @@ Generiere nun das Umzugstagebuch:`;
   `;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4 bg-light-bg dark:bg-canvas-1 min-h-screen">
+    <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4 min-h-screen">
       <style>{timelineGlobalStyles}</style>
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-light-text-main dark:text-dark-text-main flex items-center">
