@@ -19,6 +19,26 @@
       rel="stylesheet"
     />
 
+    <style>
+      :root {
+        --app-background-image: url("/Background/Heller_Modus.png");
+      }
+
+      html.dark {
+        --app-background-image: url("/Background/Dunkel_Modus.png");
+      }
+
+      @media (max-width: 767px) {
+        :root {
+          --app-background-image: url("/Background/Heller_Modus_mobile.png");
+        }
+
+        html.dark {
+          --app-background-image: url("/Background/Dunkel_Modus_mobile.png");
+        }
+      }
+    </style>
+
     <title>Umzugsplaner</title>
   </head>
   <body>
