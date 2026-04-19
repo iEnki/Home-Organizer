@@ -1732,6 +1732,7 @@ CREATE TABLE IF NOT EXISTS public.push_subscriptions (
   p256dh     text        NOT NULL,
   auth       text        NOT NULL,
   created_at timestamptz DEFAULT NOW(),
+  updated_at timestamptz DEFAULT NOW(),
   UNIQUE(user_id, endpoint)
 );
 
@@ -1748,7 +1749,7 @@ RETURNS void LANGUAGE sql
 SET search_path = ''
 AS $$
   DELETE FROM public.push_subscriptions
-  WHERE created_at < NOW() - INTERVAL '90 days';
+  WHERE COALESCE(updated_at, created_at) < NOW() - INTERVAL '90 days';
 $$;
 
 
@@ -1763,6 +1764,13 @@ ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS ki_provider     text DE
 ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS ollama_base_url text;
 ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS ollama_model    text DEFAULT 'llama3.2';
 ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS password_change_required boolean NOT NULL DEFAULT false;
+
+ALTER TABLE public.push_subscriptions
+  ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT NOW();
+
+UPDATE public.push_subscriptions
+SET updated_at = COALESCE(updated_at, created_at, NOW())
+WHERE updated_at IS NULL;
 
 -- Mobile Navigation-Konfiguration (robuste 4-Schritte-Sequenz)
 ALTER TABLE public.user_profile
@@ -1892,7 +1900,7 @@ RETURNS void LANGUAGE sql
 SET search_path = ''
 AS $$
   DELETE FROM public.push_subscriptions
-  WHERE created_at < NOW() - INTERVAL '90 days';
+  WHERE COALESCE(updated_at, created_at) < NOW() - INTERVAL '90 days';
 $$;
 
 -- Fix 2: RLS Policies neu erstellen mit (select auth.uid()) (Performance: auth_rls_initplan)
@@ -2017,6 +2025,123 @@ CREATE POLICY geraete_crud_own ON public.geraete FOR ALL USING ((select auth.uid
 -- push_subscriptions
 DROP POLICY IF EXISTS "Eigene Subscriptions verwalten" ON public.push_subscriptions;
 CREATE POLICY "Eigene Subscriptions verwalten" ON public.push_subscriptions FOR ALL USING ((select auth.uid()) = user_id);
+
+SELECT pg_notify('pgrst', 'reload schema');
+
+-- ============================================================
+-- 16. GLOBALER ASSISTENT (UI-KONFIG, THREADS, RECEIPTS)
+-- Persoenliche Threads, UI-Layout und nachvollziehbare Aktionen.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.assistant_ui_config (
+  user_id         uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  enabled         boolean NOT NULL DEFAULT true,
+  is_open         boolean NOT NULL DEFAULT false,
+  is_minimized    boolean NOT NULL DEFAULT false,
+  mobile_x        integer,
+  mobile_y        integer,
+  desktop_anchor  text NOT NULL DEFAULT 'right'
+                  CHECK (desktop_anchor IN ('left','right')),
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  updated_at      timestamptz NOT NULL DEFAULT now()
+);
+
+DROP TRIGGER IF EXISTS set_assistant_ui_config_updated_at ON public.assistant_ui_config;
+CREATE TRIGGER set_assistant_ui_config_updated_at
+  BEFORE UPDATE ON public.assistant_ui_config
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+ALTER TABLE public.assistant_ui_config ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS assistant_ui_config_own ON public.assistant_ui_config;
+CREATE POLICY assistant_ui_config_own ON public.assistant_ui_config
+  FOR ALL
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
+
+CREATE TABLE IF NOT EXISTS public.ai_chat_threads (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  household_id  uuid REFERENCES public.households(id) ON DELETE SET NULL,
+  title         text NOT NULL DEFAULT 'Neuer Chat',
+  context_route text,
+  metadata      jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_chat_threads_user_id
+  ON public.ai_chat_threads(user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_chat_threads_household_id
+  ON public.ai_chat_threads(household_id);
+
+DROP TRIGGER IF EXISTS set_ai_chat_threads_updated_at ON public.ai_chat_threads;
+CREATE TRIGGER set_ai_chat_threads_updated_at
+  BEFORE UPDATE ON public.ai_chat_threads
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+ALTER TABLE public.ai_chat_threads ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS ai_chat_threads_own ON public.ai_chat_threads;
+CREATE POLICY ai_chat_threads_own ON public.ai_chat_threads
+  FOR ALL
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
+
+CREATE TABLE IF NOT EXISTS public.ai_chat_messages (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  thread_id  uuid NOT NULL REFERENCES public.ai_chat_threads(id) ON DELETE CASCADE,
+  user_id    uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  role       text NOT NULL CHECK (role IN ('user','assistant','system')),
+  content    text NOT NULL,
+  payload    jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_chat_messages_thread_id
+  ON public.ai_chat_messages(thread_id, created_at ASC);
+CREATE INDEX IF NOT EXISTS idx_ai_chat_messages_user_id
+  ON public.ai_chat_messages(user_id, created_at DESC);
+
+ALTER TABLE public.ai_chat_messages ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS ai_chat_messages_own ON public.ai_chat_messages;
+CREATE POLICY ai_chat_messages_own ON public.ai_chat_messages
+  FOR ALL
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
+
+CREATE TABLE IF NOT EXISTS public.ai_action_receipts (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  thread_id        uuid REFERENCES public.ai_chat_threads(id) ON DELETE CASCADE,
+  user_id          uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  household_id     uuid REFERENCES public.households(id) ON DELETE SET NULL,
+  domain           text,
+  action_kind      text NOT NULL DEFAULT 'create',
+  target_table     text,
+  target_record_id uuid,
+  summary          text,
+  request_payload  jsonb NOT NULL DEFAULT '{}'::jsonb,
+  result_payload   jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  updated_at       timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_action_receipts_user_id
+  ON public.ai_action_receipts(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_action_receipts_thread_id
+  ON public.ai_action_receipts(thread_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_action_receipts_target
+  ON public.ai_action_receipts(target_table, target_record_id);
+
+DROP TRIGGER IF EXISTS set_ai_action_receipts_updated_at ON public.ai_action_receipts;
+CREATE TRIGGER set_ai_action_receipts_updated_at
+  BEFORE UPDATE ON public.ai_action_receipts
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+ALTER TABLE public.ai_action_receipts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS ai_action_receipts_own ON public.ai_action_receipts;
+CREATE POLICY ai_action_receipts_own ON public.ai_action_receipts
+  FOR ALL
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
 
 SELECT pg_notify('pgrst', 'reload schema');
 

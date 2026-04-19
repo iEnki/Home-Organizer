@@ -358,9 +358,9 @@ services:
       SUPABASE_ANON_KEY: ${ANON_KEY}
       SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
       SUPABASE_DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
-      VAPID_SUBJECT: "mailto:enki82@gmail.com"
-      VAPID_PUBLIC_KEY: "BJWU4i1CJRIwQDTPRGfxccDO9qAXVaEWnkl5SUn8SrcQK4IYhbENOsbFtw9LfcVYR4i45KWjjeYVeuKsXg-FW4A"
-      VAPID_PRIVATE_KEY: "lFEbXMQeRNX5LsfFPHkcatQM4jbPR1g0LH3ct10L648"
+      VAPID_SUBJECT: ${VAPID_SUBJECT}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
       # TODO: Allow configuring VERIFY_JWT per function. This PR might help: https://github.com/supabase/cli/pull/786
       VERIFY_JWT: "${FUNCTIONS_VERIFY_JWT}"
     command:

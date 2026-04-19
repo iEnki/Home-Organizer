@@ -24,11 +24,23 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const vapidSubject = Deno.env.get("VAPID_SUBJECT");
+    const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY");
+    const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
+
+    if (!vapidSubject || !vapidPublicKey || !vapidPrivateKey) {
+      console.error("send-push Konfigurationsfehler: fehlende VAPID-Umgebungsvariablen");
+      return new Response(
+        JSON.stringify({ error: "VAPID-Konfiguration fehlt." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // VAPID konfigurieren
     webpush.setVapidDetails(
-      Deno.env.get("VAPID_SUBJECT")!,
-      Deno.env.get("VAPID_PUBLIC_KEY")!,
-      Deno.env.get("VAPID_PRIVATE_KEY")!,
+      vapidSubject,
+      vapidPublicKey,
+      vapidPrivateKey,
     );
 
     // Supabase Admin-Client (Service Role Key aus Env)

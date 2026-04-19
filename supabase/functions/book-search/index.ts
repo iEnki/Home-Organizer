@@ -201,6 +201,16 @@ function buildGoogleCoverCandidates(imageLinks: Record<string, string> | undefin
   ).filter((entry) => !!entry.url);
 }
 
+function buildGoogleCoverCandidatesByVolumeId(volumeId: string): CoverCandidate[] {
+  if (!volumeId) return [];
+  const base = `https://books.google.com/books/content?id=${encodeURIComponent(volumeId)}&printsec=frontcover&img=1`;
+  return [
+    { id: `google-vol-zoom1`, url: `${base}&zoom=1`, label: "Google Cover (M)", kind: "cover", source: "google_books", width: 128, height: 190 },
+    { id: `google-vol-zoom0`, url: `${base}&zoom=0`, label: "Google Cover (L)", kind: "cover", source: "google_books", width: 500, height: 750 },
+    { id: `google-vol-zoom2`, url: `${base}&zoom=2`, label: "Google Cover (S)", kind: "thumbnail", source: "google_books", width: 80, height: 120 },
+  ];
+}
+
 function normalizeOpenLibrary(doc: any): BookResult | null {
   const title = doc.title as string | undefined;
   if (!title) return null;
@@ -243,6 +253,17 @@ function normalizeGoogleBooks(item: any): BookResult | null {
   const isbn13 = normalizeIsbn(identifiers.find((i) => i.type === "ISBN_13")?.identifier);
   const isbn10 = normalizeIsbn(identifiers.find((i) => i.type === "ISBN_10")?.identifier);
   const imageLinks = info.imageLinks ?? {};
+  const volumeId = (item.id as string) ?? "";
+
+  const directCandidates = buildGoogleCoverCandidates(imageLinks);
+  const coverCandidates = directCandidates.length > 0
+    ? directCandidates
+    : buildGoogleCoverCandidatesByVolumeId(volumeId);
+
+  const coverUrl = sanitizeExternalUrl(imageLinks.large ?? imageLinks.thumbnail)
+    ?? (volumeId ? `https://books.google.com/books/content?id=${encodeURIComponent(volumeId)}&printsec=frontcover&img=1&zoom=1` : undefined);
+  const thumbnailUrl = sanitizeExternalUrl(imageLinks.thumbnail ?? imageLinks.smallThumbnail)
+    ?? (volumeId ? `https://books.google.com/books/content?id=${encodeURIComponent(volumeId)}&printsec=frontcover&img=1&zoom=2` : undefined);
 
   return {
     title: info.title,
@@ -256,11 +277,11 @@ function normalizeGoogleBooks(item: any): BookResult | null {
     description: info.description,
     pageCount: info.pageCount,
     language: info.language,
-    coverUrl: sanitizeExternalUrl(imageLinks.large ?? imageLinks.thumbnail),
-    thumbnailUrl: sanitizeExternalUrl(imageLinks.thumbnail ?? imageLinks.smallThumbnail),
-    coverCandidates: buildGoogleCoverCandidates(imageLinks),
+    coverUrl,
+    thumbnailUrl,
+    coverCandidates,
     source: "google_books",
-    sourceRef: item.id as string ?? "",
+    sourceRef: volumeId,
     confidence: isbn13 || isbn10 ? 0.9 : 0.55,
   };
 }
@@ -394,7 +415,7 @@ function dedup(results: BookResult[]): BookResult[] {
   return out;
 }
 
-async function fetchWithTimeout(url: string, timeoutMs = 8000): Promise<Response> {
+async function fetchWithTimeout(url: string, timeoutMs = 12000): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -504,12 +525,41 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  const [olResults, gbResults] = await Promise.all([
-    searchOpenLibrary(query, mode, Math.ceil(limit / 2) + 2, language),
-    searchGoogleBooks(query, mode, Math.ceil(limit / 2) + 2, language),
-  ]);
+  const perSource = Math.ceil(limit / 2) + 2;
 
-  const allResults = [...olResults, ...gbResults];
+  async function runSearch(q: string): Promise<BookResult[]> {
+    const [ol, gb] = await Promise.all([
+      searchOpenLibrary(q, mode, perSource, language),
+      searchGoogleBooks(q, mode, perSource, language),
+    ]);
+    return [...ol, ...gb];
+  }
+
+  function buildFallbackQueries(): string[] {
+    const fallbacks: string[] = [];
+    if (!context) return fallbacks;
+    const ctxTitle = (context.title ?? "").trim();
+    const ctxAuthors = normalizeAuthors(context.authors);
+    const ctxAuthor = ctxAuthors[0] ?? "";
+    if (ctxTitle && ctxAuthor) {
+      const candidate = `${ctxTitle} ${ctxAuthor}`.trim();
+      if (candidate.toLowerCase() !== query.toLowerCase()) fallbacks.push(candidate);
+    }
+    if (ctxTitle && ctxTitle.toLowerCase() !== query.toLowerCase()) {
+      fallbacks.push(ctxTitle);
+    }
+    return fallbacks;
+  }
+
+  let allResults = await runSearch(query);
+
+  if (allResults.length === 0 && mode !== "isbn") {
+    for (const fallback of buildFallbackQueries()) {
+      allResults = await runSearch(fallback);
+      if (allResults.length > 0) break;
+    }
+  }
+
   const scored = allResults
     .map((r) => {
       const meta = scoreResult(r, query, mode, language, context);
