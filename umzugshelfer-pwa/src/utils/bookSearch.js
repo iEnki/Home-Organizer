@@ -366,13 +366,11 @@ export async function resolveBookMatches({
   const selected = results[0] ?? null;
   const coreConflicts = getCoreFieldConflicts(context, selected);
   const topGap = getTopGap(results);
-  const hasMultipleCoverChoices = (selected?.coverCandidates?.length ?? 0) > 1;
   const needsReview =
     !!selected?.needsReview ||
     coreConflicts.length > 0 ||
     topGap < CLEAR_GAP_SCORE ||
-    (results.length > 1 && (selected?.score ?? selected?.confidence ?? 0) < HIGH_CONFIDENCE_SCORE) ||
-    hasMultipleCoverChoices;
+    (results.length > 1 && (selected?.score ?? selected?.confidence ?? 0) < HIGH_CONFIDENCE_SCORE);
 
   return {
     results,

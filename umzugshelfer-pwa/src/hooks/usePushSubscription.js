@@ -5,65 +5,96 @@ import {
   getAktiveSubscription,
 } from "../serviceWorkerRegistration";
 
-/**
- * usePushSubscription – verwaltet den Push-Benachrichtigungs-Status des Nutzers.
- *
- * @param {string|undefined} userId – Supabase User-ID
- * @returns {{ permission, isSubscribed, isSupported, loading, aktivieren, deaktivieren }}
- */
 export default function usePushSubscription(userId) {
   const isSupported =
-    "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+    typeof window !== "undefined" &&
+    "serviceWorker" in navigator &&
+    "PushManager" in window &&
+    "Notification" in window;
 
-  const [permission,    setPermission]    = useState(
-    isSupported ? Notification.permission : "denied"
+  const [permission, setPermission] = useState(
+    isSupported ? Notification.permission : "denied",
   );
-  const [isSubscribed,  setIsSubscribed]  = useState(false);
-  const [loading,       setLoading]       = useState(true);
-  const [fehler,        setFehler]        = useState(null);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [fehler, setFehler] = useState(null);
 
-  // Beim Mount: aktuelle Subscription prüfen
-  useEffect(() => {
+  const refresh = useCallback(async () => {
     if (!isSupported || !userId) {
+      setPermission(isSupported ? Notification.permission : "denied");
+      setIsSubscribed(false);
       setLoading(false);
-      return;
+      return null;
     }
 
-    getAktiveSubscription().then((sub) => {
-      setIsSubscribed(!!sub);
+    setLoading(true);
+    try {
+      const subscription = await getAktiveSubscription(userId);
+      setIsSubscribed(!!subscription);
       setPermission(Notification.permission);
+      setFehler(null);
+      return subscription;
+    } catch (error) {
+      setPermission(Notification.permission);
+      setIsSubscribed(false);
+      setFehler(error?.message ?? "Push-Status konnte nicht aktualisiert werden.");
+      return null;
+    } finally {
       setLoading(false);
-    });
+    }
   }, [isSupported, userId]);
 
-  /** Push-Benachrichtigungen aktivieren */
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    if (!isSupported || !userId) return undefined;
+
+    const handleRefresh = () => {
+      refresh();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refresh();
+      }
+    };
+
+    window.addEventListener("focus", handleRefresh);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.removeEventListener("focus", handleRefresh);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [isSupported, refresh, userId]);
+
   const aktivieren = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
     setFehler(null);
+
     try {
       await subscribeToPush(userId);
-      setIsSubscribed(true);
-      setPermission("granted");
-    } catch (err) {
-      setFehler(err.message ?? "Unbekannter Fehler");
-      // Berechtigung-Status aktualisieren
-      if ("Notification" in window) setPermission(Notification.permission);
-    } finally {
+      await refresh();
+    } catch (error) {
+      setPermission("Notification" in window ? Notification.permission : "denied");
+      setFehler(error?.message ?? "Unbekannter Fehler");
       setLoading(false);
     }
-  }, [userId]);
+  }, [refresh, userId]);
 
-  /** Push-Benachrichtigungen deaktivieren */
   const deaktivieren = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
     setFehler(null);
+
     try {
       await unsubscribeFromPush(userId);
       setIsSubscribed(false);
-    } catch (err) {
-      setFehler(err.message ?? "Unbekannter Fehler");
+      setPermission("Notification" in window ? Notification.permission : "denied");
+    } catch (error) {
+      setFehler(error?.message ?? "Unbekannter Fehler");
     } finally {
       setLoading(false);
     }
@@ -77,5 +108,6 @@ export default function usePushSubscription(userId) {
     fehler,
     aktivieren,
     deaktivieren,
+    refresh,
   };
 }

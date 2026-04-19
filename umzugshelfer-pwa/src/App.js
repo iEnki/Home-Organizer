@@ -21,6 +21,7 @@ import Topbar  from "./components/layout/Topbar";
 import MobileBottomNav from "./components/layout/MobileBottomNav";
 import MobileMoreSheet from "./components/layout/MobileMoreSheet";
 import MobileSearchSheet from "./components/layout/MobileSearchSheet";
+import GlobalAssistantLauncher from "./components/assistant/GlobalAssistantLauncher";
 
 // ── Home Organizer Komponenten ─────────────────────────────────────────────────
 import HomeDashboard          from "./components/home/HomeDashboard";
@@ -56,7 +57,6 @@ import DokumentenManager    from "./components/DokumentenManager";
 import UpdatePasswordPage   from "./components/UpdatePasswordPage";
 import ForcedPasswordChangeModal from "./components/ForcedPasswordChangeModal";
 import KostenVergleich      from "./components/KostenVergleich";
-import useErinnerungen      from "./hooks/useErinnerungen";
 import UserProfile          from "./components/UserProfile";
 import KalenderUebersicht   from "./components/KalenderUebersicht";
 import JoinHouseholdPage    from "./components/JoinHouseholdPage";
@@ -282,6 +282,7 @@ const AuthenticatedShell = ({
   }, [appMode, toggleMode, navigate, householdContext]);
 
   const suchTimerRef  = useRef(null);
+  const assistantOpenRef = useRef(null);
   const [suchbegriff,   setSuchbegriff]   = useState("");
   const [suchergebnisse, setSuchergebnisse] = useState([]);
 
@@ -355,7 +356,7 @@ const AuthenticatedShell = ({
   const pageTitle = ROUTE_TITLES[location.pathname] ?? "";
 
   return (
-    <div className="flex min-h-dvh w-full min-w-0 overflow-x-hidden bg-light-bg dark:bg-canvas-1">
+    <div className="flex min-h-dvh w-full min-w-0 overflow-x-hidden bg-transparent">
       <Sidebar
         activeRoute={location.pathname}
         onNavigate={navigate}
@@ -377,6 +378,7 @@ const AuthenticatedShell = ({
           onNavigate={navigate}
           onOpenMobileSearch={() => setMobileSearchOpen(true)}
           onLogout={handleLogout}
+          onOpenAssistant={() => assistantOpenRef.current?.()}
         />
         <main
           className="flex-grow relative z-[1] min-h-0 min-w-0 w-full overflow-x-hidden"
@@ -424,6 +426,12 @@ const AuthenticatedShell = ({
         open={passwordChangeRequired}
         onCompleted={onPasswordChangeCompleted}
       />
+      <GlobalAssistantLauncher
+        session={session}
+        householdContext={householdContext}
+        appMode={appMode}
+        onRegisterOpen={(fn) => { assistantOpenRef.current = fn; }}
+      />
     </div>
   );
 };
@@ -438,8 +446,6 @@ function App() {
   const [passwordChangeRequired, setPasswordChangeRequired] = useState(false);
   const [passwordFlagLoading, setPasswordFlagLoading] = useState(false);
   const [mobileNavFavorites, setMobileNavFavorites] = useState(() => sanitizeMobileNavFavorites(null));
-  useErinnerungen(session?.user?.id);
-
   useEffect(() => {
     // Initialen Session-Status prüfen
     supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
@@ -522,7 +528,7 @@ function App() {
 
       setPasswordFlagLoading(true);
       try {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from("user_profile")
           .select("password_change_required, mobile_nav_config")
           .eq("id", session.user.id)

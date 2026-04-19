@@ -524,7 +524,7 @@ function normalisiereDatum(datumText) {
 
   if (/^\d{4}-\d{2}-\d{2}$/.test(datumText)) return datumText;
 
-  const match = datumText.match(/(\d{1,2})[.\/\-](\d{1,2})[.\/\-](\d{2,4})/);
+  const match = datumText.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
   if (match) {
     let [, tag, monat, jahr] = match;
     if (jahr.length === 2) {
@@ -545,7 +545,7 @@ function parseRechnungsText(text, roherText) {
 
   let datum = null;
   for (const line of lines) {
-    const m = line.match(/(\d{1,2})[.\/\-](\d{1,2})[.\/\-](\d{2,4})/);
+    const m = line.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
     if (m) {
       datum = normalisiereDatum(m[0]);
       break;
@@ -553,7 +553,7 @@ function parseRechnungsText(text, roherText) {
   }
 
   let gesamt = null;
-  const betraege = text.matchAll(/(\d{1,6}[,\.]\d{2})\s*€?/g);
+  const betraege = text.matchAll(/(\d{1,6}[,.]\d{2})\s*€?/g);
   for (const m of betraege) {
     const val = parseFloat(m[1].replace(",", "."));
     if (!isNaN(val)) gesamt = val;
@@ -563,7 +563,7 @@ function parseRechnungsText(text, roherText) {
 
   const positionen = [];
   for (const line of lines) {
-    const posMatch = line.match(/^(.+?)\s+(\d{1,6}[,\.]\d{2})\s*€?$/);
+    const posMatch = line.match(/^(.+?)\s+(\d{1,6}[,.]\d{2})\s*€?$/);
     if (posMatch) {
       const preis = parseFloat(posMatch[2].replace(",", "."));
       if (preis > 0 && preis < (gesamt || Infinity)) {
@@ -803,7 +803,7 @@ async function analyzeWithOCRRules(base64OrText, hatText) {
  * Analysiert mit OCR + Ollama (Text-Modus, Legacy — wird nicht mehr aus starteAnalyse aufgerufen).
  * Bleibt als Funktion erhalten fuer eventuelle Direktnutzung.
  */
-async function analyzeWithOCROllama(file, kiClient) {
+export async function analyzeWithOCROllama(file, kiClient) {
   const { base64, text: pdfText, hasText } = await extractTextFromFile(file);
 
   let ocrText;

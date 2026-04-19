@@ -15,10 +15,37 @@ const buildFunctionsUrl = (fnName) => {
   return `${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/${fnName}`;
 };
 
+export class KiProxyError extends Error {
+  constructor({ code = "KI_PROXY_ERROR", message, provider = null, status = null, retryable = false, details = null } = {}) {
+    super(message || "KI-Proxy Fehler");
+    this.name = "KiProxyError";
+    this.code = code;
+    this.provider = provider;
+    this.status = status;
+    this.retryable = retryable;
+    this.details = details;
+  }
+}
+
+const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
+
+const parseErrorResponse = async (response) => {
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    const json = await response.json().catch(() => null);
+    if (isObject(json)) return json;
+  }
+  const text = await response.text().catch(() => "");
+  if (text) {
+    return { message: text };
+  }
+  return null;
+};
+
 const edgeChatClient = {
   chat: {
     completions: {
-      create: async ({ model, messages, temperature }) => {
+      create: async ({ model, messages, temperature, response_format }) => {
         const doFetch = async (token) =>
           fetch(buildFunctionsUrl("ki-chat"), {
             method: "POST",
@@ -26,7 +53,7 @@ const edgeChatClient = {
               "Content-Type": "application/json",
               "Authorization": `Bearer ${token}`,
             },
-            body: JSON.stringify({ model, messages, temperature }),
+            body: JSON.stringify({ model, messages, temperature, response_format }),
           });
 
         const { data: { session } } = await supabase.auth.getSession();
@@ -46,12 +73,24 @@ const edgeChatClient = {
           response = await doFetch(freshSession.access_token);
         }
 
-        const json = await response.json().catch(() => ({}));
+        const payload = response.ok
+          ? await response.json().catch(() => ({}))
+          : await parseErrorResponse(response);
         if (!response.ok) {
-          throw new Error(json?.error || `KI-Proxy Fehler (${response.status})`);
+          throw new KiProxyError({
+            code: payload?.code || (response.status === 401 ? "AUTH_REQUIRED" : "KI_PROXY_ERROR"),
+            message:
+              payload?.message ||
+              payload?.error ||
+              `KI-Proxy Fehler (${response.status})`,
+            provider: payload?.provider || null,
+            status: payload?.status || response.status,
+            retryable: Boolean(payload?.retryable),
+            details: payload,
+          });
         }
 
-        return json;
+        return payload;
       },
     },
   },
