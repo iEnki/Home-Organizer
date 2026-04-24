@@ -1,6 +1,7 @@
 const TABELLEN_META = {
   home_objekte: { label: "Inventar", emoji: "📦" },
   budget_posten: { label: "Budget", emoji: "💶" },
+  rechnungen: { label: "Rechnungen", emoji: "🧾" },
   home_geraete: { label: "Geräte", emoji: "🔧" },
   home_einkaufliste: { label: "Einkaufsliste", emoji: "🛒" },
   home_projekte: { label: "Projekte", emoji: "📋" },
@@ -12,6 +13,7 @@ const TABELLEN_META = {
   home_orte: { label: "Orte", emoji: "📍" },
   dokumente: { label: "Dokumente", emoji: "📄" },
   home_buecher: { label: "Bücher", emoji: "📚" },
+  home_sparziele: { label: "Sparziele", emoji: "🎯" },
 };
 
 const AKTIONS_META = {

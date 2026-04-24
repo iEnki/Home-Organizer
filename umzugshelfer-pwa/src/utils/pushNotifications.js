@@ -12,6 +12,11 @@ const TABLE_META = {
   home_einkaufliste: { singular: "Einkaufsartikel", plural: "Einkaufsartikel", url: "/home/einkaufsliste" },
   todo_aufgaben: { singular: "Aufgabe", plural: "Aufgaben", url: "/home/aufgaben" },
   budget_posten: { singular: "Budget-Eintrag", plural: "Budget-Eintraege", url: "/home/budget" },
+  home_budget_limits: { singular: "Budget-Limit", plural: "Budget-Limits", url: "/home/budget" },
+  budget_settlements: { singular: "Ausgleich", plural: "Ausgleiche", url: "/home/budget?tab=ausgleich" },
+  rechnungen: { singular: "Rechnung", plural: "Rechnungen", url: "/home/budget" },
+  vertraege: { singular: "Vertrag", plural: "Vertraege", url: "/home/vertraege" },
+  versicherungs_polizzen: { singular: "Versicherung", plural: "Versicherungen", url: "/home/versicherungen" },
   home_projekte: { singular: "Projekt", plural: "Projekte", url: "/home/projekte" },
   home_wissen: { singular: "Wissenseintrag", plural: "Wissenseintraege", url: "/home/wissen" },
   dokumente: { singular: "Dokument", plural: "Dokumente", url: "/home/dokumente" },
@@ -179,9 +184,9 @@ export async function sendPushToUserIds({
   }
 
   const results = await Promise.all(
-    uniqueUserIds.map((userId) =>
-      supabase.functions
-        .invoke("send-push", {
+    uniqueUserIds.map(async (userId) => {
+      try {
+        const { data, error } = await supabase.functions.invoke("send-push", {
           body: {
             user_id: userId,
             title,
@@ -189,17 +194,32 @@ export async function sendPushToUserIds({
             url,
             tag,
           },
-        })
-        .then(() => ({ ok: true, userId }))
-        .catch(() => ({ ok: false, userId })),
-    ),
+        });
+
+        if (error) {
+          return { ok: false, userId, sent: 0, error };
+        }
+
+        const sent = Number.isFinite(Number(data?.sent)) ? Number(data.sent) : 0;
+        return {
+          ok: sent > 0,
+          userId,
+          sent,
+          removed: Number.isFinite(Number(data?.removed)) ? Number(data.removed) : 0,
+          message: data?.message,
+        };
+      } catch (error) {
+        return { ok: false, userId, sent: 0, error };
+      }
+    }),
   );
 
-  const sent = results.filter((result) => result.ok).length;
+  const sent = results.reduce((sum, result) => sum + Math.min(Number(result.sent) || 0, 1), 0);
   return {
     requested: uniqueUserIds.length,
     sent,
     failed: uniqueUserIds.length - sent,
+    results,
   };
 }
 
@@ -281,9 +301,13 @@ export async function notifyHouseholdEvent({
 
     result.pushSent = pushResult.sent > 0;
     result.pushResult = pushResult;
+    if (pushResult.failed > 0) {
+      console.warn("[Push] Nicht alle Empfaenger konnten benachrichtigt werden.", pushResult);
+    }
     return result;
   } catch (error) {
     result.pushError = error;
+    console.warn("[Push] Benachrichtigung fehlgeschlagen.", error);
     return result;
   }
 }
@@ -366,9 +390,13 @@ export async function notifyHouseholdBatchEvent({
 
     result.pushSent = pushResult.sent > 0;
     result.pushResult = pushResult;
+    if (pushResult.failed > 0) {
+      console.warn("[Push] Nicht alle Empfaenger konnten benachrichtigt werden.", pushResult);
+    }
     return result;
   } catch (error) {
     result.pushError = error;
+    console.warn("[Push] Batch-Benachrichtigung fehlgeschlagen.", error);
     return result;
   }
 }

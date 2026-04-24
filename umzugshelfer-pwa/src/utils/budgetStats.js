@@ -10,13 +10,28 @@ const filterBudgetScope = (entry, scopeFilter) =>
 
 const isExpense = (entry) => (entry?.typ || "ausgabe") !== "einnahme";
 
-const makeCategoryTotals = ({ entries, kategorien }) =>
+const getFallbackCategoryShares = (entry) => {
+  const category = entry?.kategorie || "Sonstiges";
+  const amount = Math.abs(Number(entry?.betrag || 0));
+  if (!category || amount <= 0) return [];
+  return [{ category, amount }];
+};
+
+const getEntryCategoryShares = ({ entry, categorySharesByEntryId = {} }) => {
+  const shares = categorySharesByEntryId?.[entry?.id];
+  if (Array.isArray(shares) && shares.length > 0) return shares;
+  return getFallbackCategoryShares(entry);
+};
+
+const makeCategoryTotals = ({ entries, kategorien, categorySharesByEntryId = {} }) =>
   kategorien
     .map((name) => ({
       name,
-      summe: entries
-        .filter((entry) => entry.kategorie === name)
-        .reduce((sum, entry) => sum + Math.abs(Number(entry.betrag || 0)), 0),
+      summe: (entries || []).reduce((sum, entry) => (
+        sum + getEntryCategoryShares({ entry, categorySharesByEntryId })
+          .filter((share) => share.category === name)
+          .reduce((shareSum, share) => shareSum + Math.abs(Number(share.amount || 0)), 0)
+      ), 0),
     }))
     .filter((entry) => entry.summe > 0);
 
@@ -49,6 +64,7 @@ export const buildYearStatsData = ({
   kategoriefarben,
   monate,
   kontenById = {},
+  categorySharesByEntryId = {},
 }) => {
   const yearEntries = (posten || []).filter((entry) => {
     if (!isExpense(entry) || !filterBudgetScope(entry, scopeFilter) || !entry?.datum) return false;
@@ -56,7 +72,7 @@ export const buildYearStatsData = ({
     return date?.getFullYear() === selJahr;
   });
 
-  const categoryTotals = makeCategoryTotals({ entries: yearEntries, kategorien });
+  const categoryTotals = makeCategoryTotals({ entries: yearEntries, kategorien, categorySharesByEntryId });
   const accountTotals = makeAccountTotals({ entries: yearEntries, kontenById });
   const total = yearEntries.reduce((sum, entry) => sum + Math.abs(Number(entry.betrag || 0)), 0);
   const monthlyTotals = Array.from({ length: 12 }, (_, monthIndex) => {
@@ -142,6 +158,7 @@ export const buildMonthStatsData = ({
   kategorien,
   kategoriefarben,
   kontenById = {},
+  categorySharesByEntryId = {},
 }) => {
   const monthEntries = (posten || []).filter((entry) => {
     if (!isExpense(entry) || !filterBudgetScope(entry, scopeFilter) || !entry?.datum) return false;
@@ -149,7 +166,11 @@ export const buildMonthStatsData = ({
     return date?.getFullYear() === selJahr && date?.getMonth() === selMonat;
   });
 
-  const categoryTotals = makeCategoryTotals({ entries: monthEntries, kategorien }).sort((a, b) => b.summe - a.summe);
+  const categoryTotals = makeCategoryTotals({
+    entries: monthEntries,
+    kategorien,
+    categorySharesByEntryId,
+  }).sort((a, b) => b.summe - a.summe);
   const accountTotals = makeAccountTotals({ entries: monthEntries, kontenById });
   const total = monthEntries.reduce((sum, entry) => sum + Math.abs(Number(entry.betrag || 0)), 0);
   const groessteKategorie = categoryTotals[0] || null;

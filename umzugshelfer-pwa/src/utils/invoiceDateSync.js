@@ -45,7 +45,7 @@ function mapPositionenForSummary(positionen = []) {
 
 function isAutoKnowledgeEntry(entry) {
   const herkunft = String(entry?.herkunft || "").trim().toLowerCase();
-  return Boolean(entry?.rechnung_id) || (herkunft && herkunft !== "manuell");
+  return Boolean(herkunft) && herkunft !== "manuell";
 }
 
 function extractMessageText(response) {
@@ -150,46 +150,56 @@ async function loadInvoiceSyncContext(supabase, rechnungId, wissenId) {
   };
 }
 
-export async function syncInvoiceDate({ supabase, rechnungId, neuesDatum, userId }) {
+async function loadInvoiceKnowledgeEntries(supabase, rechnungId, wissenId) {
+  if (wissenId) {
+    const { data, error } = await supabase
+      .from("home_wissen")
+      .select("id, titel, inhalt, herkunft, rechnung_id, dokument_id")
+      .eq("id", wissenId)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data ? [data] : [];
+  }
+
+  const { data, error } = await supabase
+    .from("home_wissen")
+    .select("id, titel, inhalt, herkunft, rechnung_id, dokument_id")
+    .eq("rechnung_id", rechnungId)
+    .order("updated_at", { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function syncInvoiceKnowledgeEntry({ supabase, rechnungId, userId, wissenId = null }) {
   if (!rechnungId) {
     throw new Error("Rechnungs-ID fehlt.");
   }
 
-  const normalizedDate = normalizeInvoiceDate(neuesDatum);
-  const { data: rpcData, error: rpcError } = await supabase.rpc("sync_invoice_date", {
-    p_rechnung_id: rechnungId,
-    p_neues_datum: normalizedDate,
-  });
+  const context = await loadInvoiceSyncContext(supabase, rechnungId, null);
+  const wissenEntries = await loadInvoiceKnowledgeEntries(supabase, rechnungId, wissenId);
+  const autoEntries = wissenEntries.filter(isAutoKnowledgeEntry);
 
-  if (rpcError) {
-    throw new Error(rpcError.message || "Rechnungsdatum konnte nicht synchronisiert werden.");
+  if (autoEntries.length === 0) {
+    return {
+      rechnung: context.rechnung,
+      wissenAktualisiert: false,
+      aktualisierteEintraege: 0,
+    };
   }
 
-  const syncMeta = Array.isArray(rpcData) ? rpcData[0] : rpcData;
-  if (!syncMeta?.rechnung_id) {
-    throw new Error("Synchronisationsdaten fuer die Rechnung fehlen.");
-  }
+  const summaryPositionen = mapPositionenForSummary(context.positionen);
+  const fallbackContent = generiereZusammenfassung(
+    context.rechnung.lieferant_name,
+    context.rechnung.rechnungsdatum,
+    context.rechnung.brutto != null ? Number(context.rechnung.brutto) : null,
+    summaryPositionen,
+  );
 
-  try {
-    const context = await loadInvoiceSyncContext(supabase, syncMeta.rechnung_id, syncMeta.wissen_id);
-    const wissen = context.wissen;
+  let aktualisierteEintraege = 0;
 
-    if (!wissen || !isAutoKnowledgeEntry(wissen)) {
-      return {
-        syncMeta,
-        rechnung: context.rechnung,
-        wissenAktualisiert: false,
-      };
-    }
-
-    const summaryPositionen = mapPositionenForSummary(context.positionen);
-    const fallbackContent = generiereZusammenfassung(
-      context.rechnung.lieferant_name,
-      context.rechnung.rechnungsdatum,
-      context.rechnung.brutto != null ? Number(context.rechnung.brutto) : null,
-      summaryPositionen,
-    );
-
+  for (const wissen of autoEntries) {
     const inhalt = await rewriteKnowledgeTextWithKi({
       userId,
       existingContent: wissen.inhalt,
@@ -218,10 +228,49 @@ export async function syncInvoiceDate({ supabase, rechnungId, neuesDatum, userId
       throw wissenUpdateErr;
     }
 
+    aktualisierteEintraege += 1;
+  }
+
+  return {
+    rechnung: context.rechnung,
+    wissenAktualisiert: true,
+    aktualisierteEintraege,
+  };
+}
+
+export async function syncInvoiceDate({ supabase, rechnungId, neuesDatum, userId }) {
+  if (!rechnungId) {
+    throw new Error("Rechnungs-ID fehlt.");
+  }
+
+  const normalizedDate = normalizeInvoiceDate(neuesDatum);
+  const { data: rpcData, error: rpcError } = await supabase.rpc("sync_invoice_date", {
+    p_rechnung_id: rechnungId,
+    p_neues_datum: normalizedDate,
+  });
+
+  if (rpcError) {
+    throw new Error(rpcError.message || "Rechnungsdatum konnte nicht synchronisiert werden.");
+  }
+
+  const syncMeta = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+  if (!syncMeta?.rechnung_id) {
+    throw new Error("Synchronisationsdaten fuer die Rechnung fehlen.");
+  }
+
+  try {
+    const syncResult = await syncInvoiceKnowledgeEntry({
+      supabase,
+      rechnungId: syncMeta.rechnung_id,
+      userId,
+      wissenId: syncMeta.wissen_id || null,
+    });
+
     return {
       syncMeta,
-      rechnung: context.rechnung,
-      wissenAktualisiert: true,
+      rechnung: syncResult.rechnung,
+      wissenAktualisiert: syncResult.wissenAktualisiert,
+      aktualisierteEintraege: syncResult.aktualisierteEintraege,
     };
   } catch (err) {
     return {

@@ -3,9 +3,9 @@
  * Analyse-Orchestrator fuer die KI-gestuetzte Rechnungserkennung.
  *
  * Architektur (3 Ebenen):
- *   1. Analyse-Engine (KI/OCR) → strukturierter Text / JSON
- *   2. Regel-Ebene (App-Logik) → Modul-Zuordnung via Obergruppe-System
- *   3. User-Kontrolle (Review, PFLICHT) → finale Bestaetigung
+ *   1. Analyse-Engine (KI/OCR) â†’ strukturierter Text / JSON
+ *   2. Regel-Ebene (App-Logik) â†’ Modul-Zuordnung via Obergruppe-System
+ *   3. User-Kontrolle (Review, PFLICHT) â†’ finale Bestaetigung
  *
  * Unterstuetzte Modi:
  *   - chatgpt_vision  : Bildanalyse via GPT-4o Vision (ki-vision Edge Function)
@@ -13,8 +13,8 @@
  *   - ocr_ollama      : Bildanalyse via Ollama Vision (ki-vision Edge Function)
  *
  * PDF-Handling (alle Modi):
- *   PDF mit extrahierbarem Text → analyzeTextWithKiChat (KI-Assistent-Konfiguration)
- *   Bild-PDF (kein Text) → Fehlermeldung mit Hinweis Foto hochladen
+ *   PDF mit extrahierbarem Text â†’ analyzeTextWithKiChat (KI-Assistent-Konfiguration)
+ *   Bild-PDF (kein Text) â†’ Fehlermeldung mit Hinweis Foto hochladen
  */
 
 import { cleanKiJsonResponse } from "./kiClient";
@@ -25,7 +25,7 @@ import { compressImage, fileToBase64 } from "./imageTools";
 // ============================================================
 
 /**
- * Obergruppe → Modul-Mapping.
+ * Obergruppe â†’ Modul-Mapping.
  * Reihenfolge bestimmt Prioritaet wenn mehrere Gruppen matchen.
  */
 const OBERGRUPPE_TO_MODUL = {
@@ -175,7 +175,7 @@ const OBERGRUPPEN_KEYWORDS = {
     "heizluefter", "klimageraet", "klimaanlage",
   ],
   smart_home_geraet: [
-    "smart home", "alexa", "echo", "google home", "philips hue", "heizkörper",
+    "smart home", "alexa", "echo", "google home", "philips hue", "heizkÃ¶rper",
     "thermostat", "smart plug", "smarte steckdose", "tuersensor",
   ],
   drucker_scanner: ["drucker", "scanner", "multifunktionsdrucker", "tintenstrahldrucker"],
@@ -195,7 +195,7 @@ const OBERGRUPPEN_KEYWORDS = {
 };
 
 /**
- * Haendler → bevorzugte Obergruppen-Hinweise.
+ * Haendler â†’ bevorzugte Obergruppen-Hinweise.
  * Erhoeht Confidence fuer passende Obergruppen um 0.10.
  */
 const HAENDLER_HINTS = {
@@ -292,34 +292,34 @@ const KI_RECHNUNG_PROMPT_TEXT = `Du bist ein Rechnungs-Analyse-Assistent. Hier i
 // Hilfsfunktionen
 // ============================================================
 
-// fileToBase64 und compressImage kommen aus imageTools.js (gemeinsame Utility); re-export für Abwärtskompatibilität
+// fileToBase64 und compressImage kommen aus imageTools.js (gemeinsame Utility); re-export fÃ¼r AbwÃ¤rtskompatibilitÃ¤t
 export { fileToBase64 } from "./imageTools";
 
 /**
  * Normalisiert einen Zahlenwert aus KI-Antworten.
- * Behandelt deutsche Zahlenformate: "1,439" → 1.439, "1.000,50" → 1000.50
+ * Behandelt deutsche Zahlenformate: "1,439" â†’ 1.439, "1.000,50" â†’ 1000.50
  * Entscheidungsregel: das rechteste Trennzeichen ist der Dezimaltrenner.
  */
 function normalizeNumber(val) {
   if (val == null) return null;
-  let s = String(val).trim().replace(/[€$£\s]/g, "");
+  let s = String(val).trim().replace(/[â‚¬$Â£\s]/g, "");
 
   const hasComma = s.includes(",");
   const hasDot   = s.includes(".");
 
   if (hasComma && hasDot) {
     if (s.lastIndexOf(",") > s.lastIndexOf(".")) {
-      // z.B. "1.000,50" → "1000.50"
+      // z.B. "1.000,50" â†’ "1000.50"
       s = s.replace(/\./g, "").replace(",", ".");
     } else {
-      // z.B. "1,000.50" → "1000.50"
+      // z.B. "1,000.50" â†’ "1000.50"
       s = s.replace(/,/g, "");
     }
   } else if (hasComma) {
-    // z.B. "1,439" → "1.439"
+    // z.B. "1,439" â†’ "1.439"
     s = s.replace(",", ".");
   }
-  // Nur Punkt → unveraendert lassen (z.B. "1.439" bleibt "1.439")
+  // Nur Punkt â†’ unveraendert lassen (z.B. "1.439" bleibt "1.439")
 
   const n = parseFloat(s);
   return Number.isFinite(n) ? n : null;
@@ -342,7 +342,7 @@ function validierePositionen(positionen) {
       einzelpreis = parseFloat((gesamtpreis / menge).toFixed(3));
     }
 
-    // Plausibilitaetspruefung: einzelpreis x menge ≈ gesamtpreis (Toleranz 2% + 1 Cent)
+    // Plausibilitaetspruefung: einzelpreis x menge â‰ˆ gesamtpreis (Toleranz 2% + 1 Cent)
     if (einzelpreis != null && menge != null && menge > 0 && gesamtpreis != null) {
       const erwartet = einzelpreis * menge;
       if (Math.abs(erwartet - gesamtpreis) > 0.02 * gesamtpreis + 0.01) {
@@ -358,25 +358,25 @@ function validierePositionen(positionen) {
  * Generiert einen lesbaren Fliesstext aus den Rechnungsdaten.
  */
 export function generiereZusammenfassung(haendler, datum, gesamt, positionen) {
-  const haendlerText = haendler || "einem unbekannten Händler";
+  const haendlerText = haendler || "einem unbekannten HÃ¤ndler";
   const datumText = datum
     ? new Date(datum).toLocaleDateString("de-AT", { day: "2-digit", month: "2-digit", year: "numeric" })
     : "einem unbekannten Datum";
-  const gesamtText = gesamt != null ? gesamt.toFixed(2) + " €" : "einem unbekannten Betrag";
+  const gesamtText = gesamt != null ? gesamt.toFixed(2) + " â‚¬" : "einem unbekannten Betrag";
 
   // Kraftstoff-Sonderfall
   const tankPos = (positionen || []).find((p) =>
     /kraftstoff|benzin|diesel|eurosuper|super\s*95|super\s*e5|e10|heizoel|treibstoff/i.test(p.name || "")
   );
   if (tankPos && tankPos.einheit === "Liter" && tankPos.einzelpreis != null) {
-    return `Du hast am ${datumText} bei ${haendlerText} ${tankPos.menge?.toFixed(2) ?? "?"} Liter ${tankPos.name} getankt. Der Preis pro Liter betrug ${tankPos.einzelpreis.toFixed(3)} € und der Gesamtbetrag belief sich auf ${gesamtText}.`;
+    return `Du hast am ${datumText} bei ${haendlerText} ${tankPos.menge?.toFixed(2) ?? "?"} Liter ${tankPos.name} getankt. Der Preis pro Liter betrug ${tankPos.einzelpreis.toFixed(3)} â‚¬ und der Gesamtbetrag belief sich auf ${gesamtText}.`;
   }
 
   // Standard: bis 3 Positionen namentlich
   const pos = (positionen || []).filter((p) => p.name);
   if (pos.length > 0 && pos.length <= 3) {
     const liste = pos
-      .map((p) => `${p.name}${p.gesamtpreis != null ? ` (${p.gesamtpreis.toFixed(2)} €)` : ""}`)
+      .map((p) => `${p.name}${p.gesamtpreis != null ? ` (${p.gesamtpreis.toFixed(2)} â‚¬)` : ""}`)
       .join(", ");
     return `Du hast am ${datumText} bei ${haendlerText} gekauft: ${liste}. Gesamtbetrag: ${gesamtText}.`;
   }
@@ -409,8 +409,10 @@ function normalisieren(text) {
   if (!text) return "";
   return text
     .toLowerCase()
-    .replace(/[äöü]/g, (c) => ({ ä: "ae", ö: "oe", ü: "ue" }[c] || c))
-    .replace(/ß/g, "ss")
+    .replace(/\u00e4/g, "ae")
+    .replace(/\u00f6/g, "oe")
+    .replace(/\u00fc/g, "ue")
+    .replace(/\u00df/g, "ss")
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -504,7 +506,7 @@ function klassifizierePositionen(positionen, haendler) {
 
 /**
  * Erkennt welche Module fuer diese Rechnung relevant sind.
- * "keine_zuordnung" wird herausgefiltert — kein Modul-Toggle dafuer.
+ * "keine_zuordnung" wird herausgefiltert â€” kein Modul-Toggle dafuer.
  */
 function ermittleErkannteModule(positionen) {
   const module = new Set(["budget", "dokumente"]);
@@ -553,7 +555,7 @@ function parseRechnungsText(text, roherText) {
   }
 
   let gesamt = null;
-  const betraege = text.matchAll(/(\d{1,6}[,.]\d{2})\s*€?/g);
+  const betraege = text.matchAll(/(\d{1,6}[,.]\d{2})\s*â‚¬?/g);
   for (const m of betraege) {
     const val = parseFloat(m[1].replace(",", "."));
     if (!isNaN(val)) gesamt = val;
@@ -563,7 +565,7 @@ function parseRechnungsText(text, roherText) {
 
   const positionen = [];
   for (const line of lines) {
-    const posMatch = line.match(/^(.+?)\s+(\d{1,6}[,.]\d{2})\s*€?$/);
+    const posMatch = line.match(/^(.+?)\s+(\d{1,6}[,.]\d{2})\s*â‚¬?$/);
     if (posMatch) {
       const preis = parseFloat(posMatch[2].replace(",", "."));
       if (preis > 0 && preis < (gesamt || Infinity)) {
@@ -724,8 +726,8 @@ async function analyzeWithOllamaVision(base64, mimeType, session) {
 async function analyzeTextWithKiChat(text, kiClient) {
   if (!kiClient?.client) {
     throw new Error(
-      "PDF-Analyse benötigt eine konfigurierte KI-Assistent-Verbindung. " +
-      "Bitte richte im Profil OpenAI oder Ollama für den KI-Assistenten ein, " +
+      "PDF-Analyse benÃ¶tigt eine konfigurierte KI-Assistent-Verbindung. " +
+      "Bitte richte im Profil OpenAI oder Ollama fÃ¼r den KI-Assistenten ein, " +
       "oder lade die Rechnung als Bild hoch."
     );
   }
@@ -800,55 +802,9 @@ async function analyzeWithOCRRules(base64OrText, hatText) {
 }
 
 /**
- * Analysiert mit OCR + Ollama (Text-Modus, Legacy — wird nicht mehr aus starteAnalyse aufgerufen).
+ * Analysiert mit OCR + Ollama (Text-Modus, Legacy â€” wird nicht mehr aus starteAnalyse aufgerufen).
  * Bleibt als Funktion erhalten fuer eventuelle Direktnutzung.
  */
-export async function analyzeWithOCROllama(file, kiClient) {
-  const { base64, text: pdfText, hasText } = await extractTextFromFile(file);
-
-  let ocrText;
-  if (hasText && pdfText) {
-    ocrText = pdfText;
-  } else {
-    const Tesseract = await ladeTesseract();
-    const worker = await Tesseract.createWorker(["deu", "eng"], 1, {
-      workerPath: "https://unpkg.com/tesseract.js@5.1.1/dist/worker.min.js",
-      langPath: "https://tessdata.projectnaptha.com/4.0.0",
-      corePath: "https://unpkg.com/tesseract.js-core@5/tesseract-core.wasm.js",
-    });
-    const { data: { text } } = await worker.recognize(
-      `data:${file.type};base64,${base64}`
-    );
-    await worker.terminate();
-    ocrText = text;
-  }
-
-  const prompt = `${KI_RECHNUNG_PROMPT_TEXT}\n\nRechnungstext:\n${ocrText}`;
-  const response = await kiClient.client.chat.completions.create({
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0.1,
-  });
-
-  const rawText = response?.choices?.[0]?.message?.content || "";
-  const cleaned = cleanKiJsonResponse(rawText, "object");
-
-  let parsed;
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch {
-    return parseRechnungsText(ocrText, ocrText);
-  }
-
-  return {
-    haendler: parsed.haendler || null,
-    datum: normalisiereDatum(parsed.datum),
-    gesamt: normalizeNumber(parsed.gesamt),
-    positionen: Array.isArray(parsed.positionen) ? parsed.positionen : [],
-    roher_text: ocrText,
-    confidence: 0.8,
-  };
-}
-
 // ============================================================
 // Haupt-Orchestrator
 // ============================================================
@@ -857,9 +813,9 @@ export async function analyzeWithOCROllama(file, kiClient) {
  * Startet die Rechnungsanalyse im konfigurierten Modus.
  *
  * PDF-Handling (alle Modi):
- *   - PDFs mit extrahierbarem Text → analyzeTextWithKiChat (KI-Assistent-Konfiguration)
- *   - Bild-PDFs (kein Text) → Fehlermeldung
- *   - ocr_regeln + PDF → analyzeWithOCRRules (regelbasiert, kein KI noetig)
+ *   - PDFs mit extrahierbarem Text â†’ analyzeTextWithKiChat (KI-Assistent-Konfiguration)
+ *   - Bild-PDFs (kein Text) â†’ Fehlermeldung
+ *   - ocr_regeln + PDF â†’ analyzeWithOCRRules (regelbasiert, kein KI noetig)
  *
  * @param {File} file - Hochgeladene Datei (Bild oder PDF)
  * @param {string} modus - "chatgpt_vision" | "ocr_regeln" | "ocr_ollama"
@@ -876,7 +832,7 @@ export async function starteAnalyse(file, modus, { kiClient, session } = {}) {
 
     if (!hasText || !text?.trim()) {
       throw new Error(
-        "Dieses PDF enthält keinen lesbaren Text. Bitte mache ein Foto der Rechnung und lade es als Bild hoch."
+        "Dieses PDF enthÃ¤lt keinen lesbaren Text. Bitte mache ein Foto der Rechnung und lade es als Bild hoch."
       );
     }
 
@@ -938,3 +894,4 @@ export async function starteAnalyse(file, modus, { kiClient, session } = {}) {
     ),
   };
 }
+

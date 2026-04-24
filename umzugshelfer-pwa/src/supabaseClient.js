@@ -32,6 +32,7 @@ const SHARED_TABLES = new Set([
   "home_wartungen",
   "home_bewohner",
   "home_budget_limits",
+  "home_budget_categories",
   "home_sparziele",
   "home_finanzkonten",
   "budget_split_groups",
@@ -39,7 +40,7 @@ const SHARED_TABLES = new Set([
   "budget_settlements",
   "home_budget_split_defaults",
   "budget_settlement_allocations",
-  "home_verlauf",
+
   "home_wissen",
   "haushaltsaufgaben",
   "vorraete",
