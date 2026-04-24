@@ -4,8 +4,8 @@ DEMO: https://umzug.enkination.de/ · Login: demo@demo.com · PW: Demo1234
 
 Eine Progressive Web Application mit zwei Modi:
 
-- **Umzugsmodus** – Planung, Organisation und Durchführung eines Umzugs
 - **Home Organizer** – dauerhafter Haushaltsmanager nach dem Umzug
+- **Umzugsmodus** – Planung, Organisation und Durchführung eines Umzugs
 
 ---
 

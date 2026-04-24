@@ -13,8 +13,12 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   p256dh     text        NOT NULL,
   auth       text        NOT NULL,
   created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
   UNIQUE(user_id, endpoint)
 );
+
+ALTER TABLE push_subscriptions
+  ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
 
 ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
 
@@ -30,7 +34,7 @@ CREATE POLICY "Eigene Subscriptions verwalten"
 CREATE OR REPLACE FUNCTION bereinige_alte_subscriptions()
 RETURNS void LANGUAGE sql AS $$
   DELETE FROM push_subscriptions
-  WHERE created_at < now() - INTERVAL '90 days';
+  WHERE COALESCE(updated_at, created_at) < now() - INTERVAL '90 days';
 $$;
 
 
@@ -70,6 +74,16 @@ $$;
 --   VAPID_PRIVATE_KEY = lFEbXMQeRNX5LsfFPHkcatQM4jbPR1g0LH3ct10L648
 --
 -- WICHTIG: Den Private Key sicher aufbewahren und niemals im Code committen!
+
+
+-- ── 4b. Push-Dedupe-Spalten für todo_aufgaben ────────────────────────────────
+-- Verhindert Spam bei periodischen Cron-Reminder-Checks.
+ALTER TABLE public.todo_aufgaben
+  ADD COLUMN IF NOT EXISTS letzte_push_erinnerung_am     timestamptz,
+  ADD COLUMN IF NOT EXISTS letzte_push_bald_faellig_am   timestamptz,
+  ADD COLUMN IF NOT EXISTS letzte_push_bald_faellig_fuer date,
+  ADD COLUMN IF NOT EXISTS letzte_push_ueberfaellig_am   timestamptz,
+  ADD COLUMN IF NOT EXISTS letzte_push_neu_am             timestamptz;
 
 
 -- ── 5. Edge Functions deployen ───────────────────────────────────────────────

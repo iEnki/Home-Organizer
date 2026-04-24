@@ -460,6 +460,14 @@ Wenn du zusaetzlich neue Templates/Functions auf den Server kopiert hast:
 ./scripts/manage.sh   # [2] Update -> [5] Server-Sync komplett
 ```
 
+Wenn nur die Browserslist-/`caniuse-lite`-Daten gepflegt werden sollen:
+
+```bash
+./scripts/manage.sh maintenance browserslist
+```
+
+Dieser Wartungsbefehl aktualisiert nur die Frontend-Browserdaten, führt danach immer einen Build-Test aus und kann dabei `umzugshelfer-pwa/package-lock.json` ändern. Er ist bewusst kein automatischer Teil von `install.sh` oder dem normalen Update-Menü.
+
 ---
 
 ## 8. Nginx Reverse Proxy
