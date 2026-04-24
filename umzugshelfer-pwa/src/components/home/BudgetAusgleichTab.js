@@ -4,6 +4,7 @@ import { supabase } from "../../supabaseClient";
 import { getBewohnerDisplayName } from "../../utils/budgetAccounts";
 import { centsToEuro, buildOpenPairBalances, buildOpenSaldoMap, buildSettlementSuggestions } from "../../utils/budgetLedger";
 import { formatGermanCurrency } from "../../utils/formatUtils";
+import { notifyHouseholdEvent } from "../../utils/pushNotifications";
 
 const currency = (value) => `${formatGermanCurrency(value)} €`;
 const INPUT_CLS = "w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500";
@@ -78,6 +79,7 @@ export default function BudgetAusgleichTab({
   settlements = [],
   bewohner = [],
   householdId,
+  userId,
   onDataChanged,
 }) {
   const [fromMemberId, setFromMemberId] = useState("");
@@ -105,6 +107,40 @@ export default function BudgetAusgleichTab({
     () => Object.fromEntries((bewohner || []).map((eintrag) => [eintrag.id, eintrag])),
     [bewohner],
   );
+
+  const notifySettlement = useCallback(async ({
+    action = "erstellt",
+    fromMemberId: nextFromMemberId,
+    toMemberId: nextToMemberId,
+    amountEuro,
+    recordId = null,
+    title,
+    body,
+  }) => {
+    if (!userId) return;
+
+    const linkedUserIds = [
+      bewohnerById[nextFromMemberId]?.linked_user_id,
+      bewohnerById[nextToMemberId]?.linked_user_id,
+    ].filter(Boolean);
+
+    const fromName = getBewohnerDisplayName(bewohnerById[nextFromMemberId] || { name: "Unbekannt" });
+    const toName = getBewohnerDisplayName(bewohnerById[nextToMemberId] || { name: "Unbekannt" });
+    await notifyHouseholdEvent({
+      supabaseClient: supabase,
+      userId,
+      table: "budget_settlements",
+      action,
+      recordName: `${fromName} -> ${toName}`,
+      recordId,
+      url: "/home/budget?tab=ausgleich",
+      pushPolicy: "always",
+      recipientMode: linkedUserIds.length ? "custom" : "household",
+      recipientUserIds: linkedUserIds,
+      title,
+      body: body || `${fromName} hat ${Number(amountEuro || 0).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR an ${toName} ausgeglichen.`,
+    });
+  }, [bewohnerById, userId]);
 
   const loadLedgerState = useCallback(async () => {
     if (!householdId) {
@@ -280,7 +316,13 @@ export default function BudgetAusgleichTab({
       p_note: noteText || null,
     });
     if (error) throw error;
-  }, [householdId]);
+    await notifySettlement({
+      action: "erstellt",
+      fromMemberId: nextFromMemberId,
+      toMemberId: nextToMemberId,
+      amountEuro,
+    });
+  }, [householdId, notifySettlement]);
 
   const handleSave = async () => {
     if (!householdId) {
@@ -338,6 +380,17 @@ export default function BudgetAusgleichTab({
       });
       if (error) throw error;
 
+      const settlement = settlements.find((entry) => entry.id === settlementId);
+      await notifySettlement({
+        action: "geloescht",
+        fromMemberId: settlement?.from_member_id,
+        toMemberId: settlement?.to_member_id,
+        amountEuro: Number(settlement?.amount || 0) || centsToEuro(settlement?.amount_cents || 0),
+        recordId: settlementId,
+        title: "Ausgleich geloescht",
+        body: "Ein Budget-Ausgleich wurde geloescht.",
+      });
+
       await refreshAll();
     } catch (error) {
       setFehler(`Ausgleich konnte nicht gelöscht werden: ${error.message}`);
@@ -389,6 +442,33 @@ export default function BudgetAusgleichTab({
     }
   };
 
+  const handleApplyNettoSuggestion = async (suggestion, counterSuggestion) => {
+    if (saving) return;
+    setSaving(true);
+    setFehler(null);
+    try {
+      // Gegenrichtung vollständig schließen (z.B. Bettina→Robert 17,99)
+      await saveSettlement({
+        fromMemberId: counterSuggestion.from_member_id,
+        toMemberId: counterSuggestion.to_member_id,
+        amountEuro: centsToEuro(counterSuggestion.open_amount_cents),
+        noteText: "Aufrechnung (Gegenposition übernommen)",
+      });
+      // Hauptrichtung um denselben Gegenbetrag reduzieren (z.B. Robert→Bettina: −17,99)
+      await saveSettlement({
+        fromMemberId: suggestion.from_member_id,
+        toMemberId: suggestion.to_member_id,
+        amountEuro: centsToEuro(counterSuggestion.open_amount_cents),
+        noteText: "Aufrechnung (Gegenverrechnung)",
+      });
+      await refreshAll();
+    } catch (error) {
+      setFehler(`Aufrechnung konnte nicht durchgeführt werden: ${error.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleApplyShareSuggestion = async (row) => {
     if (!row?.share_id || applyingShareId || saving) return;
 
@@ -423,6 +503,18 @@ export default function BudgetAusgleichTab({
         p_month: `${abschlussMonat}-01`,
       });
       if (error) throw error;
+      await notifyHouseholdEvent({
+        supabaseClient: supabase,
+        userId,
+        table: "budget_settlements",
+        action: "geaendert",
+        recordName: `Monatsabschluss ${abschlussMonat}`,
+        recordId: `${householdId}-${abschlussMonat}`,
+        url: "/home/budget?tab=ausgleich",
+        pushPolicy: "always",
+        title: "Budget-Monat abgeschlossen",
+        body: `Der Budget-Ausgleich fuer ${abschlussMonat} wurde neu berechnet.`,
+      });
       await Promise.all([loadMonthClose(), loadLedgerState()]);
     } catch (error) {
       setFehler(`Monatsabschluss konnte nicht berechnet werden: ${error.message}`);
@@ -525,6 +617,18 @@ export default function BudgetAusgleichTab({
                 const detailRows = ledgerRowsByPair.get(suggestionKey) || [];
                 const isExpanded = Boolean(expandedSuggestions[suggestionKey]);
 
+                const counterSuggestion = suggestions.find(
+                  (s) =>
+                    s.from_member_id === suggestion.to_member_id &&
+                    s.to_member_id === suggestion.from_member_id,
+                );
+                const nettoAmountCents = counterSuggestion
+                  ? suggestion.open_amount_cents - counterSuggestion.open_amount_cents
+                  : 0;
+                const showNettingButton =
+                  Boolean(counterSuggestion) &&
+                  suggestion.open_amount_cents > counterSuggestion.open_amount_cents;
+
                 return (
               <div key={suggestion.id} className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1">
                 <div className="flex flex-col gap-3 px-3 py-3 md:flex-row md:items-center md:justify-between">
@@ -550,6 +654,16 @@ export default function BudgetAusgleichTab({
                   <button onClick={() => handleApplySuggestion(suggestion)} disabled={saving || migrationBlocked} className="px-3 py-1.5 rounded-card-sm border border-primary-500 text-primary-500 text-sm disabled:opacity-60">
                     Übernehmen
                   </button>
+                  {showNettingButton && (
+                    <button
+                      onClick={() => handleApplyNettoSuggestion(suggestion, counterSuggestion)}
+                      disabled={saving || migrationBlocked}
+                      className="px-3 py-1.5 rounded-card-sm border border-sky-500 text-sky-400 text-sm disabled:opacity-60"
+                      title={`Gegenposition (${currency(centsToEuro(counterSuggestion.open_amount_cents))}) mit übernehmen`}
+                    >
+                      Netto aufrechnen ({currency(centsToEuro(nettoAmountCents))})
+                    </button>
+                  )}
                 </div>
                 </div>
                 {isExpanded && (

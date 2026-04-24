@@ -6,6 +6,7 @@ import {
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase, getActiveHouseholdId } from "../../supabaseClient";
 import { logVerlauf } from "../../utils/homeVerlauf";
+import { notifyHouseholdEvent } from "../../utils/pushNotifications";
 import { deleteInvoiceCascade } from "../../utils/invoiceCascadeDelete";
 import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
@@ -142,7 +143,14 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
       });
       if (dbErr) throw dbErr;
 
-      await logVerlauf(supabase, userId, "dokumente", datei.name, "erstellt");
+      await notifyHouseholdEvent({
+        supabaseClient: supabase,
+        userId,
+        table: "dokumente",
+        action: "erstellt",
+        recordName: datei.name,
+        url: "/home/dokumente",
+      });
       onErfolgreich();
     } catch (err) {
       setFehler(`Upload fehlgeschlagen: ${err.message}`);
@@ -507,6 +515,7 @@ const BearbeitenModal = ({ dok, userId, onSchliessen, onGespeichert }) => {
         .update(updated)
         .eq("id", dok.id);
       if (error) throw error;
+      await logVerlauf(supabase, userId, "dokumente", dateiname.trim(), "geaendert");
       onGespeichert();
     } catch (err) {
       setFehler(`Fehler: ${err.message}`);
@@ -1129,7 +1138,15 @@ const HomeDokumente = ({ session }) => {
         dokumentId: id,
         fallbackStoragePfad: storagePfad,
       });
-      await logVerlauf(supabase, userId, "dokumente", dateiname, "geloescht");
+      await notifyHouseholdEvent({
+        supabaseClient: supabase,
+        userId,
+        table: "dokumente",
+        action: "geloescht",
+        recordName: dateiname,
+        recordId: id,
+        url: "/home/dokumente",
+      });
       setDokumente((prev) => prev.filter((d) => d.id !== id));
     } catch (err) {
       setFehler(`Löschen fehlgeschlagen: ${err.message}`);

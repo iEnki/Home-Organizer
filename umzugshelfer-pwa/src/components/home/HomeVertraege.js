@@ -4,6 +4,7 @@ import {
   Loader2, X, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
+import { notifyHouseholdEvent } from "../../utils/pushNotifications";
 
 // ── Hilfsfunktionen ───────────────────────────────────────────────────────────
 
@@ -20,7 +21,7 @@ const tageBis = (datum) => {
 
 // ── Edit-Modal ────────────────────────────────────────────────────────────────
 
-const EditModal = ({ vertrag, onSchliessen, onGespeichert }) => {
+const EditModal = ({ vertrag, userId, onSchliessen, onGespeichert }) => {
   const [form, setForm] = useState({
     partner:              vertrag.partner              || "",
     vertragstitel:        vertrag.vertragstitel        || "",
@@ -63,6 +64,17 @@ const EditModal = ({ vertrag, onSchliessen, onGespeichert }) => {
           .eq("dokument_id", vertrag.dokument_id)
           .neq("herkunft", "manuell");
       }
+
+      await notifyHouseholdEvent({
+        supabaseClient: supabase,
+        userId: userId || vertrag.user_id || vertrag.created_by_user_id,
+        table: "vertraege",
+        action: "geaendert",
+        recordName: form.partner || form.vertragstitel || "Vertrag",
+        recordId: vertrag.id,
+        url: "/home/vertraege",
+        pushPolicy: "always",
+      });
 
       onGespeichert();
     } catch (err) {
@@ -284,6 +296,7 @@ const TABS = [
 ];
 
 const HomeVertraege = ({ session }) => {
+  const userId = session?.user?.id;
   const [vertraege, setVertraege]     = useState([]);
   const [laden, setLaden]             = useState(true);
   const [fehler, setFehler]           = useState(null);
@@ -433,6 +446,7 @@ const HomeVertraege = ({ session }) => {
       {editModal && (
         <EditModal
           vertrag={editModal}
+          userId={userId}
           onSchliessen={() => setEditModal(null)}
           onGespeichert={handleGespeichert}
         />

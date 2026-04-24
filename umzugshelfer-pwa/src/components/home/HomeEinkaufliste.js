@@ -156,18 +156,15 @@ function EntryPreviewRow({
   const [name, setName] = useState(editedValues?.name ?? draft.name);
   const [menge, setMenge] = useState(String(editedValues?.menge ?? draft.menge ?? 1));
   const [einheit, setEinheit] = useState(editedValues?.einheit ?? draft.einheit ?? "Stück");
-  const draftName = draft.name;
-  const draftMenge = draft.menge ?? 1;
-  const draftEinheit = draft.einheit ?? "Stück";
 
   useEffect(() => {
     if (!editedValues) {
-      setName(draftName);
-      setMenge(String(draftMenge));
-      setEinheit(draftEinheit);
+      setName(draft.name);
+      setMenge(String(draft.menge ?? 1));
+      setEinheit(draft.einheit ?? "Stück");
       setEditOffen(false);
     }
-  }, [draftEinheit, draftMenge, draftName, editedValues]);
+  }, [draft.einheit, draft.menge, draft.name, editedValues]);
 
   const handleSpeichern = () => {
     const trimmedName = name.trim() || draft.name;

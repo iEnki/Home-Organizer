@@ -37,6 +37,10 @@ import {
   buildYearStatsData,
 } from "../../utils/budgetStats";
 import {
+  buildBudgetEntryCategoryShares,
+  getCategoryShareAmount,
+} from "../../utils/budgetCategoryShares";
+import {
   getBewohnerDisplayName,
   getScopeKontoHinweis,
   groupSpendByAccount,
@@ -69,10 +73,23 @@ import {
   splitAmountInCents,
   validateSplitConfig,
 } from "../../utils/budgetSplits";
+import {
+  DEFAULT_HOME_BUDGET_CATEGORY,
+  buildHomeBudgetCategoryColorMap,
+  buildRelevantHomeBudgetCategoryNames,
+  getActiveHomeBudgetCategoryNames,
+  getDefaultHomeBudgetCategories,
+  getHomeBudgetCategoryColor,
+  getSelectableHomeBudgetCategoryNames,
+  normalizeHomeBudgetCategory,
+  sortHomeBudgetCategoryRows,
+} from "../../utils/homeBudgetCategories";
 import BudgetFilterBar from "./budget/BudgetFilterBar";
 import BudgetFilterSheet from "./budget/BudgetFilterSheet";
 import BudgetGroupSection from "./budget/BudgetGroupSection";
 import BudgetEntryRow from "./budget/BudgetEntryRow";
+import BudgetInvoicePositionsModal from "./budget/BudgetInvoicePositionsModal";
+import BudgetCategoryManagerModal from "./budget/BudgetCategoryManagerModal";
 import BudgetKpiStrip from "./budget/BudgetKpiStrip";
 import BudgetStatsHeader from "./budget/BudgetStatsHeader";
 import BudgetStatsKpiStrip from "./budget/BudgetStatsKpiStrip";
@@ -89,21 +106,12 @@ import BudgetAusgleichTab from "./BudgetAusgleichTab";
 import BudgetSplitDefaults from "./BudgetSplitDefaults";
 import ModalShell from "../ui/ModalShell";
 import { notifyHouseholdBatchEvent, notifyHouseholdEvent } from "../../utils/pushNotifications";
+import { logVerlauf } from "../../utils/homeVerlauf";
 
 // ─────────────── Constants ───────────────
-const HOME_KATEGORIEN = [
-  "Lebensmittel", "Haushalt", "Reparaturen", "Abonnements",
-  "Versicherungen", "Einrichtung", "Tanken", "Rücklagen", "Sonstiges",
-];
 const MONATE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
 const INTERVALL_OPTIONEN = ["Täglich", "Wöchentlich", "Monatlich", "Vierteljährlich", "Jährlich"];
 
-const KATEGORIE_FARBEN = {
-  "Lebensmittel": "#10B981", "Haushalt": "#3B82F6", "Reparaturen": "#F59E0B",
-  "Abonnements": "#8B5CF6", "Versicherungen": "#EC4899", "Einrichtung": "#14B8A6",
-  "Tanken": "#0EA5E9",
-  "Rücklagen": "#F97316", "Sonstiges": "#6B7280",
-};
 const EMOJI_OPTIONEN = ["🎯", "🏠", "✈️", "🚗", "💻", "📱", "🎓", "💍", "🛋️", "🎸", "🌴", "💰"];
 const FARB_OPTIONEN = ["#10B981", "#3B82F6", "#8B5CF6", "#EC4899", "#F59E0B", "#F97316", "#14B8A6", "#EF4444"];
 const BewohnerBadge = () => null;
@@ -118,6 +126,16 @@ const GUELTIGE_TAB_IDS = TABS.map((tab) => tab.id);
 
 // ─────────────── Helpers ───────────────
 const fmt = (n) => Number(n || 0).toFixed(2) + " €";
+const formatInvoiceSelectionDate = (value) => {
+  if (!value) return "Ohne Datum";
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString("de-AT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+};
 const istRechnungsDokument = (dok) => {
   const kategorie = String(dok?.kategorie || "").trim().toLowerCase();
   const dokumentTyp = String(dok?.dokument_typ || "").trim().toLowerCase();
@@ -201,6 +219,7 @@ const BudgetForm = forwardRef(({
   initial,
   initialSplit,
   householdId,
+  categories = [],
   onSpeichern,
   bewohner,
   finanzkonten,
@@ -209,7 +228,10 @@ const BudgetForm = forwardRef(({
 }, ref) => {
   const [form, setForm] = useState({
     beschreibung: initial?.beschreibung || "",
-    kategorie: initial?.kategorie || "Haushalt",
+    kategorie:
+      initial?.kategorie ||
+      getSelectableHomeBudgetCategoryNames({ categories })[0] ||
+      DEFAULT_HOME_BUDGET_CATEGORY,
     betrag: initial?.betrag ? Math.abs(Number(initial.betrag)) : "",
     datum: initial?.datum || new Date().toISOString().split("T")[0],
     bewohner_id: initial?.bewohner_id || "",
@@ -223,9 +245,6 @@ const BudgetForm = forwardRef(({
   const [budgetScope, setBudgetScope] = useState(initial?.budget_scope || "haushalt");
   const [zahlungskontoId, setZahlungskontoId] = useState(initial?.zahlungskonto_id || "");
   const [kontoAutoModus, setKontoAutoModus] = useState(!initial?.zahlungskonto_id);
-  const initialDatum = initial?.datum ?? null;
-  const initialIntervall = initial?.intervall ?? null;
-  const initialNaechstesDatum = initial?.naechstes_datum ?? null;
   const [splitAktiv, setSplitAktiv] = useState(initialSplit?.aktiv ?? false);
   const [splitVorgestrecktVon, setSplitVorgestrecktVon] = useState(initialSplit?.payerMemberId || null);
   const [splitTeilnehmer, setSplitTeilnehmer] = useState(initialSplit?.teilnehmer || []);
@@ -265,6 +284,13 @@ const BudgetForm = forwardRef(({
         bewohnerById,
       }),
     [bewohnerById, budgetScope, kontoMeta],
+  );
+  const selectableCategories = useMemo(
+    () => getSelectableHomeBudgetCategoryNames({
+      categories,
+      currentValue: form.kategorie || initial?.kategorie || null,
+    }),
+    [categories, form.kategorie, initial?.kategorie],
   );
 
   useEffect(() => {
@@ -379,8 +405,8 @@ const BudgetForm = forwardRef(({
   const handleSpeichern = useCallback(() => {
     if (!form.beschreibung.trim() || !form.betrag) return;
     const naechstesDatum = wiederholen
-      ? (form.datum === (initialDatum ?? form.datum) && intervall === (initialIntervall ?? intervall)
-          ? (initialNaechstesDatum ?? calcNaechstesDatum(form.datum, intervall))
+      ? (form.datum === (initial?.datum ?? form.datum) && intervall === (initial?.intervall ?? intervall)
+          ? (initial?.naechstes_datum ?? calcNaechstesDatum(form.datum, intervall))
           : calcNaechstesDatum(form.datum, intervall))
       : null;
     const budgetPayload = {
@@ -416,9 +442,9 @@ const BudgetForm = forwardRef(({
     endeDatum,
     endeModus,
     form,
-    initialDatum,
-    initialIntervall,
-    initialNaechstesDatum,
+    initial?.datum,
+    initial?.intervall,
+    initial?.naechstes_datum,
     intervall,
     onSpeichern,
     sharesInput,
@@ -456,7 +482,7 @@ const BudgetForm = forwardRef(({
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Kategorie</label>
           <select value={form.kategorie} onChange={e => setForm(p => ({ ...p, kategorie: e.target.value }))} className={INPUT_CLS}>
-            {HOME_KATEGORIEN.map(k => <option key={k}>{k}</option>)}
+            {selectableCategories.map(k => <option key={k}>{k}</option>)}
           </select>
         </div>
         <div>
@@ -764,6 +790,8 @@ const HomeBudget = ({ session }) => {
   const [posten, setPosten] = useState([]);
   const [bewohner, setBewohner] = useState([]);
   const [limits, setLimits] = useState([]);
+  const [budgetCategories, setBudgetCategories] = useState(getDefaultHomeBudgetCategories());
+  const [splitDefaultCategories, setSplitDefaultCategories] = useState([]);
   const [sparziele, setSparziele] = useState([]);
   const [splitGroups, setSplitGroups] = useState([]);
   const [settlements, setSettlements] = useState([]);
@@ -781,7 +809,11 @@ const HomeBudget = ({ session }) => {
   const [einzahlenBetrag, setEinzahlenBetrag] = useState("");
   const [kiOffen, setKiOffen] = useState(false);
   const [budgetRechnungMap, setBudgetRechnungMap] = useState({});
+  const [invoicePositionsByRechnungId, setInvoicePositionsByRechnungId] = useState({});
+  const [invoiceBudgetEntryCountByRechnungId, setInvoiceBudgetEntryCountByRechnungId] = useState({});
   const [rechnungVorschau, setRechnungVorschau] = useState(null);
+  const [rechnungsAuswahlDialog, setRechnungsAuswahlDialog] = useState(null);
+  const [rechnungsPositionenDialog, setRechnungsPositionenDialog] = useState(null);
   const [rechnungsLoeschDialog, setRechnungsLoeschDialog] = useState(null);
   const [loeschenLaeuft, setLoeschenLaeuft] = useState(false);
 
@@ -798,6 +830,8 @@ const HomeBudget = ({ session }) => {
 
   // Limit inline editing
   const [limitsEdit, setLimitsEdit] = useState({});
+  const [showAllLimitCategories, setShowAllLimitCategories] = useState(false);
+  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
 
   // Finanzkonten
   const [finanzkonten, setFinanzkonten] = useState([]);
@@ -852,8 +886,11 @@ const HomeBudget = ({ session }) => {
 
   const ladeBudgetRechnungen = useCallback(async (budgetPosten) => {
     const ids = (budgetPosten || []).map((p) => p.id).filter(Boolean);
+    const entryById = new Map((budgetPosten || []).map((entry) => [entry.id, entry]));
     if (ids.length === 0) {
       setBudgetRechnungMap({});
+      setInvoicePositionsByRechnungId({});
+      setInvoiceBudgetEntryCountByRechnungId({});
       return;
     }
 
@@ -867,6 +904,8 @@ const HomeBudget = ({ session }) => {
     const dokumentIds = Array.from(new Set((linkRows || []).map((l) => l.dokument_id).filter(Boolean)));
     if (dokumentIds.length === 0) {
       setBudgetRechnungMap({});
+      setInvoicePositionsByRechnungId({});
+      setInvoiceBudgetEntryCountByRechnungId({});
       return;
     }
 
@@ -878,23 +917,52 @@ const HomeBudget = ({ session }) => {
 
     const { data: rechnungRows, error: rechnungErr } = await supabase
       .from("rechnungen")
-      .select("id, dokument_id, rechnungsdatum")
+      .select("id, dokument_id, rechnungsdatum, lieferant_name, brutto")
       .in("dokument_id", dokumentIds);
     if (rechnungErr) throw rechnungErr;
+
+    const rechnungIds = Array.from(new Set((rechnungRows || []).map((row) => row.id).filter(Boolean)));
+    let positionsRows = [];
+    if (rechnungIds.length > 0) {
+      const { data, error } = await supabase
+        .from("rechnungs_positionen")
+        .select("id, rechnung_id, pos_nr, beschreibung, menge, einheit, einzelpreis, gesamtpreis, klassifikation")
+        .in("rechnung_id", rechnungIds)
+        .order("rechnung_id", { ascending: true })
+        .order("pos_nr", { ascending: true });
+      if (error) throw error;
+      positionsRows = data || [];
+    }
 
     const dokumenteById = new Map((dokumentRows || []).map((d) => [d.id, d]));
     const rechnungByDokId = new Map((rechnungRows || []).map((row) => [row.dokument_id, row]));
     const nextMap = {};
+    const nextPositionsByRechnungId = {};
+    const entryIdsByRechnungId = new Map();
+
+    positionsRows.forEach((position) => {
+      if (!position?.rechnung_id) return;
+      if (!nextPositionsByRechnungId[position.rechnung_id]) nextPositionsByRechnungId[position.rechnung_id] = [];
+      nextPositionsByRechnungId[position.rechnung_id].push(position);
+    });
 
     for (const link of (linkRows || [])) {
       const dok = dokumenteById.get(link.dokument_id);
       const rechnung = rechnungByDokId.get(link.dokument_id);
       if (!dok || !istRechnungsDokument(dok)) continue;
       if (!nextMap[link.entity_id]) nextMap[link.entity_id] = [];
+      if (rechnung?.id) {
+        if (!entryIdsByRechnungId.has(rechnung.id)) entryIdsByRechnungId.set(rechnung.id, new Set());
+        entryIdsByRechnungId.get(rechnung.id).add(link.entity_id);
+      }
       nextMap[link.entity_id].push({
         link_id: link.id,
         dokument_id: dok.id,
+        budget_posten_id: link.entity_id,
         rechnung_id: rechnung?.id || null,
+        budget_kategorie: entryById.get(link.entity_id)?.kategorie || DEFAULT_HOME_BUDGET_CATEGORY,
+        lieferant_name: rechnung?.lieferant_name || null,
+        brutto: rechnung?.brutto != null ? Number(rechnung.brutto) : null,
         rechnungsdatum: rechnung?.rechnungsdatum || null,
         dateiname: dok.dateiname,
         datei_typ: dok.datei_typ,
@@ -904,9 +972,22 @@ const HomeBudget = ({ session }) => {
     }
 
     Object.keys(nextMap).forEach((entityId) => {
-      nextMap[entityId].sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+      nextMap[entityId] = nextMap[entityId]
+        .sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")))
+        .map((rechnung) => ({
+          ...rechnung,
+          linked_budget_entry_count: rechnung.rechnung_id
+            ? entryIdsByRechnungId.get(rechnung.rechnung_id)?.size || 0
+            : 0,
+        }));
     });
+
+    const nextInvoiceBudgetEntryCountByRechnungId = Object.fromEntries(
+      Array.from(entryIdsByRechnungId.entries()).map(([rechnungId, entryIds]) => [rechnungId, entryIds.size]),
+    );
     setBudgetRechnungMap(nextMap);
+    setInvoicePositionsByRechnungId(nextPositionsByRechnungId);
+    setInvoiceBudgetEntryCountByRechnungId(nextInvoiceBudgetEntryCountByRechnungId);
   }, []);
 
   const resolveBudgetViewHouseholdId = useCallback(async () => {
@@ -924,6 +1005,43 @@ const HomeBudget = ({ session }) => {
     if (error) throw error;
     return data?.household_id || null;
   }, [userId]);
+
+  const ladeBudgetKategorien = useCallback(async (householdId) => {
+    if (!householdId) {
+      setBudgetCategories(getDefaultHomeBudgetCategories());
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("home_budget_categories")
+      .select("*")
+      .eq("household_id", householdId)
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true });
+
+    if (error) throw error;
+
+    const nextCategories = data?.length
+      ? sortHomeBudgetCategoryRows(data)
+      : getDefaultHomeBudgetCategories();
+
+    setBudgetCategories(nextCategories);
+  }, []);
+
+  const ladeSplitDefaultKategorien = useCallback(async (householdId) => {
+    if (!householdId) {
+      setSplitDefaultCategories([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("home_budget_split_defaults")
+      .select("kategorie")
+      .eq("household_id", householdId);
+
+    if (error) throw error;
+    setSplitDefaultCategories((data || []).map((entry) => entry.kategorie).filter(Boolean));
+  }, []);
 
   const getSplitEditMonthContext = useCallback((entry) => {
     const nowYear = today.getFullYear();
@@ -1060,8 +1178,14 @@ const HomeBudget = ({ session }) => {
           }
         });
 
-      supabase.from("home_budget_limits").select("*").eq("user_id", userId)
-        .then(({ data }) => { if (data) setLimits(data); });
+      if (financeHouseholdId) {
+        supabase.from("home_budget_limits").select("*").eq("household_id", financeHouseholdId)
+          .then(({ data }) => { if (data) setLimits(data); });
+      } else {
+        setLimits([]);
+        setBudgetCategories(getDefaultHomeBudgetCategories());
+        setSplitDefaultCategories([]);
+      }
 
       supabase.from("home_sparziele").select("*").eq("user_id", userId).order("created_at")
         .then(({ data }) => { if (data) setSparziele(data); });
@@ -1076,6 +1200,11 @@ const HomeBudget = ({ session }) => {
       } else {
         setFinanzkonten([]);
       }
+
+      await Promise.all([
+        ladeBudgetKategorien(financeHouseholdId || null),
+        ladeSplitDefaultKategorien(financeHouseholdId || null),
+      ]);
 
       await ensureRecurringBudgetEntries({ supabase, userId, householdId: budgetViewHouseholdId, appModi: ["home", "beides"] });
 
@@ -1092,7 +1221,13 @@ const HomeBudget = ({ session }) => {
     } finally {
       setLoading(false);
     }
-  }, [budgetViewHouseholdId, ladeBudgetRechnungen, userId]);
+  }, [
+    budgetViewHouseholdId,
+    ladeBudgetKategorien,
+    ladeBudgetRechnungen,
+    ladeSplitDefaultKategorien,
+    userId,
+  ]);
 
   useEffect(() => { ladeDaten(); }, [ladeDaten]);
 
@@ -1156,6 +1291,56 @@ const HomeBudget = ({ session }) => {
       setRechnungVorschau((prev) => (prev ? { ...prev, loading: false, fehler: err.message } : prev));
     }
   };
+
+  const oeffneRechnungsPositionen = useCallback((eintrag) => {
+    const rechnungen = (budgetRechnungMap[eintrag?.id] || []).filter((rechnung) => Boolean(rechnung?.rechnung_id));
+    if (rechnungen.length === 0) {
+      setFehler("Zu diesem Budgeteintrag ist keine bearbeitbare Rechnung verknuepft.");
+      return;
+    }
+
+    setFehler(null);
+
+    if (rechnungen.length === 1) {
+      setRechnungsPositionenDialog(rechnungen[0]);
+      return;
+    }
+
+    setRechnungsAuswahlDialog({
+      beschreibung: eintrag?.beschreibung || "Budgeteintrag",
+      entryId: eintrag?.id || null,
+      rechnungen,
+    });
+  }, [budgetRechnungMap]);
+
+  const waehleRechnungFuerPositionen = useCallback((rechnung) => {
+    setRechnungsAuswahlDialog(null);
+    setRechnungsPositionenDialog(rechnung);
+  }, []);
+
+  const handleRechnungsPositionenGespeichert = useCallback(async (aktualisierteRechnung) => {
+    if (aktualisierteRechnung?.rechnung_id) {
+      setRechnungsPositionenDialog((prev) =>
+        prev?.rechnung_id === aktualisierteRechnung.rechnung_id
+          ? { ...prev, ...aktualisierteRechnung }
+          : prev,
+      );
+      setRechnungsAuswahlDialog((prev) => (
+        prev
+          ? {
+              ...prev,
+              rechnungen: (prev.rechnungen || []).map((rechnung) => (
+                rechnung.rechnung_id === aktualisierteRechnung.rechnung_id
+                  ? { ...rechnung, ...aktualisierteRechnung }
+                  : rechnung
+              )),
+            }
+          : prev
+      ));
+    }
+
+    await ladeDaten();
+  }, [ladeDaten]);
 
   const splitHatSichRelevantGeaendert = useCallback((nextSplitConfig, originalSplitConfig) => {
     if (!istSplitGleich(nextSplitConfig, originalSplitConfig)) return true;
@@ -1241,12 +1426,110 @@ const HomeBudget = ({ session }) => {
       // 3a: Alten Split vorher in-memory sichern
       const { data: alteSplit, error: oldErr } = await supabase
         .from("budget_split_groups")
-        .select("*, budget_split_shares(member_id, amount_owed, share_type, share_input)")
+        .select("*, budget_split_shares(id, member_id, amount_owed, share_type, share_input, budget_settlement_allocations(id))")
         .eq("budget_posten_id", postenId)
         .maybeSingle();
       if (oldErr) {
         console.error("[aktualisiereSplit] Backup-Read fehlgeschlagen:", oldErr);
         return false;
+      }
+
+      // Wenn Shares mit Ausgleichen existieren → Update-in-place statt Delete-then-Insert
+      const hatAllocierteShares = (alteSplit?.budget_split_shares || [])
+        .some(s => (s.budget_settlement_allocations || []).length > 0);
+
+      if (hatAllocierteShares) {
+        try {
+          const oldShareMap = new Map(
+            (alteSplit.budget_split_shares || []).map(s => [s.member_id, s])
+          );
+          const newShareMap = new Map(shares.map(s => [s.member_id, s]));
+
+          // Erst Share des neuen Payers löschen (wenn er vorher Schuldner war),
+          // DANN Gruppe updaten — sonst blockiert validate_budget_split_share den Update.
+          const newPayerId = splitConfig.payerMemberId;
+          const oldPayerShareEntry = oldShareMap.get(newPayerId);
+          if (oldPayerShareEntry) {
+            const hasAlloc = (oldPayerShareEntry.budget_settlement_allocations || []).length > 0;
+            if (!hasAlloc) {
+              const { error: preDelErr } = await supabase
+                .from("budget_split_shares")
+                .delete()
+                .eq("id", oldPayerShareEntry.id);
+              if (preDelErr) {
+                console.error("[aktualisiereSplit] Update-in-place: Pre-Delete Payer-Share fehlgeschlagen:", preDelErr);
+                return false;
+              }
+              oldShareMap.delete(newPayerId);
+            }
+          }
+
+          // Gruppe updaten
+          const { error: updateGroupErr } = await supabase
+            .from("budget_split_groups")
+            .update({
+              payer_member_id: splitConfig.payerMemberId,
+              split_mode: splitConfig.splitMode || "equal",
+              payer_share_input: payerShareInput ?? null,
+            })
+            .eq("id", alteSplit.id);
+          if (updateGroupErr) {
+            console.error("[aktualisiereSplit] Update-in-place: Gruppe fehlgeschlagen:", updateGroupErr);
+            return false;
+          }
+
+          // Shares abgleichen: bestehende updaten, neue einfügen
+          for (const [memberId, newShare] of newShareMap) {
+            if (oldShareMap.has(memberId)) {
+              const { error: updShareErr } = await supabase
+                .from("budget_split_shares")
+                .update({
+                  amount_owed: newShare.amount_owed,
+                  share_type: newShare.share_type ?? null,
+                  share_input: newShare.share_input ?? null,
+                })
+                .eq("id", oldShareMap.get(memberId).id);
+              if (updShareErr) {
+                console.error("[aktualisiereSplit] Update-in-place: Share-Update fehlgeschlagen:", updShareErr);
+              }
+            } else {
+              const { error: insShareErr } = await supabase
+                .from("budget_split_shares")
+                .insert({
+                  split_group_id: alteSplit.id,
+                  household_id: budgetViewHouseholdId,
+                  member_id: newShare.member_id,
+                  amount_owed: newShare.amount_owed,
+                  share_type: newShare.share_type ?? null,
+                  share_input: newShare.share_input ?? null,
+                });
+              if (insShareErr) {
+                console.error("[aktualisiereSplit] Update-in-place: Share-Insert fehlgeschlagen:", insShareErr);
+              }
+            }
+          }
+
+          // Alte Shares löschen, die nicht mehr benötigt werden (nur ohne Allocations)
+          for (const [memberId, oldShare] of oldShareMap) {
+            if (!newShareMap.has(memberId)) {
+              const hasAlloc = (oldShare.budget_settlement_allocations || []).length > 0;
+              if (!hasAlloc) {
+                const { error: delShareErr } = await supabase
+                  .from("budget_split_shares")
+                  .delete()
+                  .eq("id", oldShare.id);
+                if (delShareErr) {
+                  console.error("[aktualisiereSplit] Update-in-place: Share-Delete fehlgeschlagen:", delShareErr);
+                }
+              }
+            }
+          }
+
+          return true;
+        } catch (inPlaceErr) {
+          console.error("[aktualisiereSplit] Update-in-place: Unerwarteter Fehler:", inPlaceErr);
+          return false;
+        }
       }
 
       // 3b: Alten Split löschen
@@ -1660,6 +1943,17 @@ const HomeBudget = ({ session }) => {
           url: "/home/budget",
           tag: `budget-create-${createdBudgetEvent.id}`,
         });
+      } else if (modal?.id) {
+        await notifyHouseholdEvent({
+          userId,
+          table: "budget_posten",
+          action: "geaendert",
+          recordName: budgetDaten.beschreibung,
+          recordId: modal.id,
+          url: "/home/budget",
+          tag: `budget-update-${modal.id}`,
+          pushPolicy: "always",
+        });
       }
       setModal(null);
       await ladeDaten();
@@ -1745,13 +2039,41 @@ const HomeBudget = ({ session }) => {
   const speichereLimit = async (kategorie, wert) => {
     const euro = parseFloat(wert);
     if (isNaN(euro) || euro < 0) return;
-    await supabase.from("home_budget_limits").upsert(
-      { user_id: userId, kategorie, limit_euro: euro },
-      { onConflict: "household_id,kategorie" },
-    );
-    setLimitsEdit(p => { const n = { ...p }; delete n[kategorie]; return n; });
-    supabase.from("home_budget_limits").select("*").eq("user_id", userId)
-      .then(({ data }) => { if (data) setLimits(data); });
+    try {
+      const householdId = budgetViewHouseholdId || getActiveHouseholdId() || await resolveBudgetViewHouseholdId();
+      if (!householdId) {
+        setFehler("Aktiver Haushalt konnte nicht bestimmt werden.");
+        return;
+      }
+      const vorherigesLimit = limits.find(
+        (limit) => normalizeHomeBudgetCategory(limit.kategorie, null, { preserveUnknown: true }) ===
+          normalizeHomeBudgetCategory(kategorie, null, { preserveUnknown: true }),
+      );
+      const { error: saveError } = await supabase.from("home_budget_limits").upsert(
+        { user_id: userId, household_id: householdId, kategorie, limit_euro: euro },
+        { onConflict: "household_id,kategorie" },
+      );
+      if (saveError) throw saveError;
+      const vorherigerWert = vorherigesLimit ? Number(vorherigesLimit.limit_euro) : null;
+      const hatSichGeaendert = vorherigerWert == null || Math.abs(vorherigerWert - euro) > 0.009;
+      if (hatSichGeaendert) {
+        await notifyHouseholdEvent({
+          supabaseClient: supabase,
+          userId,
+          table: "home_budget_limits",
+          action: vorherigesLimit ? "geaendert" : "erstellt",
+          recordName: `${kategorie}: ${euro.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR`,
+          recordId: vorherigesLimit?.id || kategorie,
+          url: "/home/budget",
+          pushPolicy: "always",
+        });
+      }
+      setLimitsEdit(p => { const n = { ...p }; delete n[kategorie]; return n; });
+      supabase.from("home_budget_limits").select("*").eq("household_id", householdId)
+        .then(({ data }) => { if (data) setLimits(data); });
+    } catch (err) {
+      setFehler(`Limit konnte nicht gespeichert werden: ${err.message}`);
+    }
   };
 
   const speichereSparziel = async (daten) => {
@@ -1767,8 +2089,10 @@ const HomeBudget = ({ session }) => {
     };
     if (sparzieleModal?.id) {
       await supabase.from("home_sparziele").update(payload).eq("id", sparzieleModal.id);
+      await logVerlauf(supabase, userId, "home_sparziele", daten.name, "geaendert");
     } else {
       await supabase.from("home_sparziele").insert(payload);
+      await logVerlauf(supabase, userId, "home_sparziele", daten.name, "erstellt");
     }
     setSparzieleModal(null);
     supabase.from("home_sparziele").select("*").eq("user_id", userId).order("created_at")
@@ -1777,8 +2101,10 @@ const HomeBudget = ({ session }) => {
 
   const loescheSparziel = async (id) => {
     if (!window.confirm("Sparziel löschen?")) return;
+    const target = sparziele.find(s => s.id === id);
     await supabase.from("home_sparziele").delete().eq("id", id);
     setSparziele(p => p.filter(s => s.id !== id));
+    await logVerlauf(supabase, userId, "home_sparziele", target?.name, "geloescht");
   };
 
   const einzahlen = async () => {
@@ -1855,7 +2181,11 @@ const HomeBudget = ({ session }) => {
 
   // Vollständig gefilterte Menge — Basis für Karten UND Liste
   const sichtbarePosten = nachZeitraumGefiltert.filter(p => {
-    if (kategFilter    && p.kategorie   !== kategFilter)                          return false;
+    if (
+      kategFilter &&
+      normalizeHomeBudgetCategory(p.kategorie, null, { preserveUnknown: true }) !==
+        normalizeHomeBudgetCategory(kategFilter, null, { preserveUnknown: true })
+    ) return false;
     if (bewohnerFilter && p.bewohner_id !== bewohnerFilter)                       return false;
     if (scopeFilter !== "alle" && (p.budget_scope || "haushalt") !== scopeFilter) return false;
     return true;
@@ -1909,7 +2239,11 @@ const HomeBudget = ({ session }) => {
   const overviewBasis = useMemo(
     () =>
       nachZeitraumGefiltert.filter((p) => {
-        if (kategFilter && p.kategorie !== kategFilter) return false;
+        if (
+          kategFilter &&
+          normalizeHomeBudgetCategory(p.kategorie, null, { preserveUnknown: true }) !==
+            normalizeHomeBudgetCategory(kategFilter, null, { preserveUnknown: true })
+        ) return false;
         if (bewohnerFilter && p.bewohner_id !== bewohnerFilter) return false;
         if (kontoFilter && (p.zahlungskonto_id || "") !== kontoFilter) return false;
         if (scopeFilter !== "alle" && (p.budget_scope || "haushalt") !== scopeFilter) return false;
@@ -2403,18 +2737,78 @@ const HomeBudget = ({ session }) => {
   }, [budgetViewHouseholdId, refreshBudgetViews, userId]);
 
   // ─── Statistik-Basismenge: Scope-Filter, aber kein Kategorie-/Bewohner-Filter ───
+  const activeBudgetCategoryNames = useMemo(
+    () => getActiveHomeBudgetCategoryNames(budgetCategories),
+    [budgetCategories],
+  );
+
+  const usedBudgetCategoryNames = useMemo(() => {
+    const names = [];
+
+    (posten || []).forEach((entry) => {
+      if (entry?.kategorie) names.push(entry.kategorie);
+    });
+    (limits || []).forEach((entry) => {
+      if (entry?.kategorie) names.push(entry.kategorie);
+    });
+    (splitDefaultCategories || []).forEach((name) => {
+      if (name) names.push(name);
+    });
+    Object.values(invoicePositionsByRechnungId || {}).forEach((positionen) => {
+      (positionen || []).forEach((position) => {
+        const category = position?.klassifikation?.budget_kategorie;
+        if (category) names.push(category);
+      });
+    });
+
+    return names;
+  }, [invoicePositionsByRechnungId, limits, posten, splitDefaultCategories]);
+
+  const relevantBudgetCategories = useMemo(
+    () => buildRelevantHomeBudgetCategoryNames({
+      categories: budgetCategories,
+      usedCategories: usedBudgetCategoryNames,
+    }),
+    [budgetCategories, usedBudgetCategoryNames],
+  );
+
+  const budgetCategoryColorMap = useMemo(
+    () => buildHomeBudgetCategoryColorMap({
+      categories: budgetCategories,
+      usedCategories: relevantBudgetCategories,
+    }),
+    [budgetCategories, relevantBudgetCategories],
+  );
+
+  const categorySharesByPostenId = useMemo(
+    () =>
+      Object.fromEntries(
+        (posten || []).map((entry) => [
+          entry.id,
+          buildBudgetEntryCategoryShares({
+            entry,
+            linkedInvoices: budgetRechnungMap[entry.id] || [],
+            invoicePositionsByRechnungId,
+            invoiceBudgetEntryCountByRechnungId,
+          }),
+        ]),
+      ),
+    [budgetRechnungMap, invoiceBudgetEntryCountByRechnungId, invoicePositionsByRechnungId, posten],
+  );
+
   const statsYearView = useMemo(
     () =>
       buildYearStatsData({
         posten,
         selJahr,
         scopeFilter,
-        kategorien: HOME_KATEGORIEN,
-        kategoriefarben: KATEGORIE_FARBEN,
+        kategorien: relevantBudgetCategories,
+        kategoriefarben: budgetCategoryColorMap,
         monate: MONATE,
         kontenById: kontoById,
+        categorySharesByEntryId: categorySharesByPostenId,
       }),
-    [kontoById, posten, selJahr, scopeFilter],
+    [budgetCategoryColorMap, categorySharesByPostenId, kontoById, posten, relevantBudgetCategories, selJahr, scopeFilter],
   );
 
   const statsMonthView = useMemo(
@@ -2424,11 +2818,12 @@ const HomeBudget = ({ session }) => {
         selJahr,
         selMonat,
         scopeFilter,
-        kategorien: HOME_KATEGORIEN,
-        kategoriefarben: KATEGORIE_FARBEN,
+        kategorien: relevantBudgetCategories,
+        kategoriefarben: budgetCategoryColorMap,
         kontenById: kontoById,
+        categorySharesByEntryId: categorySharesByPostenId,
       }),
-    [kontoById, posten, scopeFilter, selJahr, selMonat],
+    [budgetCategoryColorMap, categorySharesByPostenId, kontoById, posten, relevantBudgetCategories, scopeFilter, selJahr, selMonat],
   );
 
   const cashflowView = useMemo(
@@ -2449,27 +2844,66 @@ const HomeBudget = ({ session }) => {
   const limitsCurrentMonth = today.getMonth();
   const limitsCurrentYear = today.getFullYear();
   const limitsMonthLabel = `${MONATE[limitsCurrentMonth]} ${limitsCurrentYear}`;
+  const currentMonthHouseholdEntries = useMemo(
+    () =>
+      posten.filter((entry) => {
+        if ((entry.typ || "ausgabe") === "einnahme" || !entry.datum) return false;
+        if ((entry.budget_scope || "haushalt") !== "haushalt") return false;
+        const datum = new Date(`${entry.datum}T00:00:00`);
+        return datum.getFullYear() === limitsCurrentYear && datum.getMonth() === limitsCurrentMonth;
+      }),
+    [limitsCurrentMonth, limitsCurrentYear, posten],
+  );
+
+  const relevantLimitCategories = useMemo(() => {
+    const categorySet = new Set();
+
+    currentMonthHouseholdEntries.forEach((entry) => {
+      (categorySharesByPostenId[entry.id] || []).forEach((share) => {
+        if (share?.category) categorySet.add(share.category);
+      });
+    });
+    (limits || []).forEach((entry) => {
+      if (entry?.kategorie) categorySet.add(entry.kategorie);
+    });
+
+    return relevantBudgetCategories.filter((category) => categorySet.has(category));
+  }, [categorySharesByPostenId, currentMonthHouseholdEntries, limits, relevantBudgetCategories]);
+
+  const visibleLimitCategories = useMemo(
+    () => (
+      showAllLimitCategories
+        ? buildRelevantHomeBudgetCategoryNames({
+            categories: budgetCategories,
+            usedCategories: [...relevantLimitCategories, ...activeBudgetCategoryNames],
+          })
+        : relevantLimitCategories
+    ),
+    [
+      activeBudgetCategoryNames,
+      budgetCategories,
+      relevantLimitCategories,
+      showAllLimitCategories,
+    ],
+  );
 
   const limitRowsView = useMemo(
     () =>
-      HOME_KATEGORIEN.map((kategorie) => {
+      visibleLimitCategories.map((kategorie) => {
         const limit = limits.find((entry) => entry.kategorie === kategorie);
         const limitEuro = Number(limit?.limit_euro || 0);
-        const verbrauch = posten
-          .filter((entry) => {
-            if ((entry.typ || "ausgabe") === "einnahme" || entry.kategorie !== kategorie || !entry.datum) return false;
-            if ((entry.budget_scope || "haushalt") !== "haushalt") return false;
-            const datum = new Date(`${entry.datum}T00:00:00`);
-            return datum.getFullYear() === limitsCurrentYear && datum.getMonth() === limitsCurrentMonth;
-          })
-          .reduce((sum, entry) => sum + Math.abs(Number(entry.betrag || 0)), 0);
+        const verbrauch = currentMonthHouseholdEntries
+          .reduce(
+            (sum, entry) => sum + getCategoryShareAmount(categorySharesByPostenId[entry.id], kategorie),
+            0,
+          );
 
         const progress = getLimitProgress({ verbrauch, limitEuro });
         const status = getLimitStatus({ verbrauch, limitEuro });
 
         return {
           kategorie,
-          color: KATEGORIE_FARBEN[kategorie],
+          color: getHomeBudgetCategoryColor(kategorie, budgetCategoryColorMap),
           limitEuro,
           verbrauch,
           progress,
@@ -2477,7 +2911,13 @@ const HomeBudget = ({ session }) => {
           meta: formatLimitMeta({ verbrauch, limitEuro, progress, status, fmt }),
         };
       }),
-    [limits, posten, limitsCurrentMonth, limitsCurrentYear],
+    [
+      budgetCategoryColorMap,
+      categorySharesByPostenId,
+      currentMonthHouseholdEntries,
+      limits,
+      visibleLimitCategories,
+    ],
   );
 
   const kontoStatsById = useMemo(
@@ -2627,6 +3067,7 @@ const HomeBudget = ({ session }) => {
                       onEdit={oeffneEditModal}
                       onDelete={loesche}
                       onPreviewInvoice={oeffneRechnungsVorschau}
+                      onOpenInvoicePositions={oeffneRechnungsPositionen}
                     />
                   )}
                 />
@@ -2653,7 +3094,7 @@ const HomeBudget = ({ session }) => {
             onSortierung={setSortierung}
             gruppierung={gruppierung}
             onGruppierung={setGruppierung}
-            kategorien={HOME_KATEGORIEN}
+            kategorien={relevantBudgetCategories}
             bewohner={bewohner}
             konten={aktiveFinanzkonten}
             onReset={resetOverviewFilter}
@@ -2705,7 +3146,7 @@ const HomeBudget = ({ session }) => {
               >
                 Alle Kategorien
               </button>
-              {HOME_KATEGORIEN.map(k => (
+              {relevantBudgetCategories.map(k => (
                 <button
                   key={k}
                   onClick={() => setKategFilter(kategFilter === k ? "" : k)}
@@ -2770,6 +3211,7 @@ const HomeBudget = ({ session }) => {
               {gefiltertPosten.map(p => {
                 const verknuepfteRechnungen = budgetRechnungMap[p.id] || [];
                 const hatRechnung = verknuepfteRechnungen.length > 0;
+                const hatRechnungsPositionen = verknuepfteRechnungen.some((rechnung) => Boolean(rechnung?.rechnung_id));
                 return (
                   <div
                     key={p.id}
@@ -2800,6 +3242,15 @@ const HomeBudget = ({ session }) => {
                   </div>
                   {/* Aktionsbereich: Rechnung + Betrag (Desktop) + Edit/Löschen */}
                   <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end">
+                    {hatRechnungsPositionen && (
+                      <button
+                        onClick={() => oeffneRechnungsPositionen(p)}
+                        className="flex items-center gap-1 px-2 py-1 text-xs rounded-card-sm border border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 hover:bg-emerald-500/20 transition-colors flex-shrink-0"
+                      >
+                        <FileText size={12} />
+                        <span className="hidden sm:inline">Positionen</span>
+                      </button>
+                    )}
                     {hatRechnung && (
                       <button
                         onClick={() => oeffneRechnungsVorschau(p)}
@@ -2841,11 +3292,13 @@ const HomeBudget = ({ session }) => {
             settlements={settlements}
             bewohner={bewohner}
             householdId={budgetViewHouseholdId}
+            userId={userId}
             onDataChanged={ladeSplitDaten}
           />
           <BudgetSplitDefaults
             householdId={budgetViewHouseholdId}
             bewohner={bewohner}
+            kategorien={activeBudgetCategoryNames}
           />
         </div>
       )}
@@ -2888,6 +3341,9 @@ const HomeBudget = ({ session }) => {
             monatLabel={`Monatliche Budgetlimits fuer ${limitsMonthLabel}. Klicke auf den Limit-Betrag zum Bearbeiten.`}
             rows={limitRowsView}
             limitsEdit={limitsEdit}
+            showAllCategories={showAllLimitCategories}
+            onToggleShowAllCategories={() => setShowAllLimitCategories((prev) => !prev)}
+            onOpenCategoryManager={() => setCategoryManagerOpen(true)}
             onStartEdit={(kategorie, limitEuro) => setLimitsEdit((prev) => ({ ...prev, [kategorie]: String(limitEuro || 0) }))}
             onChangeEdit={(kategorie, value) => setLimitsEdit((prev) => ({ ...prev, [kategorie]: value }))}
             onSave={speichereLimit}
@@ -2908,6 +3364,131 @@ const HomeBudget = ({ session }) => {
           />
         </div>
       )}
+      <BudgetCategoryManagerModal
+        open={categoryManagerOpen}
+        onClose={() => setCategoryManagerOpen(false)}
+        categories={sortHomeBudgetCategoryRows(budgetCategories)}
+        onCreate={async ({ name, color }) => {
+          const householdId = budgetViewHouseholdId || getActiveHouseholdId() || await resolveBudgetViewHouseholdId();
+          const trimmedName = String(name || "").trim();
+          if (!householdId || !trimmedName) return false;
+
+          const existing = sortHomeBudgetCategoryRows(budgetCategories).find(
+            (entry) => entry.name.trim().toLocaleLowerCase("de-DE") === trimmedName.toLocaleLowerCase("de-DE"),
+          );
+
+          try {
+            if (existing) {
+              if (existing.is_active !== false) {
+                setFehler("Diese Kategorie existiert bereits.");
+                return false;
+              }
+
+              const { error } = await supabase
+                .from("home_budget_categories")
+                .update({
+                  is_active: true,
+                  color: color || existing.color,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", existing.id);
+              if (error) throw error;
+            } else {
+              const maxSortOrder = sortHomeBudgetCategoryRows(budgetCategories)
+                .reduce((max, entry) => Math.max(max, Number(entry.sort_order || 0)), 0);
+              const { error } = await supabase
+                .from("home_budget_categories")
+                .insert({
+                  household_id: householdId,
+                  name: trimmedName,
+                  color: color || "#6B7280",
+                  sort_order: maxSortOrder + 10,
+                  is_system: false,
+                  is_active: true,
+                  created_by_user_id: userId,
+                });
+              if (error) throw error;
+            }
+
+            await ladeBudgetKategorien(householdId);
+            setFehler(null);
+            return true;
+          } catch (error) {
+            setFehler(`Kategorie konnte nicht gespeichert werden: ${error.message}`);
+            return false;
+          }
+        }}
+        onMove={async (entry, direction) => {
+          const siblings = sortHomeBudgetCategoryRows(budgetCategories).filter(
+            (category) => category.is_active === entry.is_active,
+          );
+          const currentIndex = siblings.findIndex((category) => category.id === entry.id);
+          const swapIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+          const swapTarget = siblings[swapIndex];
+          if (currentIndex < 0 || !swapTarget) return;
+
+          try {
+            const householdId = budgetViewHouseholdId || getActiveHouseholdId() || await resolveBudgetViewHouseholdId();
+            const currentSortOrder = Number(entry.sort_order || 0);
+            const targetSortOrder = Number(swapTarget.sort_order || 0);
+
+            const { error: firstError } = await supabase
+              .from("home_budget_categories")
+              .update({ sort_order: targetSortOrder, updated_at: new Date().toISOString() })
+              .eq("id", entry.id);
+            if (firstError) throw firstError;
+
+            const { error: secondError } = await supabase
+              .from("home_budget_categories")
+              .update({ sort_order: currentSortOrder, updated_at: new Date().toISOString() })
+              .eq("id", swapTarget.id);
+            if (secondError) throw secondError;
+
+            await ladeBudgetKategorien(householdId);
+            setFehler(null);
+          } catch (error) {
+            setFehler(`Reihenfolge konnte nicht gespeichert werden: ${error.message}`);
+          }
+        }}
+        onToggleActive={async (entry, nextActive) => {
+          try {
+            const householdId = budgetViewHouseholdId || getActiveHouseholdId() || await resolveBudgetViewHouseholdId();
+            if (!householdId) return;
+
+            const { error } = await supabase
+              .from("home_budget_categories")
+              .update({ is_active: nextActive, updated_at: new Date().toISOString() })
+              .eq("id", entry.id);
+            if (error) throw error;
+
+            await ladeBudgetKategorien(householdId);
+            setFehler(null);
+          } catch (error) {
+            setFehler(`Kategorie konnte nicht aktualisiert werden: ${error.message}`);
+          }
+        }}
+        onChangeColor={async (entry, color) => {
+          try {
+            const householdId = budgetViewHouseholdId || getActiveHouseholdId() || await resolveBudgetViewHouseholdId();
+            if (!householdId) return;
+
+            const { error } = await supabase
+              .from("home_budget_categories")
+              .update({ color, updated_at: new Date().toISOString() })
+              .eq("id", entry.id);
+            if (error) throw error;
+
+            await ladeBudgetKategorien(householdId);
+            setFehler(null);
+          } catch (error) {
+            setFehler(`Farbe konnte nicht gespeichert werden: ${error.message}`);
+          }
+        }}
+        canDeactivate={(entry) => {
+          if (entry.is_active === false) return true;
+          return budgetCategories.filter((category) => category.is_active !== false).length > 1;
+        }}
+      />
       {/* Budget Ziele */}
       {aktiverTab === "ziele" && (
         <div data-tour="tour-budget-sparziele">
@@ -2924,6 +3505,63 @@ const HomeBudget = ({ session }) => {
           />
         </div>
       )}
+      {rechnungsAuswahlDialog && (
+        <ModalShell
+          open
+          title="Rechnung auswaehlen"
+          onClose={() => setRechnungsAuswahlDialog(null)}
+          maxWidthClass="max-w-lg"
+          bodyClassName="space-y-4"
+        >
+          <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-3">
+            <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">
+              {rechnungsAuswahlDialog.beschreibung || "Budgeteintrag"}
+            </p>
+            <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+              Dieser Budgeteintrag hat mehrere verknuepfte Rechnungen. Waehle die Rechnung, deren Positionen du ansehen oder bearbeiten willst.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            {(rechnungsAuswahlDialog.rechnungen || []).map((rechnung) => (
+              <button
+                key={rechnung.link_id || rechnung.rechnung_id}
+                type="button"
+                onClick={() => waehleRechnungFuerPositionen(rechnung)}
+                className="w-full rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 px-4 py-3 text-left hover:bg-light-hover dark:hover:bg-canvas-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-light-text-main dark:text-dark-text-main">
+                      {rechnung.lieferant_name || rechnung.dateiname || "Rechnung"}
+                    </p>
+                    <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                      {formatInvoiceSelectionDate(rechnung.rechnungsdatum)}
+                      {rechnung.dateiname ? ` · ${rechnung.dateiname}` : ""}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+                      Betrag
+                    </p>
+                    <p className="mt-1 text-sm font-medium text-light-text-main dark:text-dark-text-main">
+                      {rechnung.brutto != null ? fmt(rechnung.brutto) : "Unbekannt"}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </ModalShell>
+      )}
+      <BudgetInvoicePositionsModal
+        open={Boolean(rechnungsPositionenDialog)}
+        invoice={rechnungsPositionenDialog}
+        categories={budgetCategories}
+        session={session}
+        onClose={() => setRechnungsPositionenDialog(null)}
+        onSaved={handleRechnungsPositionenGespeichert}
+      />
       {rechnungVorschau && (
         <ModalShell
           open
@@ -3052,6 +3690,7 @@ const HomeBudget = ({ session }) => {
             initial={modal.id ? modal : null}
             initialSplit={modal.initialSplit || null}
             householdId={budgetViewHouseholdId}
+            categories={budgetCategories}
             onSpeichern={speichere}
             bewohner={bewohner}
             finanzkonten={finanzkonten}

@@ -6,6 +6,7 @@ import {
 import { supabase } from "../../../supabaseClient";
 import { kandidatZuBuch } from "../../../utils/buchImportMapping";
 import { logVerlauf } from "../../../utils/homeVerlauf";
+import { notifyHouseholdBatchEvent } from "../../../utils/pushNotifications";
 
 function ConfidenceBadge({ value }) {
   if (value == null) return null;
@@ -243,6 +244,23 @@ export default function BuchImportReviewModal({
         .from("home_buch_importe")
         .update({ status: neuerStatus })
         .eq("id", importId);
+
+      if (bestaetigte.length > 0) {
+        await notifyHouseholdBatchEvent({
+          supabaseClient: supabase,
+          userId,
+          table: "home_buecher",
+          action: "erstellt",
+          eintraege: bestaetigte.map((kand) => ({
+            datensatz_name: kand.vorschlag?.titel ?? "Buch",
+            aktion: "erstellt",
+          })),
+          url: "/home/inventar?tab=buecher",
+          history: false,
+          title: "Buch-Import gespeichert",
+          body: `${bestaetigte.length} ${bestaetigte.length === 1 ? "Buch wurde" : "Buecher wurden"} ins Regal uebernommen.`,
+        });
+      }
 
       onErledigt();
     } catch (e) {

@@ -10,6 +10,7 @@ import { getBuchCoverUrl } from "../../../utils/buchCoverUtils";
 import { pruefeAufDubletten } from "../../../utils/buchDuplikate";
 import { normalizeIsbn, isValidIsbn } from "../../../utils/isbn";
 import { getBookSearchContext, removePersistedBookCover, resolveBookMatches, searchBooks } from "../../../utils/bookSearch";
+import { notifyHouseholdEvent } from "../../../utils/pushNotifications";
 import BuchScannerModal from "./BuchScannerModal";
 import BuchCoverSucheModal from "./BuchCoverSucheModal";
 
@@ -313,14 +314,33 @@ export default function BuchFormModal({
       if (istNeu) {
         payload.user_id = userId;
         payload.created_by_user_id = userId;
-        const { error } = await supabase.from("home_buecher").insert(payload);
+        const { data, error } = await supabase.from("home_buecher").insert(payload).select("id").single();
         if (error) throw error;
+        await notifyHouseholdEvent({
+          supabaseClient: supabase,
+          userId,
+          table: "home_buecher",
+          action: "erstellt",
+          recordName: payload.titel,
+          recordId: data?.id,
+          url: "/home/inventar?tab=buecher",
+        });
       } else {
         const { error } = await supabase
           .from("home_buecher")
           .update(payload)
           .eq("id", buch.id);
         if (error) throw error;
+        await notifyHouseholdEvent({
+          supabaseClient: supabase,
+          userId,
+          table: "home_buecher",
+          action: "geaendert",
+          recordName: payload.titel,
+          recordId: buch.id,
+          url: "/home/inventar?tab=buecher",
+          pushPolicy: "always",
+        });
       }
 
       if (shouldRemovePreviousStoredCover) {

@@ -4,11 +4,11 @@ import { supabase } from "../../supabaseClient";
 import { getBewohnerDisplayName } from "../../utils/budgetAccounts";
 import KostenAufteilungAuswahl from "./KostenAufteilungAuswahl";
 import { validateSplitConfig } from "../../utils/budgetSplits";
-
-const HOME_KATEGORIEN = [
-  "Lebensmittel", "Haushalt", "Reparaturen", "Abonnements",
-  "Versicherungen", "Einrichtung", "Tanken", "Rücklagen", "Sonstiges",
-];
+import {
+  DEFAULT_HOME_BUDGET_CATEGORY,
+  getDefaultHomeBudgetCategories,
+  getSelectableHomeBudgetCategoryNames,
+} from "../../utils/homeBudgetCategories";
 
 const INPUT_CLS = "w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500";
 
@@ -24,7 +24,9 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
   const [speichern, setSpeichern] = useState(false);
   const [validierungsFehler, setValidierungsFehler] = useState(null);
 
-  const alleKategorien = kategorien || HOME_KATEGORIEN;
+  const alleKategorien = (kategorien && kategorien.length > 0)
+    ? kategorien
+    : getDefaultHomeBudgetCategories().map((entry) => entry.name);
 
   const ladeDefaults = useCallback(async () => {
     if (!householdId) return;
@@ -49,7 +51,7 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
   const oeffneNeu = () => {
     // Erste freie Kategorie vorschlagen
     const belegte = new Set(defaults.map(d => d.kategorie));
-    const frei = alleKategorien.find(k => !belegte.has(k)) || alleKategorien[0];
+    const frei = alleKategorien.find(k => !belegte.has(k)) || alleKategorien[0] || DEFAULT_HOME_BUDGET_CATEGORY;
     setEditModal({
       kategorie: frei,
       splitAktiv: true,
@@ -227,7 +229,10 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
                   onChange={e => setEditModal(prev => ({ ...prev, kategorie: e.target.value }))}
                   className={INPUT_CLS}
                 >
-                  {alleKategorien.map(k => <option key={k}>{k}</option>)}
+                  {getSelectableHomeBudgetCategoryNames({
+                    categories: alleKategorien,
+                    currentValue: editModal.kategorie,
+                  }).map(k => <option key={k}>{k}</option>)}
                 </select>
               </div>
               <KostenAufteilungAuswahl

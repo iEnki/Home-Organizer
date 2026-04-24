@@ -7,9 +7,16 @@ import { supabase, getActiveHouseholdId } from "../../supabaseClient";
 import { useToast } from "../../hooks/useToast";
 import { buildEqualShares, validateSplitConfig } from "../../utils/budgetSplits";
 import {
+  DEFAULT_HOME_BUDGET_CATEGORY,
+  getActiveHomeBudgetCategoryNames,
+  getDefaultHomeBudgetCategories,
+  getSelectableHomeBudgetCategoryNames,
+} from "../../utils/homeBudgetCategories";
+import {
   getBewohnerDisplayName,
   resolveSplitPayerFromBudgetSelection,
 } from "../../utils/budgetAccounts";
+import { notifyHouseholdEvent } from "../../utils/pushNotifications";
 import KostenAufteilungAuswahl from "./KostenAufteilungAuswahl";
 import ModalShell from "../ui/ModalShell";
 
@@ -56,11 +63,6 @@ const MODUL_CONFIG = {
 };
 
 const MODUL_OPTIONEN = ["vorraete", "inventar", "geraete", "keine_zuordnung"];
-
-const BUDGET_KATEGORIEN = [
-  "Lebensmittel", "Haushalt", "Elektronik", "Moebel & Einrichtung",
-  "Kleidung", "Gesundheit", "Freizeit", "Tanken", "Sonstiges",
-];
 
 const BUDGET_INSERT_VARIANTEN = [
   ["user_id", "household_id", "beschreibung", "betrag", "datum", "kategorie", "app_modus", "typ", "budget_scope", "zahlungskonto_id", "bewohner_id"],
@@ -213,6 +215,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
   const [budgetBewohnerId, setBudgetBewohnerId] = useState("");
   const [finanzkonten, setFinanzkonten]         = useState([]);
   const [bewohner, setBewohner]                 = useState([]);
+  const [budgetCategories, setBudgetCategories] = useState(getDefaultHomeBudgetCategories());
   const [bewohnerGeladen, setBewohnerGeladen]   = useState(false);
   const [splitSchritt, setSplitSchritt]         = useState(false);
   const [gespeicherterPostenId, setGespeicherterPostenId] = useState(null);
@@ -288,6 +291,43 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
     return nextKonten;
   }, [session?.user?.id]);
 
+  const loadBudgetCategories = useCallback(async () => {
+    const userId = session?.user?.id;
+    if (!userId) {
+      setBudgetCategories(getDefaultHomeBudgetCategories());
+      return getDefaultHomeBudgetCategories();
+    }
+
+    let householdId = getActiveHouseholdId();
+    if (!householdId) {
+      const { data, error } = await supabase
+        .from("household_members")
+        .select("household_id")
+        .eq("user_id", userId)
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      householdId = data?.household_id || null;
+    }
+
+    if (!householdId) {
+      setBudgetCategories(getDefaultHomeBudgetCategories());
+      return getDefaultHomeBudgetCategories();
+    }
+
+    const { data, error } = await supabase
+      .from("home_budget_categories")
+      .select("*")
+      .eq("household_id", householdId)
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true });
+    if (error) throw error;
+
+    const nextCategories = data?.length ? data : getDefaultHomeBudgetCategories();
+    setBudgetCategories(nextCategories);
+    return nextCategories;
+  }, [session?.user?.id]);
+
   useEffect(() => {
     if (!session?.user?.id) return;
 
@@ -298,6 +338,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
         const [konten, residents] = await Promise.all([
           loadFinanzkonten(),
           loadBewohnerOverview(),
+          loadBudgetCategories(),
         ]);
         if (cancelled) return;
         setFinanzkonten(konten);
@@ -306,6 +347,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
         if (!cancelled) {
           setFinanzkonten([]);
           setBewohner([]);
+          setBudgetCategories(getDefaultHomeBudgetCategories());
           setBewohnerGeladen(true);
         }
       }
@@ -314,7 +356,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
     return () => {
       cancelled = true;
     };
-  }, [loadBewohnerOverview, loadFinanzkonten, session?.user?.id]);
+  }, [loadBewohnerOverview, loadBudgetCategories, loadFinanzkonten, session?.user?.id]);
 
   useEffect(() => {
     if (!splitSchritt) return;
@@ -412,10 +454,25 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
   const initialBudgetKategorie = useMemo(() => {
     const vorgeschlagenRaw = ergebnis.budget_kategorie_vorschlag;
     const vorgeschlagen = vorgeschlagenRaw === "Kraftstoff" ? "Tanken" : vorgeschlagenRaw;
-    if (BUDGET_KATEGORIEN.includes(vorgeschlagen)) return vorgeschlagen;
-    return "Haushalt";
-  }, [ergebnis.budget_kategorie_vorschlag]);
+    const activeCategories = getActiveHomeBudgetCategoryNames(budgetCategories);
+    if (activeCategories.includes(vorgeschlagen)) return vorgeschlagen;
+    return activeCategories[0] || DEFAULT_HOME_BUDGET_CATEGORY;
+  }, [budgetCategories, ergebnis.budget_kategorie_vorschlag]);
   const [budgetKategorie, setBudgetKategorie] = useState(initialBudgetKategorie);
+  const selectableBudgetCategories = useMemo(
+    () => getSelectableHomeBudgetCategoryNames({
+      categories: budgetCategories,
+      currentValue: budgetKategorie || initialBudgetKategorie,
+    }),
+    [budgetCategories, budgetKategorie, initialBudgetKategorie],
+  );
+
+  useEffect(() => {
+    setBudgetKategorie((current) => {
+      if (current && selectableBudgetCategories.includes(current)) return current;
+      return initialBudgetKategorie;
+    });
+  }, [initialBudgetKategorie, selectableBudgetCategories]);
   const [budgetBeschreibung, setBudgetBeschreibung] = useState(
     ergebnis.haendler ? `Einkauf bei ${ergebnis.haendler}` : "Einkauf"
   );
@@ -931,6 +988,18 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
         success("Rechnung gespeichert.");
       }
 
+      await notifyHouseholdEvent({
+        supabaseClient: supabase,
+        userId,
+        table: "rechnungen",
+        action: "erstellt",
+        recordName: haendler || finalDateiname || "Rechnung",
+        recordId: rechnungId,
+        url: "/home/budget",
+        title: "Neue Rechnung gespeichert",
+        body: `${haendler || "Eine Rechnung"} wurde gespeichert${budgetId ? " und im Budget erfasst" : ""}.`,
+      });
+
       if (budgetId && bewohner.length >= 2) {
         setGespeicherterPostenId(budgetId);
         setSplitSchritt(true);
@@ -1323,7 +1392,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
                   label="Kategorie"
                   value={budgetKategorie}
                   onChange={setBudgetKategorie}
-                  optionen={BUDGET_KATEGORIEN}
+                  optionen={selectableBudgetCategories}
                 />
                 <div>
                   <label className="block text-xs text-dark-text-secondary mb-1">Anrechnung</label>

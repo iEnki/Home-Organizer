@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { X, BookOpen, Loader2 } from "lucide-react";
 import { supabase } from "../../../supabaseClient";
 import { logVerlauf } from "../../../utils/homeVerlauf";
+import { notifyHouseholdEvent } from "../../../utils/pushNotifications";
 
 const inputCls =
   "w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500";
@@ -126,8 +127,30 @@ export default function BuchVerleihModal({
         if (vErr) console.error("Verlaufsfehler:", vErr);
       }
 
-      await logVerlauf(supabase, userId, "home_buecher", buch.titel,
-        modus === "zurueckgeben" ? "geaendert" : "geaendert");
+      await logVerlauf(supabase, userId, "home_buecher", buch.titel, "geaendert");
+      await notifyHouseholdEvent({
+        supabaseClient: supabase,
+        userId,
+        table: "home_buecher",
+        action: "geaendert",
+        recordName: buch.titel,
+        recordId: buch.id,
+        url: "/home/inventar?tab=buecher",
+        history: false,
+        pushPolicy: "always",
+        title:
+          modus === "zurueckgeben"
+            ? "Buch zurueckgegeben"
+            : modus === "verlaengern"
+              ? "Buch-Ausleihe verlaengert"
+              : "Buch verliehen",
+        body:
+          modus === "zurueckgeben"
+            ? `"${buch.titel}" wurde zurueckgegeben.`
+            : modus === "verlaengern"
+              ? `"${buch.titel}" wurde bis ${form.rueckgabe_erwartet_am || "unbekannt"} verlaengert.`
+              : `"${buch.titel}" wurde an ${form.verliehen_an_name || "unbekannt"} verliehen.`,
+      });
       onErledigt();
     } catch (e) {
       setFehler(e.message ?? "Fehler beim Speichern.");

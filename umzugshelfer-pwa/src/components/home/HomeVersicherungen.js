@@ -4,6 +4,7 @@ import {
   Loader2, X,
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
+import { notifyHouseholdEvent } from "../../utils/pushNotifications";
 
 // ── Hilfsfunktionen ───────────────────────────────────────────────────────────
 
@@ -45,7 +46,7 @@ const VERSICHERUNGSART_LABELS = {
 
 // ── Edit-Modal ────────────────────────────────────────────────────────────────
 
-const EditModal = ({ polizze, onSchliessen, onGespeichert }) => {
+const EditModal = ({ polizze, userId, onSchliessen, onGespeichert }) => {
   const [form, setForm] = useState({
     versicherer:       polizze.versicherer       || "",
     polizzen_nummer:   polizze.polizzen_nummer   || "",
@@ -97,6 +98,17 @@ const EditModal = ({ polizze, onSchliessen, onGespeichert }) => {
           .eq("dokument_id", polizze.dokument_id)
           .neq("herkunft", "manuell");
       }
+
+      await notifyHouseholdEvent({
+        supabaseClient: supabase,
+        userId: userId || polizze.user_id || polizze.created_by_user_id,
+        table: "versicherungs_polizzen",
+        action: "geaendert",
+        recordName: form.versicherer || "Versicherung",
+        recordId: polizze.id,
+        url: "/home/versicherungen",
+        pushPolicy: "always",
+      });
 
       onGespeichert();
     } catch (err) {
@@ -350,6 +362,7 @@ const TABS = [
 ];
 
 const HomeVersicherungen = ({ session }) => {
+  const userId = session?.user?.id;
   const [polizzen, setPolizzen]     = useState([]);
   const [laden, setLaden]           = useState(true);
   const [fehler, setFehler]         = useState(null);
@@ -522,6 +535,7 @@ const HomeVersicherungen = ({ session }) => {
       {editModal && (
         <EditModal
           polizze={editModal}
+          userId={userId}
           onSchliessen={() => setEditModal(null)}
           onGespeichert={handleGespeichert}
         />

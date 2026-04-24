@@ -36,8 +36,13 @@ export default function BudgetEntryRow({
   onEdit,
   onDelete,
   onPreviewInvoice,
+  onOpenInvoicePositions,
 }) {
   const meta = useMemo(() => getBudgetEntryMeta(entry, ctx), [entry, ctx]);
+  const hatRechnungsPositionen = useMemo(
+    () => meta.verknuepfteRechnungen.some((rechnung) => Boolean(rechnung?.rechnung_id)),
+    [meta.verknuepfteRechnungen],
+  );
   const kontoHinweis = useMemo(
     () => getScopeKontoHinweis({
       budgetScope: entry?.budget_scope || "haushalt",
@@ -121,7 +126,7 @@ export default function BudgetEntryRow({
         <div className="border-t border-light-border dark:border-dark-border px-3 pb-3 pt-3 space-y-3">
           {meta.datumIstProjiziert && (
             <div className="rounded-card-sm border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-              Dieses Datum ist für den gewählten Zukunftsmonat projiziert. Bearbeiten und Löschen
+              Dieses Datum ist fuer den gewaehlten Zukunftsmonat projiziert. Bearbeiten und Loeschen
               wirken auf die zugrunde liegende Vorlage.
             </div>
           )}
@@ -183,7 +188,7 @@ export default function BudgetEntryRow({
                 </p>
                 {meta.istTemplate && entry.naechstes_datum && (
                   <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                    Nächstes Datum: {entry.naechstes_datum}
+                    Naechstes Datum: {entry.naechstes_datum}
                   </p>
                 )}
                 <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
@@ -211,19 +216,30 @@ export default function BudgetEntryRow({
                 <p className={DETAIL_LABEL_CLS}>Rechnung</p>
                 <p className={DETAIL_VALUE_CLS}>
                   {meta.hatRechnung
-                    ? `${meta.verknuepfteRechnungen.length} verknüpft`
-                    : "Keine Rechnung verknüpft"}
+                    ? `${meta.verknuepfteRechnungen.length} verknuepft`
+                    : "Keine Rechnung verknuepft"}
                 </p>
               </div>
-              {meta.hatRechnung && (
-                <button
-                  onClick={() => onPreviewInvoice(entry)}
-                  className="inline-flex items-center gap-1 rounded-card-sm border border-primary-500/30 bg-primary-500/10 px-3 py-2 text-sm text-primary-500 hover:bg-primary-500/20"
-                >
-                  <FileText size={13} />
-                  Rechnung öffnen
-                </button>
-              )}
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {hatRechnungsPositionen && (
+                  <button
+                    onClick={() => onOpenInvoicePositions(entry)}
+                    className="inline-flex items-center gap-1 rounded-card-sm border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-300"
+                  >
+                    <FileText size={13} />
+                    Positionen
+                  </button>
+                )}
+                {meta.hatRechnung && (
+                  <button
+                    onClick={() => onPreviewInvoice(entry)}
+                    className="inline-flex items-center gap-1 rounded-card-sm border border-primary-500/30 bg-primary-500/10 px-3 py-2 text-sm text-primary-500 hover:bg-primary-500/20"
+                  >
+                    <FileText size={13} />
+                    Rechnung oeffnen
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -240,7 +256,7 @@ export default function BudgetEntryRow({
               className="inline-flex items-center gap-1 rounded-card-sm border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-500 hover:bg-red-500/20"
             >
               <Trash2 size={13} />
-              Löschen
+              Loeschen
             </button>
           </div>
         </div>
