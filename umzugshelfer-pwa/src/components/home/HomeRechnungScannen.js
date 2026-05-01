@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Camera, Upload, FileText, ChevronLeft, Zap } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { getKiClient } from "../../utils/kiClient";
 import { starteAnalyse } from "../../utils/rechnungAnalyse";
 import { useToast } from "../../hooks/useToast";
+import { useLocale } from "../../contexts/LocaleContext";
 import RechnungReviewModal from "./RechnungReviewModal";
 
 const MODUS_LABEL = {
@@ -13,6 +15,8 @@ const MODUS_LABEL = {
 };
 
 export default function HomeRechnungScannen({ session }) {
+  const { t } = useTranslation(["home", "documents", "common"]);
+  const { locale } = useLocale();
   const { error: toastError } = useToast();
 
   const [schritt, setSchritt] = useState("upload"); // "upload" | "analyse" | "review"
@@ -45,11 +49,11 @@ export default function HomeRechnungScannen({ session }) {
     if (!file) return;
     const erlaubt = ["image/jpeg", "image/png", "image/webp", "image/heic", "application/pdf"];
     if (!erlaubt.includes(file.type)) {
-      toastError("Nur JPG, PNG, WEBP, HEIC oder PDF erlaubt.");
+      toastError(t("documents:invoiceScan.errType"));
       return;
     }
     if (file.size > 20 * 1024 * 1024) {
-      toastError("Datei zu gross (max. 20 MB).");
+      toastError(t("documents:invoiceScan.errSize"));
       return;
     }
     setDatei(file);
@@ -65,30 +69,31 @@ export default function HomeRechnungScannen({ session }) {
       setVorschau(null);
       setVorschauSichtbar(false);
     }
-  }, [toastError]);
+  }, [t, toastError]);
 
   const handleAnalysieren = useCallback(async () => {
     if (!datei) return;
     setSchritt("analyse");
-    setAnalyseStatus("Rechnung wird analysiert...");
+    setAnalyseStatus(t("documents:invoiceScan.statusStart"));
 
     try {
       const kiClient = await getKiClient(session?.user?.id);
-      setAnalyseStatus(`Analyse laeuft (${MODUS_LABEL[bildanalyseModus] || bildanalyseModus})...`);
+      setAnalyseStatus(t("documents:invoiceScan.statusRunning", { mode: MODUS_LABEL[bildanalyseModus] || bildanalyseModus }));
 
       const result = await starteAnalyse(datei, bildanalyseModus, {
         kiClient,
         session,
+        locale,
       });
 
       setErgebnis(result);
       setSchritt("review");
     } catch (err) {
       console.error("Analyse-Fehler:", err);
-      toastError(err.message || "Analyse fehlgeschlagen. Bitte erneut versuchen.");
+      toastError(err.message || t("documents:invoiceScan.errAnalyse"));
       setSchritt("upload");
     }
-  }, [datei, bildanalyseModus, session, toastError]);
+  }, [datei, bildanalyseModus, locale, session, t, toastError]);
 
   const handleReviewAbbrechen = useCallback(() => {
     setErgebnis(null);
@@ -110,11 +115,11 @@ export default function HomeRechnungScannen({ session }) {
         <button
           onClick={() => window.history.back()}
           className="p-1.5 rounded-lg hover:bg-light-hover dark:hover:bg-canvas-2 text-light-text-main dark:text-dark-text-main transition-colors"
-          aria-label="Zurueck"
+          aria-label={t("common:actions.back", { defaultValue: "Back" })}
         >
           <ChevronLeft size={20} />
         </button>
-        <h1 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main">Rechnung scannen</h1>
+        <h1 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main">{t("documents:invoiceScan.title")}</h1>
         {schritt === "upload" && (
           <span className="ml-auto text-xs text-light-text-secondary dark:text-dark-text-secondary bg-light-surface-2 dark:bg-canvas-2 px-2 py-1 rounded-pill">
             {MODUS_LABEL[bildanalyseModus] || bildanalyseModus}
@@ -128,9 +133,7 @@ export default function HomeRechnungScannen({ session }) {
           <div className="space-y-5">
             {/* Hinweistext */}
             <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-              Lade ein Foto oder eine PDF-Rechnung hoch. Die KI analysiert den Inhalt
-              und schlaegt vor, welche Daten in welche Module uebertragen werden sollen.
-              Du pruefst und bestaedigst alles im naechsten Schritt.
+              {t("documents:invoiceScan.intro")}
             </p>
 
             {/* Drag-&-Drop / Vorschau-Zone */}
@@ -152,7 +155,7 @@ export default function HomeRechnungScannen({ session }) {
                   {vorschau && vorschauSichtbar ? (
                     <img
                       src={vorschau}
-                      alt="Vorschau"
+                      alt={t("documents:preview")}
                       className="max-h-48 max-w-full rounded-card-sm object-contain mb-3"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -168,7 +171,7 @@ export default function HomeRechnungScannen({ session }) {
                       }}
                       className="mb-3 px-3 py-2 rounded-card-sm border border-light-border dark:border-canvas-3 bg-light-surface-1 dark:bg-canvas-2 hover:bg-light-hover dark:hover:bg-canvas-3 text-xs text-light-text-secondary dark:text-dark-text-secondary"
                     >
-                      Vorschau anzeigen
+                      {t("documents:invoiceScan.showPreview")}
                     </button>
                   ) : (
                     <FileText size={48} className="text-primary-500 mb-3" />
@@ -188,17 +191,17 @@ export default function HomeRechnungScannen({ session }) {
                       setVorschauSichtbar(true);
                     }}
                   >
-                    Entfernen
+                    {t("common:actions.delete")}
                   </button>
                 </>
               ) : (
                 <>
                   <Upload size={40} className="text-light-text-secondary dark:text-canvas-4 mb-3" />
                   <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary text-center">
-                    Hier klicken oder Datei hierher ziehen
+                    {t("documents:invoiceScan.drop")}
                   </p>
                   <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1">
-                    JPG, PNG, WEBP, HEIC oder PDF (max. 20 MB)
+                    {t("documents:invoiceScan.fileHint")}
                   </p>
                 </>
               )}
@@ -230,7 +233,7 @@ export default function HomeRechnungScannen({ session }) {
                            transition-colors border border-light-border dark:border-canvas-3"
               >
                 <Camera size={18} />
-                Foto aufnehmen
+                {t("documents:invoiceScan.takePhoto")}
               </button>
               <button
                 onClick={() => dateiInputRef.current?.click()}
@@ -239,7 +242,7 @@ export default function HomeRechnungScannen({ session }) {
                            transition-colors border border-light-border dark:border-canvas-3"
               >
                 <Upload size={18} />
-                Datei hochladen
+                {t("documents:invoiceScan.uploadFile")}
               </button>
             </div>
 
@@ -252,7 +255,7 @@ export default function HomeRechnungScannen({ session }) {
                            transition-colors shadow-sm"
               >
                 <Zap size={18} />
-                Rechnung analysieren
+                {t("documents:invoiceScan.analyse")}
               </button>
             )}
           </div>
@@ -268,7 +271,7 @@ export default function HomeRechnungScannen({ session }) {
             <div className="text-center space-y-1">
               <p className="text-base font-medium text-light-text-main dark:text-dark-text-main">{analyseStatus}</p>
               <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-                Dies kann je nach Modus einige Sekunden dauern.
+                {t("home:scanner.modusHint")}
               </p>
             </div>
           </div>

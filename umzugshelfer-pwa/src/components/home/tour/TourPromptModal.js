@@ -1,14 +1,10 @@
 import React from "react";
 import { Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
-/**
- * Einmaliger Intro-Dialog für das Tour-System 2.0.
- * Erscheint nach dem ersten Login (Home-Modus) wenn tour_state.intro_prompt_status === "pending".
- *
- * @param {Function} onJa   - User möchte die Tour
- * @param {Function} onNein - User lehnt ab (nie wieder fragen)
- */
 export default function TourPromptModal({ onJa, onNein }) {
+  const { t } = useTranslation(["tour"]);
+
   return (
     <div className="fixed inset-0 z-[10100] flex items-center justify-center p-4 pb-safe bg-black/60">
       <div
@@ -18,12 +14,11 @@ export default function TourPromptModal({ onJa, onNein }) {
         <div className="flex items-center gap-2 mb-3">
           <Sparkles size={18} className="text-primary-500" />
           <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
-            Kurze Einführung
+            {t("tour:prompt.title")}
           </h2>
         </div>
         <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-5 leading-relaxed">
-          Möchtest du eine kurze Tour durch die wichtigsten Funktionen des Home Organizers?
-          Du kannst sie jederzeit im Profil neu starten.
+          {t("tour:prompt.description")}
         </p>
         <div className="flex gap-3">
           <button
@@ -33,14 +28,14 @@ export default function TourPromptModal({ onJa, onNein }) {
                        dark:text-dark-text-secondary hover:bg-light-surface-1
                        dark:hover:bg-canvas-3 transition-colors"
           >
-            Nein, danke
+            {t("tour:prompt.skip")}
           </button>
           <button
             onClick={onJa}
             className="flex-1 py-2 px-4 rounded-card-sm bg-primary-500 text-white
                        text-sm font-medium hover:bg-primary-400 transition-colors"
           >
-            Ja, zeigen
+            {t("tour:prompt.start")}
           </button>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   X, Check, AlertTriangle, ChevronDown, ChevronUp,
   Package, Box, Cpu, Wallet, FileText, Info,
@@ -17,6 +18,8 @@ import {
   resolveSplitPayerFromBudgetSelection,
 } from "../../utils/budgetAccounts";
 import { notifyHouseholdEvent } from "../../utils/pushNotifications";
+import { useLocale } from "../../contexts/LocaleContext";
+import { buildInvoiceKnowledgeContent } from "../../utils/localizedKnowledge";
 import KostenAufteilungAuswahl from "./KostenAufteilungAuswahl";
 import ModalShell from "../ui/ModalShell";
 
@@ -199,6 +202,10 @@ function SelectFeld({ label, value, onChange, optionen }) {
 // ============================================================
 
 export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrechen, onGespeichert }) {
+  const { t } = useTranslation(["home","common"]);
+  void t;
+
+  const { locale } = useLocale();
   const { success, error: toastError } = useToast();
 
   const [haendler, setHaendler] = useState(ergebnis.haendler || "");
@@ -480,8 +487,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
   // Geraete-Felder (erstes erkanntes Geraet)
   const erstesGeraet = useMemo(
     () => positionen.find((p) => p.modul_vorschlag === "geraete") || null,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [positionen]
   );
   const [geraetName, setGeraetName] = useState(erstesGeraet?.name || "");
   const [geraetHersteller, setGeraetHersteller] = useState("");
@@ -605,7 +611,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
     );
 
     if (shares.length === 0) {
-      setSplitValidierungsFehler("Bitte mindestens eine weitere beteiligte Person waehlen.");
+      setSplitValidierungsFehler("Bitte mindestens eine weitere beteiligte Person wählen.");
       return;
     }
 
@@ -740,6 +746,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
         .insert({
           user_id:       userId,
           household_id:  householdId,
+          app_modus:     "home",
           dateiname:     finalDateiname,
           beschreibung:  dokBeschreibung,
           storage_pfad:  dokumentPfad,
@@ -822,18 +829,50 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
             : null,
         ].filter(Boolean);
         const fallbackInhalt = `Rechnung ${haendler ? `bei ${haendler} ` : ""}${datum || ""}`.trim();
+        const invoiceSummary = {
+          kind: "invoice",
+          documentClass: "rechnung",
+          documentType: "rechnung",
+          merchant: haendler || null,
+          date: datum || null,
+          amount: gesamtNum,
+          currency: "EUR",
+          items: (positionen || []).filter((pos) => pos?.name).map((pos) => ({
+            name: pos.name,
+            amount: normalizeNumber(pos.gesamtpreis),
+            quantity: normalizeNumber(pos.menge),
+            unit: pos.einheit || null,
+          })),
+          headline: zusammenfassung.trim() || fallbackInhalt,
+        };
+        const title = titelTeile.join(" - ");
+        const localizedContent = {
+          de: {
+            title,
+            content: buildInvoiceKnowledgeContent(invoiceSummary, "de"),
+            headline: buildInvoiceKnowledgeContent(invoiceSummary, "de"),
+          },
+          "en-GB": {
+            title,
+            content: buildInvoiceKnowledgeContent(invoiceSummary, "en-GB"),
+            headline: buildInvoiceKnowledgeContent(invoiceSummary, "en-GB"),
+          },
+        };
         const { data: wissenData, error: wissenErr } = await supabase
           .from("home_wissen")
           .insert({
             user_id:      userId,
             household_id: householdId,
-            titel:        titelTeile.join(" - "),
+            titel:        title,
             inhalt:       zusammenfassung.trim() || fallbackInhalt,
             kategorie:    "Rechnungen & Belege",
             tags:         ["rechnung", ...(haendler ? [haendler.toLowerCase().split(" ")[0]] : [])],
             dokument_id:  dokDatenbankId,
             rechnung_id:  rechnungId,
             herkunft:     "auto_full",
+            summary:      invoiceSummary,
+            localized_content: localizedContent,
+            source_locale: locale === "en-GB" ? "en-GB" : "de",
           })
           .select("id")
           .single();
@@ -880,14 +919,14 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
           entity_id: rechnungId,
           role: "original",
         },
-        ...(wissenId ? [{
+        ...(wissenId ?? [{
           household_id: householdId,
           dokument_id: dokDatenbankId,
           entity_type: "home_wissen",
           entity_id: wissenId,
           role: "knowledge",
         }] : []),
-        ...(budgetId ? [{
+        ...(budgetId ?? [{
           household_id: householdId,
           dokument_id: dokDatenbankId,
           entity_type: "budget_posten",
@@ -1031,7 +1070,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
   }, [
     hatPflichffehler, gesamt, datei, session, dokDateiname, dokBeschreibung,
     datum, modulAktiv, budgetBeschreibung, haendler, budgetKategorie,
-    budgetScope, zahlungskontoId, budgetBewohnerId,
+    budgetScope, zahlungskontoId, budgetBewohnerId, locale,
     geraetName, geraetHersteller, gewaehrleistungBis, garantieBis, naechsteWartung, ergebnis,
     positionen, zusammenfassung, success, toastError, onGespeichert,
     normalizeNumber, resolveHouseholdId, insertBudgetPostenRobust,
@@ -1162,7 +1201,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
               }}
               className="px-4 py-3 rounded-card-sm border border-canvas-3 text-sm text-dark-text-main hover:bg-canvas-2 transition-colors"
             >
-              Ãœberspringen
+              ?berspringen
             </button>
             <button
               type="button"

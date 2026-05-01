@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
   Home, Package, ShoppingCart, Wrench, CheckSquare,
@@ -53,13 +54,15 @@ const timelineItemVariants = {
 };
 
 // ── Hilfsfunktionen ──────────────────────────────────────────────────────────
-const relativeZeit = (isoStr) => {
+const relativeZeit = (isoStr, t) => {
   const diff = Date.now() - new Date(isoStr).getTime();
   const h = Math.floor(diff / 3600000);
-  if (h < 1) return "gerade eben";
-  if (h < 24) return `vor ${h}h`;
+  if (h < 1) return t("home:dashboard.relativeTime.justNow");
+  if (h < 24) return t("home:dashboard.relativeTime.hoursAgo", { h });
   const d = Math.floor(h / 24);
-  return d === 1 ? "gestern" : `vor ${d} Tagen`;
+  return d === 1
+    ? t("home:dashboard.relativeTime.yesterday")
+    : t("home:dashboard.relativeTime.daysAgo", { d });
 };
 
 const tagesBis = (datumStr) => {
@@ -97,6 +100,7 @@ const AnimBar = ({ ratio, color = "bg-primary-500" }) => (
 
 // ── Main component ────────────────────────────────────────────────────────────
 const HomeDashboard = ({ session }) => {
+  const { t } = useTranslation(["home", "common"]);
   const userId = session?.user?.id;
   const navigate = useNavigate();
   const { active: tourAktiv, schritt, setSchritt, beenden: tourBeenden } = useTour("dashboard");
@@ -168,7 +172,7 @@ const HomeDashboard = ({ session }) => {
         supabase.from("todo_aufgaben").select("id, beschreibung, faelligkeitsdatum, home_projekt_id, erledigt").eq("user_id", userId).eq("erledigt", false).in("app_modus", ["home", "beides"]).gte("faelligkeitsdatum", heute).lte("faelligkeitsdatum", in30).limit(10),
         supabase.from("budget_posten").select("typ, betrag, budget_scope").eq("user_id", userId).in("app_modus", ["home", "beides"]).gte("datum", vormonatStart).lt("datum", vormonatEnd),
         supabase.from("budget_posten").select("id, beschreibung, betrag, typ, intervall, naechstes_datum, budget_scope").eq("user_id", userId).in("app_modus", ["home", "beides"]).eq("wiederholen", true).gte("naechstes_datum", nextMonthStart).lt("naechstes_datum", nextMonthEnd),
-        supabase.from("dokumente").select("id", { count: "exact", head: true }).eq("user_id", userId),
+        supabase.from("dokumente").select("id", { count: "exact", head: true }).eq("user_id", userId).in("app_modus", ["home", "beides"]),
       ]);
 
       if (householdId) {
@@ -315,69 +319,69 @@ const HomeDashboard = ({ session }) => {
   const { vorraeteAmpel, naechsteWartung } = erweitert;
   const kacheln = [
     {
-      titel: "Inventar",
+      titel: t("home:dashboard.cards.inventory"),
       wert: stats.objekte,
-      einheit: "Objekte",
-      unter: `${stats.orte} Standorte`,
+      einheit: t("home:dashboard.cards.inventoryUnit"),
+      unter: t("home:dashboard.cards.inventoryLocations", { count: stats.orte }),
       icon: Package, farbe: "blue", pfad: "/home/inventar",
       tourId: "tour-dashboard-inventar",
     },
     {
-      titel: "Vorräte",
+      titel: t("home:dashboard.cards.stock"),
       wert: stats.vorraeteGesamt,
-      einheit: "Artikel",
+      einheit: t("home:dashboard.cards.stockUnit"),
       unter: vorraeteAmpel.rot > 0
-        ? `${vorraeteAmpel.rot} nachkaufen · ${vorraeteAmpel.gelb} knapp`
-        : `${vorraeteAmpel.gruen} gut versorgt`,
+        ? t("home:dashboard.ampel.restockCount", { count: vorraeteAmpel.rot, low: vorraeteAmpel.gelb })
+        : t("home:dashboard.ampel.sufficientCount", { count: vorraeteAmpel.gruen }),
       icon: ShoppingCart,
       farbe: stats.vorraeteRot > 0 ? "red" : "green",
       pfad: "/home/vorraete",
       warnung: stats.vorraeteRot > 0,
     },
     {
-      titel: "Einkaufsliste",
+      titel: t("home:dashboard.cards.shopping"),
       wert: stats.einkaufOffen,
-      einheit: "offen",
+      einheit: t("home:dashboard.cards.shoppingUnit"),
       icon: ShoppingCart, farbe: "amber", pfad: "/home/einkaufliste",
     },
     {
-      titel: "Geräte",
+      titel: t("home:dashboard.cards.devices"),
       wert: stats.geraeteWartungFaellig,
-      einheit: "Wartung fällig",
+      einheit: t("home:dashboard.cards.deviceUnit"),
       unter: naechsteWartung
-        ? `Nächste: ${naechsteWartung.name} in ${naechsteWartung.tage}d`
-        : `${stats.geraete} Geräte gesamt`,
+        ? t("home:dashboard.cards.deviceNext", { name: naechsteWartung.name, days: naechsteWartung.tage })
+        : t("home:dashboard.cards.deviceTotal", { count: stats.geraete }),
       icon: Wrench,
       farbe: stats.geraeteWartungFaellig > 0 ? "orange" : "green",
       pfad: "/home/geraete",
       warnung: stats.geraeteWartungFaellig > 0,
     },
     {
-      titel: "Aufgaben heute",
+      titel: t("home:dashboard.cards.tasksToday"),
       wert: stats.aufgabenHeute,
-      einheit: "fällig",
+      einheit: t("home:dashboard.cards.taskUnit"),
       icon: CheckSquare,
       farbe: stats.aufgabenHeute > 0 ? "red" : "green",
       pfad: "/home/aufgaben",
       tourId: "tour-dashboard-aufgaben",
     },
     {
-      titel: "Aktive Projekte",
+      titel: t("home:dashboard.cards.activeProjects"),
       wert: stats.projekteAktiv,
-      einheit: "in Bearbeitung",
+      einheit: t("home:dashboard.cards.projectUnit"),
       icon: FolderOpen, farbe: "purple", pfad: "/home/projekte",
     },
     {
-      titel: "Bewohner",
+      titel: t("home:dashboard.cards.residents"),
       wert: stats.bewohner,
-      einheit: "im Haushalt",
+      einheit: t("home:dashboard.cards.residentUnit"),
       icon: Users, farbe: "teal", pfad: "/home/bewohner",
       tourId: "tour-dashboard-bewohner",
     },
     {
-      titel: "Dokumente",
+      titel: t("home:dashboard.cards.documents"),
       wert: stats.dokumente,
-      einheit: "gespeichert",
+      einheit: t("home:dashboard.cards.documentUnit"),
       icon: FileText, farbe: "indigo", pfad: "/home/dokumente",
     },
   ];
@@ -410,11 +414,11 @@ const HomeDashboard = ({ session }) => {
   // ── Timeline Helpers ──
   const TIMELINE_ICON = { wartung: "🔧", ablauf: "⚠️", aufgabe: "✅", projekt: "📋" };
   const tagesLabel = (datum) => {
-    const t = tagesBis(datum);
-    if (t === null) return "";
-    if (t < 0) return `${Math.abs(t)}d überfällig`;
-    if (t === 0) return "heute";
-    return `in ${t}d`;
+    const days = tagesBis(datum);
+    if (days === null) return "";
+    if (days < 0) return t("home:dashboard.timeline.overdue", { days: Math.abs(days) });
+    if (days === 0) return t("home:dashboard.timeline.today");
+    return t("home:dashboard.timeline.inDays", { days });
   };
   const tagesFarbe = (datum) => {
     const t = tagesBis(datum);
@@ -443,10 +447,10 @@ const HomeDashboard = ({ session }) => {
         </div>
         <div>
           <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">
-            Home Organizer
+            {t("home:dashboard.title")}
           </h1>
           <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-            Dein Zuhause im Überblick
+            {t("home:dashboard.subtitle")}
           </p>
         </div>
       </div>
@@ -461,9 +465,9 @@ const HomeDashboard = ({ session }) => {
         >
           <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
           <div className="text-sm text-amber-700 dark:text-amber-400 flex flex-wrap gap-x-3">
-            {stats.vorraeteRot > 0 && <span>{stats.vorraeteRot} Vorrat unter Mindestmenge</span>}
-            {stats.geraeteWartungFaellig > 0 && <span>{stats.geraeteWartungFaellig} Gerätewartung fällig</span>}
-            {stats.aufgabenHeute > 0 && <span>{stats.aufgabenHeute} Aufgabe(n) heute fällig</span>}
+            {stats.vorraeteRot > 0 && <span>{t("home:dashboard.warnStock", { count: stats.vorraeteRot })}</span>}
+            {stats.geraeteWartungFaellig > 0 && <span>{t("home:dashboard.warnDevice", { count: stats.geraeteWartungFaellig })}</span>}
+            {stats.aufgabenHeute > 0 && <span>{t("home:dashboard.warnTask", { count: stats.aufgabenHeute })}</span>}
           </div>
         </motion.div>
       )}
@@ -544,7 +548,7 @@ const HomeDashboard = ({ session }) => {
             <div className="flex items-center gap-2">
               <span className="text-base">💶</span>
               <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-                Budget – {monatLabel()}
+                {t("home:dashboard.budgetTitle", { month: monatLabel() })}
               </span>
             </div>
             <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -553,12 +557,12 @@ const HomeDashboard = ({ session }) => {
           {budgetMonat.ausgabenHaushalt === 0 && budgetMonat.ausgabenPrivat === 0 && budgetMonat.buchungen === 0 ? (
             <>
               <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-                Noch keine Buchungen diesen Monat.
+                {t("home:dashboard.noBudgetEntries")}
               </p>
               {budgetMonat.kommendeNichtMonatlich.length > 0 && (
                 <p className="text-xs text-amber-400 flex items-center gap-1 mt-2">
                   <AlertTriangle size={11} />
-                  {budgetMonat.kommendeNichtMonatlich.length}× unregelmäßige Zahlung nächsten Monat ({fmt(budgetMonat.kommendeNichtMonatlich.reduce((s, p) => s + Math.abs(Number(p.betrag)), 0))} €)
+                  {t("home:dashboard.irregularPayments", { count: budgetMonat.kommendeNichtMonatlich.length, amount: fmt(budgetMonat.kommendeNichtMonatlich.reduce((s, p) => s + Math.abs(Number(p.betrag)), 0)) })}
                 </p>
               )}
             </>
@@ -569,11 +573,11 @@ const HomeDashboard = ({ session }) => {
                   {fmt(budgetMonat.ausgabenHaushalt)} €
                 </span>
                 <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">
-                  {budgetMonat.buchungen} Buchung{budgetMonat.buchungen !== 1 ? "en" : ""}
+                  {t("home:dashboard.bookings", { count: budgetMonat.buchungen })}
                 </span>
               </div>
               <p className="text-xs text-red-400 flex items-center gap-1">
-                <TrendingDown size={11} /> Haushalt diesen Monat
+                <TrendingDown size={11} /> {t("home:dashboard.householdThisMonth")}
               </p>
               {budgetMonat.ausgabenPrivat > 0 && (
                 <p className="text-xs text-amber-400">
@@ -594,7 +598,7 @@ const HomeDashboard = ({ session }) => {
               {budgetMonat.kommendeNichtMonatlich.length > 0 && (
                 <p className="text-xs text-amber-400 flex items-center gap-1">
                   <AlertTriangle size={11} />
-                  {budgetMonat.kommendeNichtMonatlich.length}× unregelmäßige Zahlung nächsten Monat ({fmt(budgetMonat.kommendeNichtMonatlich.reduce((s, p) => s + Math.abs(Number(p.betrag)), 0))} €)
+                  {t("home:dashboard.irregularPayments", { count: budgetMonat.kommendeNichtMonatlich.length, amount: fmt(budgetMonat.kommendeNichtMonatlich.reduce((s, p) => s + Math.abs(Number(p.betrag)), 0)) })}
                 </p>
               )}
             </div>
@@ -615,7 +619,7 @@ const HomeDashboard = ({ session }) => {
             <div className="flex items-center gap-2">
               <span className="text-base">↔</span>
               <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-                Ausgleich im Haushalt
+                {t("home:dashboard.settlementTitle")}
               </span>
             </div>
             <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -625,10 +629,10 @@ const HomeDashboard = ({ session }) => {
               {formatGermanCurrency(gesamtOffeneSchulden)} €
             </div>
             <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-              Offene Schulden gesamt, brutto je Richtung
+              {t("home:dashboard.openDebtTotal")}
             </p>
             <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-              {offeneSaldoCount} offene Position{offeneSaldoCount !== 1 ? "en" : ""}
+              {t("home:dashboard.openPositions", { count: offeneSaldoCount })}
             </p>
           </div>
         </motion.button>
@@ -646,7 +650,7 @@ const HomeDashboard = ({ session }) => {
             <div className="flex items-center gap-2">
               <span className="text-base">🛒</span>
               <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-                Vorräte – {stats.vorraeteGesamt} Artikel
+                {t("home:dashboard.stockTitle", { count: stats.vorraeteGesamt })}
               </span>
             </div>
             <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -654,14 +658,14 @@ const HomeDashboard = ({ session }) => {
 
           {stats.vorraeteGesamt === 0 ? (
             <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-              Noch keine Vorräte angelegt.
+              {t("home:dashboard.noStock")}
             </p>
           ) : (
             <div className="space-y-1.5">
               {[
-                { count: vorraeteAmpel.rot,   farbe: "bg-red-500",   label: "nachkaufen",   delay: 0,   alert: vorraeteAmpel.rot > 0 },
-                { count: vorraeteAmpel.gelb,  farbe: "bg-amber-500", label: "knapp",        delay: 0.1, alert: false },
-                { count: vorraeteAmpel.gruen, farbe: "bg-green-500", label: "gut versorgt", delay: 0.2, alert: false },
+                { count: vorraeteAmpel.rot,   farbe: "bg-red-500",   label: t("home:dashboard.ampel.restock"),    delay: 0,   alert: vorraeteAmpel.rot > 0 },
+                { count: vorraeteAmpel.gelb,  farbe: "bg-amber-500", label: t("home:dashboard.ampel.low"),        delay: 0.1, alert: false },
+                { count: vorraeteAmpel.gruen, farbe: "bg-green-500", label: t("home:dashboard.ampel.sufficient"), delay: 0.2, alert: false },
               ].map(({ count, farbe, label, delay, alert }) => (
                 <motion.div
                   key={label}
@@ -711,7 +715,7 @@ const HomeDashboard = ({ session }) => {
             <div className="flex items-center gap-2">
               <span className="text-base">📋</span>
               <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-                Aktive Projekte ({stats.projekteAktiv})
+                {t("home:dashboard.activeProjectsTitle", { count: stats.projekteAktiv })}
               </span>
             </div>
             <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -719,7 +723,7 @@ const HomeDashboard = ({ session }) => {
 
           {aktiveProjekte.length === 0 ? (
             <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-              Keine aktiven Projekte.
+              {t("home:dashboard.noProjects")}
             </p>
           ) : (
             <div className="space-y-3">
@@ -740,7 +744,7 @@ const HomeDashboard = ({ session }) => {
                   <div className="flex items-center gap-2 mt-0.5 text-xs text-light-text-secondary dark:text-dark-text-secondary">
                     {p.todoGesamt > 0 && <span>✅ {p.todoErledigt}/{p.todoGesamt}</span>}
                     {p.zieldatum && (
-                      <span>fällig {new Date(p.zieldatum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}</span>
+                      <span>{t("home:dashboard.projectDue", { date: new Date(p.zieldatum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) })}</span>
                     )}
                   </div>
                 </div>
@@ -759,20 +763,20 @@ const HomeDashboard = ({ session }) => {
           <div className="flex items-center gap-2 mb-3">
             <Calendar size={16} className="text-primary-500" />
             <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-              Nächste 30 Tage
+              {t("home:dashboard.next30Days")}
             </span>
           </div>
 
           {timeline.length === 0 ? (
             <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-              Keine anstehenden Ereignisse.
+              {t("home:dashboard.noEvents")}
             </p>
           ) : (
             <motion.div variants={timelineVariants} initial="hidden" animate="show" className="space-y-2">
               {timeline.map((e, i) => {
-                const t = tagesBis(e.datum);
-                const isOverdue = t !== null && t < 0;
-                const isUrgent  = t !== null && t >= 0 && t <= 1;
+                const tage = tagesBis(e.datum);
+                const isOverdue = tage !== null && tage < 0;
+                const isUrgent  = tage !== null && tage >= 0 && tage <= 1;
                 return (
                   <motion.div
                     key={i}
@@ -815,7 +819,7 @@ const HomeDashboard = ({ session }) => {
           <div className="flex items-center gap-2 mb-3">
             <Clock size={16} className="text-primary-500" />
             <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-              Letzte Aktivitäten
+              {t("home:dashboard.recentActivity")}
             </span>
           </div>
           <motion.div variants={listVariants} initial="hidden" animate="show" className="space-y-2">
@@ -833,7 +837,7 @@ const HomeDashboard = ({ session }) => {
                   </span>
                 </div>
                 <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary flex-shrink-0">
-                  {relativeZeit(v.created_at)}
+                  {relativeZeit(v.created_at, t)}
                 </span>
               </motion.div>
             ))}
@@ -844,7 +848,7 @@ const HomeDashboard = ({ session }) => {
       {/* Schnellzugriff */}
       <div>
         <h2 className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider mb-3">
-          Schnellzugriff
+          {t("home:dashboard.quickAccess")}
         </h2>
         <motion.div
           variants={gridVariants}
@@ -853,10 +857,10 @@ const HomeDashboard = ({ session }) => {
           className="grid grid-cols-2 sm:grid-cols-4 gap-3"
         >
           {[
-            { label: "Objekt suchen", pfad: "/home/suche",      icon: "🔍" },
-            { label: "Dokumente",     pfad: "/home/dokumente",  icon: "📂" },
-            { label: "Budget",        pfad: "/home/budget",     icon: "💶" },
-            { label: "Projekte",      pfad: "/home/projekte",   icon: "📋" },
+            { labelKey: "search",    pfad: "/home/suche",      icon: "🔍" },
+            { labelKey: "documents", pfad: "/home/dokumente",  icon: "📂" },
+            { labelKey: "budget",    pfad: "/home/budget",     icon: "💶" },
+            { labelKey: "projects",  pfad: "/home/projekte",   icon: "📋" },
           ].map((item) => (
             <motion.button
               key={item.pfad}
@@ -867,7 +871,7 @@ const HomeDashboard = ({ session }) => {
               className="flex items-center gap-2 p-3 rounded-lg bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors text-sm text-light-text-main dark:text-dark-text-main"
             >
               <span>{item.icon}</span>
-              {item.label}
+              {t(`home:dashboard.quickLabels.${item.labelKey}`)}
             </motion.button>
           ))}
         </motion.div>

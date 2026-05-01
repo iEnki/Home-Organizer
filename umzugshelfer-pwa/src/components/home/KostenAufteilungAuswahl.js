@@ -122,7 +122,7 @@ export default function KostenAufteilungAuswahl({
               onChange={(event) => onVorgestrecktVonChange(event.target.value || null)}
               className={inputCls}
             >
-              <option value="">Bitte Zahler waehlen</option>
+              <option value="">Bitte Zahler wählen</option>
               {bewohner.map((eintrag) => (
                 <option key={eintrag.id} value={eintrag.id}>
                   {renderPersonLabel(eintrag)}

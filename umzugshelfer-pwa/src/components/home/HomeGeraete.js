@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Wrench, X, FileText, Link2, Loader2, AlertCircle, Sparkles, Plus } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import DokumentVorschauModal from "./DokumentVorschauModal";
@@ -7,7 +8,7 @@ import KiHomeAssistent from "./KiHomeAssistent";
 import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
-import GeraetForm from "./geraete/GeraetForm";
+import GeraetForm, { getDeviceCategoryLabel, normalizeDeviceCategory } from "./geraete/GeraetForm";
 import GeraetFilterBar from "./geraete/GeraetFilterBar";
 import GeraetZeile from "./geraete/GeraetZeile";
 import {
@@ -48,12 +49,13 @@ const mapGeraetToForm = (g) => ({
   naechste_wartung:         g.naechste_wartung || "",
   wartungsintervall_monate: g.wartungsintervall_monate ?? "",
   notizen:                  g.notizen || "",
-  kategorie:                g.kategorie || "",
+  kategorie:                normalizeDeviceCategory(g.kategorie || ""),
 });
 
 const str2null = (v) => (v === "" || v == null ? null : v);
 
 const HomeGeraete = ({ session }) => {
+  const { t, i18n } = useTranslation(["home", "common"]);
   const userId = session?.user?.id;
   const navigate = useNavigate();
   const { active: tourAktiv, schritt, setSchritt, beenden: tourBeenden } = useTour("geraete");
@@ -94,17 +96,17 @@ const HomeGeraete = ({ session }) => {
       const [geraeteRes, wartungenRes, dokRes] = await Promise.all([
         supabase.from("home_geraete").select("*").eq("user_id", userId).order("name"),
         supabase.from("home_wartungen").select("*").eq("user_id", userId).order("datum", { ascending: false }),
-        supabase.from("dokumente").select("id, dateiname, datei_typ, storage_pfad").eq("user_id", userId).order("dateiname"),
+        supabase.from("dokumente").select("id, dateiname, datei_typ, storage_pfad").eq("user_id", userId).in("app_modus", ["home", "beides"]).order("dateiname"),
       ]);
       setGeraete(geraeteRes.data || []);
       setWartungen(wartungenRes.data || []);
       setDokumente(dokRes.data || []);
     } catch {
-      setFehler("Fehler beim Laden der Daten.");
+      setFehler(t("home:loadError", { defaultValue: "Data could not be loaded." }));
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, t]);
 
   useEffect(() => { ladeDaten(); }, [ladeDaten]);
 
@@ -120,7 +122,7 @@ const HomeGeraete = ({ session }) => {
       garantie_bis:             str2null(daten.garantie_bis),
       naechste_wartung:         str2null(daten.naechste_wartung),
       notizen:                  str2null(daten.notizen),
-      kategorie:                str2null(daten.kategorie),
+      kategorie:                str2null(normalizeDeviceCategory(daten.kategorie)),
       kaufpreis:                daten.kaufpreis === "" ? null : parseFloat(daten.kaufpreis) || null,
       wartungsintervall_monate: daten.wartungsintervall_monate === "" ? null : parseInt(daten.wartungsintervall_monate, 10) || null,
     };
@@ -156,7 +158,7 @@ const HomeGeraete = ({ session }) => {
 
   // --- Löschen ---
   const loesche = async (id) => {
-    if (!window.confirm("Gerät und alle Wartungseinträge löschen?")) return;
+    if (!window.confirm(t("home:devicesDeleteConfirm", { defaultValue: "Delete device and all maintenance entries?" }))) return;
     const geraet = geraete.find((eintrag) => eintrag.id === id);
     await supabase.from("home_geraete").delete().eq("id", id);
     await notifyHouseholdEvent({
@@ -182,7 +184,7 @@ const HomeGeraete = ({ session }) => {
       geraet_id: geraetId,
       datum: new Date().toISOString().split("T")[0],
       typ: "Wartung",
-      beschreibung: "Reguläre Wartung erledigt",
+      beschreibung: t("home:devicesForm.maintenanceDoneNote"),
     });
     if (neuesDatum) {
       await supabase.from("home_geraete").update({ naechste_wartung: neuesDatum }).eq("id", geraetId);
@@ -196,8 +198,10 @@ const HomeGeraete = ({ session }) => {
       url: "/home/geraete",
       tag: `wartung-erledigt-${geraetId}`,
       pushPolicy: "always",
-      title: "Wartung erledigt",
-      body: g.name ? `Die Wartung fuer "${g.name}" wurde erledigt.` : "Eine Wartung wurde erledigt.",
+      title: t("home:devicesMaintenanceDone", { defaultValue: "Maintenance completed" }),
+      body: g.name
+        ? t("home:devicesMaintenanceDoneBody", { device: g.name, defaultValue: `Maintenance for "${g.name}" was completed.` })
+        : t("home:devicesMaintenanceDoneBodyGeneric", { defaultValue: "Maintenance was completed." }),
     });
     ladeDaten();
   };
@@ -248,7 +252,7 @@ const HomeGeraete = ({ session }) => {
       result = result.filter((g) =>
         [g.name, g.hersteller, g.modell].some((f) => f?.toLowerCase().includes(q)));
     }
-    if (katFilter !== "Alle") result = result.filter((g) => g.kategorie === katFilter);
+    if (katFilter !== "Alle") result = result.filter((g) => normalizeDeviceCategory(g.kategorie) === katFilter);
     return result;
   }, [geraete, suchbegriff, katFilter]);
 
@@ -262,7 +266,7 @@ const HomeGeraete = ({ session }) => {
   }, [basisFuerZaehlung, statusByGeraetId]);
 
   const verfuegbareKategorien = useMemo(() =>
-    [...new Set(geraete.map((g) => g.kategorie).filter(Boolean))].sort(),
+    [...new Set(geraete.map((g) => normalizeDeviceCategory(g.kategorie)).filter(Boolean))].sort(),
     [geraete]);
 
   // --- Gefiltert + Sortiert ---
@@ -276,7 +280,7 @@ const HomeGeraete = ({ session }) => {
     if (statusFilter !== "alle")
       result = result.filter((g) => statusByGeraetId[g.id] === statusFilter);
     if (katFilter !== "Alle")
-      result = result.filter((g) => g.kategorie === katFilter);
+      result = result.filter((g) => normalizeDeviceCategory(g.kategorie) === katFilter);
     return [...result].sort((a, b) => {
       if (sortierung === "name")           return (a.name || "").localeCompare(b.name || "");
       if (sortierung === "kaufdatum_desc") return (b.kaufdatum || "").localeCompare(a.kaufdatum || "");
@@ -295,20 +299,24 @@ const HomeGeraete = ({ session }) => {
       });
       return STATUS_PRIORITAET
         .filter((s) => map[s])
-        .map((s) => ({ key: s, label: STATUS_CONFIG[s].label, items: map[s] }));
+        .map((s) => ({
+          key: s,
+          label: t(`home:devicesStatus.${s}`, { defaultValue: STATUS_CONFIG[s].label }),
+          items: map[s],
+        }));
     }
     if (gruppierung === "kategorie") {
       const map = {};
       gefiltertUndSortiert.forEach((g) => {
-        const k = g.kategorie || "Sonstiges";
+        const k = normalizeDeviceCategory(g.kategorie) || "Sonstiges";
         (map[k] ??= []).push(g);
       });
       return Object.entries(map)
         .sort(([a], [b]) => a.localeCompare(b))
-        .map(([k, items]) => ({ key: k, label: k, items }));
+        .map(([k, items]) => ({ key: k, label: getDeviceCategoryLabel(k, i18n.language), items }));
     }
     return [{ key: "__alle__", label: null, items: gefiltertUndSortiert }];
-  }, [gefiltertUndSortiert, gruppierung, statusByGeraetId]);
+  }, [gefiltertUndSortiert, gruppierung, statusByGeraetId, i18n.language, t]);
 
   // --- Render ---
   return (
@@ -318,7 +326,7 @@ const HomeGeraete = ({ session }) => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Wrench size={22} className="text-primary-500" />
-          <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">Geräte & Wartung</h1>
+          <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">{t("home:devicesForm.title")}</h1>
         </div>
         <button
           onClick={() => setKiOffen(true)}
@@ -355,17 +363,17 @@ const HomeGeraete = ({ session }) => {
       ) : geraete.length === 0 ? (
         <div data-tour="tour-geraete-liste" className="text-center py-12 text-light-text-secondary dark:text-dark-text-secondary">
           <Wrench size={40} className="mx-auto mb-3 opacity-30" />
-          <p className="text-sm">Noch keine Geräte erfasst</p>
+          <p className="text-sm">{t("home:devicesForm.empty")}</p>
           <button
             onClick={openCreateModal}
             className="mt-3 flex items-center gap-1.5 mx-auto px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-pill text-sm"
           >
-            <Plus size={14} /> Erstes Gerät hinzufügen
+            <Plus size={14} /> {t("home:devicesForm.addFirst")}
           </button>
         </div>
       ) : gefiltertUndSortiert.length === 0 ? (
         <div className="text-center py-12 text-light-text-secondary dark:text-dark-text-secondary">
-          <p className="text-sm">Keine Geräte für die gewählten Filter.</p>
+          <p className="text-sm">{t("home:devicesForm.emptyFilter")}</p>
         </div>
       ) : (
         <div data-tour="tour-geraete-liste" className="space-y-3">
@@ -416,7 +424,7 @@ const HomeGeraete = ({ session }) => {
           <div className="mobile-modal-dialog bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border flex min-h-0 flex-col">
             <div className="shrink-0 flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border sticky top-0 bg-light-card dark:bg-canvas-2 rounded-t-card">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
-                {formData.id ? "Gerät bearbeiten" : "Neues Gerät"}
+                {formData.id ? t("home:devicesForm.edit") : t("home:devicesForm.new")}
               </h3>
               <button onClick={closeModal} className="p-1 text-light-text-secondary dark:text-dark-text-secondary">
                 <X size={18} />
@@ -430,14 +438,14 @@ const HomeGeraete = ({ session }) => {
                 onClick={closeModal}
                 className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main"
               >
-                Abbrechen
+                {t("common:actions.cancel")}
               </button>
               <button
                 onClick={() => handleSpeichern(formData)}
                 disabled={!formData.name?.trim()}
                 className="flex-1 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50"
               >
-                Speichern
+                {t("common:actions.save")}
               </button>
             </div>
           </div>
@@ -482,7 +490,9 @@ const HomeGeraete = ({ session }) => {
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-safe">
           <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-sm w-full border border-light-border dark:border-dark-border max-h-[80vh] flex flex-col">
             <div className="shrink-0 flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
-              <h3 className="font-semibold text-sm text-light-text-main dark:text-dark-text-main">Dokument verknüpfen</h3>
+              <h3 className="font-semibold text-sm text-light-text-main dark:text-dark-text-main">
+                {t("home:devicesForm.linkDocument", { defaultValue: "Link document" })}
+              </h3>
               <button onClick={() => setDokuModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary">
                 <X size={18} />
               </button>
@@ -490,7 +500,7 @@ const HomeGeraete = ({ session }) => {
             <div className="overflow-y-auto flex-1 p-3">
               {dokumente.length === 0 ? (
                 <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary text-center py-8">
-                  Noch keine Dokumente vorhanden. Lade Dokumente im Dokumenten-Manager hoch.
+                  {t("home:devicesForm.noDocuments", { defaultValue: "No documents yet. Upload documents in the document archive." })}
                 </p>
               ) : (
                 <div className="space-y-1">
@@ -521,7 +531,7 @@ const HomeGeraete = ({ session }) => {
                 onClick={() => setDokuModal(null)}
                 className="w-full px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill"
               >
-                Fertig
+                {t("common:actions.done", { defaultValue: "Done" })}
               </button>
             </div>
           </div>

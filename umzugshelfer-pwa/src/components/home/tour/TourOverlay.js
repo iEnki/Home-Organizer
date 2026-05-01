@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 const TOOLTIP_WIDTH = 300;
 const GAP = 14;
@@ -70,6 +71,7 @@ function getArrowClass(position) {
  * @param {Function} onBeenden - Beendet und speichert die Tour
  */
 export default function TourOverlay({ steps, schritt, onSchritt, onBeenden }) {
+  const { t } = useTranslation(["tour"]);
   const [highlightRect, setHighlightRect] = useState(null);
   const [tooltipStyle, setTooltipStyle] = useState({});
   const [arrowClass, setArrowClass] = useState("");
@@ -77,6 +79,8 @@ export default function TourOverlay({ steps, schritt, onSchritt, onBeenden }) {
   const retryRef = useRef(null);
 
   const aktuellerSchritt = steps[schritt];
+  const stepTitle = aktuellerSchritt?.titleKey ? t(aktuellerSchritt.titleKey, { defaultValue: aktuellerSchritt.title }) : aktuellerSchritt?.title;
+  const stepText = aktuellerSchritt?.textKey ? t(aktuellerSchritt.textKey, { defaultValue: aktuellerSchritt.text }) : aktuellerSchritt?.text;
 
   const positioniereElement = useCallback((el, position) => {
     const rect = getHighlightRect(el);
@@ -250,12 +254,12 @@ export default function TourOverlay({ steps, schritt, onSchritt, onBeenden }) {
         {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-2">
           <h3 className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
-            {aktuellerSchritt.title}
+            {stepTitle}
           </h3>
           <button
             onClick={onBeenden}
             className="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-            title="Tour beenden"
+            title={t("tour:overlay.close")}
           >
             <X size={14} />
           </button>
@@ -263,7 +267,7 @@ export default function TourOverlay({ steps, schritt, onSchritt, onBeenden }) {
 
         {/* Text */}
         <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
-          {aktuellerSchritt.text}
+          {stepText}
         </p>
 
         {/* Footer */}
@@ -292,7 +296,7 @@ export default function TourOverlay({ steps, schritt, onSchritt, onBeenden }) {
                 onClick={() => onSchritt(schritt + 1)}
                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[#6366f1] text-white hover:bg-[#4f46e5] transition-colors"
               >
-                Weiter
+                {t("tour:overlay.next")}
                 <ChevronRight size={12} />
               </button>
             ) : (

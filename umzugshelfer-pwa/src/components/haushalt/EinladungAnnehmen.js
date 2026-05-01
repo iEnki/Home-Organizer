@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { supabase } from "../../supabaseClient";
 import { useHaushalt } from "../../contexts/HaushaltsContext";
 import { CheckCircle, AlertCircle, Loader } from "lucide-react";
 
 const EinladungAnnehmen = ({ session }) => {
+  const { t } = useTranslation(["household"]);
   const { code } = useParams();
   const navigate = useNavigate();
   const { ladeHaushalt } = useHaushalt();
@@ -48,7 +50,7 @@ const EinladungAnnehmen = ({ session }) => {
           <>
             <Loader className="w-12 h-12 mx-auto animate-spin text-light-accent-purple dark:text-accent-purple mb-4" />
             <p className="text-light-text-main dark:text-dark-text-main font-medium">
-              Einladung wird überprüft…
+              {t("household:invites.checking")}
             </p>
           </>
         )}
@@ -59,10 +61,10 @@ const EinladungAnnehmen = ({ session }) => {
               <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
             </div>
             <h2 className="text-xl font-bold text-light-text-main dark:text-dark-text-main mb-2">
-              Erfolgreich beigetreten!
+              {t("household:invites.successTitle")}
             </h2>
             <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-              Du wirst gleich weitergeleitet…
+              {t("household:invites.successHint")}
             </p>
           </>
         )}
@@ -73,7 +75,7 @@ const EinladungAnnehmen = ({ session }) => {
               <AlertCircle className="w-8 h-8 text-red-600 dark:text-red-400" />
             </div>
             <h2 className="text-xl font-bold text-light-text-main dark:text-dark-text-main mb-2">
-              Einladung ungültig
+              {t("household:invites.invalid")}
             </h2>
             <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-6">
               {fehlerText}
@@ -82,7 +84,7 @@ const EinladungAnnehmen = ({ session }) => {
               onClick={() => navigate("/home", { replace: true })}
               className="px-6 py-2.5 rounded-xl text-sm font-medium bg-light-accent-purple dark:bg-accent-purple text-white hover:opacity-90 transition-opacity"
             >
-              Zur Startseite
+              {t("household:invites.toHome")}
             </button>
           </>
         )}

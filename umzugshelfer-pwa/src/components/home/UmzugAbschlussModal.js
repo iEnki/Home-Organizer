@@ -1,10 +1,14 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { CheckCircle, ArrowRight, X, Loader2, Home, Package, CheckSquare, DollarSign } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 
 const SCHRITTE = ["Zusammenfassung", "Optionen", "Vorschau", "Migration", "Fertig"];
 
 const UmzugAbschlussModal = ({ session, onAbschluss, onSchliessen }) => {
+  const { t } = useTranslation(["move","common"]);
+  void t;
+
   const userId = session?.user?.id;
   const [schritt, setSchritt] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -142,10 +146,12 @@ const UmzugAbschlussModal = ({ session, onAbschluss, onSchliessen }) => {
       }
 
       if (optionen.todosMigrieren) {
+        // Nur Umzugs-Items migrieren, Home-Items unangetastet lassen.
         const { error: todoErr } = await supabase
           .from("todo_aufgaben")
           .update({ app_modus: "beides" })
-          .eq("user_id", userId);
+          .eq("user_id", userId)
+          .eq("app_modus", "umzug");
         if (todoErr) throw todoErr;
         setFortschritt(85);
       }
@@ -154,21 +160,23 @@ const UmzugAbschlussModal = ({ session, onAbschluss, onSchliessen }) => {
         const { error: budErr } = await supabase
           .from("budget_posten")
           .update({ app_modus: "beides" })
-          .eq("user_id", userId);
+          .eq("user_id", userId)
+          .eq("app_modus", "umzug");
         if (budErr) throw budErr;
       }
 
       setFortschritt(100);
       setSchritt(4);
     } catch (e) {
-      setFehler(`Fehler bei der Migration: ${e.message}`);
+      console.error("[UmzugAbschlussModal] Migration fehlgeschlagen:", e);
+      setFehler("Die Migration konnte nicht abgeschlossen werden. Bitte später erneut versuchen.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pb-safe">
       <div className="bg-light-card dark:bg-dark-card rounded-2xl shadow-2xl max-w-lg w-full border border-light-border dark:border-dark-border">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-light-border dark:border-dark-border">
@@ -193,8 +201,8 @@ const UmzugAbschlussModal = ({ session, onAbschluss, onSchliessen }) => {
           {/* Schritt 0: Willkommen */}
           {schritt === 0 && (
             <div className="text-center">
-              <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-4">
-                <CheckCircle size={32} className="text-green-500" />
+              <div className="w-16 h-16 rounded-full bg-primary-500/10 flex items-center justify-center mx-auto mb-4">
+                <CheckCircle size={32} className="text-primary-500" />
               </div>
               <h3 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main mb-2">
                 Glückwunsch zum erfolgreichen Umzug!
@@ -206,7 +214,7 @@ const UmzugAbschlussModal = ({ session, onAbschluss, onSchliessen }) => {
               <button
                 onClick={ladeZusammenfassung}
                 disabled={loading}
-                className="flex items-center gap-2 mx-auto px-5 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 mx-auto px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
               >
                 {loading ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
                 Weiter
@@ -232,7 +240,7 @@ const UmzugAbschlussModal = ({ session, onAbschluss, onSchliessen }) => {
                       type="checkbox"
                       checked={optionen[key]}
                       onChange={(e) => setOptionen((prev) => ({ ...prev, [key]: e.target.checked }))}
-                      className="mt-0.5 accent-green-500"
+                      className="mt-0.5 accent-primary-500"
                     />
                     <div>
                       <div className="flex items-center gap-2 text-sm font-medium text-light-text-main dark:text-dark-text-main">
@@ -247,7 +255,7 @@ const UmzugAbschlussModal = ({ session, onAbschluss, onSchliessen }) => {
               <div className="flex gap-3 mt-5">
                 <button
                   onClick={() => setSchritt(2)}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-lg font-medium transition-colors"
                 >
                   <ArrowRight size={16} />
                   Vorschau
@@ -300,7 +308,7 @@ const UmzugAbschlussModal = ({ session, onAbschluss, onSchliessen }) => {
                 </button>
                 <button
                   onClick={() => { setSchritt(3); fuehreMigrationAus(); }}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-lg font-medium transition-colors"
                 >
                   Migration starten
                 </button>

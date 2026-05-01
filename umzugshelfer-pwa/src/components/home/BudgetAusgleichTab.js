@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowLeftRight, Info, RefreshCw, Trash2 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { getBewohnerDisplayName } from "../../utils/budgetAccounts";
@@ -103,6 +104,8 @@ export default function BudgetAusgleichTab({
   const [filterMonat, setFilterMonat] = useState("");
   const [filterMemberId, setFilterMemberId] = useState("");
 
+  const { t, i18n } = useTranslation(["budget", "common"]);
+
   const bewohnerById = useMemo(
     () => Object.fromEntries((bewohner || []).map((eintrag) => [eintrag.id, eintrag])),
     [bewohner],
@@ -124,8 +127,8 @@ export default function BudgetAusgleichTab({
       bewohnerById[nextToMemberId]?.linked_user_id,
     ].filter(Boolean);
 
-    const fromName = getBewohnerDisplayName(bewohnerById[nextFromMemberId] || { name: "Unbekannt" });
-    const toName = getBewohnerDisplayName(bewohnerById[nextToMemberId] || { name: "Unbekannt" });
+    const fromName = getBewohnerDisplayName(bewohnerById[nextFromMemberId] || { name: t("budget:settlementTab.unknown") });
+    const toName = getBewohnerDisplayName(bewohnerById[nextToMemberId] || { name: t("budget:settlementTab.unknown") });
     await notifyHouseholdEvent({
       supabaseClient: supabase,
       userId,
@@ -138,9 +141,9 @@ export default function BudgetAusgleichTab({
       recipientMode: linkedUserIds.length ? "custom" : "household",
       recipientUserIds: linkedUserIds,
       title,
-      body: body || `${fromName} hat ${Number(amountEuro || 0).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR an ${toName} ausgeglichen.`,
+      body: body || t("budget:settlementTab.notifySettlementBody", { fromName, toName, amount: Number(amountEuro || 0).toLocaleString(i18n.language, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }),
     });
-  }, [bewohnerById, userId]);
+  }, [bewohnerById, i18n.language, t, userId]);
 
   const loadLedgerState = useCallback(async () => {
     if (!householdId) {
@@ -213,7 +216,7 @@ export default function BudgetAusgleichTab({
         await Promise.all([loadLedgerState(), loadLedgerRows(), loadMonthClose()]);
       } catch (error) {
         if (!cancelled) {
-          setFehler(`Open-Item-Daten konnten nicht geladen werden: ${error.message}`);
+          setFehler(t("budget:settlementTab.errLoadLedger", { msg: error.message }));
         }
       }
     };
@@ -222,7 +225,7 @@ export default function BudgetAusgleichTab({
     return () => {
       cancelled = true;
     };
-  }, [loadLedgerRows, loadLedgerState, loadMonthClose]);
+  }, [loadLedgerRows, loadLedgerState, loadMonthClose, t]);
 
   const pairBalances = useMemo(() => buildOpenPairBalances(ledgerRows), [ledgerRows]);
   const salden = useMemo(() => buildOpenSaldoMap(ledgerRows), [ledgerRows]);
@@ -294,6 +297,25 @@ export default function BudgetAusgleichTab({
   const selectedMonthIsStale = Boolean(
     monthClose?.is_stale || (staleFromMonth && selectedMonthDate >= staleFromMonth),
   );
+  const translateNote = useCallback((note) => {
+    if (!note) return "";
+    const applied = `ubernommen`.replace("u", String.fromCharCode(252));
+    const lineItemApplied = ["Einzelposten", applied].join(" ");
+    const suggestionApplied = ["Vorschlag", applied].join(" ");
+    const allSuggestionsApplied = ["Alle Vorschlage".replace("a", String.fromCharCode(228)), applied].join(" ");
+    const exact = {
+      [`Aufrechnung (Gegenposition ${applied})`]: t("budget:settlementTab.noteNettingCounter"),
+      "Aufrechnung (Gegenverrechnung)": t("budget:settlementTab.noteNettingMain"),
+      [lineItemApplied]: t("budget:settlementTab.noteLineItemNoDesc"),
+      [suggestionApplied]: t("budget:settlementTab.notifySuggestionApplied"),
+      [allSuggestionsApplied]: t("budget:settlementTab.notifyAllApplied"),
+    };
+    if (exact[note]) return exact[note];
+    const lineItem = note.match(new RegExp(`^${lineItemApplied}: (.+)$`));
+    if (lineItem) return t("budget:settlementTab.noteLineItem", { desc: lineItem[1] });
+    return note;
+  }, [t]);
+
   const toggleSuggestionDetails = useCallback((suggestionKey) => {
     setExpandedSuggestions((current) => ({
       ...current,
@@ -326,23 +348,23 @@ export default function BudgetAusgleichTab({
 
   const handleSave = async () => {
     if (!householdId) {
-      setFehler("Aktiver Haushalt konnte nicht bestimmt werden.");
+      setFehler(t("budget:settlementTab.errDetermineHousehold"));
       return;
     }
     if (!fromMemberId || !toMemberId) {
-      setFehler("Bitte Zahler und Empfänger auswählen.");
+      setFehler(t("budget:settlementTab.errSelectBoth"));
       return;
     }
     if (fromMemberId === toMemberId) {
-      setFehler("Zahler und Empfänger müssen unterschiedlich sein.");
+      setFehler(t("budget:settlementTab.errSamePerson"));
       return;
     }
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-      setFehler("Bitte einen gültigen Betrag eingeben.");
+      setFehler(t("budget:settlementTab.errInvalidAmount"));
       return;
     }
     if (numericAmount - offenePaarSchuldEuro > 0.0001) {
-      setFehler("Der Betrag übersteigt den offenen Ausgleich dieses Paars.");
+      setFehler(t("budget:settlementTab.errAmountExceeds"));
       return;
     }
 
@@ -362,7 +384,7 @@ export default function BudgetAusgleichTab({
       setNote("");
       await refreshAll();
     } catch (error) {
-      setFehler(`Ausgleich konnte nicht gespeichert werden: ${error.message}`);
+      setFehler(t("budget:settlementTab.errSaveFailed", { msg: error.message }));
     } finally {
       setSaving(false);
     }
@@ -370,7 +392,7 @@ export default function BudgetAusgleichTab({
 
   const handleDeleteSettlement = async (settlementId) => {
     if (!settlementId) return;
-    if (!window.confirm("Diesen Ausgleich wirklich löschen?")) return;
+    if (!window.confirm(t("budget:settlementTab.errDeleteConfirm"))) return;
 
     setDeletingId(settlementId);
     setFehler(null);
@@ -387,13 +409,13 @@ export default function BudgetAusgleichTab({
         toMemberId: settlement?.to_member_id,
         amountEuro: Number(settlement?.amount || 0) || centsToEuro(settlement?.amount_cents || 0),
         recordId: settlementId,
-        title: "Ausgleich geloescht",
-        body: "Ein Budget-Ausgleich wurde geloescht.",
+        title: t("budget:settlementTab.notifyDeleted"),
+        body: t("budget:settlementTab.notifyDeletedBody"),
       });
 
       await refreshAll();
     } catch (error) {
-      setFehler(`Ausgleich konnte nicht gelöscht werden: ${error.message}`);
+      setFehler(t("budget:settlementTab.errDeleteFailed", { msg: error.message }));
     } finally {
       setDeletingId(null);
     }
@@ -409,11 +431,11 @@ export default function BudgetAusgleichTab({
         fromMemberId: suggestion.from_member_id,
         toMemberId: suggestion.to_member_id,
         amountEuro: centsToEuro(suggestion.open_amount_cents),
-        noteText: "Vorschlag übernommen",
+        noteText: t("budget:settlementTab.notifySuggestionApplied"),
       });
       await refreshAll();
     } catch (error) {
-      setFehler(`Vorschlag konnte nicht übernommen werden: ${error.message}`);
+      setFehler(t("budget:settlementTab.errApplyFailed", { msg: error.message }));
     } finally {
       setSaving(false);
     }
@@ -431,12 +453,12 @@ export default function BudgetAusgleichTab({
           fromMemberId: suggestion.from_member_id,
           toMemberId: suggestion.to_member_id,
           amountEuro: centsToEuro(suggestion.open_amount_cents),
-          noteText: "Alle Vorschläge übernommen",
+          noteText: t("budget:settlementTab.notifyAllApplied"),
         });
       }
       await refreshAll();
     } catch (error) {
-      setFehler(`Vorschläge konnten nicht vollständig übernommen werden: ${error.message}`);
+      setFehler(t("budget:settlementTab.errApplyAllFailed", { msg: error.message }));
     } finally {
       setSaving(false);
     }
@@ -452,18 +474,18 @@ export default function BudgetAusgleichTab({
         fromMemberId: counterSuggestion.from_member_id,
         toMemberId: counterSuggestion.to_member_id,
         amountEuro: centsToEuro(counterSuggestion.open_amount_cents),
-        noteText: "Aufrechnung (Gegenposition übernommen)",
+        noteText: t("budget:settlementTab.noteNettingCounter"),
       });
       // Hauptrichtung um denselben Gegenbetrag reduzieren (z.B. Robert→Bettina: −17,99)
       await saveSettlement({
         fromMemberId: suggestion.from_member_id,
         toMemberId: suggestion.to_member_id,
         amountEuro: centsToEuro(counterSuggestion.open_amount_cents),
-        noteText: "Aufrechnung (Gegenverrechnung)",
+        noteText: t("budget:settlementTab.noteNettingMain"),
       });
       await refreshAll();
     } catch (error) {
-      setFehler(`Aufrechnung konnte nicht durchgeführt werden: ${error.message}`);
+      setFehler(t("budget:settlementTab.errNettingFailed", { msg: error.message }));
     } finally {
       setSaving(false);
     }
@@ -480,13 +502,13 @@ export default function BudgetAusgleichTab({
         p_split_share_id: row.share_id,
         p_amount: centsToEuro(row.open_amount_cents),
         p_date: todayIso(),
-        p_note: row.beschreibung ? `Einzelposten übernommen: ${row.beschreibung}` : "Einzelposten übernommen",
+        p_note: row.beschreibung ? t("budget:settlementTab.noteLineItem", { desc: row.beschreibung }) : t("budget:settlementTab.noteLineItemNoDesc"),
       });
       if (error) throw error;
 
       await refreshAll();
     } catch (error) {
-      setFehler(`Einzelposten konnte nicht übernommen werden: ${error.message}`);
+      setFehler(t("budget:settlementTab.errShareFailed", { msg: error.message }));
     } finally {
       setApplyingShareId(null);
     }
@@ -508,16 +530,16 @@ export default function BudgetAusgleichTab({
         userId,
         table: "budget_settlements",
         action: "geaendert",
-        recordName: `Monatsabschluss ${abschlussMonat}`,
+        recordName: t("budget:settlementTab.notifyMonthRecord", { month: abschlussMonat }),
         recordId: `${householdId}-${abschlussMonat}`,
         url: "/home/budget?tab=ausgleich",
         pushPolicy: "always",
-        title: "Budget-Monat abgeschlossen",
-        body: `Der Budget-Ausgleich fuer ${abschlussMonat} wurde neu berechnet.`,
+        title: t("budget:settlementTab.notifyMonthClosed"),
+        body: t("budget:settlementTab.notifyMonthClosedBody", { month: abschlussMonat }),
       });
       await Promise.all([loadMonthClose(), loadLedgerState()]);
     } catch (error) {
-      setFehler(`Monatsabschluss konnte nicht berechnet werden: ${error.message}`);
+      setFehler(t("budget:settlementTab.errMonthCloseFailed", { msg: error.message }));
     } finally {
       setClosingMonth(false);
     }
@@ -533,7 +555,7 @@ export default function BudgetAusgleichTab({
 
       {migrationBlocked && (
         <div className="rounded-card-sm border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-sm text-amber-700 dark:text-amber-300">
-          Die historische Settlement-Migration ist blockiert. Offene Ausgleiche sind erst wieder verfügbar, wenn die Alt-Daten bereinigt wurden.
+          {t("budget:settlementTab.migrationBlocked")}
           {ledgerState?.migration_error ? ` ${ledgerState.migration_error}` : ""}
         </div>
       )}
@@ -541,13 +563,13 @@ export default function BudgetAusgleichTab({
       <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 p-4">
         <div className="flex flex-wrap gap-3 items-end">
           <div>
-            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Monat</label>
+            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:settlementTab.filterMonth")}</label>
             <input type="month" value={filterMonat} onChange={(event) => setFilterMonat(event.target.value)} className={INPUT_CLS} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Bewohner</label>
+            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:settlementTab.filterResident")}</label>
             <select value={filterMemberId} onChange={(event) => setFilterMemberId(event.target.value)} className={INPUT_CLS}>
-              <option value="">Alle</option>
+              <option value="">{t("budget:settlementTab.filterAll")}</option>
               {bewohner.map((eintrag) => (
                 <option key={eintrag.id} value={eintrag.id}>
                   {eintrag.emoji} {getBewohnerDisplayName(eintrag)}
@@ -557,7 +579,7 @@ export default function BudgetAusgleichTab({
           </div>
           {(filterMonat || filterMemberId) && (
             <button onClick={() => { setFilterMonat(""); setFilterMemberId(""); }} className="text-sm text-primary-500 hover:underline pb-2">
-              Filter zurücksetzen
+              {t("budget:settlementTab.filterReset")}
             </button>
           )}
         </div>
@@ -566,16 +588,16 @@ export default function BudgetAusgleichTab({
       <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2">
         <div className="flex items-center justify-between gap-3 p-4 border-b border-light-border dark:border-dark-border">
           <div>
-            <p className="text-xs uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">Ausgleich</p>
-            <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">Offene Nettosalden im Haushalt</h3>
+            <p className="text-xs uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.openBalancesSubtitle")}</p>
+            <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.openBalances")}</h3>
           </div>
           <ArrowLeftRight size={18} className="text-primary-500" />
         </div>
         <div className="p-4 space-y-3">
           {ledgerLoading ? (
-            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Open-Item-Ledger wird geladen…</p>
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.ledgerLoading")}</p>
           ) : saldoRows.length === 0 ? (
-            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Noch keine offenen Kostenaufteilungen vorhanden.</p>
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.noOpenSplits")}</p>
           ) : (
             saldoRows.map((row) => (
               <div key={row.id} className="flex items-center justify-between gap-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-2">
@@ -595,22 +617,22 @@ export default function BudgetAusgleichTab({
       <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2">
         <div className="flex items-center justify-between gap-3 p-4 border-b border-light-border dark:border-dark-border">
           <div>
-            <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">Offene Ausgleichsvorschläge</h3>
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Brutto pro Schuldner-/Empfänger-Richtung, allocation-sicher aus dem Open-Item-Ledger</p>
+            <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.suggestions")}</h3>
+            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.suggestionsSubtitle")}</p>
           </div>
           {suggestions.length > 1 && (
             <button onClick={handleApplyAllSuggestions} disabled={saving || migrationBlocked} className="px-3 py-1.5 rounded-card-sm bg-primary-500 text-white text-sm disabled:opacity-60">
-              Alle übernehmen
+              {t("budget:settlementTab.applyAll")}
             </button>
           )}
         </div>
         <div className="p-4 space-y-3">
           {!suggestions.length ? (
-            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Aktuell gibt es keine offenen Paar-Schulden.</p>
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.noPairDebts")}</p>
           ) : (
             <>
               <div className="rounded-card-sm border border-primary-500/20 bg-primary-500/5 px-3 py-2 text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                Jeder Vorschlag basiert auf offenen Split-Positionen je Richtungspaar. Gegenläufige Forderungen zwischen denselben zwei Bewohnern werden hier getrennt angezeigt, im Monatsabschluss und bei den Nettosalden aber miteinander verrechnet.
+                {t("budget:settlementTab.suggestionsInfo")}
               </div>
               {suggestions.map((suggestion) => {
                 const suggestionKey = pairKey(suggestion.from_member_id, suggestion.to_member_id);
@@ -634,10 +656,10 @@ export default function BudgetAusgleichTab({
                 <div className="flex flex-col gap-3 px-3 py-3 md:flex-row md:items-center md:justify-between">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">
-                    {bewohnerById[suggestion.from_member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[suggestion.from_member_id] || { name: "Unbekannt" })} → {bewohnerById[suggestion.to_member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[suggestion.to_member_id] || { name: "Unbekannt" })}
+                    {bewohnerById[suggestion.from_member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[suggestion.from_member_id] || { name: t("budget:settlementTab.unknown") })} → {bewohnerById[suggestion.to_member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[suggestion.to_member_id] || { name: t("budget:settlementTab.unknown") })}
                   </p>
                   <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                    Offen seit {formatIsoDate(suggestion.oldest_origin_date)} · {suggestion.share_count} Position{suggestion.share_count === 1 ? "" : "en"}
+                    {t("budget:settlementTab.openSince", { date: formatIsoDate(suggestion.oldest_origin_date), count: suggestion.share_count })}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
@@ -649,19 +671,19 @@ export default function BudgetAusgleichTab({
                     onClick={() => toggleSuggestionDetails(suggestionKey)}
                     className="px-3 py-1.5 rounded-card-sm border border-light-border dark:border-dark-border text-sm text-light-text-main dark:text-dark-text-main hover:border-primary-500"
                   >
-                    {isExpanded ? "Details ausblenden" : "Details anzeigen"}
+                    {isExpanded ? t("budget:settlementTab.hideDetails") : t("budget:settlementTab.showDetails")}
                   </button>
                   <button onClick={() => handleApplySuggestion(suggestion)} disabled={saving || migrationBlocked} className="px-3 py-1.5 rounded-card-sm border border-primary-500 text-primary-500 text-sm disabled:opacity-60">
-                    Übernehmen
+                    {t("budget:settlementTab.apply")}
                   </button>
                   {showNettingButton && (
                     <button
                       onClick={() => handleApplyNettoSuggestion(suggestion, counterSuggestion)}
                       disabled={saving || migrationBlocked}
                       className="px-3 py-1.5 rounded-card-sm border border-sky-500 text-sky-400 text-sm disabled:opacity-60"
-                      title={`Gegenposition (${currency(centsToEuro(counterSuggestion.open_amount_cents))}) mit übernehmen`}
+                      title={t("budget:settlementTab.netOffsetTitle", { amount: currency(centsToEuro(counterSuggestion.open_amount_cents)) })}
                     >
-                      Netto aufrechnen ({currency(centsToEuro(nettoAmountCents))})
+                      {t("budget:settlementTab.netOffset", { amount: currency(centsToEuro(nettoAmountCents)) })}
                     </button>
                   )}
                 </div>
@@ -670,7 +692,7 @@ export default function BudgetAusgleichTab({
                   <div className="border-t border-light-border dark:border-dark-border px-3 py-3">
                     {!detailRows.length ? (
                       <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                        Keine Detailpositionen gefunden. Bitte Ledger neu laden.
+                        {t("budget:settlementTab.noDetailItems")}
                       </p>
                     ) : (
                       <div className="space-y-2">
@@ -679,18 +701,18 @@ export default function BudgetAusgleichTab({
                             <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                               <div className="min-w-0">
                                 <p className="text-sm text-light-text-main dark:text-dark-text-main">
-                                  {row.beschreibung || "Ohne Beschreibung"}
+                                  {row.beschreibung || t("budget:settlementTab.noDescription")}
                                 </p>
                                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                                  {formatIsoDate(row.origin_date)} · Offen seit {row.age_days} Tag{Number(row.age_days) === 1 ? "" : "en"}
+                                  {formatIsoDate(row.origin_date)} · {t("budget:settlementTab.openForDays", { count: Number(row.age_days) })}
                                 </p>
                               </div>
                               <div className="text-left md:text-right">
                                 <p className={`text-base font-semibold tabular-nums ${debtAmountClass(centsToEuro(row.open_amount_cents))}`}>
-                                  Offen: {currency(centsToEuro(row.open_amount_cents))}
+                                  {t("budget:settlementTab.openAmount")} {currency(centsToEuro(row.open_amount_cents))}
                                 </p>
                                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                                  Anteil <span className="text-amber-300 dark:text-amber-200">{currency(centsToEuro(row.amount_owed_cents))}</span> · Bereits zugeordnet <span className="text-emerald-400 dark:text-emerald-300">{currency(centsToEuro(row.allocated_cents))}</span>
+                                  {t("budget:settlementTab.shareAmount")} <span className="text-amber-300 dark:text-amber-200">{currency(centsToEuro(row.amount_owed_cents))}</span> · {t("budget:settlementTab.alreadyAllocated")} <span className="text-emerald-400 dark:text-emerald-300">{currency(centsToEuro(row.allocated_cents))}</span>
                                 </p>
                                 <div className="mt-2">
                                   <button
@@ -699,7 +721,7 @@ export default function BudgetAusgleichTab({
                                     disabled={saving || Boolean(applyingShareId) || migrationBlocked}
                                     className="px-3 py-1.5 rounded-card-sm border border-primary-500 text-primary-500 text-sm disabled:opacity-60"
                                   >
-                                    {applyingShareId === row.share_id ? "Wird übernommen..." : "Diesen Posten übernehmen"}
+                                    {applyingShareId === row.share_id ? t("budget:settlementTab.applyingItem") : t("budget:settlementTab.applyItem")}
                                   </button>
                                 </div>
                               </div>
@@ -707,7 +729,7 @@ export default function BudgetAusgleichTab({
                           </div>
                         ))}
                         <div className="flex items-center justify-between rounded-card-sm border border-dashed border-light-border dark:border-dark-border px-3 py-2 text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                          <span>Summe dieses Vorschlags</span>
+                          <span>{t("budget:settlementTab.totalSuggestion")}</span>
                           <span className={`text-sm font-semibold tabular-nums ${debtAmountClass(centsToEuro(suggestion.open_amount_cents))}`}>
                             {currency(centsToEuro(suggestion.open_amount_cents))}
                           </span>
@@ -726,14 +748,14 @@ export default function BudgetAusgleichTab({
 
       <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2">
         <div className="p-4 border-b border-light-border dark:border-dark-border">
-          <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">Ausgleich erfassen</h3>
+          <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.record")}</h3>
         </div>
         <div className="p-4 space-y-3">
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <div>
-              <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Zahlt</label>
+              <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:settlementTab.payer")}</label>
               <select value={fromMemberId} onChange={(event) => setFromMemberId(event.target.value)} className={INPUT_CLS}>
-                <option value="">Bewohner wählen</option>
+                <option value="">{t("budget:settlementTab.selectResident")}</option>
                 {bewohner.map((eintrag) => (
                   <option key={eintrag.id} value={eintrag.id}>
                     {eintrag.emoji} {getBewohnerDisplayName(eintrag)}
@@ -742,9 +764,9 @@ export default function BudgetAusgleichTab({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Empfänger</label>
+              <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:settlementTab.recipient")}</label>
               <select value={toMemberId} onChange={(event) => setToMemberId(event.target.value)} className={INPUT_CLS}>
-                <option value="">Bewohner wählen</option>
+                <option value="">{t("budget:settlementTab.selectResident")}</option>
                 {bewohner.map((eintrag) => (
                   <option key={eintrag.id} value={eintrag.id}>
                     {eintrag.emoji} {getBewohnerDisplayName(eintrag)}
@@ -756,29 +778,29 @@ export default function BudgetAusgleichTab({
 
           <div className="grid gap-3 md:grid-cols-[220px_minmax(0,1fr)]">
             <div>
-              <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Betrag (€)</label>
+              <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:settlementTab.amountLabel")}</label>
               <input type="number" step="0.01" min="0" value={amount} onChange={(event) => setAmount(event.target.value)} className={INPUT_CLS} placeholder="0,00" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Notiz</label>
-              <input value={note} onChange={(event) => setNote(event.target.value)} className={INPUT_CLS} placeholder="Optional" />
+              <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:settlementTab.noteLabel")}</label>
+              <input value={note} onChange={(event) => setNote(event.target.value)} className={INPUT_CLS} placeholder={t("budget:settlementTab.notePlaceholder")} />
             </div>
           </div>
 
           <div className={`rounded-card-sm border px-3 py-2 text-sm ${offenePaarSchuldEuro > 0 ? "border-rose-500/25 bg-rose-500/8" : "border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1"}`}>
-            <span className="text-light-text-secondary dark:text-dark-text-secondary">Offener Paar-Saldo: </span>
+            <span className="text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.openPairBalance")} </span>
             <span className={`font-semibold tabular-nums ${debtAmountClass(offenePaarSchuldEuro)}`}>{currency(offenePaarSchuldEuro)}</span>
           </div>
 
           {fromMemberId && toMemberId && offenePaarSchuldEuro <= 0 && (
             <div className="rounded-card-sm border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300 flex items-start gap-2">
               <Info size={16} className="mt-0.5 flex-shrink-0" />
-              Für dieses Paar besteht aktuell keine offene Schuld.
+              {t("budget:settlementTab.noDebtForPair")}
             </div>
           )}
 
           <button onClick={handleSave} disabled={saving || migrationBlocked} className="px-4 py-2 rounded-card-sm bg-primary-500 text-white text-sm disabled:opacity-60">
-            Ausgleich speichern
+            {t("budget:settlementTab.save")}
           </button>
         </div>
       </div>
@@ -786,44 +808,44 @@ export default function BudgetAusgleichTab({
       <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2">
         <div className="flex items-center justify-between gap-3 p-4 border-b border-light-border dark:border-dark-border">
           <div>
-            <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">Monatsabschluss</h3>
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Netto-Snapshot der offenen Salden pro Monat</p>
+            <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.monthlyClose")}</h3>
+            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.monthlyCloseSubtitle")}</p>
           </div>
           <div className="flex items-center gap-2">
             <input type="month" value={abschlussMonat} onChange={(event) => setAbschlussMonat(event.target.value)} className={INPUT_CLS} />
             <button onClick={handleCloseMonth} disabled={closingMonth || migrationBlocked} className="px-3 py-1.5 rounded-card-sm bg-primary-500 text-white text-sm disabled:opacity-60">
-              {selectedMonthIsStale || !monthClose ? "Neu berechnen" : "Aktualisieren"}
+              {selectedMonthIsStale || !monthClose ? t("budget:settlementTab.recalculate") : t("budget:settlementTab.updateBtn")}
             </button>
           </div>
         </div>
         <div className="p-4 space-y-3">
           {monthCloseLoading ? (
-            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Monatsabschluss wird geladen…</p>
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.monthCloseLoading")}</p>
           ) : !monthClose ? (
-            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Für diesen Monat existiert noch kein Abschluss.</p>
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.noMonthClose")}</p>
           ) : (
             <>
               <div className={`rounded-card-sm border px-3 py-2 text-sm ${selectedMonthIsStale ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300" : "border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main"}`}>
-                {selectedMonthIsStale ? "Dieser Monatsabschluss ist veraltet und sollte neu berechnet werden." : `Berechnet am ${new Date(monthClose.calculated_at).toLocaleString("de-AT")}`}
+                {selectedMonthIsStale ? t("budget:settlementTab.monthCloseStale") : t("budget:settlementTab.monthCloseCalculatedAt", { date: new Date(monthClose.calculated_at).toLocaleString(i18n.language) })}
               </div>
               <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-2 text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                Der Monatsabschluss zeigt Netto-Salden. Gegenseitige Forderungen zwischen denselben Bewohnern werden gegeneinander saldiert.
+                {t("budget:settlementTab.monthCloseInfo")}
               </div>
               <div className="grid gap-3 md:grid-cols-4">
                 <div className={`rounded-card-sm border px-3 py-3 ${summaryCardTone("carry")}`}>
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Offen aus Vormonat</p>
+                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.openFromPrevMonth")}</p>
                   <p className="text-lg font-semibold tabular-nums text-sky-300 dark:text-sky-200">{currency(centsToEuro(monthClose.opening_total_cents))}</p>
                 </div>
                 <div className={`rounded-card-sm border px-3 py-3 ${summaryCardTone("created")}`}>
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Neu im Monat</p>
+                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.newThisMonth")}</p>
                   <p className="text-lg font-semibold tabular-nums text-amber-300 dark:text-amber-200">{currency(centsToEuro(monthClose.created_total_cents))}</p>
                 </div>
                 <div className={`rounded-card-sm border px-3 py-3 ${summaryCardTone("settled")}`}>
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Bereits beglichen</p>
+                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.alreadySettled")}</p>
                   <p className="text-lg font-semibold tabular-nums text-emerald-400 dark:text-emerald-300">{currency(centsToEuro(monthClose.settled_total_cents))}</p>
                 </div>
                 <div className={`rounded-card-sm border px-3 py-3 ${summaryCardTone("open")}`}>
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Rest offen</p>
+                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.remainingOpen")}</p>
                   <p className={`text-lg font-semibold tabular-nums ${debtAmountClass(centsToEuro(monthClose.closing_total_cents))}`}>{currency(centsToEuro(monthClose.closing_total_cents))}</p>
                 </div>
               </div>
@@ -831,12 +853,12 @@ export default function BudgetAusgleichTab({
                 {monthCloseMembers.map((row) => (
                   <div key={row.id} className="grid gap-2 rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-3 md:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))]">
                     <div className="text-sm font-medium text-light-text-main dark:text-dark-text-main">
-                      {bewohnerById[row.member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[row.member_id] || { name: "Unbekannt" })}
+                      {bewohnerById[row.member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[row.member_id] || { name: t("budget:settlementTab.unknown") })}
                     </div>
-                    <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Vormonat: <span className="font-medium tabular-nums text-sky-300 dark:text-sky-200">{currency(centsToEuro(row.opening_balance_cents))}</span></div>
-                    <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Neu: <span className={`font-medium tabular-nums ${saldoAmountClass(centsToEuro(row.created_in_month_cents))}`}>{currency(centsToEuro(row.created_in_month_cents))}</span></div>
-                    <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Beglichen: <span className={`font-medium tabular-nums ${settledAmountClass(centsToEuro(row.settled_in_month_cents))}`}>{currency(centsToEuro(row.settled_in_month_cents))}</span></div>
-                    <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Offen: <span className={`font-semibold tabular-nums ${saldoAmountClass(centsToEuro(row.closing_balance_cents))}`}>{currency(centsToEuro(row.closing_balance_cents))}</span></div>
+                    <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.prevMonthLabel")} <span className="font-medium tabular-nums text-sky-300 dark:text-sky-200">{currency(centsToEuro(row.opening_balance_cents))}</span></div>
+                    <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.newLabel")} <span className={`font-medium tabular-nums ${saldoAmountClass(centsToEuro(row.created_in_month_cents))}`}>{currency(centsToEuro(row.created_in_month_cents))}</span></div>
+                    <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.settledLabel")} <span className={`font-medium tabular-nums ${settledAmountClass(centsToEuro(row.settled_in_month_cents))}`}>{currency(centsToEuro(row.settled_in_month_cents))}</span></div>
+                    <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.openLabel")} <span className={`font-semibold tabular-nums ${saldoAmountClass(centsToEuro(row.closing_balance_cents))}`}>{currency(centsToEuro(row.closing_balance_cents))}</span></div>
                   </div>
                 ))}
               </div>
@@ -847,20 +869,20 @@ export default function BudgetAusgleichTab({
 
       <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2">
         <div className="p-4 border-b border-light-border dark:border-dark-border">
-          <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">Historie</h3>
+          <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.history")}</h3>
         </div>
         <div className="p-4 space-y-3">
           {!historyRows.length ? (
-            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Noch keine Ausgleichsbuchungen vorhanden.</p>
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.emptyHistory")}</p>
           ) : (
             historyRows.map((row) => (
               <div key={row.id} className="flex items-center justify-between gap-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-3">
                 <div className="min-w-0">
                   <p className="text-sm text-light-text-main dark:text-dark-text-main">
-                    {bewohnerById[row.from_member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[row.from_member_id] || { name: "Unbekannt" })} → {bewohnerById[row.to_member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[row.to_member_id] || { name: "Unbekannt" })}
+                    {bewohnerById[row.from_member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[row.from_member_id] || { name: t("budget:settlementTab.unknown") })} → {bewohnerById[row.to_member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[row.to_member_id] || { name: t("budget:settlementTab.unknown") })}
                   </p>
                   <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                    {row.date} {row.note ? `· ${row.note}` : ""}
+                    {row.date} {row.note ? `· ${translateNote(row.note)}` : ""}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">

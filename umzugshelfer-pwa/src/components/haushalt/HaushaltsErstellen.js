@@ -2,22 +2,22 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
 import { useHaushalt } from "../../contexts/HaushaltsContext";
-import { Home, Key, Plus, CheckCircle, AlertCircle, Users } from "lucide-react";
+import { Home, Key, Plus, AlertCircle, Users } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 const HaushaltsErstellen = ({ session }) => {
+  const { t } = useTranslation(["household"]);
   const navigate = useNavigate();
   const { ladeHaushalt, ausstehende_einladungen, ladeAusstehendeEinladungen } = useHaushalt();
 
-  const [aktiveTab, setAktiveTab] = useState("erstellen"); // 'erstellen' | 'beitreten'
-  const [haushaltsName, setHaushaltsName] = useState("Mein Haushalt");
+  const [aktiveTab, setAktiveTab] = useState("erstellen");
+  const [haushaltsName, setHaushaltsName] = useState(t("household:title"));
   const [einladungsCode, setEinladungsCode] = useState("");
   const [laden, setLaden] = useState(false);
   const [fehler, setFehler] = useState("");
-  const [erfolg, setErfolg] = useState("");
 
   const userId = session?.user?.id;
 
-  // ── Neuen Haushalt erstellen ──────────────────────────────────────────────────
   const handleErstellen = async (e) => {
     e.preventDefault();
     if (!haushaltsName.trim()) return;
@@ -31,17 +31,15 @@ const HaushaltsErstellen = ({ session }) => {
       .single();
 
     if (hError || !haushalt) {
-      setFehler("Haushalt konnte nicht erstellt werden. Bitte versuche es erneut.");
+      setFehler(t("household:setup.createFailed"));
       setLaden(false);
       return;
     }
 
-    // Mitglied-Eintrag anlegen
     await supabase
       .from("haushalt_mitglieder")
       .insert({ haushalt_id: haushalt.id, user_id: userId, rolle: "admin" });
 
-    // user_profile.haushalt_id setzen
     await supabase
       .from("user_profile")
       .update({ haushalt_id: haushalt.id })
@@ -52,7 +50,6 @@ const HaushaltsErstellen = ({ session }) => {
     navigate("/home");
   };
 
-  // ── Einladungscode einlösen ───────────────────────────────────────────────────
   const handleBeitreten = async (e) => {
     e.preventDefault();
     if (!einladungsCode.trim()) return;
@@ -64,7 +61,7 @@ const HaushaltsErstellen = ({ session }) => {
     });
 
     if (error) {
-      setFehler(error.message || "Ungültiger oder abgelaufener Einladungscode.");
+      setFehler(error.message || t("household:messages.inviteInvalid"));
       setLaden(false);
       return;
     }
@@ -74,13 +71,10 @@ const HaushaltsErstellen = ({ session }) => {
     navigate("/home");
   };
 
-  // ── E-Mail-Einladung annehmen ─────────────────────────────────────────────────
   const handleEmailEinladungAnnehmen = async (einladung) => {
     setLaden(true);
     setFehler("");
 
-    // Admin legt Code-Einladung an – wir nutzen die haushalt_id der Einladung
-    // und fügen das Mitglied direkt hinzu
     const { error } = await supabase
       .from("haushalt_mitglieder")
       .insert({ haushalt_id: einladung.haushalt_id, user_id: userId, rolle: "mitglied" });
@@ -99,7 +93,7 @@ const HaushaltsErstellen = ({ session }) => {
 
     setLaden(false);
     if (error) {
-      setFehler("Einladung konnte nicht angenommen werden.");
+      setFehler(t("household:invites.acceptFailed"));
     } else {
       await ladeHaushalt();
       navigate("/home");
@@ -117,20 +111,18 @@ const HaushaltsErstellen = ({ session }) => {
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-light-accent-purple/20 dark:bg-accent-purple/20 mb-4">
             <Home className="w-8 h-8 text-light-accent-purple dark:text-accent-purple" />
           </div>
           <h1 className="text-2xl font-bold text-light-text-main dark:text-dark-text-main">
-            Haushalt einrichten
+            {t("household:setup.title")}
           </h1>
           <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1">
-            Erstelle einen neuen Haushalt oder tritt einem bestehenden bei.
+            {t("household:setup.subtitle")}
           </p>
         </div>
 
-        {/* Ausstehende E-Mail-Einladungen */}
         {ausstehende_einladungen.length > 0 && (
           <div className="mb-6 space-y-3">
             {ausstehende_einladungen.map((einladung) => (
@@ -142,10 +134,10 @@ const HaushaltsErstellen = ({ session }) => {
                   <Users className="w-5 h-5 text-light-accent-purple dark:text-accent-purple mt-0.5 shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">
-                      Einladung zu „{einladung.haushalte?.name || "Haushalt"}"
+                      {t("household:invites.invitedTo", { name: einladung.haushalte?.name || t("household:title") })}
                     </p>
                     <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
-                      Gültig bis {new Date(einladung.gueltig_bis).toLocaleDateString("de-DE")}
+                      {t("household:validUntil", { date: new Date(einladung.gueltig_bis).toLocaleDateString("de-DE") })}
                     </p>
                   </div>
                 </div>
@@ -155,14 +147,14 @@ const HaushaltsErstellen = ({ session }) => {
                     disabled={laden}
                     className="flex-1 py-2 rounded-lg text-sm font-medium bg-light-accent-purple dark:bg-accent-purple text-white hover:opacity-90 transition-opacity disabled:opacity-50"
                   >
-                    Annehmen
+                    {t("household:invites.accept")}
                   </button>
                   <button
                     onClick={() => handleEmailEinladungAblehnen(einladung.id)}
                     disabled={laden}
                     className="flex-1 py-2 rounded-lg text-sm font-medium border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-card-bg dark:hover:bg-dark-card-bg transition-colors disabled:opacity-50"
                   >
-                    Ablehnen
+                    {t("household:invites.decline")}
                   </button>
                 </div>
               </div>
@@ -170,7 +162,6 @@ const HaushaltsErstellen = ({ session }) => {
           </div>
         )}
 
-        {/* Tab-Navigation */}
         <div className="flex rounded-xl bg-light-card-bg dark:bg-dark-card-bg border border-light-border dark:border-dark-border p-1 mb-6">
           <button
             onClick={() => setAktiveTab("erstellen")}
@@ -180,7 +171,7 @@ const HaushaltsErstellen = ({ session }) => {
                 : "text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
             }`}
           >
-            Erstellen
+            {t("household:setup.tabCreate")}
           </button>
           <button
             onClick={() => setAktiveTab("beitreten")}
@@ -190,36 +181,28 @@ const HaushaltsErstellen = ({ session }) => {
                 : "text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
             }`}
           >
-            Beitreten
+            {t("household:setup.tabJoin")}
           </button>
         </div>
 
-        {/* Fehler / Erfolg */}
         {fehler && (
           <div className="mb-4 flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 text-sm text-red-700 dark:text-red-400">
             <AlertCircle className="w-4 h-4 shrink-0" />
             {fehler}
           </div>
         )}
-        {erfolg && (
-          <div className="mb-4 flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3 text-sm text-green-700 dark:text-green-400">
-            <CheckCircle className="w-4 h-4 shrink-0" />
-            {erfolg}
-          </div>
-        )}
 
-        {/* Erstellen-Tab */}
         {aktiveTab === "erstellen" && (
           <form onSubmit={handleErstellen} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-light-text-main dark:text-dark-text-main mb-1.5">
-                Name des Haushalts
+                {t("household:setup.nameLabel")}
               </label>
               <input
                 type="text"
                 value={haushaltsName}
                 onChange={(e) => setHaushaltsName(e.target.value)}
-                placeholder="z.B. Familie Mustermann"
+                placeholder={t("household:setup.namePlaceholder")}
                 maxLength={80}
                 required
                 className="w-full rounded-xl border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-4 py-3 text-sm text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-light-accent-purple dark:focus:ring-accent-purple"
@@ -231,29 +214,28 @@ const HaushaltsErstellen = ({ session }) => {
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm bg-light-accent-purple dark:bg-accent-purple text-white hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               <Plus className="w-4 h-4" />
-              {laden ? "Wird erstellt…" : "Haushalt erstellen"}
+              {laden ? t("household:setup.creating") : t("household:setup.createButton")}
             </button>
           </form>
         )}
 
-        {/* Beitreten-Tab */}
         {aktiveTab === "beitreten" && (
           <form onSubmit={handleBeitreten} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-light-text-main dark:text-dark-text-main mb-1.5">
-                Einladungscode
+                {t("household:setup.codeLabel")}
               </label>
               <input
                 type="text"
                 value={einladungsCode}
                 onChange={(e) => setEinladungsCode(e.target.value.trim())}
-                placeholder="32-stelligen Code eingeben…"
+                placeholder={t("household:setup.codePlaceholder")}
                 maxLength={64}
                 required
                 className="w-full rounded-xl border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-4 py-3 text-sm font-mono text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-light-accent-purple dark:focus:ring-accent-purple"
               />
               <p className="mt-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                Du erhältst den Code vom Admin deines Haushalts.
+                {t("household:setup.codeHint")}
               </p>
             </div>
             <button
@@ -262,7 +244,7 @@ const HaushaltsErstellen = ({ session }) => {
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm bg-light-accent-purple dark:bg-accent-purple text-white hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               <Key className="w-4 h-4" />
-              {laden ? "Wird geprüft…" : "Haushalt beitreten"}
+              {laden ? t("household:setup.joining") : t("household:setup.joinButton")}
             </button>
           </form>
         )}

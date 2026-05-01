@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "../../supabaseClient";
 import { useHaushalt } from "../../contexts/HaushaltsContext";
 import {
-  Users, Mail, Link2, Copy, Trash2, Crown, LogOut,
+  Users, Mail, Link2, Trash2, Crown, LogOut,
   Plus, Check, X, AlertTriangle, Shield, Clock,
 } from "lucide-react";
 
 const HaushaltsVerwaltung = ({ session }) => {
+  const { t } = useTranslation(["household","common"]);
+  void t;
+
   const { haushalt, haushaltId, istAdmin, mitglieder, ladeHaushalt } = useHaushalt();
   const userId = session?.user?.id;
 

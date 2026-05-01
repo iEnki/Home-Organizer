@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
   BookOpen,
@@ -22,15 +23,16 @@ import { TOUR_STEPS } from "./tour/tourSteps";
 import { useTour } from "./tour/useTour";
 
 const QUELLEN = [
-  { key: "objekte", label: "Inventar", icon: Package, farbe: "text-blue-500", pfad: "/home/inventar" },
-  { key: "vorraete", label: "Vorrate", icon: ShoppingCart, farbe: "text-primary-500", pfad: "/home/vorraete" },
-  { key: "geraete", label: "Gerate", icon: Wrench, farbe: "text-orange-500", pfad: "/home/geraete" },
-  { key: "aufgaben", label: "Aufgaben", icon: CheckSquare, farbe: "text-purple-500", pfad: "/home/aufgaben" },
-  { key: "dokumente", label: "Dokumente", icon: FileText, farbe: "text-indigo-500", pfad: "/home/dokumente" },
-  { key: "buecher", label: "Buecher", icon: BookOpen, farbe: "text-teal-500", pfad: "/home/inventar?tab=buecher" },
+  { key: "objekte", labelKey: "search.sources.inventory", icon: Package, farbe: "text-blue-500", pfad: "/home/inventar" },
+  { key: "vorraete", labelKey: "search.sources.supplies", icon: ShoppingCart, farbe: "text-primary-500", pfad: "/home/vorraete" },
+  { key: "geraete", labelKey: "search.sources.devices", icon: Wrench, farbe: "text-orange-500", pfad: "/home/geraete" },
+  { key: "aufgaben", labelKey: "search.sources.tasks", icon: CheckSquare, farbe: "text-purple-500", pfad: "/home/aufgaben" },
+  { key: "dokumente", labelKey: "search.sources.documents", icon: FileText, farbe: "text-indigo-500", pfad: "/home/dokumente" },
+  { key: "buecher", labelKey: "search.sources.books", icon: BookOpen, farbe: "text-teal-500", pfad: "/home/inventar?tab=buecher" },
 ];
 
 const Schnellsuche = ({ session }) => {
+  const { t } = useTranslation(["home"]);
   const userId = session?.user?.id;
   const navigate = useNavigate();
   const location = useLocation();
@@ -86,6 +88,7 @@ const Schnellsuche = ({ session }) => {
             .from("dokumente")
             .select("id, dateiname, kategorie")
             .eq("user_id", userId)
+            .in("app_modus", ["home", "beides"])
             .ilike("dateiname", `%${q}%`)
             .limit(5),
           supabase
@@ -139,7 +142,7 @@ const Schnellsuche = ({ session }) => {
         <input
           value={suchbegriff}
           onChange={(event) => handleInput(event.target.value)}
-          placeholder="Stichwort eingeben ..."
+          placeholder={t("home:search.quickPlaceholder")}
           className="w-full rounded-card-sm border border-light-border bg-light-card py-3 pl-10 pr-10 text-sm text-light-text-main shadow-elevation-2 focus:border-primary-500 focus:outline-none dark:border-dark-border dark:bg-canvas-2 dark:text-dark-text-main"
           autoFocus
         />
@@ -148,13 +151,13 @@ const Schnellsuche = ({ session }) => {
       {suchbegriff.length >= 2 && !loading && !hatErgebnisse && (
         <div className="py-8 text-center text-light-text-secondary dark:text-dark-text-secondary">
           <Search size={32} className="mx-auto mb-2 opacity-30" />
-          <p className="text-sm">Keine Ergebnisse fuer "{suchbegriff}"</p>
+          <p className="text-sm">{t("home:search.noResults", { query: suchbegriff })}</p>
         </div>
       )}
 
       {hatErgebnisse && (
         <div className="space-y-5">
-          {QUELLEN.map(({ key, label, icon: Icon, farbe, pfad }) => {
+          {QUELLEN.map(({ key, labelKey, icon: Icon, farbe, pfad }) => {
             const items = ergebnisse[key] || [];
             if (!items.length) return null;
             return (
@@ -162,7 +165,7 @@ const Schnellsuche = ({ session }) => {
                 <div className="mb-2 flex items-center gap-2">
                   <Icon size={14} className={farbe} />
                   <h2 className="text-xs font-semibold uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary">
-                    {label}
+                    {t(`home:${labelKey}`)}
                   </h2>
                 </div>
                 <div className="space-y-1.5">
@@ -194,9 +197,9 @@ const Schnellsuche = ({ session }) => {
 
       {suchbegriff.length < 2 && (
         <div className="py-8 text-center text-light-text-secondary dark:text-dark-text-secondary">
-          <p className="text-sm">Mindestens 2 Zeichen eingeben</p>
+          <p className="text-sm">{t("home:search.minChars")}</p>
           <p className="mt-1 text-xs opacity-70">
-            Durchsucht Inventar, Vorrate, Gerate, Aufgaben und Dokumente
+            {t("home:search.quickHint")}
           </p>
         </div>
       )}
@@ -205,6 +208,7 @@ const Schnellsuche = ({ session }) => {
 };
 
 const KiAssistent = ({ session }) => {
+  const { t } = useTranslation(["home"]);
   const userId = session?.user?.id;
   const navigate = useNavigate();
   const [frage, setFrage] = useState("");
@@ -237,7 +241,7 @@ const KiAssistent = ({ session }) => {
       setVerlauf((prev) => [{ frage: trimmed, antwort: result.answer }, ...prev].slice(0, 10));
       setFrage("");
     } catch (error) {
-      setFehler(error.message || "Fehler bei der KI-Anfrage.");
+      setFehler(error.message || t("home:search.aiError"));
     } finally {
       setLoading(false);
     }
@@ -263,7 +267,7 @@ const KiAssistent = ({ session }) => {
               stelleFrage();
             }
           }}
-          placeholder="z.B. Wo ist das HDMI-Kabel? Was brauche ich nachkaufen?"
+          placeholder={t("home:search.aiPlaceholder")}
           className="flex-1 rounded-card-sm border border-light-border bg-light-card px-4 py-3 text-sm text-light-text-main shadow-elevation-2 focus:border-purple-500 focus:outline-none dark:border-dark-border dark:bg-canvas-2 dark:text-dark-text-main"
           autoFocus
         />
@@ -288,7 +292,7 @@ const KiAssistent = ({ session }) => {
           <div className="mb-2 flex items-center gap-2">
             <Sparkles size={14} className="text-purple-500" />
             <span className="text-xs font-semibold uppercase tracking-wider text-purple-500">
-              KI-Antwort
+              {t("home:search.aiAnswer")}
             </span>
           </div>
           <p className="whitespace-pre-wrap text-sm text-light-text-main dark:text-dark-text-main">
@@ -308,7 +312,7 @@ const KiAssistent = ({ session }) => {
                   <button
                     onClick={() => navigate("/home/dokumente", { state: { focusDokumentId: quelle.dokument_id } })}
                     className="rounded-card-sm bg-violet-500/10 p-1.5 text-violet-400 transition-colors hover:bg-violet-500/20"
-                    title="Im Dokumentarchiv oeffnen"
+                    title={t("home:search.openInDocuments")}
                   >
                     <ExternalLink size={12} />
                   </button>
@@ -331,7 +335,7 @@ const KiAssistent = ({ session }) => {
       {verlauf.length > 1 && (
         <div className="space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary">
-            Fruehere Fragen
+            {t("home:search.previousQuestions")}
           </p>
           {verlauf.slice(1).map((eintrag, index) => (
             <div
@@ -339,7 +343,7 @@ const KiAssistent = ({ session }) => {
               className="rounded-card border border-light-border bg-light-card p-3 shadow-elevation-2 dark:border-dark-border dark:bg-canvas-2"
             >
               <p className="mb-1 text-xs font-medium text-light-text-main dark:text-dark-text-main">
-                ? {eintrag.frage}
+                ?? {eintrag.frage}
               </p>
               <p className="line-clamp-2 text-xs text-light-text-secondary dark:text-dark-text-secondary">
                 {eintrag.antwort}
@@ -352,12 +356,12 @@ const KiAssistent = ({ session }) => {
       {verlauf.length === 0 && !loading && (
         <div className="py-8 text-center text-light-text-secondary dark:text-dark-text-secondary">
           <Sparkles size={32} className="mx-auto mb-2 opacity-30" />
-          <p className="text-sm">Stelle eine Frage zu deinem Haushalt</p>
+          <p className="text-sm">{t("home:search.askQuestion")}</p>
           <div className="mt-4 space-y-2">
             {[
-              "Wo ist das HDMI-Kabel?",
-              "Was muss ich nachkaufen?",
-              "Welche Geraete brauchen bald Wartung?",
+              t("home:search.examples.whereCable"),
+              t("home:search.examples.restock"),
+              t("home:search.examples.maintenance"),
             ].map((beispiel) => (
               <button
                 key={beispiel}
@@ -375,6 +379,7 @@ const KiAssistent = ({ session }) => {
 };
 
 const HomeGlobalSuche = ({ session }) => {
+  const { t } = useTranslation(["home"]);
   const location = useLocation();
   const [modus, setModus] = useState(
     location.state?.assistantFlow?.ui_state?.startMode === "semantic" ? "ki" : "schnell",
@@ -400,7 +405,7 @@ const HomeGlobalSuche = ({ session }) => {
       <div className="flex items-center gap-2">
         <Search size={22} className="text-primary-500" />
         <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">
-          Suche
+          {t("home:search.title")}
         </h1>
       </div>
 
@@ -414,7 +419,7 @@ const HomeGlobalSuche = ({ session }) => {
           }`}
         >
           <Search size={14} />
-          Schnellsuche
+          {t("home:search.quick")}
         </button>
         <button
           onClick={() => setModus("ki")}
@@ -425,7 +430,7 @@ const HomeGlobalSuche = ({ session }) => {
           }`}
         >
           <Sparkles size={14} />
-          KI-Assistent
+          {t("home:search.ai")}
         </button>
       </div>
 

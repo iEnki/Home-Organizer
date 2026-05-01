@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, forwardRef, useImperativeHandle } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   DollarSign, Plus, Edit2, Trash2, X, Loader2, AlertCircle,
   Sparkles, RefreshCw,
@@ -79,6 +80,7 @@ import {
   buildRelevantHomeBudgetCategoryNames,
   getActiveHomeBudgetCategoryNames,
   getDefaultHomeBudgetCategories,
+  getHomeBudgetCategoryLabel,
   getHomeBudgetCategoryColor,
   getSelectableHomeBudgetCategoryNames,
   normalizeHomeBudgetCategory,
@@ -116,11 +118,11 @@ const EMOJI_OPTIONEN = ["🎯", "🏠", "✈️", "🚗", "💻", "📱", "🎓"
 const FARB_OPTIONEN = ["#10B981", "#3B82F6", "#8B5CF6", "#EC4899", "#F59E0B", "#F97316", "#14B8A6", "#EF4444"];
 const BewohnerBadge = () => null;
 const TABS = [
-  { id: "uebersicht", label: "Übersicht", icon: Wallet },
-  { id: "statistiken", label: "Statistiken", icon: BarChart2 },
-  { id: "limits", label: "Limits", icon: TrendingUp },
-  { id: "ziele", label: "Ziele", icon: Target },
-  { id: "ausgleich", label: "Ausgleich", icon: ArrowLeftRight },
+  { id: "uebersicht", labelKey: "tabs.overview", icon: Wallet },
+  { id: "statistiken", labelKey: "tabs.statistics", icon: BarChart2 },
+  { id: "limits", labelKey: "tabs.limits", icon: TrendingUp },
+  { id: "ziele", labelKey: "tabs.goals", icon: Target },
+  { id: "ausgleich", labelKey: "tabs.settlement", icon: ArrowLeftRight },
 ];
 const GUELTIGE_TAB_IDS = TABS.map((tab) => tab.id);
 
@@ -226,6 +228,7 @@ const BudgetForm = forwardRef(({
   showSettlementHinweis,
   onValidityChange,
 }, ref) => {
+  const { t, i18n } = useTranslation(["budget", "common"]);
   const [form, setForm] = useState({
     beschreibung: initial?.beschreibung || "",
     kategorie:
@@ -470,23 +473,27 @@ const BudgetForm = forwardRef(({
   return (
     <div className="space-y-3">
       <div>
-        <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Beschreibung*</label>
+        <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:form.description")}</label>
         <input
           value={form.beschreibung}
           onChange={e => setForm(p => ({ ...p, beschreibung: e.target.value }))}
-          placeholder="z.B. Supermarkt"
+          placeholder={t("budget:form.descriptionPlaceholder")}
           className={INPUT_CLS}
         />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Kategorie</label>
+          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:form.category")}</label>
           <select value={form.kategorie} onChange={e => setForm(p => ({ ...p, kategorie: e.target.value }))} className={INPUT_CLS}>
-            {selectableCategories.map(k => <option key={k}>{k}</option>)}
+            {selectableCategories.map(k => (
+              <option key={k} value={k}>
+                {getHomeBudgetCategoryLabel(k, i18n.language)}
+              </option>
+            ))}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Betrag (€)*</label>
+          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:form.amount")}</label>
           <input
             type="number" step="0.01" min="0"
             value={form.betrag}
@@ -496,25 +503,25 @@ const BudgetForm = forwardRef(({
         </div>
       </div>
       <div>
-        <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Datum</label>
+        <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:form.date")}</label>
         <input type="date" value={form.datum} onChange={e => setForm(p => ({ ...p, datum: e.target.value }))} className={INPUT_CLS} />
       </div>
       <label className="flex items-center gap-2 cursor-pointer select-none">
         <input type="checkbox" checked={wiederholen} onChange={e => setWiederholen(e.target.checked)} className="w-4 h-4 rounded accent-primary-500" />
-        <span className="text-sm text-light-text-main dark:text-dark-text-main">Wiederkehrend</span>
+        <span className="text-sm text-light-text-main dark:text-dark-text-main">{t("budget:form.recurring")}</span>
       </label>
       {wiederholen && (
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Intervall</label>
+            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:form.interval")}</label>
             <select value={intervall} onChange={e => setIntervall(e.target.value)} className={INPUT_CLS}>
-              {INTERVALL_OPTIONEN.map(o => <option key={o}>{o}</option>)}
+              {INTERVALL_OPTIONEN.map(o => <option key={o} value={o}>{t(`budget:interval.${o}`, { defaultValue: o })}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Wiederholung endet</label>
+            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:form.repeatEnds")}</label>
             <div className="flex gap-2 mb-2">
-              {[["endlos", "Endlos"], ["datum", "Bis Datum"]].map(([v, l]) => (
+              {[["endlos", t("budget:form.endless")], ["datum", t("budget:form.untilDate")]].map(([v, l]) => (
                 <button
                   key={v}
                   type="button"
@@ -543,17 +550,17 @@ const BudgetForm = forwardRef(({
       )}
       {bewohner?.length > 0 && (
         <div>
-          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Person</label>
+          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:form.person")}</label>
           <select value={form.bewohner_id} onChange={e => setForm(p => ({ ...p, bewohner_id: e.target.value }))} className={INPUT_CLS}>
-            <option value="">— Kein Bewohner —</option>
+            <option value="">{t("budget:form.noResident")}</option>
             {bewohner.map(b => <option key={b.id} value={b.id}>{b.emoji} {getBewohnerDisplayName(b)}</option>)}
           </select>
         </div>
       )}
       <div>
-        <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Anrechnung</label>
+        <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:form.scope")}</label>
         <div className="flex gap-2">
-          {[["haushalt", "Haushalt"], ["privat", "Privat"]].map(([s, l]) => (
+          {[["haushalt", t("budget:scope.household")], ["privat", t("budget:scope.private")]].map(([s, l]) => (
             <button key={s} type="button" onClick={() => setBudgetScope(s)}
               className={`flex-1 py-1.5 rounded-card-sm text-sm font-medium border transition-colors ${
                 budgetScope === s
@@ -567,7 +574,7 @@ const BudgetForm = forwardRef(({
       </div>
       {aktiveFinanzkonten.length > 0 && (
         <div>
-          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Bezahlt von</label>
+          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:form.paidBy")}</label>
           <select
             value={zahlungskontoId}
             onChange={e => {
@@ -576,7 +583,7 @@ const BudgetForm = forwardRef(({
             }}
             className={INPUT_CLS}
           >
-            <option value="">— Kein Konto —</option>
+            <option value="">{t("budget:form.noAccount")}</option>
             {aktiveFinanzkonten.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
           </select>
           {kontoHinweis && (
@@ -610,7 +617,7 @@ const BudgetForm = forwardRef(({
         </>
       ) : (
         <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 px-3 py-2 text-xs text-light-text-secondary dark:text-dark-text-secondary">
-          Kostenaufteilung ist verfügbar, sobald mindestens zwei Bewohner angelegt sind.
+          {t("budget:form.splitUnavailable")}
         </div>
       )}
     </div>
@@ -619,6 +626,7 @@ const BudgetForm = forwardRef(({
 
 // ─────────────── SparzieleModal ───────────────
 const SparzieleModal = ({ initial, onSpeichern, onAbbrechen }) => {
+  const { t } = useTranslation(["budget", "common"]);
   const [form, setForm] = useState({
     name: initial?.name || "",
     ziel_betrag: initial?.ziel_betrag || "",
@@ -631,7 +639,7 @@ const SparzieleModal = ({ initial, onSpeichern, onAbbrechen }) => {
   return (
     <div className="space-y-3">
       <div>
-        <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">Emoji</label>
+        <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">{t("budget:goals.form.emoji")}</label>
         <div className="flex flex-wrap gap-2">
           {EMOJI_OPTIONEN.map(e => (
             <button
@@ -649,25 +657,25 @@ const SparzieleModal = ({ initial, onSpeichern, onAbbrechen }) => {
         </div>
       </div>
       <div>
-        <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Name*</label>
-        <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="z.B. Urlaub Hawaii" className={INPUT_CLS} />
+        <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:goals.form.name")}</label>
+        <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder={t("budget:goals.form.namePlaceholder")} className={INPUT_CLS} />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Zielbetrag (€)*</label>
+          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:goals.form.targetAmount")}</label>
           <input type="number" step="0.01" min="0" value={form.ziel_betrag} onChange={e => setForm(p => ({ ...p, ziel_betrag: e.target.value }))} placeholder="0,00" className={INPUT_CLS} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Aktuell (€)</label>
+          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:goals.form.currentAmount")}</label>
           <input type="number" step="0.01" min="0" value={form.aktueller_betrag} onChange={e => setForm(p => ({ ...p, aktueller_betrag: e.target.value }))} placeholder="0,00" className={INPUT_CLS} />
         </div>
       </div>
       <div>
-        <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Zieldatum</label>
+        <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:goals.form.targetDate")}</label>
         <input type="date" value={form.zieldatum} onChange={e => setForm(p => ({ ...p, zieldatum: e.target.value }))} className={INPUT_CLS} />
       </div>
       <div>
-        <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">Farbe</label>
+        <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">{t("budget:goals.form.color")}</label>
         <div className="flex flex-wrap gap-2">
           {FARB_OPTIONEN.map(f => (
             <button
@@ -681,14 +689,14 @@ const SparzieleModal = ({ initial, onSpeichern, onAbbrechen }) => {
       </div>
       <div className="flex gap-2">
         <button onClick={onAbbrechen} className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main">
-          Abbrechen
+          {t("common:actions.cancel")}
         </button>
         <button
           onClick={() => { if (form.name.trim() && form.ziel_betrag) onSpeichern(form); }}
           disabled={!form.name.trim() || !form.ziel_betrag}
           className="flex-1 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50"
         >
-          Speichern
+          {t("common:actions.save")}
         </button>
       </div>
     </div>
@@ -778,6 +786,7 @@ const KontoForm = ({ initial, bewohner, onSpeichern, onDeaktivieren, onAbbrechen
 
 // ─────────────── Main Component ───────────────
 const HomeBudget = ({ session }) => {
+  const { t, i18n } = useTranslation(["budget"]);
   const userId = session?.user?.id;
   const today = useMemo(() => new Date(), []);
   const location = useLocation();
@@ -1327,11 +1336,11 @@ const HomeBudget = ({ session }) => {
       );
       setRechnungsAuswahlDialog((prev) => (
         prev
-          ? {
+          ?? {
               ...prev,
               rechnungen: (prev.rechnungen || []).map((rechnung) => (
                 rechnung.rechnung_id === aktualisierteRechnung.rechnung_id
-                  ? { ...rechnung, ...aktualisierteRechnung }
+                  ?? { ...rechnung, ...aktualisierteRechnung }
                   : rechnung
               )),
             }
@@ -1817,7 +1826,7 @@ const HomeBudget = ({ session }) => {
         const splitWritePlan = brauchtSplitWrite ? resolveEditSplitWritePlan(modal) : null;
 
         if (brauchtSplitWrite && !splitWritePlan) {
-          setFehler("Kostenaufteilung konnte nicht gespeichert werden: kein gueltiges Ziel fuer diese Buchung gefunden.");
+          setFehler("Kostenaufteilung konnte nicht gespeichert werden: kein gültiges Ziel für diese Buchung gefunden.");
           return;
         }
 
@@ -2363,7 +2372,7 @@ const HomeBudget = ({ session }) => {
     kategFilter
       ? {
           id: "kategorie",
-          label: `Kategorie: ${kategFilter}`,
+          label: `${t("budget:category")}: ${getHomeBudgetCategoryLabel(kategFilter, i18n.language)}`,
           onRemove: () => setKategFilter(""),
         }
       : null,
@@ -2377,28 +2386,28 @@ const HomeBudget = ({ session }) => {
     kontoFilter
       ? {
           id: "konto",
-          label: `Konto: ${kontoById[kontoFilter]?.name || "Unbekanntes Konto"}`,
+          label: `${t("budget:account")}: ${kontoById[kontoFilter]?.name || t("budget:accounts.unknown", { defaultValue: "Unknown account" })}`,
           onRemove: () => setKontoFilter(""),
         }
       : null,
     scopeFilter !== "alle"
       ? {
           id: "scope",
-          label: `Scope: ${scopeFilter === "privat" ? "Privat" : "Haushalt"}`,
+          label: `${t("budget:filters.scope")}: ${scopeFilter === "privat" ? t("budget:scope.private") : t("budget:scope.household")}`,
           onRemove: () => setScopeFilter("alle"),
         }
       : null,
     nurWiederkehrend
       ? {
           id: "wiederkehrend",
-          label: "Nur wiederkehrend",
+          label: t("budget:filters.recurringOnly"),
           onRemove: () => setNurWiederkehrend(false),
         }
       : null,
     nurMitRechnung
       ? {
           id: "rechnung",
-          label: "Nur mit Rechnung",
+          label: t("budget:filters.withInvoiceOnly"),
           onRemove: () => setNurMitRechnung(false),
         }
       : null,
@@ -3003,7 +3012,7 @@ const HomeBudget = ({ session }) => {
             }`}
           >
             <tab.icon size={13} />
-            <span className="hidden sm:inline">{tab.label}</span>
+            <span className="hidden sm:inline">{t(`budget:${tab.labelKey}`)}</span>
           </button>
         ))}
       </div>
@@ -3338,7 +3347,7 @@ const HomeBudget = ({ session }) => {
       {aktiverTab === "limits" && (
         <div data-tour="tour-budget-limits" className="space-y-3">
           <BudgetLimitsList
-            monatLabel={`Monatliche Budgetlimits fuer ${limitsMonthLabel}. Klicke auf den Limit-Betrag zum Bearbeiten.`}
+            monatLabel={`Monatliche Budgetlimits für ${limitsMonthLabel}. Klicke auf den Limit-Betrag zum Bearbeiten.`}
             rows={limitRowsView}
             limitsEdit={limitsEdit}
             showAllCategories={showAllLimitCategories}
@@ -3508,7 +3517,7 @@ const HomeBudget = ({ session }) => {
       {rechnungsAuswahlDialog && (
         <ModalShell
           open
-          title="Rechnung auswaehlen"
+          title="Rechnung auswählen"
           onClose={() => setRechnungsAuswahlDialog(null)}
           maxWidthClass="max-w-lg"
           bodyClassName="space-y-4"
@@ -3605,7 +3614,7 @@ const HomeBudget = ({ session }) => {
       )}
 
       {rechnungsLoeschDialog && (
-        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)] flex items-center justify-center">
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm px-4 pt-4 pb-safe flex items-center justify-center">
           <div className="w-full max-w-md rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 shadow-elevation-3">
             <div className="p-4 border-b border-light-border dark:border-dark-border">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
@@ -3702,7 +3711,7 @@ const HomeBudget = ({ session }) => {
 
       {sparzieleModal !== null && (
         <ModalWrapper
-          title={sparzieleModal.id ? "Sparziel bearbeiten" : "Neues Sparziel"}
+          title={sparzieleModal.id ? t("budget:goals.edit") : t("budget:goals.new")}
           onClose={() => setSparzieleModal(null)}
         >
           <SparzieleModal
@@ -3714,7 +3723,7 @@ const HomeBudget = ({ session }) => {
       )}
 
       {einzahlenModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)]">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-safe">
           <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-sm w-full border border-light-border dark:border-dark-border">
             <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">

@@ -85,7 +85,7 @@ const HomeBewohner = ({ session }) => {
     } catch (_e) {
       setBewohner([]);
       setStats({});
-      setFehler("Bewohneruebersicht nicht verfuegbar - Migration ausfuehren.");
+      setFehler("Bewohner?bersicht nicht verf?gbar - Migration ausf?hren.");
     } finally {
       setLoading(false);
     }
@@ -166,7 +166,7 @@ const HomeBewohner = ({ session }) => {
       return;
     }
 
-    if (!window.confirm(`"${b.name}" wirklich loeschen? Bestehende Zuordnungen bleiben erhalten.`)) return;
+    if (!window.confirm(`"${b.name}" wirklich l?schen? Bestehende Zuordnungen bleiben erhalten.`)) return;
 
     const { error } = await supabase.from("home_bewohner").delete().eq("id", b.id);
     if (error) {
@@ -420,7 +420,7 @@ const HomeBewohner = ({ session }) => {
                     disabled={!form.name.trim() || saving}
                     className="flex-1 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50"
                   >
-                    {saving ? "Speichern..." : modal.id ? "Aktualisieren" : "Hinzufuegen"}
+                    {saving ? "Speichern..." : modal.id ? "Aktualisieren" : "Hinzuf?gen"}
                   </button>
                 </div>
               </div>

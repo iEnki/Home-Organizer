@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   BookOpen,
   Plus,
@@ -22,6 +23,13 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
 import { logVerlauf } from "../../utils/homeVerlauf";
 import { deleteInvoiceCascade } from "../../utils/invoiceCascadeDelete";
+import { useLocale } from "../../contexts/LocaleContext";
+import { getKiClient, cleanKiJsonResponse } from "../../utils/kiClient";
+import {
+  hasLocalizedKnowledgeContent,
+  isManualKnowledgeEntry,
+  resolveLocalizedKnowledge,
+} from "../../utils/localizedKnowledge";
 
 const KATEGORIEN = [
   "Versicherung",
@@ -57,8 +65,8 @@ const getWissenMonatsKey = (e) => {
   const d = getWissenDatum(e);
   return d.length >= 7 ? d.substring(0, 7) : "unbekannt";
 };
-const formatMonatLabel = (key) => {
-  if (key === "unbekannt") return "Ohne Datum";
+const formatMonatLabel = (key, t) => {
+  if (key === "unbekannt") return t("home:wissen.noDate");
   const [y, m] = key.split("-");
   return new Date(+y, +m - 1, 1).toLocaleDateString("de-DE", { month: "long", year: "numeric" });
 };
@@ -79,8 +87,7 @@ const mergeUniqueTags = (...groups) => {
   return merged;
 };
 
-const isManualOverride = (entry) =>
-  Boolean(entry?.summary?.manual_override) || entry?.herkunft === "manuell";
+const isManualOverride = (entry) => isManualKnowledgeEntry(entry);
 
 const getSummaryHeadline = (entry) => entry?.summary?.headline || "";
 
@@ -94,6 +101,29 @@ const getSummaryDetails = (entry) =>
   Array.isArray(entry?.summary?.details)
     ? entry.summary.details.filter((item) => item?.label && item?.value)
     : [];
+
+const buildTranslationPrompt = (entry, locale, display) => {
+  const targetLanguage = locale === "en-GB" ? "English (United Kingdom)" : "German";
+  return `Translate this automatically generated home knowledge entry into ${targetLanguage}.
+Keep product names, merchant names, document numbers, dates and amounts unchanged.
+Return only valid JSON with keys title, content and headline.
+
+JSON:
+${JSON.stringify({
+    title: display.title || entry.titel || "",
+    content: display.content || entry.inhalt || "",
+    headline: display.headline || getSummaryHeadline(entry) || "",
+  })}`;
+};
+
+const parseTranslatedKnowledge = (raw) => {
+  const parsed = JSON.parse(cleanKiJsonResponse(raw, "object"));
+  return {
+    title: String(parsed.title || "").trim(),
+    content: String(parsed.content || "").trim(),
+    headline: String(parsed.headline || "").trim(),
+  };
+};
 
 const isInvoiceEntry = (entry) => {
   const kategorie = (entry?.kategorie || "").trim().toLowerCase();
@@ -110,6 +140,7 @@ const formatEuro = (value) => {
 // ---------- WissenForm ----------
 
 const WissenForm = ({ initial, onSpeichern, onAbbrechen }) => {
+  const { t } = useTranslation(["home", "common"]);
   const [form, setForm] = useState({
     titel: initial?.titel || "",
     inhalt: initial?.inhalt || "",
@@ -129,29 +160,29 @@ const WissenForm = ({ initial, onSpeichern, onAbbrechen }) => {
   return (
     <div className="space-y-3">
       <div>
-        <label className={labelCls}>Titel *</label>
-        <input value={form.titel} onChange={(e) => setForm((p) => ({ ...p, titel: e.target.value }))} placeholder="z.B. Wandfarbe Wohnzimmer" className={inputCls} />
+        <label className={labelCls}>{t("home:knowledgeForm.titleLabel")}</label>
+        <input value={form.titel} onChange={(e) => setForm((p) => ({ ...p, titel: e.target.value }))} placeholder={t("home:knowledgeForm.titlePlaceholder")} className={inputCls} />
       </div>
       <div>
-        <label className={labelCls}>Kategorie</label>
+        <label className={labelCls}>{t("home:knowledgeForm.category")}</label>
         <select value={form.kategorie} onChange={(e) => setForm((p) => ({ ...p, kategorie: e.target.value }))} className={inputCls}>
-          {KATEGORIEN.map((k) => <option key={k}>{k}</option>)}
+          {KATEGORIEN.map((k) => <option key={k} value={k}>{t(`home:knowledgeForm.categories.${k}`, { defaultValue: k })}</option>)}
         </select>
       </div>
       <div>
-        <label className={labelCls}>Inhalt</label>
-        <textarea value={form.inhalt} onChange={(e) => setForm((p) => ({ ...p, inhalt: e.target.value }))} rows={5} placeholder="Alle relevanten Informationen, Masse, Codes, Notizen..." className={`${inputCls} resize-none`} />
+        <label className={labelCls}>{t("home:knowledgeForm.content")}</label>
+        <textarea value={form.inhalt} onChange={(e) => setForm((p) => ({ ...p, inhalt: e.target.value }))} rows={5} placeholder={t("home:knowledgeForm.contentPlaceholder")} className={`${inputCls} resize-none`} />
       </div>
       <div>
-        <label className={labelCls}>Tags (kommagetrennt)</label>
-        <input value={form.tags} onChange={(e) => setForm((p) => ({ ...p, tags: e.target.value }))} placeholder="z.B. wohnzimmer, farbe, RAL" className={inputCls} />
+        <label className={labelCls}>{t("home:knowledgeForm.tags")}</label>
+        <input value={form.tags} onChange={(e) => setForm((p) => ({ ...p, tags: e.target.value }))} placeholder={t("home:knowledgeForm.tagsPlaceholder")} className={inputCls} />
       </div>
       <div className="flex gap-2 pt-1">
         <button onClick={onAbbrechen} className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-pill hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main">
-          Abbrechen
+          {t("common:actions.cancel")}
         </button>
         <button onClick={handleSpeichern} disabled={!form.titel.trim()} className="flex-1 px-3 py-2 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded-pill disabled:opacity-50">
-          Speichern
+          {t("common:actions.save")}
         </button>
       </div>
     </div>
@@ -161,6 +192,8 @@ const WissenForm = ({ initial, onSpeichern, onAbbrechen }) => {
 // ---------- HomeWissen ----------
 
 const HomeWissen = ({ session }) => {
+  const { t } = useTranslation(["home", "common"]);
+  const { locale } = useLocale();
   const navigate = useNavigate();
   const userId = session?.user?.id;
   const [loading, setLoading] = useState(true);
@@ -177,6 +210,7 @@ const HomeWissen = ({ session }) => {
   const [detailId, setDetailId] = useState(null);
   const [positionenByEintrag, setPositionenByEintrag] = useState({});
   const [positionenLoading, setPositionenLoading] = useState({});
+  const [translationQueue, setTranslationQueue] = useState({});
 
   const handleViewMode = (mode) => {
     setViewMode(mode);
@@ -209,13 +243,73 @@ const HomeWissen = ({ session }) => {
       if (error) throw error;
       setEintraege(data || []);
     } catch {
-      setFehler("Fehler beim Laden.");
+      setFehler(t("home:knowledgeForm.loadError"));
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [t, userId]);
 
   useEffect(() => { ladeDaten(); }, [ladeDaten]);
+
+  useEffect(() => {
+    if (!userId || loading) return;
+    const candidates = eintraege
+      .filter((entry) => !isManualOverride(entry))
+      .filter((entry) => !hasLocalizedKnowledgeContent(entry, locale))
+      .slice(0, 3);
+    if (candidates.length === 0) return;
+
+    let cancelled = false;
+    const run = async () => {
+      for (const entry of candidates) {
+        const queueKey = `${entry.id}:${locale}`;
+        if (translationQueue[queueKey]) continue;
+        setTranslationQueue((prev) => ({ ...prev, [queueKey]: true }));
+        try {
+          const fallbackDisplay = resolveLocalizedKnowledge(entry, locale);
+          const isStructuredInvoice =
+            entry?.summary?.kind === "invoice" ||
+            entry?.summary?.documentClass === "rechnung" ||
+            entry?.summary?.documentType === "rechnung" ||
+            isInvoiceEntry(entry);
+
+          let translated = fallbackDisplay;
+          if (!isStructuredInvoice) {
+            const sourceDisplay = resolveLocalizedKnowledge(entry, entry.source_locale || "de");
+            const kiClient = await getKiClient(userId);
+            const response = await kiClient.client.chat.completions.create({
+              messages: [{ role: "user", content: buildTranslationPrompt(entry, locale, sourceDisplay) }],
+              temperature: 0.1,
+              response_format: { type: "json_object" },
+            });
+            translated = parseTranslatedKnowledge(response?.choices?.[0]?.message?.content || "{}");
+          }
+
+          if (cancelled || (!translated.title && !translated.content && !translated.headline)) continue;
+          const nextLocalized = {
+            ...(entry.localized_content || {}),
+            [locale]: {
+              title: translated.title || entry.titel || "",
+              content: translated.content || entry.inhalt || "",
+              headline: translated.headline || translated.content || "",
+            },
+          };
+          const { error } = await supabase
+            .from("home_wissen")
+            .update({ localized_content: nextLocalized })
+            .eq("id", entry.id);
+          if (error || cancelled) continue;
+          setEintraege((prev) => prev.map((item) => (
+            item.id === entry.id ? { ...item, localized_content: nextLocalized } : item
+          )));
+        } catch (err) {
+          console.warn("Wissensuebersetzung fehlgeschlagen:", err);
+        }
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [eintraege, loading, locale, translationQueue, userId]);
 
   const holeRechnungId = useCallback(async (eintrag) => {
     if (eintrag?.rechnung_id) return eintrag.rechnung_id;
@@ -269,7 +363,8 @@ const HomeWissen = ({ session }) => {
 
   const loesche = async (eintrag) => {
     if (!eintrag) return;
-    if (!window.confirm(`"${eintrag.titel}" löschen?`)) return;
+    const display = getDisplay(eintrag);
+    if (!window.confirm(`"${display.title || eintrag.titel}" löschen?`)) return;
     try {
       if (eintrag.dokument_id && isInvoiceEntry(eintrag)) {
         await deleteInvoiceCascade({ supabase, dokumentId: eintrag.dokument_id });
@@ -277,7 +372,7 @@ const HomeWissen = ({ session }) => {
         const { error } = await supabase.from("home_wissen").delete().eq("id", eintrag.id);
         if (error) throw error;
       }
-      await logVerlauf(supabase, userId, "home_wissen", eintrag.titel, "geloescht");
+      await logVerlauf(supabase, userId, "home_wissen", display.title || eintrag.titel, "geloescht");
       if (detailId === eintrag.id) setDetailId(null);
       ladeDaten();
     } catch (err) {
@@ -296,18 +391,24 @@ const HomeWissen = ({ session }) => {
     navigate("/home/dokumente", { state: { focusDokumentId: dokumentId } });
   };
 
+  const getDisplay = useCallback(
+    (entry) => resolveLocalizedKnowledge(entry, locale),
+    [locale],
+  );
+
   // Filtering + sorting
   const gefiltertEintraege = useMemo(() => {
     const q = suchbegriff.toLowerCase();
     const filtered = eintraege.filter((e) => {
+      const display = getDisplay(e);
       const matchKateg = !kategFilter || e.kategorie === kategFilter;
       const matchJahr = jahrFilter === "alle" || getWissenDatum(e).startsWith(jahrFilter);
       const matchMonat = monatFilter === "alle" || getWissenMonatsKey(e) === monatFilter;
       const matchSuche =
         !q ||
-        e.titel.toLowerCase().includes(q) ||
-        e.inhalt?.toLowerCase().includes(q) ||
-        getSummaryHeadline(e).toLowerCase().includes(q) ||
+        display.title.toLowerCase().includes(q) ||
+        display.content.toLowerCase().includes(q) ||
+        display.headline.toLowerCase().includes(q) ||
         getSummaryHighlights(e).join(" ").toLowerCase().includes(q) ||
         getSummaryDetails(e).map((d) => `${d.label} ${d.value}`).join(" ").toLowerCase().includes(q) ||
         (e.tags || []).some((t) => t.toLowerCase().includes(q));
@@ -317,10 +418,10 @@ const HomeWissen = ({ session }) => {
     return [...filtered].sort((a, b) => {
       if (sortierung === "neueste") return new Date(b.updated_at) - new Date(a.updated_at);
       if (sortierung === "aelteste") return new Date(a.updated_at) - new Date(b.updated_at);
-      if (sortierung === "name_az") return (a.titel || "").localeCompare(b.titel || "", "de");
+      if (sortierung === "name_az") return (getDisplay(a).title || "").localeCompare(getDisplay(b).title || "", locale);
       return 0;
     });
-  }, [eintraege, suchbegriff, kategFilter, jahrFilter, monatFilter, sortierung]);
+  }, [eintraege, getDisplay, suchbegriff, kategFilter, jahrFilter, monatFilter, sortierung, locale]);
 
   const filterKategorien = useMemo(
     () => Array.from(new Set(eintraege.map((e) => e.kategorie).filter(Boolean))),
@@ -358,6 +459,7 @@ const HomeWissen = ({ session }) => {
   }, [gefiltertEintraege, sortierung]);
 
   const detailEintrag = eintraege.find((e) => e.id === detailId);
+  const detailDisplay = detailEintrag ? getDisplay(detailEintrag) : null;
 
   // KPI
   const anzahlManuell = eintraege.filter(isManualOverride).length;
@@ -365,6 +467,7 @@ const HomeWissen = ({ session }) => {
 
   const renderDetailInhalt = (eintrag, compact = false) => {
     if (!eintrag) return null;
+    const display = getDisplay(eintrag);
     const summaryDetails = getSummaryDetails(eintrag);
     const summaryWarnings = getSummaryWarnings(eintrag);
     const summaryHighlights = getSummaryHighlights(eintrag);
@@ -433,18 +536,18 @@ const HomeWissen = ({ session }) => {
               ))}
             </div>
           )}
-          {eintrag.inhalt && (
-            <pre className={`${textCls} text-light-text-main dark:text-dark-text-main whitespace-pre-wrap font-sans`}>{eintrag.inhalt}</pre>
+          {display.content && (
+            <pre className={`${textCls} text-light-text-main dark:text-dark-text-main whitespace-pre-wrap font-sans`}>{display.content}</pre>
           )}
         </div>
       );
     }
 
-    if (eintrag.inhalt) {
-      return <pre className={`${textCls} text-light-text-main dark:text-dark-text-main whitespace-pre-wrap font-sans`}>{eintrag.inhalt}</pre>;
+    if (display.content) {
+      return <pre className={`${textCls} text-light-text-main dark:text-dark-text-main whitespace-pre-wrap font-sans`}>{display.content}</pre>;
     }
 
-    return <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Keine Details verfügbar.</p>;
+    return <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("home:wissen.noDetails")}</p>;
   };
 
   if (loading) {
@@ -462,13 +565,13 @@ const HomeWissen = ({ session }) => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <BookOpen size={22} className="text-amber-500" />
-          <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">Wissensdatenbank</h1>
+          <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">{t("home:knowledge")}</h1>
         </div>
         <button
           onClick={() => setModal({})}
           className="flex items-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-pill text-sm font-medium"
         >
-          <Plus size={14} /> Eintrag
+          <Plus size={14} /> {t("home:knowledgeForm.entry")}
         </button>
       </div>
 
@@ -482,10 +585,10 @@ const HomeWissen = ({ session }) => {
       {eintraege.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { icon: <BookOpen size={16} className="text-amber-500" />, label: "Einträge gesamt", value: eintraege.length },
-            { icon: <FolderOpen size={16} className="text-violet-500" />, label: "Kategorien", value: filterKategorien.length },
-            { icon: <PenLine size={16} className="text-emerald-500" />, label: "Manuell", value: anzahlManuell },
-            { icon: <Brain size={16} className="text-primary-500" />, label: "KI-analysiert", value: anzahlKi },
+            { icon: <BookOpen size={16} className="text-amber-500" />, label: t("home:knowledgeForm.stats.total"), value: eintraege.length },
+            { icon: <FolderOpen size={16} className="text-violet-500" />, label: t("home:knowledgeForm.stats.categories"), value: filterKategorien.length },
+            { icon: <PenLine size={16} className="text-emerald-500" />, label: t("home:knowledgeForm.stats.manual"), value: anzahlManuell },
+            { icon: <Brain size={16} className="text-primary-500" />, label: t("home:knowledgeForm.stats.ai"), value: anzahlKi },
           ].map(({ icon, label, value }) => (
             <div key={label} className="bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border px-4 py-3 flex items-center gap-3">
               <div className="shrink-0">{icon}</div>
@@ -507,7 +610,7 @@ const HomeWissen = ({ session }) => {
             <input
               value={suchbegriff}
               onChange={(e) => setSuchbegriff(e.target.value)}
-              placeholder="Titel, Inhalt oder Tags durchsuchen…"
+              placeholder={t("home:knowledgeForm.searchPlaceholder")}
               className="w-full pl-9 pr-8 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-amber-500"
             />
             {suchbegriff && (
@@ -522,8 +625,8 @@ const HomeWissen = ({ session }) => {
             onChange={(e) => setSortierung(e.target.value)}
             className="px-3 py-2 text-xs rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-amber-500 shrink-0"
           >
-            <option value="neueste">Neueste</option>
-            <option value="aelteste">Älteste</option>
+            <option value="neueste">{t("home:knowledgeForm.sort.newest")}</option>
+            <option value="aelteste">{t("home:knowledgeForm.sort.oldest")}</option>
             <option value="name_az">A – Z</option>
           </select>
 
@@ -531,14 +634,14 @@ const HomeWissen = ({ session }) => {
             <button
               onClick={() => handleViewMode("kacheln")}
               className={`p-2 transition-colors ${viewMode === "kacheln" ? "bg-amber-500 text-white" : "bg-light-card dark:bg-canvas-2 text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"}`}
-              title="Kachelansicht"
+              title={t("home:knowledgeForm.gridView")}
             >
               <LayoutGrid size={15} />
             </button>
             <button
               onClick={() => handleViewMode("liste")}
               className={`p-2 transition-colors border-l border-light-border dark:border-dark-border ${viewMode === "liste" ? "bg-amber-500 text-white" : "bg-light-card dark:bg-canvas-2 text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"}`}
-              title="Listenansicht"
+              title={t("home:knowledgeForm.listView")}
             >
               <List size={15} />
             </button>
@@ -556,7 +659,7 @@ const HomeWissen = ({ session }) => {
                   : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:border-amber-500/40"
               }`}
             >
-              Alle Jahre
+              {t("home:wissen.filterAllYears")}
             </button>
             {verfuegbareJahre.map((jahr) => (
               <button
@@ -585,7 +688,7 @@ const HomeWissen = ({ session }) => {
                   : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:border-amber-500/40"
               }`}
             >
-              Alle Monate
+              {t("home:wissen.filterAllMonths")}
             </button>
             {verfuegbareMonate.map((key) => (
               <button
@@ -597,7 +700,7 @@ const HomeWissen = ({ session }) => {
                     : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:border-amber-500/40"
                 }`}
               >
-                {formatMonatLabel(key)}
+                {formatMonatLabel(key, t)}
               </button>
             ))}
           </div>
@@ -614,7 +717,7 @@ const HomeWissen = ({ session }) => {
                   : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:border-amber-500/40"
               }`}
             >
-              Alle <span className="opacity-70 ml-0.5">({eintraege.length})</span>
+              {t("home:wissen.filterAll")} <span className="opacity-70 ml-0.5">({eintraege.length})</span>
             </button>
             {filterKategorien.map((k) => (
               <button
@@ -641,15 +744,15 @@ const HomeWissen = ({ session }) => {
           <BookOpen size={40} className="mx-auto mb-3 opacity-30" />
           <p className="text-sm">
             {suchbegriff || kategFilter || jahrFilter !== "alle" || monatFilter !== "alle"
-              ? "Keine Einträge gefunden"
-              : "Noch keine Einträge"}
+              ? t("home:wissen.noResults")
+              : t("home:wissen.empty")}
           </p>
           {!suchbegriff && !kategFilter && jahrFilter === "alle" && monatFilter === "alle" && (
             <button
               onClick={() => setModal({})}
               className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-pill text-sm"
             >
-              <Plus size={14} /> Ersten Eintrag anlegen
+              <Plus size={14} /> {t("home:wissen.createFirst")}
             </button>
           )}
         </div>
@@ -657,7 +760,9 @@ const HomeWissen = ({ session }) => {
 
         // ── Kachelansicht ──
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {gefiltertEintraege.map((e) => (
+          {gefiltertEintraege.map((e) => {
+            const display = getDisplay(e);
+            return (
             <div
               key={e.id}
               className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-4 cursor-pointer hover:border-amber-500/40 transition-colors group"
@@ -666,7 +771,7 @@ const HomeWissen = ({ session }) => {
               <div className="flex items-start justify-between gap-2 mb-1">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className={`w-2 h-2 rounded-full shrink-0 ${getKategorieFarbe(e.kategorie)}`} />
-                  <h3 className="font-semibold text-sm text-light-text-main dark:text-dark-text-main line-clamp-1">{e.titel}</h3>
+                  <h3 className="font-semibold text-sm text-light-text-main dark:text-dark-text-main line-clamp-1">{display.title}</h3>
                 </div>
                 <div className="flex gap-1 shrink-0">
                   <button
@@ -692,15 +797,15 @@ const HomeWissen = ({ session }) => {
                   </span>
                 )}
                 {isManualOverride(e) && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-pill bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">Manuell</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-pill bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">{t("home:wissen.tagManual")}</span>
                 )}
               </div>
 
               <div className="pl-4">
-                {getSummaryHeadline(e) ? (
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary line-clamp-2">{getSummaryHeadline(e)}</p>
-                ) : e.inhalt ? (
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary line-clamp-2">{e.inhalt}</p>
+                {display.headline ? (
+                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary line-clamp-2">{display.headline}</p>
+                ) : display.content ? (
+                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary line-clamp-2">{display.content}</p>
                 ) : null}
 
                 {getSummaryHighlights(e).slice(0, 2).map((item) => (
@@ -729,14 +834,15 @@ const HomeWissen = ({ session }) => {
                         onClick={(ev) => { ev.stopPropagation(); oeffneDokumentarchiv(e.dokument_id); }}
                         className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors"
                       >
-                        <ExternalLink size={12} /> Zum Dokumentarchiv
+                        <ExternalLink size={12} /> {t("home:wissen.toArchive")}
                       </button>
                     )}
                   </div>
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
       ) : (
@@ -760,7 +866,7 @@ const HomeWissen = ({ session }) => {
                     }`}
                   />
                   <span className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide group-hover:text-amber-500 transition-colors">
-                    {formatMonatLabel(monatKey)}
+                    {formatMonatLabel(monatKey, t)}
                   </span>
                   <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-light-border dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary">
                     {eintraegeFuerMonat.length}
@@ -770,7 +876,9 @@ const HomeWissen = ({ session }) => {
                 {/* Einträge — nur wenn nicht eingeklappt */}
                 {!istEingeklappt && (
                   <div className="bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border overflow-hidden divide-y divide-light-border dark:divide-dark-border">
-                    {eintraegeFuerMonat.map((e) => (
+                    {eintraegeFuerMonat.map((e) => {
+                      const display = getDisplay(e);
+                      return (
                       <div key={e.id}>
                         <div
                           className="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors group"
@@ -780,13 +888,13 @@ const HomeWissen = ({ session }) => {
 
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between gap-2">
-                              <h3 className="font-medium text-sm text-light-text-main dark:text-dark-text-main leading-snug">{e.titel}</h3>
+                              <h3 className="font-medium text-sm text-light-text-main dark:text-dark-text-main leading-snug">{display.title}</h3>
                               <div className="flex items-center gap-0.5 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                 {e.dokument_id && (
                                   <button
                                     onClick={(ev) => { ev.stopPropagation(); oeffneDokumentarchiv(e.dokument_id); }}
                                     className="p-1.5 rounded text-primary-500 hover:bg-primary-500/10"
-                                    title="Zum Dokumentarchiv"
+                                    title={t("home:wissen.toArchive")}
                                   >
                                     <ExternalLink size={13} />
                                   </button>
@@ -823,9 +931,9 @@ const HomeWissen = ({ session }) => {
                               ))}
                             </div>
 
-                            {(getSummaryHeadline(e) || e.inhalt) && (
+                            {(display.headline || display.content) && (
                               <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1 line-clamp-1">
-                                {getSummaryHeadline(e) || e.inhalt}
+                                {display.headline || display.content}
                               </p>
                             )}
                           </div>
@@ -845,13 +953,14 @@ const HomeWissen = ({ session }) => {
                                 onClick={() => oeffneDokumentarchiv(e.dokument_id)}
                                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors"
                               >
-                                <ExternalLink size={12} /> Zum Dokumentarchiv
+                                <ExternalLink size={12} /> {t("home:wissen.toArchive")}
                               </button>
                             )}
                           </div>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -867,7 +976,7 @@ const HomeWissen = ({ session }) => {
             <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
               <div className="flex items-center gap-2 min-w-0">
                 <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${getKategorieFarbe(detailEintrag.kategorie)}`} />
-                <h3 className="font-semibold text-light-text-main dark:text-dark-text-main truncate">{detailEintrag.titel}</h3>
+                <h3 className="font-semibold text-light-text-main dark:text-dark-text-main truncate">{detailDisplay?.title || detailEintrag.titel}</h3>
               </div>
               <button onClick={() => setDetailId(null)} className="ml-2 shrink-0">
                 <X size={18} className="text-light-text-secondary dark:text-dark-text-secondary" />
@@ -899,7 +1008,7 @@ const HomeWissen = ({ session }) => {
                   onClick={() => { setDetailId(null); setModal(detailEintrag); }}
                   className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-pill text-light-text-main dark:text-dark-text-main hover:bg-light-hover dark:hover:bg-canvas-3"
                 >
-                  <Edit2 size={13} /> Bearbeiten
+                  <Edit2 size={13} /> {t("common:actions.edit")}
                 </button>
                 <button
                   onClick={() => loesche(detailEintrag)}
@@ -919,7 +1028,7 @@ const HomeWissen = ({ session }) => {
           <div className="bg-light-card dark:bg-canvas-2 rounded-2xl shadow-2xl max-w-lg w-full border border-light-border dark:border-dark-border max-h-[calc(100dvh-var(--safe-area-bottom)-2rem)] lg:max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border sticky top-0 bg-light-card dark:bg-canvas-2 z-10">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
-                {modal.id ? "Eintrag bearbeiten" : "Neuer Eintrag"}
+                {modal.id ? t("home:knowledgeForm.edit") : t("home:knowledgeForm.new")}
               </h3>
               <button onClick={() => setModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger">
                 <X size={18} />

@@ -10,8 +10,10 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import useViewport from "../../hooks/useViewport";
 import { useToast } from "../../hooks/useToast";
+import { useLocale } from "../../contexts/LocaleContext";
 import { DEFAULT_BUDGET_VIEW_STATE, sanitizeBudgetViewState } from "../../utils/budgetViewState";
 import { startSpeechRecognition } from "../../utils/kiClient";
 import { getActiveHouseholdId, supabase } from "../../supabaseClient";
@@ -21,8 +23,8 @@ import {
   extractAssistantDomainItems,
 } from "../../utils/assistantAi";
 import {
-  ASSISTANT_DOMAIN_CONFIG,
   ASSISTANT_ROUTE_MAP,
+  getAssistantDomainLabel,
   summarizeAssistantItems,
 } from "../../utils/assistantDomains";
 import {
@@ -42,9 +44,7 @@ import {
   saveAssistantUiConfig,
 } from "../../utils/assistantPersistence";
 
-const formatAssistantDomainLabel = (domain) =>
-  ASSISTANT_DOMAIN_CONFIG[domain]?.title || domain || "Assistent";
-
+const DEFAULT_THREAD_TITLES = ["Neuer Chat", "New chat"];
 const GLOBAL_ASSISTANT_ENABLED = process.env.REACT_APP_GLOBAL_ASSISTANT_ENABLED !== "false";
 const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
 
@@ -66,8 +66,11 @@ const buildOpenFlowPayload = ({ flowKey, input }) => {
     payload.ui_state = { prefillQuery: trimmedInput };
   } else if (flowKey === "home_budget") {
     payload.params = { query: trimmedInput };
+    const isSettlement =
+      trimmedInput.toLowerCase().includes("ausgleich") ||
+      trimmedInput.toLowerCase().includes("settlement");
     payload.ui_state = {
-      targetTab: trimmedInput.toLowerCase().includes("ausgleich") ? "ausgleich" : "uebersicht",
+      targetTab: isSettlement ? "ausgleich" : "uebersicht",
       prefillState: {
         ...DEFAULT_BUDGET_VIEW_STATE,
         suchbegriff: trimmedInput,
@@ -162,7 +165,9 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
   const location = useLocation();
   const navigate = useNavigate();
   const toast = useToast();
+  const { locale } = useLocale();
   const { isDesktop } = useViewport();
+  const { t } = useTranslation(["assistant"]);
 
   const [uiConfig, setUiConfig] = useState(DEFAULT_ASSISTANT_UI_CONFIG);
   const [threads, setThreads] = useState([]);
@@ -211,7 +216,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
     const created = await createAssistantThread({
       userId,
       householdId,
-      title: "Neuer Chat",
+      title: t("assistant:newThreadTitle"),
       contextRoute: location.pathname,
     });
     if (!created?.id) return null;
@@ -219,22 +224,29 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
     setActiveThreadId(created.id);
     setMessages([]);
     return created.id;
-  }, [activeThreadId, householdId, location.pathname, userId]);
+  }, [activeThreadId, householdId, location.pathname, t, userId]);
 
   useEffect(() => {
     let ignore = false;
     const load = async () => {
       if (!userId) return;
-      const [storedUiConfig, storedThreads] = await Promise.all([
-        loadAssistantUiConfig(userId),
-        listAssistantThreads(userId),
-      ]);
-      if (ignore) return;
-      setUiConfig(storedUiConfig);
-      setThreads(storedThreads);
-      if (storedThreads[0]?.id) {
-        setActiveThreadId(storedThreads[0].id);
-        await loadThreadMessages(storedThreads[0].id);
+      try {
+        const [storedUiConfig, storedThreads] = await Promise.all([
+          loadAssistantUiConfig(userId),
+          listAssistantThreads(userId),
+        ]);
+        if (ignore) return;
+        setUiConfig(storedUiConfig);
+        setThreads(storedThreads);
+        if (storedThreads[0]?.id) {
+          setActiveThreadId(storedThreads[0].id);
+          await loadThreadMessages(storedThreads[0].id);
+        }
+      } catch (err) {
+        if (ignore) return;
+        console.error("[GlobalAssistantLauncher] Laden fehlgeschlagen:", err);
+        setThreads([]);
+        setMessages([]);
       }
     };
     load();
@@ -285,7 +297,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
     const created = await createAssistantThread({
       userId,
       householdId,
-      title: "Neuer Chat",
+      title: t("assistant:newThreadTitle"),
       contextRoute: location.pathname,
     });
     if (!created?.id) return;
@@ -295,7 +307,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
     setReceipts([]);
     setPendingAction(null);
     setInput("");
-  }, [householdId, location.pathname, userId]);
+  }, [householdId, location.pathname, t, userId]);
 
   const handleSelectThread = useCallback(
     async (event) => {
@@ -327,14 +339,14 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
   const maybeRenameThread = useCallback(
     async (threadId, userText) => {
       const thread = threads.find((entry) => entry.id === threadId);
-      if (!thread || thread.title !== "Neuer Chat") return;
-      const title = userText.trim().slice(0, 48) || "Chat";
+      if (!thread || !DEFAULT_THREAD_TITLES.includes(thread.title)) return;
+      const title = userText.trim().slice(0, 48) || t("assistant:defaultThread");
       await renameAssistantThread(threadId, userId, title);
       setThreads((prev) =>
         prev.map((entry) => (entry.id === threadId ? { ...entry, title } : entry)),
       );
     },
-    [threads, userId],
+    [t, threads, userId],
   );
 
   const handleSend = useCallback(async () => {
@@ -356,6 +368,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
         input: trimmed,
         appMode,
         pathname: location.pathname,
+        locale,
       });
 
       if (classification.intent === "semantic_search") {
@@ -363,6 +376,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
           userId,
           householdId,
           question: trimmed,
+          locale,
         });
         await pushMessage(threadId, "assistant", answer.answer, {
           type: "semantic_search",
@@ -378,7 +392,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
         });
         const text =
           classification.reply ||
-          `Ich habe den passenden Bereich erkannt: ${classification.open_flow}.`;
+          t("assistant:openFlowReply", { flow: classification.open_flow });
         await pushMessage(threadId, "assistant", text, flowPayload);
         setPendingAction({
           kind: "open_flow",
@@ -393,8 +407,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
         await pushMessage(
           threadId,
           "assistant",
-          classification.reply ||
-            "Ich bin hier unsicher. Formuliere bitte klarer, ob du etwas anlegen, fragen oder oeffnen willst.",
+          classification.reply || t("assistant:uncertainReply"),
         );
         return;
       }
@@ -403,14 +416,11 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
         userId,
         domain: classification.domain,
         text: trimmed,
+        locale,
       });
 
       if (!Array.isArray(items) || items.length === 0) {
-        await pushMessage(
-          threadId,
-          "assistant",
-          "Ich konnte daraus keine verwertbaren Eintraege ableiten.",
-        );
+        await pushMessage(threadId, "assistant", t("assistant:noItemsExtracted"));
         return;
       }
 
@@ -431,7 +441,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
 
       const previewText =
         classification.reply ||
-        `Ich habe ${summarizeAssistantItems(classification.domain, items)} vorbereitet.`;
+        `Ich habe ${summarizeAssistantItems(classification.domain, items, t)} vorbereitet.`;
       await pushMessage(threadId, "assistant", previewText, {
         type: "prepared_action",
         domain: classification.domain,
@@ -450,7 +460,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
         previewText,
       });
     } catch (error) {
-      const message = error?.message || "Der Assistent konnte die Anfrage nicht verarbeiten.";
+      const message = error?.message || t("assistant:errGeneric");
       toast.error(message);
       await pushMessage(threadId, "assistant", message, {
         type: "error",
@@ -468,10 +478,12 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
     householdId,
     input,
     loading,
+    locale,
     location.pathname,
     maybeRenameThread,
     pushMessage,
     session,
+    t,
     toast,
     userId,
   ]);
@@ -498,7 +510,10 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
       });
       const nextReceipts = await loadAssistantActionReceipts(pendingAction.threadId);
       setReceipts(nextReceipts);
-      const summary = `${formatAssistantDomainLabel(pendingAction.domain)} gespeichert: ${result.count}.`;
+      const summary = t("assistant:savedSummary", {
+        domain: getAssistantDomainLabel(pendingAction.domain, t),
+        count: result.count,
+      });
       await pushMessage(pendingAction.threadId, "assistant", summary, {
         type: "commit_result",
         domain: pendingAction.domain,
@@ -507,7 +522,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
       toast.success(summary);
       setPendingAction(null);
     } catch (error) {
-      const message = error?.message || "Aenderung konnte nicht gespeichert werden.";
+      const message = error?.message || t("assistant:errSave");
       toast.error(message);
       await pushMessage(pendingAction.threadId, "assistant", message, {
         type: "error",
@@ -519,7 +534,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
     } finally {
       setLoading(false);
     }
-  }, [loading, navigateToAssistantFlow, pendingAction, pushMessage, session, toast, userId]);
+  }, [loading, navigateToAssistantFlow, pendingAction, pushMessage, session, t, toast, userId]);
 
   const handleDiscardPending = useCallback(() => {
     setPendingAction(null);
@@ -537,8 +552,9 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
         setSpeechActive(false);
         toast.error(errorMessage);
       },
+      locale,
     );
-  }, [speechActive, toast]);
+  }, [locale, speechActive, toast]);
 
   if (!userId || !GLOBAL_ASSISTANT_ENABLED || !visibleForUser) return null;
 
@@ -553,17 +569,17 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-                  Globaler Assistent
+                  {t("assistant:globalTitle")}
                 </p>
                 <p className="truncate text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                  {householdContext?.household_name || "Haushalt"}
+                  {householdContext?.household_name || t("assistant:defaultHousehold")}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={handleNewThread}
                 className="rounded-full p-2 text-light-text-secondary hover:bg-light-hover dark:text-dark-text-secondary dark:hover:bg-canvas-3"
-                title="Neuen Chat starten"
+                title={t("assistant:newChat")}
               >
                 <MessageSquarePlus size={16} />
               </button>
@@ -571,7 +587,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
                 type="button"
                 onClick={handleClose}
                 className="rounded-full p-2 text-light-text-secondary hover:bg-light-hover dark:text-dark-text-secondary dark:hover:bg-canvas-3"
-                title="Minimieren"
+                title={t("assistant:minimize")}
               >
                 <Minimize2 size={16} />
               </button>
@@ -579,7 +595,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
                 type="button"
                 onClick={() => persistUiConfig({ is_open: false, is_minimized: true })}
                 className="rounded-full p-2 text-light-text-secondary hover:bg-light-hover dark:text-dark-text-secondary dark:hover:bg-canvas-3"
-                title="Schliessen"
+                title={t("assistant:close")}
               >
                 <X size={16} />
               </button>
@@ -591,10 +607,10 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
                 onChange={handleSelectThread}
                 className="w-full rounded-card-sm border border-light-border bg-light-bg px-3 py-2 text-sm text-light-text-main dark:border-dark-border dark:bg-canvas-1 dark:text-dark-text-main"
               >
-                {threads.length === 0 && <option value="">Noch kein Chat</option>}
+                {threads.length === 0 && <option value="">{t("assistant:noThread")}</option>}
                 {threads.map((thread) => (
                   <option key={thread.id} value={thread.id}>
-                    {thread.title || "Chat"}
+                    {thread.title || t("assistant:defaultThread")}
                   </option>
                 ))}
               </select>
@@ -603,7 +619,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
             <div ref={panelBodyRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
               {messages.length === 0 && !pendingAction && (
                 <div className="rounded-card border border-dashed border-light-border p-4 text-sm text-light-text-secondary dark:border-dark-border dark:text-dark-text-secondary">
-                  Der Assistent kann vorhandene Fachpfade nutzen: Fragen beantworten, Eintraege vorbereiten und Spezialansichten oeffnen.
+                  {t("assistant:emptyState")}
                 </div>
               )}
 
@@ -624,7 +640,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
                       className="mt-2 inline-flex items-center gap-1 rounded-full bg-primary-500 px-3 py-1 text-xs font-medium text-white"
                     >
                       <PanelRightOpen size={12} />
-                      Bereich oeffnen
+                      {t("assistant:openFlow")}
                     </button>
                   )}
                   {Array.isArray(message.payload?.sources) && message.payload.sources.length > 0 && (
@@ -647,7 +663,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
               {receipts.length > 0 && (
                 <div className="rounded-card border border-light-border bg-light-bg/60 p-4 dark:border-dark-border dark:bg-canvas-1/60">
                   <p className="text-xs font-semibold uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-                    Aktionen
+                    {t("assistant:actionsLabel")}
                   </p>
                   <div className="mt-3 space-y-2">
                     {receipts.slice(0, 12).map((receipt, idx) => (
@@ -656,11 +672,11 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
                         className="rounded-card-sm bg-light-card px-3 py-2 text-sm dark:bg-canvas-2"
                       >
                         <p className="font-medium text-light-text-main dark:text-dark-text-main">
-                          {receipt.summary || receipt.target_table || "Aktion"}
+                          {receipt.summary || receipt.target_table || t("assistant:defaultAction")}
                         </p>
                         <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
                           {receipt.action_kind || "create"} {receipt.target_table ? `· ${receipt.target_table}` : ""}
-                          {receipt.created_at ? ` · ${new Date(receipt.created_at).toLocaleString("de-AT")}` : ""}
+                          {receipt.created_at ? ` · ${new Date(receipt.created_at).toLocaleString(locale === "en-GB" ? "en-GB" : "de-AT")}` : ""}
                         </p>
                       </div>
                     ))}
@@ -671,7 +687,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
               {pendingAction && (
                 <div className="rounded-card border border-primary-500/20 bg-primary-500/5 p-4">
                   <p className="text-xs font-semibold uppercase tracking-wide text-primary-500">
-                    Vorschau
+                    {t("assistant:preview")}
                   </p>
                   <p className="mt-1 text-sm text-light-text-main dark:text-dark-text-main">
                     {pendingAction.previewText}
@@ -697,7 +713,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
                           return (
                             <li key={`${domain}-preview-${index}`} className="rounded-card-sm bg-light-card px-3 py-2 dark:bg-canvas-2">
                               <span className="font-medium text-light-text-main dark:text-dark-text-main">
-                                {label || `Eintrag ${index + 1}`}
+                                {label || `${t("assistant:defaultEntry")} ${index + 1}`}
                               </span>
                               {item.betrag && domain !== "budget_split" ? ` · ${item.betrag} EUR` : ""}
                               {item.kategorie ? ` · ${item.kategorie}` : ""}
@@ -714,7 +730,11 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
                       disabled={loading}
                       className="rounded-full bg-primary-500 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
                     >
-                      {loading ? "Speichert..." : pendingAction.kind === "open_flow" ? "Oeffnen" : "Bestaetigen"}
+                      {loading
+                        ? t("assistant:saving")
+                        : pendingAction.kind === "open_flow"
+                          ? t("assistant:openSection")
+                          : t("assistant:confirm")}
                     </button>
                     <button
                       type="button"
@@ -722,7 +742,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
                       disabled={loading}
                       className="rounded-full border border-light-border px-4 py-2 text-sm text-light-text-main dark:border-dark-border dark:text-dark-text-main"
                     >
-                      Verwerfen
+                      {t("assistant:discard")}
                     </button>
                   </div>
                 </div>
@@ -731,7 +751,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
               {loading && (
                 <div className="inline-flex items-center gap-2 rounded-full bg-light-bg px-3 py-2 text-sm text-light-text-secondary dark:bg-canvas-1 dark:text-dark-text-secondary">
                   <Loader2 size={15} className="animate-spin" />
-                  Assistent arbeitet...
+                  {t("assistant:working")}
                 </div>
               )}
             </div>
@@ -743,7 +763,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
                   onClick={handleStartSpeech}
                   disabled={speechActive || loading}
                   className="rounded-full border border-light-border p-3 text-light-text-secondary dark:border-dark-border dark:text-dark-text-secondary"
-                  title="Spracheingabe"
+                  title={t("assistant:voice")}
                 >
                   <Mic size={16} className={speechActive ? "animate-pulse text-primary-500" : ""} />
                 </button>
@@ -757,7 +777,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
                     }
                   }}
                   rows={2}
-                  placeholder="Frag nach deinem Haushalt oder sage, was angelegt werden soll..."
+                  placeholder={t("assistant:placeholder")}
                   className="min-h-[48px] flex-1 resize-none rounded-2xl border border-light-border bg-light-bg px-4 py-3 text-sm text-light-text-main outline-none dark:border-dark-border dark:bg-canvas-1 dark:text-dark-text-main"
                 />
                 <button
@@ -765,7 +785,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
                   onClick={handleSend}
                   disabled={!input.trim() || loading}
                   className="rounded-full bg-primary-500 p-3 text-white disabled:opacity-50"
-                  title="Senden"
+                  title={t("assistant:send")}
                 >
                   <Send size={16} />
                 </button>

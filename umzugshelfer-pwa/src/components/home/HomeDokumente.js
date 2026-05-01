@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FileText, FolderOpen, Upload, Download, Trash2, BookOpen,
   X, Plus, CheckCircle, File, Loader2, AlertTriangle, Pencil, ZoomIn, ZoomOut,
@@ -101,6 +102,7 @@ const effektiveKategorie = (dok) => {
 
 // ── Upload-Modal ──────────────────────────────────────────────────────────────
 const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
+  const { t } = useTranslation(["documents", "common"]);
   const [datei, setDatei] = useState(null);
   const [beschreibung, setBeschreibung] = useState("");
   const [kategorie, setKategorie] = useState("Sonstiges");
@@ -133,6 +135,7 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
 
       const { error: dbErr } = await supabase.from("dokumente").insert({
         user_id: userId,
+        app_modus: "home",
         dateiname: datei.name,
         datei_typ: datei.type || guessMimeFromName(datei.name) || null,
         storage_pfad: filePath,
@@ -153,7 +156,7 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
       });
       onErfolgreich();
     } catch (err) {
-      setFehler(`Upload fehlgeschlagen: ${err.message}`);
+      setFehler(t("documents:uploadModal.error", { msg: err.message }));
     } finally {
       setUploading(false);
     }
@@ -166,7 +169,7 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
         {/* Header — immer sichtbar */}
         <div className="shrink-0 flex items-center justify-between px-5 pt-5 pb-4 border-b border-light-border dark:border-dark-border">
           <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
-            <Upload size={16} className="text-primary-500" /> Dokument hochladen
+            <Upload size={16} className="text-primary-500" /> {t("documents:uploadModal.title")}
           </h2>
           <button
             onClick={onSchliessen}
@@ -201,7 +204,7 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
               <p className="text-sm font-medium text-primary-500 truncate">{datei.name}</p>
             ) : (
               <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-                Datei hierher ziehen oder klicken
+                {t("documents:uploadModal.drop")}
               </p>
             )}
             {datei && (
@@ -214,26 +217,26 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
           {/* Kategorie */}
           <div>
             <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-              Kategorie
+              {t("documents:uploadModal.category")}
             </label>
             <select
               value={kategorie}
               onChange={(e) => setKategorie(e.target.value)}
               className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
             >
-              {KATEGORIEN.map((k) => <option key={k}>{k}</option>)}
+              {KATEGORIEN.map((k) => <option key={k} value={k}>{t(`documents:categories.${k}`, { defaultValue: k })}</option>)}
             </select>
           </div>
 
           {/* Beschreibung */}
           <div>
             <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-              Beschreibung (optional)
+              {t("documents:uploadModal.description")}
             </label>
             <input
               value={beschreibung}
               onChange={(e) => setBeschreibung(e.target.value)}
-              placeholder="z.B. Mietvertrag Neue Str. 5"
+              placeholder={t("documents:uploadModal.descriptionPlaceholder")}
               className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
             />
           </div>
@@ -251,7 +254,7 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
             onClick={onSchliessen}
             className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main"
           >
-            Abbrechen
+            {t("common:actions.cancel")}
           </button>
           <button
             onClick={handleHochladen}
@@ -259,7 +262,7 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
             className="flex-1 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-            {uploading ? "Wird hochgeladen…" : "Hochladen"}
+            {uploading ? t("documents:uploadModal.uploading") : t("documents:uploadModal.upload")}
           </button>
         </div>
       </div>
@@ -270,6 +273,7 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
 // ── Wissenseintrag-Modal ───────────────────────────────────────────────────────
 // eslint-disable-next-line no-unused-vars
 const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
+  const { t } = useTranslation(["home", "common"]);
   const katHinweis = effektiveKategorie(dok);
   const [titel, setTitel] = useState(dok.dateiname.replace(/\.[^.]+$/, ""));
   const [inhalt, setInhalt] = useState(
@@ -307,7 +311,7 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
       <div className="mobile-modal-dialog w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4 overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
-            <BookOpen size={16} className="text-amber-500" /> Als Wissenseintrag speichern
+            <BookOpen size={16} className="text-amber-500" /> {t("home:dokumente.wissensModal.title")}
           </h2>
           <button
             onClick={onSchliessen}
@@ -318,7 +322,7 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Titel</label>
+          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("home:dokumente.wissensModal.titleLabel")}</label>
           <input
             value={titel}
             onChange={(e) => setTitel(e.target.value)}
@@ -327,7 +331,7 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Kategorie</label>
+          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("home:dokumente.wissensModal.category")}</label>
           <select
             value={kategorie}
             onChange={(e) => setKategorie(e.target.value)}
@@ -338,12 +342,12 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Inhalt (optional)</label>
+          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("home:dokumente.wissensModal.content")}</label>
           <textarea
             value={inhalt}
             onChange={(e) => setInhalt(e.target.value)}
             rows={3}
-            placeholder="Notizen zum Dokument…"
+            placeholder={t("home:dokumente.wissensModal.contentPlaceholder")}
             className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none resize-none"
           />
         </div>
@@ -357,7 +361,7 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
             onClick={onSchliessen}
             className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main"
           >
-            Abbrechen
+            {t("common:actions.cancel")}
           </button>
           <button
             onClick={handleSpeichern}
@@ -365,7 +369,7 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
             className="flex-1 px-3 py-2 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded-pill disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {speichern ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
-            Speichern
+            {t("common:actions.save")}
           </button>
         </div>
       </div>
@@ -374,6 +378,7 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
 };
 
 const BudgetZuordnungModal = ({ dok, initial, onSchliessen, onSpeichern, speichern }) => {
+  const { t } = useTranslation(["home", "common"]);
   const [beschreibung, setBeschreibung] = useState(initial?.beschreibung || "");
   const [betrag, setBetrag] = useState(initial?.betrag || "");
   const [datum, setDatum] = useState(initial?.datum || new Date().toISOString().split("T")[0]);
@@ -395,7 +400,7 @@ const BudgetZuordnungModal = ({ dok, initial, onSchliessen, onSpeichern, speiche
       <div className="mobile-modal-dialog w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4 overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
-            <Plus size={16} className="text-primary-500" /> Zum Budget hinzufügen
+            <Plus size={16} className="text-primary-500" /> {t("home:dokumente.budgetModal.title")}
           </h2>
           <button
             onClick={onSchliessen}
@@ -410,18 +415,18 @@ const BudgetZuordnungModal = ({ dok, initial, onSchliessen, onSpeichern, speiche
         </p>
 
         <div>
-          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Beschreibung*</label>
+          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("home:dokumente.budgetModal.description")}</label>
           <input
             value={beschreibung}
             onChange={(e) => setBeschreibung(e.target.value)}
-            placeholder="z. B. Rechnung Supermarkt"
+            placeholder={t("home:dokumente.budgetModal.descriptionPlaceholder")}
             className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
           />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Betrag (€)*</label>
+            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("home:dokumente.budgetModal.amount")}</label>
             <input
               type="number"
               step="0.01"
@@ -433,7 +438,7 @@ const BudgetZuordnungModal = ({ dok, initial, onSchliessen, onSpeichern, speiche
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Datum</label>
+            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("home:dokumente.budgetModal.date")}</label>
             <input
               type="date"
               value={datum || ""}
@@ -444,7 +449,7 @@ const BudgetZuordnungModal = ({ dok, initial, onSchliessen, onSpeichern, speiche
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Kategorie</label>
+          <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("home:dokumente.budgetModal.category")}</label>
           <select
             value={kategorie}
             onChange={(e) => setKategorie(e.target.value)}
@@ -460,7 +465,7 @@ const BudgetZuordnungModal = ({ dok, initial, onSchliessen, onSpeichern, speiche
             disabled={speichern}
             className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main disabled:opacity-60"
           >
-            Abbrechen
+            {t("common:actions.cancel")}
           </button>
           <button
             onClick={handleSpeichern}
@@ -468,7 +473,7 @@ const BudgetZuordnungModal = ({ dok, initial, onSchliessen, onSpeichern, speiche
             className="flex-1 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {speichern ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
-            Speichern
+            {t("common:actions.save")}
           </button>
         </div>
       </div>
@@ -478,6 +483,7 @@ const BudgetZuordnungModal = ({ dok, initial, onSchliessen, onSpeichern, speiche
 
 // ── Bearbeiten-Modal ──────────────────────────────────────────────────────────
 const BearbeitenModal = ({ dok, userId, onSchliessen, onGespeichert }) => {
+  const { t } = useTranslation(["home", "common"]);
   const [dateiname, setDateiname] = useState(dok.dateiname || "");
   const [beschreibung, setBeschreibung] = useState(
     dok.beschreibung?.replace(/\s*\[[^\]]+\]$/, "") || ""
@@ -531,7 +537,7 @@ const BearbeitenModal = ({ dok, userId, onSchliessen, onGespeichert }) => {
         {/* Header */}
         <div className="shrink-0 flex items-center justify-between px-5 pt-5 pb-4 border-b border-light-border dark:border-dark-border">
           <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
-            <Pencil size={16} className="text-primary-500" /> Dokument bearbeiten
+            <Pencil size={16} className="text-primary-500" /> {t("home:dokumente.editModal.title")}
           </h2>
           <button
             onClick={onSchliessen}
@@ -545,7 +551,7 @@ const BearbeitenModal = ({ dok, userId, onSchliessen, onGespeichert }) => {
         <div className="flex-1 overflow-y-auto px-5 pt-4 pb-2 space-y-4">
           <div>
             <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-              Dateiname
+              {t("home:dokumente.editModal.filename")}
             </label>
             <input
               value={dateiname}
@@ -556,19 +562,19 @@ const BearbeitenModal = ({ dok, userId, onSchliessen, onGespeichert }) => {
 
           <div>
             <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-              Beschreibung (optional)
+              {t("home:dokumente.editModal.description")}
             </label>
             <input
               value={beschreibung}
               onChange={(e) => setBeschreibung(e.target.value)}
-              placeholder="z.B. Mietvertrag Neue Str. 5"
+              placeholder={t("home:dokumente.editModal.descriptionPlaceholder")}
               className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
             />
           </div>
 
           <div>
             <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-              Kategorie
+              {t("home:dokumente.editModal.category")}
             </label>
             <select
               value={kategorie}
@@ -582,7 +588,7 @@ const BearbeitenModal = ({ dok, userId, onSchliessen, onGespeichert }) => {
           {hatRechnung && (
             <div>
               <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-                Rechnungsdatum
+                {t("home:dokumente.editModal.invoiceDate")}
               </label>
               <input
                 type="date"
@@ -606,7 +612,7 @@ const BearbeitenModal = ({ dok, userId, onSchliessen, onGespeichert }) => {
             onClick={onSchliessen}
             className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main"
           >
-            Abbrechen
+            {t("common:actions.cancel")}
           </button>
           <button
             onClick={handleSpeichern}
@@ -614,7 +620,7 @@ const BearbeitenModal = ({ dok, userId, onSchliessen, onGespeichert }) => {
             className="flex-1 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {speichern ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
-            Speichern
+            {t("common:actions.save")}
           </button>
         </div>
       </div>
@@ -1028,6 +1034,7 @@ const HomeDokumente = ({ session }) => {
         .from("dokumente")
         .select("id, dateiname, datei_typ, storage_pfad, beschreibung, groesse_kb, kategorie, dokument_typ, tags, meta, extrahierter_text, erstellt_am")
         .eq("user_id", userId)
+        .in("app_modus", ["home", "beides"])
         .order("erstellt_am", { ascending: false });
       if (error) throw error;
       const doks = data || [];

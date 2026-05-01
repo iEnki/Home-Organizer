@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   ScrollText, AlertTriangle, CheckCircle, Edit2, ExternalLink,
-  Loader2, X, ChevronDown, ChevronUp,
+  Loader2, X,
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { notifyHouseholdEvent } from "../../utils/pushNotifications";

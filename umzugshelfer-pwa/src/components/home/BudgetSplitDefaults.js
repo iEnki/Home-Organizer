@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Plus, Trash2, Edit2, X } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { getBewohnerDisplayName } from "../../utils/budgetAccounts";
@@ -12,9 +13,8 @@ import {
 
 const INPUT_CLS = "w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500";
 
-const SPLIT_MODE_LABEL = { equal: 'Gleichmäßig', fixed: 'Fest', percent: 'Prozent' };
-
 export default function BudgetSplitDefaults({ householdId, bewohner = [], kategorien }) {
+  const { t } = useTranslation(["budget"]);
   const [defaults, setDefaults] = useState([]);
   const [laden, setLaden] = useState(false);
   const [fehler, setFehler] = useState(null);
@@ -40,11 +40,11 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
       if (error) throw error;
       setDefaults(data || []);
     } catch (err) {
-      setFehler(`Fehler beim Laden: ${err.message}`);
+      setFehler(t("budget:splitDefaults.errLoad", { msg: err.message }));
     } finally {
       setLaden(false);
     }
-  }, [householdId]);
+  }, [householdId, t]);
 
   useEffect(() => { ladeDefaults(); }, [ladeDefaults]);
 
@@ -117,14 +117,14 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
       setEditModal(null);
       await ladeDefaults();
     } catch (err) {
-      setValidierungsFehler(`Fehler beim Speichern: ${err.message}`);
+      setValidierungsFehler(t("budget:splitDefaults.errSave", { msg: err.message }));
     } finally {
       setSpeichern(false);
     }
   };
 
   const handleLoeschen = async (id) => {
-    if (!window.confirm("Standard-Verteilung für diese Kategorie löschen?")) return;
+    if (!window.confirm(t("budget:splitDefaults.deleteConfirm"))) return;
     try {
       const { error } = await supabase
         .from("home_budget_split_defaults")
@@ -133,7 +133,7 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
       if (error) throw error;
       await ladeDefaults();
     } catch (err) {
-      setFehler(`Fehler beim Löschen: ${err.message}`);
+      setFehler(t("budget:splitDefaults.errDelete", { msg: err.message }));
     }
   };
 
@@ -144,10 +144,10 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
       <div className="flex items-center justify-between gap-3 p-4 border-b border-light-border dark:border-dark-border">
         <div>
           <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
-            Standard-Verteilungen
+            {t("budget:splitDefaults.title")}
           </h3>
           <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
-            Wird beim Erstellen einer neuen Buchung automatisch vorausgefüllt.
+            {t("budget:splitDefaults.subtitle")}
           </p>
         </div>
         <button
@@ -155,7 +155,7 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
           className="inline-flex items-center gap-1.5 rounded-pill bg-primary-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-600"
         >
           <Plus size={14} />
-          Neu
+          {t("budget:splitDefaults.new")}
         </button>
       </div>
 
@@ -166,10 +166,10 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
           </div>
         )}
         {laden ? (
-          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Lade...</p>
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("budget:splitDefaults.loading")}</p>
         ) : defaults.length === 0 ? (
           <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-            Noch keine Standard-Verteilungen angelegt.
+            {t("budget:splitDefaults.empty")}
           </p>
         ) : (
           defaults.map(eintrag => {
@@ -182,8 +182,8 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
                     {eintrag.kategorie}
                   </p>
                   <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                    {SPLIT_MODE_LABEL[eintrag.split_mode] || eintrag.split_mode}
-                    {payer ? ` · Zahler: ${payer.emoji} ${getBewohnerDisplayName(payer)}` : ''}
+                    {t(`budget:splitDefaults.mode${eintrag.split_mode.charAt(0).toUpperCase()}${eintrag.split_mode.slice(1)}`, { defaultValue: eintrag.split_mode })}
+                    {payer ? ` · ${t("budget:splitDefaults.payer")}: ${payer.emoji} ${getBewohnerDisplayName(payer)}` : ''}
                     {teilnehmer.length > 0 ? ` · ${teilnehmer.map(b => b.emoji).join('')}` : ''}
                   </p>
                 </div>
@@ -191,14 +191,14 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
                   <button
                     onClick={() => oeffneEdit(eintrag)}
                     className="inline-flex h-8 w-8 items-center justify-center rounded-full text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500"
-                    title="Bearbeiten"
+                    title={t("budget:splitDefaults.editBtn")}
                   >
                     <Edit2 size={14} />
                   </button>
                   <button
                     onClick={() => handleLoeschen(eintrag.id)}
                     className="inline-flex h-8 w-8 items-center justify-center rounded-full text-red-500 hover:bg-red-500/10"
-                    title="Löschen"
+                    title={t("budget:splitDefaults.deleteBtn")}
                   >
                     <Trash2 size={14} />
                   </button>
@@ -215,7 +215,7 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
           <div className="mobile-modal-dialog bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border flex min-h-0 flex-col">
             <div className="shrink-0 flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
-                {editModal.id ? 'Standard-Verteilung bearbeiten' : 'Neue Standard-Verteilung'}
+                {editModal.id ? t("budget:splitDefaults.editTitle") : t("budget:splitDefaults.newTitle")}
               </h3>
               <button onClick={() => setEditModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main">
                 <X size={18} />
@@ -223,7 +223,7 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
             </div>
             <div className="mobile-modal-body flex-1 p-4 space-y-3">
               <div>
-                <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Kategorie</label>
+                <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:splitDefaults.category")}</label>
                 <select
                   value={editModal.kategorie}
                   onChange={e => setEditModal(prev => ({ ...prev, kategorie: e.target.value }))}
@@ -259,14 +259,14 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
                 onClick={() => setEditModal(null)}
                 className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main"
               >
-                Abbrechen
+                {t("budget:splitDefaults.cancel")}
               </button>
               <button
                 onClick={handleSpeichern}
                 disabled={speichern}
                 className="flex-1 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50"
               >
-                {speichern ? 'Speichere...' : 'Speichern'}
+                {speichern ? t("budget:splitDefaults.saving") : t("budget:splitDefaults.save")}
               </button>
             </div>
           </div>

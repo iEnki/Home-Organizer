@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
@@ -12,6 +13,7 @@ import {
   Type,
   X,
 } from "lucide-react";
+import { useLocale } from "../../contexts/LocaleContext";
 import { startSpeechRecognition } from "../../utils/kiClient";
 import { extractAssistantDomainItems } from "../../utils/assistantAi";
 import { ASSISTANT_DOMAIN_CONFIG } from "../../utils/assistantDomains";
@@ -62,7 +64,7 @@ const MODULE_UI = {
     help: [
       '"Keller aufraeumen bis Ende April, monatlich"',
       '"Rauchmelder testen, Prioritaet Hoch"',
-      '"Reifenwechsel beauftragen naechsten Montag"',
+      '"Reifenwechsel beauftragen nächsten Montag"',
     ],
     renderItem: (item) =>
       `${item.beschreibung || "Aufgabe"}${item.prioritaet ? ` [${item.prioritaet}]` : ""}${item.faelligkeitsdatum ? ` - bis ${item.faelligkeitsdatum}` : ""}${item.wiederholung_typ && item.wiederholung_typ !== "Keine" ? ` (${item.wiederholung_typ})` : ""}`,
@@ -82,7 +84,7 @@ const MODULE_UI = {
     help: [
       '"Badezimmer renovieren bis Oktober, Budget 2000 Euro"',
       '"Keller aufraeumen und reorganisieren"',
-      '"Kueche streichen naechsten Monat"',
+      '"Küche streichen nächsten Monat"',
     ],
     renderItem: (item) =>
       `${item.name || "Projekt"}${item.typ ? ` [${item.typ}]` : ""}${item.budget ? ` - Budget: ${item.budget} EUR` : ""}${item.zieldatum ? ` · bis ${item.zieldatum}` : ""}`,
@@ -112,7 +114,11 @@ const MODULE_UI = {
 };
 
 const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
+  const { t } = useTranslation(["assistant","common"]);
+  void t;
+
   const userId = session?.user?.id;
+  const { locale } = useLocale();
   const domainConfig = ASSISTANT_DOMAIN_CONFIG[modul];
   const uiConfig = MODULE_UI[modul];
 
@@ -173,6 +179,7 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
         setSprachAktiv(false);
         setFehler(`Spracherkennung Fehler: ${errorMessage}`);
       },
+      locale,
     );
   };
 

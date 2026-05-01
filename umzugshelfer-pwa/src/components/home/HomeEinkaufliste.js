@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertCircle,
@@ -20,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
+import { useLocale } from "../../contexts/LocaleContext";
 import { startSpeechRecognition } from "../../utils/kiClient";
 import { useToast } from "../../hooks/useToast";
 import useViewport from "../../hooks/useViewport";
@@ -100,6 +102,100 @@ const DEFAULT_CATEGORY_STYLE =
 const getShoppingCategoryStyle = (category) =>
   SHOPPING_CATEGORY_STYLES[category] || DEFAULT_CATEGORY_STYLE;
 
+const SHOPPING_LABELS_EN = new Map([
+  ["Alle", "All"],
+  ["Offen", "Open"],
+  ["Erledigt", "Done"],
+  ["Prüfen", "Review"],
+  ["Pr?fen", "Review"],
+  ["Ungruppiert", "Ungrouped"],
+  ["Markt", "Market"],
+  ["Kategorie", "Category"],
+  ["Neueste", "Newest"],
+  ["Lebensmittel", "Groceries"],
+  ["Getränke", "Drinks"],
+  ["Getr?nke", "Drinks"],
+  ["Drogerie", "Drugstore"],
+  ["Haushalt", "Household"],
+  ["Elektronik", "Electronics"],
+  ["Tierbedarf", "Pet supplies"],
+  ["Baby", "Baby"],
+  ["Apotheke / Gesundheit", "Pharmacy / health"],
+  ["Sonstiges", "Other"],
+  ["Obst & Gemüse", "Fruit & vegetables"],
+  ["Obst & Gem?se", "Fruit & vegetables"],
+  ["Fleisch & Geflügel", "Meat & poultry"],
+  ["Fleisch & Gefl?gel", "Meat & poultry"],
+  ["Fisch", "Fish"],
+  ["Milchprodukte", "Dairy"],
+  ["Käse", "Cheese"],
+  ["K?se", "Cheese"],
+  ["Tiefkühl", "Frozen"],
+  ["Tiefk?hl", "Frozen"],
+  ["Brot & Gebäck", "Bread & pastries"],
+  ["Brot & Geb?ck", "Bread & pastries"],
+  ["Nudeln, Reis & Vorrat", "Pasta, rice & pantry"],
+  ["Snacks & Süßes", "Snacks & sweets"],
+  ["Snacks & S??es", "Snacks & sweets"],
+  ["Gewürze & Saucen", "Spices & sauces"],
+  ["Gew?rze & Saucen", "Spices & sauces"],
+  ["Wasser & Softdrinks", "Water & soft drinks"],
+  ["Säfte", "Juices"],
+  ["S?fte", "Juices"],
+  ["Kaffee & Tee", "Coffee & tea"],
+  ["Alkohol", "Alcohol"],
+  ["Hygiene", "Hygiene"],
+  ["Kosmetik", "Cosmetics"],
+  ["Baby-Pflege", "Baby care"],
+  ["Apotheke", "Pharmacy"],
+  ["Reinigung", "Cleaning"],
+  ["Küchenbedarf", "Kitchen supplies"],
+  ["K?chenbedarf", "Kitchen supplies"],
+  ["Papierwaren", "Paper goods"],
+  ["Müllbeutel", "Bin bags"],
+  ["M?llbeutel", "Bin bags"],
+  ["Waschmittel", "Laundry detergent"],
+  ["Batterien", "Batteries"],
+  ["Kabel", "Cables"],
+  ["Zubehör", "Accessories"],
+  ["Zubeh?r", "Accessories"],
+  ["Lampen", "Lamps"],
+  ["Kleingeräte", "Small appliances"],
+  ["Kleinger?te", "Small appliances"],
+  ["Tierfutter", "Pet food"],
+  ["Pflege", "Care"],
+  ["Babynahrung", "Baby food"],
+  ["Windeln", "Nappies"],
+  ["Medikamente", "Medication"],
+  ["Erste Hilfe", "First aid"],
+  ["Nahrungsergänzung", "Supplements"],
+  ["Nahrungserg?nzung", "Supplements"],
+]);
+
+const SHOPPING_LABELS_DE = new Map([
+  ["Pr?fen", "Pruefen"],
+  ["Getr?nke", "Getraenke"],
+  ["Obst & Gem?se", "Obst & Gemuese"],
+  ["Fleisch & Gefl?gel", "Fleisch & Gefluegel"],
+  ["K?se", "Kaese"],
+  ["Tiefk?hl", "Tiefkuehl"],
+  ["Brot & Geb?ck", "Brot & Gebaeck"],
+  ["Snacks & S??es", "Snacks & Suesses"],
+  ["Gew?rze & Saucen", "Gewuerze & Saucen"],
+  ["S?fte", "Saefte"],
+  ["K?chenbedarf", "Kuechenbedarf"],
+  ["M?llbeutel", "Muellbeutel"],
+  ["Zubeh?r", "Zubehoer"],
+  ["Kleinger?te", "Kleingeraete"],
+  ["Nahrungserg?nzung", "Nahrungsergaenzung"],
+]);
+
+const getShoppingUiLabel = (value, locale) => {
+  const raw = String(value || "");
+  if (!raw) return raw;
+  return locale === "en-GB" ? (SHOPPING_LABELS_EN.get(raw) || raw) : (SHOPPING_LABELS_DE.get(raw) || raw);
+};
+
 const getShoppingCategoryBadgeLabel = (entry, fallbackToMain = false) =>
   entry.unterkategorie || (fallbackToMain ? entry.hauptkategorie || null : null);
 
@@ -152,6 +248,7 @@ function EntryPreviewRow({
   onEditSpeichern,
   onUpdateDecision,
 }) {
+  const { t, i18n } = useTranslation(["home", "common"]);
   const [editOffen, setEditOffen] = useState(false);
   const [name, setName] = useState(editedValues?.name ?? draft.name);
   const [menge, setMenge] = useState(String(editedValues?.menge ?? draft.menge ?? 1));
@@ -209,18 +306,18 @@ function EntryPreviewRow({
                   ).soft
                 }`}
               >
-                {getShoppingCategoryBadgeLabel(
+                {getShoppingUiLabel(getShoppingCategoryBadgeLabel(
                   editedValues?.hauptkategorie != null
                     ? { ...draft, hauptkategorie: editedValues.hauptkategorie, unterkategorie: editedValues.unterkategorie }
                     : draft,
                   true
-                )}
+                ), i18n.language)}
               </span>
             )}
             {draft.review_noetig && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[11px] font-medium">
                 <AlertTriangle size={12} />
-                Prüfen
+                {t("home:shopping.review", { defaultValue: "Review" })}
               </span>
             )}
           </div>
@@ -242,7 +339,7 @@ function EntryPreviewRow({
           {!isAusgeschlossen && (
             <button
               onClick={() => setEditOffen((v) => !v)}
-              title="Bearbeiten"
+              title={t("common:actions.edit")}
               className={`p-1 rounded transition-colors ${
                 editOffen
                   ? "text-primary-500 bg-primary-500/10"
@@ -273,7 +370,7 @@ function EntryPreviewRow({
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Name"
+            placeholder={t("home:einkaufliste.namePlaceholder")}
             className="w-full px-3 py-1.5 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
           />
           <div className="flex gap-2">
@@ -289,7 +386,7 @@ function EntryPreviewRow({
               type="text"
               value={einheit}
               onChange={(e) => setEinheit(e.target.value)}
-              placeholder="Einheit"
+              placeholder={t("home:shopping.unit", { defaultValue: "Unit" })}
               className="flex-1 px-3 py-1.5 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
             />
           </div>
@@ -298,13 +395,13 @@ function EntryPreviewRow({
               onClick={handleSpeichern}
               className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-card-sm bg-primary-500 text-white font-medium"
             >
-              <Check size={11} /> Übernehmen
+              <Check size={11} /> {t("common:actions.apply", { defaultValue: "Apply" })}
             </button>
             <button
               onClick={() => setEditOffen(false)}
               className="px-3 py-1.5 text-xs rounded-card-sm border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary"
             >
-              Abbrechen
+              {t("common:actions.cancel")}
             </button>
           </div>
         </div>
@@ -314,7 +411,7 @@ function EntryPreviewRow({
       {duplicate && (
         <div className="rounded-card-sm border border-amber-500/30 bg-amber-500/10 p-3 space-y-2">
           <p className="text-xs text-amber-700 dark:text-amber-300">
-            Bereits offen vorhanden: <strong>{duplicate.existing_entry.name}</strong>{" "}
+            {t("home:shopping.duplicateExisting", { defaultValue: "Already open:" })} <strong>{duplicate.existing_entry.name}</strong>{" "}
             ({getShoppingEntrySubtitle(duplicate.existing_entry)})
           </p>
           <div className="flex flex-wrap gap-2">
@@ -331,7 +428,7 @@ function EntryPreviewRow({
                   : "border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary"
               }`}
             >
-              Zusammenführen
+              {t("home:shopping.merge", { defaultValue: "Merge" })}
             </button>
             <button
               onClick={() => onUpdateDecision(draft.client_id, { action: "insert" })}
@@ -341,7 +438,7 @@ function EntryPreviewRow({
                   : "border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary"
               }`}
             >
-              Separat lassen
+              {t("home:shopping.keepSeparate", { defaultValue: "Keep separate" })}
             </button>
           </div>
         </div>
@@ -352,6 +449,8 @@ function EntryPreviewRow({
 
 const HomeEinkaufliste = ({ session }) => {
   const userId = session?.user?.id;
+  const { locale } = useLocale();
+  const { t, i18n } = useTranslation(["home", "common"]);
   const toast = useToast();
   const { isMobile } = useViewport();
   const { active: tourAktiv, schritt, setSchritt, beenden: tourBeenden } = useTour("einkaufliste");
@@ -468,7 +567,8 @@ const HomeEinkaufliste = ({ session }) => {
       (err) => {
         toast.error(err);
         setSpracheAktiv(false);
-      }
+      },
+      locale
     );
   };
 
@@ -632,7 +732,7 @@ const HomeEinkaufliste = ({ session }) => {
   };
 
   const loescheErledigt = async () => {
-    if (!window.confirm("Alle erledigten Einkaufsartikel loeschen?")) return;
+    if (!window.confirm("Alle erledigten Einkaufsartikel löschen?")) return;
     const erledigteEintraege = eintraege.filter((entry) => entry.erledigt);
 
     const { error } = await supabase
@@ -756,14 +856,14 @@ const HomeEinkaufliste = ({ session }) => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">
-                Einkaufsliste
+                {t("home:shopping.title", { defaultValue: "Shopping list" })}
               </h1>
               <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-xs font-semibold">
-                {eintraege.filter((entry) => !entry.erledigt).length} offen
+                {t("home:shopping.openCount", { count: eintraege.filter((entry) => !entry.erledigt).length, defaultValue: "{{count}} open" })}
               </span>
             </div>
             <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-              Markt-Reihenfolge, Review-Hinweise und Sammelerfassung in einem Flow.
+              {t("home:shopping.subtitle", { defaultValue: "Market order, review hints and batch entry in one flow." })}
             </p>
           </div>
         </div>
@@ -774,7 +874,7 @@ const HomeEinkaufliste = ({ session }) => {
               onClick={loescheErledigt}
               className="px-3 py-2 rounded-pill text-sm border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
             >
-              Erledigte löschen
+              {t("home:shopping.deleteCompleted", { defaultValue: "Delete completed" })}
             </button>
           )}
           <button
@@ -783,7 +883,7 @@ const HomeEinkaufliste = ({ session }) => {
             className="flex items-center gap-2 px-4 py-2 rounded-pill text-sm font-medium bg-primary-500 hover:bg-primary-600 text-white transition-colors"
           >
             <Plus size={15} />
-            <span>Hinzufügen</span>
+            <span>{t("common:actions.add")}</span>
           </button>
         </div>
       </div>
@@ -804,7 +904,7 @@ const HomeEinkaufliste = ({ session }) => {
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Artikel, Kategorie oder Unterkategorie suchen"
+            placeholder={t("home:shopping.searchPlaceholder", { defaultValue: "Search item, category or subcategory" })}
             className="w-full bg-transparent outline-none text-sm text-light-text-main dark:text-dark-text-main placeholder:text-light-text-secondary dark:placeholder:text-dark-text-secondary"
           />
         </div>
@@ -815,12 +915,12 @@ const HomeEinkaufliste = ({ session }) => {
               <select
                 value={sortMode}
                 onChange={(event) => setSortMode(event.target.value)}
-                aria-label="Sortierung auswählen"
+                aria-label={t("home:shopping.selectSort", { defaultValue: "Select sort order" })}
                 className="w-full appearance-none rounded-pill border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 pl-3 pr-9 py-2.5 text-sm text-light-text-main dark:text-dark-text-main outline-none focus:border-primary-500"
               >
                 {SHOPPING_SORT_MODES.map((mode) => (
                   <option key={mode} value={mode}>
-                    {mode}
+                    {getShoppingUiLabel(mode, i18n.language)}
                   </option>
                 ))}
               </select>
@@ -834,12 +934,12 @@ const HomeEinkaufliste = ({ session }) => {
               <select
                 value={filter}
                 onChange={(event) => setFilter(event.target.value)}
-                aria-label="Filter auswählen"
+                aria-label={t("home:shopping.selectFilter", { defaultValue: "Select filter" })}
                 className="w-full appearance-none rounded-pill border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 pl-3 pr-9 py-2.5 text-sm text-light-text-main dark:text-dark-text-main outline-none focus:border-primary-500"
               >
                 {filterOptions.map((option) => (
                   <option key={option} value={option}>
-                    {option}
+                    {getShoppingUiLabel(option, i18n.language)}
                   </option>
                 ))}
               </select>
@@ -862,7 +962,7 @@ const HomeEinkaufliste = ({ session }) => {
                       : "border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
                   }`}
                 >
-                  {mode}
+                  {getShoppingUiLabel(mode, i18n.language)}
                 </button>
               ))}
             </div>
@@ -880,7 +980,7 @@ const HomeEinkaufliste = ({ session }) => {
                       : "border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
                   }`}
                 >
-                  {option}
+                  {getShoppingUiLabel(option, i18n.language)}
                 </button>
               ))}
             </div>
@@ -892,7 +992,7 @@ const HomeEinkaufliste = ({ session }) => {
         <div className="flex items-center gap-2 flex-wrap">
           {sortMode !== "Markt" && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary-500/10 text-primary-500 border border-primary-500/20">
-              Sortierung: {sortMode}
+              {t("home:shopping.sort", { defaultValue: "Sort" })}: {getShoppingUiLabel(sortMode, i18n.language)}
               <button onClick={() => setSortMode("Markt")} className="hover:text-primary-600">
                 <X size={10} />
               </button>
@@ -907,7 +1007,7 @@ const HomeEinkaufliste = ({ session }) => {
                   : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
               }`}
             >
-              Filter: {filter}
+              {t("home:shopping.filter", { defaultValue: "Filter" })}: {getShoppingUiLabel(filter, i18n.language)}
               <button onClick={() => setFilter("Alle")} className="hover:text-amber-500">
                 <X size={10} />
               </button>
@@ -918,7 +1018,7 @@ const HomeEinkaufliste = ({ session }) => {
             onClick={resetListenFilter}
             className="text-xs text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main underline underline-offset-2"
           >
-            Zurücksetzen
+            {t("common:actions.reset", { defaultValue: "Reset" })}
           </button>
         </div>
       )}
@@ -931,7 +1031,7 @@ const HomeEinkaufliste = ({ session }) => {
               className="mx-auto mb-3 text-light-text-secondary dark:text-dark-text-secondary opacity-50"
             />
             <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-              Keine Einträge für den aktuellen Filter.
+              {t("home:shopping.emptyFilter", { defaultValue: "No entries for the current filter." })}
             </p>
           </div>
         )}
@@ -945,7 +1045,7 @@ const HomeEinkaufliste = ({ session }) => {
                 ).soft}`}
               >
                 <span className="text-xs font-semibold uppercase tracking-wide">
-                  {gruppe.label}
+                  {getShoppingUiLabel(gruppe.label, i18n.language)}
                 </span>
                 <span className="text-xs opacity-80">
                   {gruppe.items.length}
@@ -984,13 +1084,13 @@ const HomeEinkaufliste = ({ session }) => {
                                   entry.hauptkategorie
                                 ).soft}`}
                               >
-                                {getShoppingCategoryBadgeLabel(entry)}
+                                {getShoppingUiLabel(getShoppingCategoryBadgeLabel(entry), i18n.language)}
                               </span>
                             )}
                             {entry.review_noetig && (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[11px] font-medium">
                                 <AlertTriangle size={12} />
-                                Prüfen
+                                {t("home:shopping.review", { defaultValue: "Review" })}
                               </span>
                             )}
                           </div>
@@ -1003,14 +1103,14 @@ const HomeEinkaufliste = ({ session }) => {
                           <button
                             onClick={() => openEditModal(entry)}
                             className="p-2 rounded-full text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
-                            aria-label="Eintrag bearbeiten"
+                            aria-label={t("home:shopping.editEntry", { defaultValue: "Edit entry" })}
                           >
                             <Pencil size={14} />
                           </button>
                           <button
                             onClick={() => loesche(entry.id)}
                             className="p-2 rounded-full text-light-text-secondary dark:text-dark-text-secondary hover:bg-red-500/10 hover:text-red-500"
-                            aria-label="Eintrag löschen"
+                            aria-label={t("home:shopping.deleteEntry", { defaultValue: "Delete entry" })}
                           >
                             <Trash2 size={14} />
                           </button>
@@ -1032,10 +1132,10 @@ const HomeEinkaufliste = ({ session }) => {
             >
               <div>
                 <h2 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-                  Erledigt
+                  {t("home:shopping.completed", { defaultValue: "Done" })}
                 </h2>
                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                  {erledigteEintraege.length} zuletzt abgehakte Artikel
+                  {t("home:shopping.completedCount", { count: erledigteEintraege.length, defaultValue: "{{count}} recently checked off items" })}
                 </p>
               </div>
               {showCompleted ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -1065,7 +1165,7 @@ const HomeEinkaufliste = ({ session }) => {
                               entry.hauptkategorie
                             ).soft}`}
                           >
-                            {getShoppingCategoryBadgeLabel(entry, true)}
+                            {getShoppingUiLabel(getShoppingCategoryBadgeLabel(entry, true), i18n.language)}
                           </span>
                         </div>
                       )}
@@ -1076,7 +1176,7 @@ const HomeEinkaufliste = ({ session }) => {
                     <button
                       onClick={() => loesche(entry.id)}
                       className="p-2 rounded-full text-light-text-secondary dark:text-dark-text-secondary hover:bg-red-500/10 hover:text-red-500"
-                      aria-label="Eintrag löschen"
+                      aria-label={t("home:shopping.deleteEntry", { defaultValue: "Delete entry" })}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -1089,15 +1189,15 @@ const HomeEinkaufliste = ({ session }) => {
       </div>
 
       {createModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 pb-safe flex items-center justify-center">
           <div className="w-full max-w-2xl rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border shadow-elevation-3 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-light-border dark:border-dark-border">
               <div>
                 <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
-                  Artikel erfassen
+                  {t("home:shopping.captureItems", { defaultValue: "Add items" })}
                 </h2>
                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                  Mehrere Einträge mit Komma, Semikolon oder Zeilenumbruch trennen.
+                  {t("home:shopping.captureHint", { defaultValue: "Separate multiple entries with commas, semicolons or line breaks." })}
                 </p>
               </div>
               <button
@@ -1113,14 +1213,16 @@ const HomeEinkaufliste = ({ session }) => {
                 <textarea
                   value={createText}
                   onChange={(event) => setCreateText(event.target.value)}
-                  placeholder={"Milch, Bananen, Hendlbrust 500 g, Küchenrolle"}
+                  placeholder={t("home:shopping.capturePlaceholder", { defaultValue: "Milk, bananas, chicken breast 500 g, kitchen roll" })}
                   className="w-full min-h-[180px] rounded-card border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-4 py-3 pr-12 text-sm text-light-text-main dark:text-dark-text-main outline-none focus:ring-2 focus:ring-primary-500"
                   autoFocus
                 />
                 <button
                   type="button"
                   onClick={handleSpracheStarten}
-                  title={spracheAktiv ? "Aufnahme stoppen" : "Spracheingabe starten"}
+                  title={spracheAktiv
+                    ? t("home:shopping.stopRecording", { defaultValue: "Stop recording" })
+                    : t("home:shopping.startVoiceInput", { defaultValue: "Start voice input" })}
                   className={`absolute bottom-3 right-3 p-2 rounded-full transition-colors ${
                     spracheAktiv
                       ? "bg-red-500 text-white animate-pulse"
@@ -1133,7 +1235,7 @@ const HomeEinkaufliste = ({ session }) => {
 
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                  {splitShoppingInput(createText).length} erkannte Roh-Einträge vor der Analyse
+                  {t("home:shopping.rawBeforeAnalysis", { count: splitShoppingInput(createText).length, defaultValue: "{{count}} raw entries before analysis" })}
                 </p>
 
                 <div className="flex gap-2">
@@ -1141,7 +1243,7 @@ const HomeEinkaufliste = ({ session }) => {
                     onClick={resetCreateFlow}
                     className="px-3 py-2 rounded-pill text-sm border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
                   >
-                    Abbrechen
+                    {t("common:actions.cancel")}
                   </button>
                   <button
                     onClick={handleCreateAnalyse}
@@ -1149,7 +1251,7 @@ const HomeEinkaufliste = ({ session }) => {
                     className="px-4 py-2 rounded-pill text-sm font-medium bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white flex items-center gap-2"
                   >
                     {submittingCreate && <Loader2 size={14} className="animate-spin" />}
-                    <span>Analysieren</span>
+                    <span>{t("home:shopping.analyse", { defaultValue: "Analyse" })}</span>
                   </button>
                 </div>
               </div>
@@ -1159,15 +1261,15 @@ const HomeEinkaufliste = ({ session }) => {
       )}
 
       {previewState && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 pb-safe flex items-center justify-center">
           <div className="w-full max-w-3xl rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border shadow-elevation-3 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-light-border dark:border-dark-border">
               <div>
                 <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
-                  Vorschau vor dem Speichern
+                  {t("home:shopping.previewTitle", { defaultValue: "Preview before saving" })}
                 </h2>
                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                  Unsichere Einträge sind markiert. Duplikate können zusammengeführt werden.
+                  {t("home:shopping.previewHint", { defaultValue: "Uncertain entries are marked. Duplicates can be merged." })}
                 </p>
               </div>
               <button
@@ -1201,14 +1303,14 @@ const HomeEinkaufliste = ({ session }) => {
               return (
                 <div className="px-4 py-3 border-t border-light-border dark:border-dark-border flex items-center justify-between gap-3">
                   <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                    {aktiveAnzahl} {aktiveAnzahl === 1 ? "Eintrag" : "Einträge"} bereit zum Speichern
+                    {t("home:shopping.readyToSave", { count: aktiveAnzahl, defaultValue: "{{count}} entries ready to save" })}
                   </p>
                   <div className="flex gap-2">
                     <button
                       onClick={() => setPreviewState(null)}
                       className="px-3 py-2 rounded-pill text-sm border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
                     >
-                      Schließen
+                      {t("common:actions.close")}
                     </button>
                     <button
                       onClick={commitPreview}
@@ -1216,7 +1318,7 @@ const HomeEinkaufliste = ({ session }) => {
                       className="px-4 py-2 rounded-pill text-sm font-medium bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white flex items-center gap-2"
                     >
                       {submittingCreate && <Loader2 size={14} className="animate-spin" />}
-                      <span>Speichern</span>
+                      <span>{t("common:actions.save")}</span>
                     </button>
                   </div>
                 </div>
@@ -1227,11 +1329,11 @@ const HomeEinkaufliste = ({ session }) => {
       )}
 
       {editForm.id && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 pb-safe flex items-center justify-center">
           <div className="w-full max-w-lg rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border shadow-elevation-3 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-light-border dark:border-dark-border">
               <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
-                Einkaufsartikel bearbeiten
+                {t("home:shopping.editItem", { defaultValue: "Edit shopping item" })}
               </h2>
               <button
                 onClick={closeEditModal}
@@ -1258,7 +1360,7 @@ const HomeEinkaufliste = ({ session }) => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-                    Menge
+                  {t("home:shopping.quantity", { defaultValue: "Quantity" })}
                   </label>
                   <input
                     type="number"
@@ -1273,7 +1375,7 @@ const HomeEinkaufliste = ({ session }) => {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-                    Einheit
+                  {t("home:shopping.unit", { defaultValue: "Unit" })}
                   </label>
                   <input
                     value={editForm.einheit}
@@ -1288,7 +1390,7 @@ const HomeEinkaufliste = ({ session }) => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-                    Hauptkategorie
+                    {t("home:shopping.mainCategory", { defaultValue: "Main category" })}
                   </label>
                   <select
                     value={editForm.hauptkategorie}
@@ -1303,14 +1405,14 @@ const HomeEinkaufliste = ({ session }) => {
                   >
                     {SHOPPING_MAIN_CATEGORIES.map((category) => (
                       <option key={category} value={category}>
-                        {category}
+                        {getShoppingUiLabel(category, i18n.language)}
                       </option>
                     ))}
                   </select>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-                    Unterkategorie
+                    {t("home:shopping.subcategory", { defaultValue: "Subcategory" })}
                   </label>
                   <select
                     value={editForm.unterkategorie}
@@ -1322,10 +1424,10 @@ const HomeEinkaufliste = ({ session }) => {
                     }
                     className="w-full rounded-card border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-2 text-sm text-light-text-main dark:text-dark-text-main outline-none focus:ring-2 focus:ring-primary-500"
                   >
-                    <option value="">Keine Unterkategorie</option>
+                    <option value="">{t("home:shopping.noSubcategory", { defaultValue: "No subcategory" })}</option>
                     {getSubcategoriesForMainCategory(editForm.hauptkategorie).map((category) => (
                       <option key={category} value={category}>
-                        {category}
+                        {getShoppingUiLabel(category, i18n.language)}
                       </option>
                     ))}
                   </select>
@@ -1338,7 +1440,7 @@ const HomeEinkaufliste = ({ session }) => {
                 onClick={closeEditModal}
                 className="px-3 py-2 rounded-pill text-sm border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
               >
-                Abbrechen
+                {t("common:actions.cancel")}
               </button>
               <button
                 onClick={handleEditSave}
@@ -1346,7 +1448,7 @@ const HomeEinkaufliste = ({ session }) => {
                 className="px-4 py-2 rounded-pill text-sm font-medium bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white flex items-center gap-2"
               >
                 {savingEdit && <Loader2 size={14} className="animate-spin" />}
-                <span>Speichern</span>
+                <span>{t("common:actions.save")}</span>
               </button>
             </div>
           </div>
@@ -1366,4 +1468,3 @@ const HomeEinkaufliste = ({ session }) => {
 };
 
 export default HomeEinkaufliste;
-

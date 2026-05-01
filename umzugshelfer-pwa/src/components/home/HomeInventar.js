@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Package, Plus, ChevronRight, ChevronDown, Trash2, Edit2, MoreVertical,
@@ -52,6 +53,7 @@ const STATUS_LABEL = {
 
 // --- Ort-Formular ---
 const OrtForm = ({ initial, onSpeichern, onAbbrechen }) => {
+  const { t } = useTranslation(["home"]);
   const [name, setName] = useState(initial?.name || "");
   const [typ, setTyp] = useState(initial?.typ || "Wohnung");
   const typen = ["Wohnung", "Keller", "Garage", "Dachboden", "Gartenhaus", "Sonstiges"];
@@ -74,7 +76,7 @@ const OrtForm = ({ initial, onSpeichern, onAbbrechen }) => {
           onChange={(e) => setTyp(e.target.value)}
           className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none"
         >
-          {typen.map((t) => <option key={t}>{t}</option>)}
+          {typen.map((typ_) => <option key={typ_} value={typ_}>{t(`home:inventoryForm.locations.${typ_}`, { defaultValue: typ_ })}</option>)}
         </select>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -109,7 +111,7 @@ const LagerortForm = ({ ortId, parentId, initial, onSpeichern, onAbbrechen }) =>
           onChange={(e) => setTyp(e.target.value)}
           className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none"
         >
-          {typen.map((t) => <option key={t}>{t}</option>)}
+          {typen.map((typ_) => <option key={typ_} value={typ_}>{typ_}</option>)}
         </select>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -122,6 +124,7 @@ const LagerortForm = ({ ortId, parentId, initial, onSpeichern, onAbbrechen }) =>
 
 // --- Objekt-Formular ---
 const ObjektForm = ({ ortId, lagerortId, initial, bewohner, onSpeichern, onAbbrechen }) => {
+  const { t } = useTranslation(["home"]);
   const [form, setForm] = useState({
     name: initial?.name || "",
     beschreibung: initial?.beschreibung || "",
@@ -152,7 +155,7 @@ const ObjektForm = ({ ortId, lagerortId, initial, bewohner, onSpeichern, onAbbre
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Status</label>
           <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none">
-            {statusOptionen.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+            {statusOptionen.map((s) => <option key={s} value={s}>{t(`home:inventoryForm.status.${s}`, { defaultValue: STATUS_LABEL[s] })}</option>)}
           </select>
         </div>
         <div>
@@ -228,6 +231,7 @@ const ObjektForm = ({ ortId, lagerortId, initial, bewohner, onSpeichern, onAbbre
 
 // --- Hauptkomponente ---
 const HomeInventar = ({ session }) => {
+  const { t } = useTranslation(["home"]);
   const userId = session?.user?.id;
   const { isMobile } = useViewport();
   const { active: tourAktiv, schritt, setSchritt, beenden: tourBeenden } = useTour("inventar");
@@ -780,7 +784,7 @@ const HomeInventar = ({ session }) => {
 
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_FARBEN[obj.status]}`}>
-                        {STATUS_LABEL[obj.status]}
+                        {t(`home:inventoryForm.status.${obj.status}`, { defaultValue: STATUS_LABEL[obj.status] })}
                       </span>
                       {obj.menge > 1 && (
                         <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">x{obj.menge}</span>
@@ -864,7 +868,7 @@ const HomeInventar = ({ session }) => {
             onClose={() => setMobileFilterSheetOpen(false)}
             statusFilter={statusFilter}
             onStatusChange={setStatusFilter}
-            statusLabel={STATUS_LABEL}
+            statusLabel={Object.fromEntries(Object.keys(STATUS_LABEL).map(k => [k, t(`home:inventoryForm.status.${k}`, { defaultValue: STATUS_LABEL[k] })]))}
             bewohnerFilter={bewohnerFilter}
             onBewohnerChange={setBewohnerFilter}
             bewohner={bewohner}
@@ -969,7 +973,7 @@ const HomeInventar = ({ session }) => {
               className="px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none"
             >
               <option value="">Alle Status</option>
-              {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{t(`home:inventoryForm.status.${k}`, { defaultValue: v })}</option>)}
             </select>
             {bewohner.length > 0 && (
               <select
@@ -1061,7 +1065,7 @@ const HomeInventar = ({ session }) => {
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_FARBEN[obj.status]}`}>
-                        {STATUS_LABEL[obj.status]}
+                        {t(`home:inventoryForm.status.${obj.status}`, { defaultValue: STATUS_LABEL[obj.status] })}
                       </span>
                       {obj.menge > 1 && (
                         <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">×{obj.menge}</span>
