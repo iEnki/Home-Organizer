@@ -28,8 +28,8 @@ React 18, Tailwind CSS, Supabase, PostgreSQL, Supabase Edge Functions, Docker, W
 ```bash
 git clone https://github.com/iEnki/Home-Organizer.git
 cd Home-Organizer
-chmod +x scripts/install.sh
-./scripts/install.sh
+chmod +x scripts/manage.sh
+./scripts/manage.sh
 ```
 
 After installation, run `database_setup_complete.sql` in the Supabase SQL editor, create the first user account and set up the first household.
