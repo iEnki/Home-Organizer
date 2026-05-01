@@ -1,17 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { X, CheckCircle, BookOpen, AlertTriangle, Image as ImageIcon } from "lucide-react";
 import { getBuchCoverUrl } from "../../../utils/buchCoverUtils";
-
-function diffLabel(field) {
-  const labels = {
-    titel: "Titel",
-    untertitel: "Untertitel",
-    autoren: "Autoren",
-    isbn_13: "ISBN-13",
-    isbn_10: "ISBN-10",
-  };
-  return labels[field] ?? field;
-}
 
 function ScoreBadge({ score, needsReview }) {
   if (needsReview) {
@@ -31,8 +21,17 @@ export default function BuchTrefferReviewModal({
   onBestaetigen,
   onAbbrechen,
 }) {
+  const { t } = useTranslation(["books"]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedCoverUrl, setSelectedCoverUrl] = useState(null);
+
+  const diffLabel = (field) => ({
+    titel: t("books:form.titleLabel").replace(/\s*\*\s*$/, ""),
+    untertitel: t("books:form.subtitle"),
+    autoren: t("books:form.authors").replace(/\s*\(.*$/, ""),
+    isbn_13: "ISBN-13",
+    isbn_10: "ISBN-10",
+  })[field] ?? field;
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -62,9 +61,9 @@ export default function BuchTrefferReviewModal({
       >
         <div className="shrink-0 border-b border-light-border dark:border-dark-border px-4 py-3 flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">Buchtreffer prüfen</p>
+            <p className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">{t("books:matchReview.title")}</p>
             <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-              Trefferwahl und Coverwahl sind getrennt, damit keine falschen Metadaten übernommen werden.
+              {t("books:matchReview.info")}
             </p>
           </div>
           <button onClick={onAbbrechen} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger">
@@ -75,15 +74,15 @@ export default function BuchTrefferReviewModal({
         <div className="mobile-modal-body flex-1 p-4 grid gap-4 lg:grid-cols-[1.2fr_1.8fr]">
           <div className="space-y-3">
             <div className="rounded-card-sm border border-light-border dark:border-dark-border p-3">
-              <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">Aktuelles Buch</p>
+              <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">{t("books:matchReview.currentBook")}</p>
               <p className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">{buch?.titel}</p>
               {buch?.autor_anzeige && (
                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1">{buch.autor_anzeige}</p>
               )}
               <div className="mt-2 text-xs text-light-text-secondary dark:text-dark-text-secondary space-y-1">
                 {buch?.isbn_13 && <p>ISBN-13: {buch.isbn_13}</p>}
-                {buch?.verlag && <p>Verlag: {buch.verlag}</p>}
-                {buch?.erscheinungsjahr && <p>Jahr: {buch.erscheinungsjahr}</p>}
+                {buch?.verlag && <p>{t("books:row.publisher")}: {buch.verlag}</p>}
+                {buch?.erscheinungsjahr && <p>{t("books:row.year")}: {buch.erscheinungsjahr}</p>}
               </div>
             </div>
 
@@ -92,7 +91,7 @@ export default function BuchTrefferReviewModal({
                 <div className="flex items-start gap-2">
                   <AlertTriangle size={14} className="mt-0.5 shrink-0" />
                   <div>
-                    <p className="font-medium">Kernfelder weichen ab</p>
+                    <p className="font-medium">{t("books:matchReview.coreFieldsDiffer")}</p>
                     <p className="mt-1">{conflicts.map(diffLabel).join(", ")}</p>
                   </div>
                 </div>
@@ -100,7 +99,7 @@ export default function BuchTrefferReviewModal({
             )}
 
             <div className="rounded-card-sm border border-light-border dark:border-dark-border p-3">
-              <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">Treffer auswählen</p>
+              <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">{t("books:matchReview.selectMatch")}</p>
               <div className="space-y-2">
                 {results.map((result, index) => (
                   <button
@@ -126,7 +125,7 @@ export default function BuchTrefferReviewModal({
                           <ScoreBadge score={result.score} needsReview={!!result.needsReview} />
                         </div>
                         <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">
-                          {result.authorDisplay || "Unbekannter Autor"}{result.publishedYear ? ` · ${result.publishedYear}` : ""}
+                          {result.authorDisplay || t("books:matchReview.unknownAuthor")}{result.publishedYear ? ` · ${result.publishedYear}` : ""}
                         </p>
                         {(result.matchReasons ?? []).length > 0 && (
                           <p className="mt-1 text-xs text-teal-700 dark:text-teal-300 truncate">
@@ -143,15 +142,15 @@ export default function BuchTrefferReviewModal({
 
           <div className="space-y-3">
             <div className="rounded-card-sm border border-light-border dark:border-dark-border p-3">
-              <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">Ausgewählter Treffer</p>
+              <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">{t("books:matchReview.selectedMatch")}</p>
               <p className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">{selectedResult.title}</p>
               {selectedResult.subtitle && (
                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1">{selectedResult.subtitle}</p>
               )}
               <div className="mt-2 text-xs text-light-text-secondary dark:text-dark-text-secondary space-y-1">
-                {selectedResult.authorDisplay && <p>Autor: {selectedResult.authorDisplay}</p>}
-                {selectedResult.publisher && <p>Verlag: {selectedResult.publisher}</p>}
-                {selectedResult.publishedYear && <p>Jahr: {selectedResult.publishedYear}</p>}
+                {selectedResult.authorDisplay && <p>{t("books:matchReview.authorLabel")}: {selectedResult.authorDisplay}</p>}
+                {selectedResult.publisher && <p>{t("books:row.publisher")}: {selectedResult.publisher}</p>}
+                {selectedResult.publishedYear && <p>{t("books:row.year")}: {selectedResult.publishedYear}</p>}
                 {selectedResult.isbn13 && <p>ISBN-13: {selectedResult.isbn13}</p>}
                 {selectedResult.isbn10 && <p>ISBN-10: {selectedResult.isbn10}</p>}
               </div>
@@ -160,7 +159,7 @@ export default function BuchTrefferReviewModal({
             <div className="rounded-card-sm border border-light-border dark:border-dark-border p-3">
               <div className="flex items-center gap-2 mb-2">
                 <ImageIcon size={14} className="text-light-text-secondary dark:text-dark-text-secondary" />
-                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">Cover auswählen</p>
+                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">{t("books:matchReview.selectCover")}</p>
               </div>
               {coverOptions.length > 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -181,7 +180,7 @@ export default function BuchTrefferReviewModal({
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Kein Cover verfügbar.</p>
+                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("books:matchReview.noCover")}</p>
               )}
             </div>
           </div>
@@ -192,14 +191,14 @@ export default function BuchTrefferReviewModal({
             onClick={onAbbrechen}
             className="px-4 py-2 text-sm rounded-pill border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"
           >
-            Abbrechen
+            {t("books:matchReview.cancel")}
           </button>
           <button
             onClick={() => onBestaetigen(selectedResult, selectedCoverUrl)}
             className="px-4 py-2 text-sm rounded-pill bg-primary-500 text-white font-medium inline-flex items-center gap-2"
           >
             <CheckCircle size={14} />
-            Auswahl übernehmen
+            {t("books:matchReview.apply")}
           </button>
         </div>
       </div>

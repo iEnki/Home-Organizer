@@ -1,6 +1,8 @@
 import React, { useEffect } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { getBewohnerDisplayName } from "../../../utils/budgetAccounts";
+import { getHomeBudgetCategoryLabel } from "../../../utils/homeBudgetCategories";
 
 const SELECT_CLS =
   "w-full px-3 py-2.5 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none";
@@ -29,6 +31,8 @@ export default function BudgetFilterSheet({
   konten,
   onReset,
 }) {
+  const { t, i18n } = useTranslation(["budget", "common"]);
+
   useEffect(() => {
     if (!offen) return undefined;
 
@@ -52,7 +56,7 @@ export default function BudgetFilterSheet({
       <button
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
-        aria-label="Filter schließen"
+        aria-label={t("common:actions.close")}
       />
 
       <section
@@ -63,13 +67,13 @@ export default function BudgetFilterSheet({
           <div className="flex items-center gap-2">
             <SlidersHorizontal size={16} className="text-primary-500" />
             <h2 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-              Filter & Darstellung
+              {t("budget:filters.title")}
             </h2>
           </div>
           <button
             onClick={onClose}
             className="flex h-9 w-9 items-center justify-center rounded-card-sm text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
-            aria-label="Filter schließen"
+            aria-label={t("common:actions.close")}
           >
             <X size={18} />
           </button>
@@ -78,17 +82,13 @@ export default function BudgetFilterSheet({
         <div className="grid gap-4 p-4 md:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
-              Kategorie
+              {t("budget:filters.category")}
             </label>
-            <select
-              value={kategFilter}
-              onChange={(event) => onKategorie(event.target.value)}
-              className={SELECT_CLS}
-            >
-              <option value="">Alle Kategorien</option>
+            <select value={kategFilter} onChange={(event) => onKategorie(event.target.value)} className={SELECT_CLS}>
+              <option value="">{t("budget:filters.allCategories")}</option>
               {kategorien.map((kategorie) => (
                 <option key={kategorie} value={kategorie}>
-                  {kategorie}
+                  {getHomeBudgetCategoryLabel(kategorie, i18n.language)}
                 </option>
               ))}
             </select>
@@ -96,14 +96,10 @@ export default function BudgetFilterSheet({
 
           <div>
             <label className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
-              Person
+              {t("budget:filters.person")}
             </label>
-            <select
-              value={bewohnerFilter}
-              onChange={(event) => onBewohner(event.target.value)}
-              className={SELECT_CLS}
-            >
-              <option value="">Alle Personen</option>
+            <select value={bewohnerFilter} onChange={(event) => onBewohner(event.target.value)} className={SELECT_CLS}>
+              <option value="">{t("budget:filters.allPeople")}</option>
               {bewohner.map((eintrag) => (
                 <option key={eintrag.id} value={eintrag.id}>
                   {eintrag.emoji} {getBewohnerDisplayName(eintrag)}
@@ -114,29 +110,21 @@ export default function BudgetFilterSheet({
 
           <div>
             <label className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
-              Scope
+              {t("budget:filters.scope")}
             </label>
-            <select
-              value={scopeFilter}
-              onChange={(event) => onScope(event.target.value)}
-              className={SELECT_CLS}
-            >
-              <option value="alle">Alle</option>
-              <option value="haushalt">Haushalt</option>
-              <option value="privat">Privat</option>
+            <select value={scopeFilter} onChange={(event) => onScope(event.target.value)} className={SELECT_CLS}>
+              <option value="alle">{t("budget:scope.all")}</option>
+              <option value="haushalt">{t("budget:scope.household")}</option>
+              <option value="privat">{t("budget:scope.private")}</option>
             </select>
           </div>
 
           <div>
             <label className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
-              Konto
+              {t("budget:filters.account")}
             </label>
-            <select
-              value={kontoFilter}
-              onChange={(event) => onKonto(event.target.value)}
-              className={SELECT_CLS}
-            >
-              <option value="">Alle Konten</option>
+            <select value={kontoFilter} onChange={(event) => onKonto(event.target.value)} className={SELECT_CLS}>
+              <option value="">{t("budget:filters.allAccounts")}</option>
               {konten.map((konto) => (
                 <option key={konto.id} value={konto.id}>
                   {konto.name}
@@ -147,44 +135,36 @@ export default function BudgetFilterSheet({
 
           <div>
             <label className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
-              Sortierung
+              {t("budget:filters.sort")}
             </label>
-            <select
-              value={sortierung}
-              onChange={(event) => onSortierung(event.target.value)}
-              className={SELECT_CLS}
-            >
-              <option value="datum_desc">Neueste zuerst</option>
-              <option value="datum_asc">Älteste zuerst</option>
-              <option value="betrag_desc">Höchster Betrag zuerst</option>
-              <option value="betrag_asc">Niedrigster Betrag zuerst</option>
-              <option value="name">Beschreibung A–Z</option>
-              <option value="kategorie">Kategorie A–Z</option>
+            <select value={sortierung} onChange={(event) => onSortierung(event.target.value)} className={SELECT_CLS}>
+              <option value="datum_desc">{t("budget:filters.sortOptions.newest")}</option>
+              <option value="datum_asc">{t("budget:filters.sortOptions.oldest")}</option>
+              <option value="betrag_desc">{t("budget:filters.sortOptions.highest")}</option>
+              <option value="betrag_asc">{t("budget:filters.sortOptions.lowest")}</option>
+              <option value="name">{t("budget:filters.sortOptions.description")}</option>
+              <option value="kategorie">{t("budget:filters.sortOptions.category")}</option>
             </select>
           </div>
 
           <div>
             <label className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
-              Gruppierung
+              {t("budget:filters.group")}
             </label>
-            <select
-              value={gruppierung}
-              onChange={(event) => onGruppierung(event.target.value)}
-              className={SELECT_CLS}
-            >
-              <option value="tag">Tag</option>
-              <option value="monat">Monat</option>
-              <option value="kategorie">Kategorie</option>
-              <option value="person">Person</option>
-              <option value="scope">Scope</option>
-              <option value="konto">Konto</option>
-              <option value="keine">Keine</option>
+            <select value={gruppierung} onChange={(event) => onGruppierung(event.target.value)} className={SELECT_CLS}>
+              <option value="tag">{t("budget:filters.groupOptions.day")}</option>
+              <option value="monat">{t("budget:filters.groupOptions.month")}</option>
+              <option value="kategorie">{t("budget:filters.groupOptions.category")}</option>
+              <option value="person">{t("budget:filters.groupOptions.person")}</option>
+              <option value="scope">{t("budget:filters.groupOptions.scope")}</option>
+              <option value="konto">{t("budget:filters.groupOptions.account")}</option>
+              <option value="keine">{t("budget:filters.groupOptions.none")}</option>
             </select>
           </div>
 
           <div className="space-y-2">
             <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
-              Quick Filter
+              {t("budget:filters.quick")}
             </p>
 
             <label className="flex items-center gap-2 rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-2.5 text-sm text-light-text-main dark:text-dark-text-main">
@@ -194,7 +174,7 @@ export default function BudgetFilterSheet({
                 onChange={(event) => onNurWiederkehrend(event.target.checked)}
                 className="h-4 w-4 rounded accent-primary-500"
               />
-              Nur wiederkehrend
+              {t("budget:filters.recurringOnly")}
             </label>
 
             <label className="flex items-center gap-2 rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-2.5 text-sm text-light-text-main dark:text-dark-text-main">
@@ -204,7 +184,7 @@ export default function BudgetFilterSheet({
                 onChange={(event) => onNurMitRechnung(event.target.checked)}
                 className="h-4 w-4 rounded accent-primary-500"
               />
-              Nur mit Rechnung
+              {t("budget:filters.withInvoiceOnly")}
             </label>
           </div>
         </div>
@@ -214,13 +194,13 @@ export default function BudgetFilterSheet({
             onClick={onReset}
             className="rounded-card-sm border border-light-border dark:border-dark-border px-3 py-2.5 text-sm text-light-text-main dark:text-dark-text-main hover:bg-light-hover dark:hover:bg-canvas-3"
           >
-            Zurücksetzen
+            {t("common:actions.reset")}
           </button>
           <button
             onClick={onClose}
             className="rounded-pill bg-primary-500 px-3 py-2.5 text-sm font-medium text-white hover:bg-primary-600"
           >
-            Fertig
+            {t("common:actions.done")}
           </button>
         </div>
       </section>

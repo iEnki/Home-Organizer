@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Sun, Moon } from "lucide-react";
 import { useTheme } from "../contexts/ThemeContext";
 
@@ -7,12 +8,13 @@ import { useTheme } from "../contexts/ThemeContext";
  * Verwendbar in Topbar, Sidebar oder direkt in Komponenten.
  */
 const ThemeSwitch = ({ className = "" }) => {
+  const { t } = useTranslation(["common"]);
   const { theme, toggleTheme } = useTheme();
 
   return (
     <button
       onClick={toggleTheme}
-      title={theme === "dark" ? "Heller Modus" : "Dunkler Modus"}
+      title={theme === "dark" ? t("theme.light") : t("theme.dark")}
       className={`w-10 h-10 rounded-sidebar-tile flex items-center justify-center
                   bg-light-surface-1 dark:bg-canvas-3
                   border border-light-border dark:border-dark-border

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { NavLink, useNavigate, Link } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { Menu, X, LogOut, Sun, Moon, Search, Truck, Home } from "lucide-react";
 import styles from "./Navbar.module.css";

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Search, X } from "lucide-react";
 
 const MobileSearchSheet = ({
@@ -9,6 +10,7 @@ const MobileSearchSheet = ({
   onSearchResultClick,
   onClose,
 }) => {
+  const { t } = useTranslation(["common"]);
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -46,7 +48,7 @@ const MobileSearchSheet = ({
               type="text"
               value={searchValue}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Suchen..."
+              placeholder={t("search.placeholder")}
               className="w-full pl-9 pr-3 py-2.5 text-sm rounded-pill
                          bg-light-bg dark:bg-canvas-1 border border-light-border dark:border-dark-border
                          text-light-text-main dark:text-dark-text-main focus:outline-none focus:ring-2 focus:ring-secondary-500"
@@ -57,7 +59,7 @@ const MobileSearchSheet = ({
             className="w-10 h-10 rounded-card-sm border border-light-border dark:border-dark-border
                        text-light-text-secondary dark:text-dark-text-secondary
                        hover:bg-light-hover dark:hover:bg-canvas-3 flex items-center justify-center"
-            aria-label="Suche schließen"
+            aria-label={t("common:search.close")}
           >
             <X size={18} />
           </button>
@@ -67,10 +69,10 @@ const MobileSearchSheet = ({
       <div className="px-4 py-3 pb-[calc(var(--mobile-bottom-offset)+1rem)]">
         {searchValue.trim().length < 2 ? (
           <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-            Mindestens 2 Zeichen eingeben.
+            {t("search.minChars")}
           </p>
         ) : searchResults.length === 0 ? (
-          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Keine Treffer.</p>
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("search.noResults")}</p>
         ) : (
           <div className="space-y-2">
             {searchResults.map((r, idx) => (

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Search, Bell, Home, Truck, ChevronDown, Settings, LogOut, Crown, Users, Sparkles } from "lucide-react";
 import ThemeSwitch from "../ThemeSwitch";
 import { useAppMode } from "../../contexts/AppModeContext";
@@ -27,6 +28,7 @@ const Topbar = ({
   onLogout,
   onOpenAssistant,
 }) => {
+  const { t } = useTranslation(["common", "assistant"]);
   const [suchOffen, setSuchOffen] = useState(false);
   const [avatarMenuOffen, setAvatarMenuOffen] = useState(false);
   const [mitglieder, setMitglieder] = useState([]);
@@ -36,7 +38,7 @@ const Topbar = ({
 
   const userId   = session?.user?.id;
   const email   = session?.user?.email || "";
-  const fallbackName = session?.user?.user_metadata?.full_name || email.split("@")[0] || "Nutzer";
+  const fallbackName = session?.user?.user_metadata?.full_name || email.split("@")[0] || t("profile.member");
   const aktuellesMitglied = mitglieder.find((m) => m?.is_current_user) || null;
   const name = aktuellesMitglied?.display_name || fallbackName;
   const avatarUrl = aktuellesMitglied?.avatar_url || null;
@@ -113,7 +115,7 @@ const Topbar = ({
             ? "bg-secondary-500/15 text-secondary-400 border border-secondary-500/30"
             : "bg-primary-500/15 text-primary-400 border border-primary-500/30"}`}>
           {appMode === "home" ? <Home size={9} /> : <Truck size={9} />}
-          {appMode === "home" ? "Home Organizer" : "Umzugplaner"}
+          {appMode === "home" ? t("app.name") : t("app.moveName")}
         </span>
       </div>
 
@@ -134,7 +136,7 @@ const Topbar = ({
           value={searchValue}
           onChange={handleChange}
           onFocus={() => searchResults.length > 0 && setSuchOffen(true)}
-          placeholder="Suchen… (⌘K)"
+          placeholder={t("search.placeholderWithShortcut")}
           className="w-full pl-9 pr-3 py-2 text-sm rounded-pill
                      bg-light-bg dark:bg-canvas-1
                      border border-light-border dark:border-dark-border
@@ -198,8 +200,8 @@ const Topbar = ({
                      text-light-text-secondary dark:text-dark-text-secondary
                      hover:bg-light-hover dark:hover:bg-canvas-4
                      transition-all duration-150"
-          title="Suche"
-          aria-label="Suche öffnen"
+          title={t("search.placeholder")}
+          aria-label={t("search.open")}
         >
           <Search size={18} />
         </button>
@@ -216,8 +218,8 @@ const Topbar = ({
                        text-primary-500 dark:text-primary-400
                        hover:bg-primary-500/20 dark:hover:bg-primary-500/25
                        transition-all duration-150"
-            title="KI-Assistent"
-            aria-label="KI-Assistent öffnen"
+            title={t("assistant:title")}
+            aria-label={t("assistant:open")}
           >
             <Sparkles size={18} />
           </button>
@@ -231,7 +233,7 @@ const Topbar = ({
                      text-light-text-secondary dark:text-dark-text-secondary
                      hover:bg-light-hover dark:hover:bg-canvas-4
                      transition-all duration-150"
-          title="Benachrichtigungen"
+          title={t("notifications.title")}
         >
           <Bell size={18} />
         </button>
@@ -243,7 +245,7 @@ const Topbar = ({
             onClick={() => setAvatarMenuOffen((prev) => !prev)}
             className="hidden md:flex items-center gap-2.5 pl-2 border-l border-light-border dark:border-dark-border ml-1
                        hover:opacity-80 transition-opacity duration-150 cursor-pointer"
-            title="Benutzermenue"
+            title={t("profile.userMenu")}
           >
             {avatarUrl ? (
               <img
@@ -280,7 +282,7 @@ const Topbar = ({
             onClick={() => setAvatarMenuOffen((prev) => !prev)}
             className="md:hidden w-9 h-9 rounded-full bg-primary-500 flex items-center justify-center
                        text-white text-sm font-semibold shrink-0 hover:opacity-80 transition-opacity duration-150"
-            title="Benutzermenue"
+            title={t("profile.userMenu")}
           >
             {avatarUrl ? (
               <img
@@ -301,7 +303,7 @@ const Topbar = ({
             >
               <div className="px-3 pt-3 pb-2 border-b border-light-border dark:border-dark-border">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">
-                  Haushalt & Bewohner
+                  {t("profile.householdAndResidents")}
                 </p>
                 <div className="space-y-1">
                   <button
@@ -314,7 +316,7 @@ const Topbar = ({
                                hover:bg-light-surface-1 dark:hover:bg-canvas-4 transition-colors"
                   >
                     <Home size={13} />
-                    Haushalt
+                    {t("profile.household")}
                   </button>
                   <button
                     onClick={() => {
@@ -326,7 +328,7 @@ const Topbar = ({
                                hover:bg-light-surface-1 dark:hover:bg-canvas-4 transition-colors"
                   >
                     <Users size={13} />
-                    Bewohner
+                    {t("profile.residents")}
                   </button>
                 </div>
               </div>
@@ -335,7 +337,7 @@ const Topbar = ({
               {mitglieder.length > 1 && (
                 <div className="px-3 pt-3 pb-2">
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">
-                    Haushalt
+                    {t("profile.household")}
                   </p>
                   <div className="space-y-1.5">
                     {mitglieder.map((m) => {
@@ -351,7 +353,7 @@ const Topbar = ({
                           )}
                           <div className="min-w-0 flex-1">
                             <p className="text-xs font-medium text-light-text-main dark:text-dark-text-main truncate">
-                              {m.display_name || m.email || "Mitglied"}{m.is_current_user ? " (Du)" : ""}
+                              {m.display_name || m.email || t("profile.member")}{m.is_current_user ? ` (${t("profile.you")})` : ""}
                             </p>
                           </div>
                           {m.role === "admin" && (
@@ -374,7 +376,7 @@ const Topbar = ({
                            hover:bg-light-surface-1 dark:hover:bg-canvas-4 transition-colors"
               >
                 <Settings size={15} />
-                Einstellungen / Profil
+                {t("profile.settings")}
               </button>
               <button
                 onClick={() => {
@@ -386,7 +388,7 @@ const Topbar = ({
                            border-t border-light-border dark:border-dark-border"
               >
                 <LogOut size={15} />
-                Ausloggen
+                {t("profile.logout")}
               </button>
             </div>
           )}

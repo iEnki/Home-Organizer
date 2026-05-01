@@ -1,14 +1,15 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Search, Upload, List, LayoutGrid, X } from "lucide-react";
 import { formatMonatLabel } from "../../../utils/dokumentArchiv";
 
 const KATEGORIEN = [
   "Rechnung", "Vertrag", "Handbuch", "Garantie",
-  "Versicherung", "Behorde", "Gesundheit", "Sonstiges",
+  "Versicherung", "Behörde", "Gesundheit", "Sonstiges",
 ];
 
 const MONATS_NAMEN = {
-  "01": "Januar", "02": "Februar", "03": "Maerz", "04": "April",
+  "01": "Januar", "02": "Februar", "03": "März", "04": "April",
   "05": "Mai", "06": "Juni", "07": "Juli", "08": "August",
   "09": "September", "10": "Oktober", "11": "November", "12": "Dezember",
 };
@@ -34,6 +35,9 @@ export default function DokumentFilterBar({
   anzahlGefiltert,
   onUpload,
 }) {
+  const { t } = useTranslation(["documents","common"]);
+  void t;
+
   const hatAktivenFilter =
     kategorieFilter !== "Alle" ||
     monatFilter !== "alle" ||
@@ -252,7 +256,7 @@ export default function DokumentFilterBar({
               onClick={resetAlleFilter}
               className="text-xs text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main underline underline-offset-2"
             >
-              Alle zuruecksetzen
+              Alle zurücksetzen
             </button>
           </div>
         )}

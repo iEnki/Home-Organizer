@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "../supabaseClient";
 import OpenAI from "openai";
 import { ReactMic } from "react-mic"; // Hinzugefügt
+import { useLocale } from "../contexts/LocaleContext";
 import { getKiClient, isKiClientReady, startSpeechRecognition } from "../utils/kiClient";
 import {
   Mic,
@@ -17,10 +19,18 @@ import {
   Type,
   Send,
 } from "lucide-react";
+const debugLog = (...args) => {
+  if (process.env.NODE_ENV !== "production") console.log(...args);
+};
+
 
 const KiPacklisteAssistent = ({ session, onItemsExtracted }) => {
+  const { t } = useTranslation(["assistant","common"]);
+  void t;
+
   // onItemsExtracted Prop hinzugefügt
   const userId = session?.user?.id;
+  const { locale } = useLocale();
   const [apiKey, setApiKey] = useState("");
   const [isApiKeySet, setIsApiKeySet] = useState(true);
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
@@ -129,7 +139,8 @@ const KiPacklisteAssistent = ({ session, onItemsExtracted }) => {
       (err) => {
         setError(`Spracherkennung Fehler: ${err}`);
         showToast(`Spracherkennung Fehler: ${err}`, "error");
-      }
+      },
+      locale
     );
   };
 
@@ -139,7 +150,7 @@ const KiPacklisteAssistent = ({ session, onItemsExtracted }) => {
   };
 
   const onStopRecording = (recordedBlob) => {
-    console.log("recordedBlob is: ", recordedBlob);
+    debugLog("recordedBlob is: ", recordedBlob);
     // setRecordedAudioBlob(recordedBlob.blob); // Nicht mehr nötig
     // Transkription direkt nach Erhalt des Blobs starten
     if (recordedBlob && recordedBlob.blob) {
@@ -255,7 +266,7 @@ Antworte nur mit dem JSON-Array. Achte darauf, dass jeder explizit genannte Gege
       });
 
       const resultJson = response.choices[0].message.content;
-      console.log("GPT Response:", resultJson);
+      debugLog("GPT Response:", resultJson);
 
       // Bereinige die GPT-Antwort von Markdown-Codeblöcken
       let cleanedJsonString = resultJson;

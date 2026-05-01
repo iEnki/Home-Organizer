@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { X, BookOpen, Loader2 } from "lucide-react";
 import { supabase } from "../../../supabaseClient";
 import { logVerlauf } from "../../../utils/homeVerlauf";
@@ -18,6 +19,7 @@ export default function BuchVerleihModal({
   onErledigt,
   onAbbrechen,
 }) {
+  const { t } = useTranslation(["books"]);
   const userId = session?.user?.id;
 
   const [form, setForm] = useState({
@@ -33,17 +35,16 @@ export default function BuchVerleihModal({
 
   const titel =
     modus === "verleihen"
-      ? "Buch verleihen"
+      ? t("books:loanModal.lend")
       : modus === "verlaengern"
-      ? "Ausleihe verlängern"
-      : "Buch zurückgeben";
+      ? t("books:loanModal.extend")
+      : t("books:loanModal.return");
 
   const handleSpeichern = async () => {
     setLaden(true);
     setFehler(null);
     try {
       if (modus === "zurueckgeben") {
-        // Status zurücksetzen, Ausleihfelder leeren
         const { error } = await supabase
           .from("home_buecher")
           .update({
@@ -92,14 +93,13 @@ export default function BuchVerleihModal({
         if (vErr) console.error("Verlaufsfehler:", vErr);
 
       } else {
-        // verleihen
         if (!form.verliehen_an_name.trim() && !form.verliehen_an_kontakt_id) {
-          setFehler("Bitte Namen oder Kontakt angeben.");
+          setFehler(t("books:loanModal.errContact"));
           setLaden(false);
           return;
         }
         const nameAnzeige = form.verliehen_an_kontakt_id
-          ? kontakte.find((k) => k.id === form.verliehen_an_kontakt_id)?.name ?? form.verliehen_an_name
+          ?? kontakte.find((k) => k.id === form.verliehen_an_kontakt_id)?.name ? form.verliehen_an_name
           : form.verliehen_an_name;
 
         const { error } = await supabase
@@ -140,20 +140,20 @@ export default function BuchVerleihModal({
         pushPolicy: "always",
         title:
           modus === "zurueckgeben"
-            ? "Buch zurueckgegeben"
+            ? t("books:loanModal.notifyReturned")
             : modus === "verlaengern"
-              ? "Buch-Ausleihe verlaengert"
-              : "Buch verliehen",
+              ? t("books:loanModal.notifyExtended")
+              : t("books:loanModal.notifyLent"),
         body:
           modus === "zurueckgeben"
-            ? `"${buch.titel}" wurde zurueckgegeben.`
+            ? t("books:loanModal.notifyReturnedBody", { titel: buch.titel })
             : modus === "verlaengern"
-              ? `"${buch.titel}" wurde bis ${form.rueckgabe_erwartet_am || "unbekannt"} verlaengert.`
-              : `"${buch.titel}" wurde an ${form.verliehen_an_name || "unbekannt"} verliehen.`,
+              ? t("books:loanModal.notifyExtendedBody", { titel: buch.titel, date: form.rueckgabe_erwartet_am || t("books:loanModal.unknownDate") })
+              : t("books:loanModal.notifyLentBody", { titel: buch.titel, person: form.verliehen_an_name || t("books:loanModal.unknownPerson") }),
       });
       onErledigt();
     } catch (e) {
-      setFehler(e.message ?? "Fehler beim Speichern.");
+      setFehler(e.message ?? t("books:form.errSave"));
     } finally {
       setLaden(false);
     }
@@ -183,14 +183,14 @@ export default function BuchVerleihModal({
 
           {modus === "zurueckgeben" ? (
             <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-              Das Buch wird als zurückgegeben markiert und der Ausleihstatus wird zurückgesetzt.
+              {t("books:loanModal.returnDesc")}
             </p>
           ) : (
             <>
               {modus === "verleihen" && (
                 <>
                   <div>
-                    <label className={labelCls}>Kontakt</label>
+                    <label className={labelCls}>{t("books:loanModal.contact")}</label>
                     <select
                       value={form.verliehen_an_kontakt_id}
                       onChange={(e) => {
@@ -203,31 +203,31 @@ export default function BuchVerleihModal({
                       }}
                       className={inputCls}
                     >
-                      <option value="">— Kontakt wählen —</option>
+                      <option value="">{t("books:loanModal.contactPlaceholder")}</option>
                       {kontakte.map((k) => (
                         <option key={k.id} value={k.id}>{k.name}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className={labelCls}>oder Name eingeben</label>
+                    <label className={labelCls}>{t("books:loanModal.orName")}</label>
                     <input
                       type="text"
                       value={form.verliehen_an_name}
                       onChange={(e) => setForm((p) => ({ ...p, verliehen_an_name: e.target.value }))}
                       className={inputCls}
-                      placeholder="Vorname Nachname"
+                      placeholder={t("books:loanModal.namePlaceholder")}
                     />
                   </div>
                   <div>
-                    <label className={labelCls}>Verliehen seit</label>
+                    <label className={labelCls}>{t("books:loanModal.lentSince")}</label>
                     <input type="date" value={form.verliehen_seit} onChange={(e) => setForm((p) => ({ ...p, verliehen_seit: e.target.value }))} className={inputCls} />
                   </div>
                 </>
               )}
 
               <div>
-                <label className={labelCls}>Rückgabe erwartet</label>
+                <label className={labelCls}>{t("books:loanModal.returnExpected")}</label>
                 <input type="date" value={form.rueckgabe_erwartet_am} onChange={(e) => setForm((p) => ({ ...p, rueckgabe_erwartet_am: e.target.value }))} className={inputCls} />
               </div>
 
@@ -238,12 +238,12 @@ export default function BuchVerleihModal({
                   onChange={(e) => setForm((p) => ({ ...p, erinnerung_aktiv: e.target.checked }))}
                   className="w-4 h-4 rounded accent-primary-500"
                 />
-                Push-Erinnerung aktivieren
+                {t("books:loanModal.pushReminder")}
               </label>
 
               {form.erinnerung_aktiv && (
                 <div>
-                  <label className={labelCls}>Erinnerungsintervall (Tage)</label>
+                  <label className={labelCls}>{t("books:loanModal.reminderDays")}</label>
                   <input
                     type="number"
                     min="1"
@@ -262,7 +262,7 @@ export default function BuchVerleihModal({
         {/* Footer */}
         <div className="mobile-modal-footer shrink-0 border-t border-light-border dark:border-dark-border px-4 py-3 flex gap-2 justify-end">
           <button onClick={onAbbrechen} className="px-4 py-2 text-sm rounded-pill border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:bg-light-border dark:hover:bg-canvas-3">
-            Abbrechen
+            {t("books:loanModal.cancel")}
           </button>
           <button
             onClick={handleSpeichern}
@@ -270,7 +270,11 @@ export default function BuchVerleihModal({
             className="px-4 py-2 text-sm rounded-pill bg-primary-500 text-white font-medium disabled:opacity-50 flex items-center gap-2"
           >
             {laden && <Loader2 size={14} className="animate-spin" />}
-            {modus === "zurueckgeben" ? "Zurückgeben" : modus === "verlaengern" ? "Verlängern" : "Verleihen"}
+            {modus === "zurueckgeben"
+              ? t("books:loanModal.returnBtn")
+              : modus === "verlaengern"
+              ? t("books:loanModal.extendBtn")
+              : t("books:loanModal.lendBtn")}
           </button>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Search, X, Plus, ScanLine, ScanBarcode, Camera, LayoutList, LayoutGrid } from "lucide-react";
 import { BUCH_STATUS, BUCH_SORTIERUNGEN } from "../../../utils/buecher";
 
@@ -22,6 +23,8 @@ export default function BuecherFilterBar({
   onScanStapel,
   onFotoAnalyse,
 }) {
+  const { t } = useTranslation(["books"]);
+
   return (
     <div className="space-y-2 mb-4">
       {/* Zeile 1: Suche + Sortierung + Neu */}
@@ -32,7 +35,7 @@ export default function BuecherFilterBar({
             type="text"
             value={suche}
             onChange={(e) => onSucheChange(e.target.value)}
-            placeholder="Titel, Autor, ISBN…"
+            placeholder={t("books:filter.searchPlaceholder")}
             className={`${inputCls} pl-8 w-full`}
           />
           {suche && (
@@ -50,7 +53,7 @@ export default function BuecherFilterBar({
           className={`${inputCls} shrink-0 max-w-[130px] sm:max-w-none`}
         >
           {BUCH_SORTIERUNGEN.map((s) => (
-            <option key={s.value} value={s.value}>{s.label}</option>
+            <option key={s.value} value={s.value}>{t(`books:sort.${s.value}`, { defaultValue: s.label })}</option>
           ))}
         </select>
         <button
@@ -58,7 +61,7 @@ export default function BuecherFilterBar({
           className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-card-sm bg-primary-500 text-white font-medium shrink-0"
         >
           <Plus size={14} />
-          <span className="hidden sm:inline">Buch</span>
+          <span className="hidden sm:inline">{t("books:filter.addBook")}</span>
         </button>
       </div>
 
@@ -73,7 +76,7 @@ export default function BuecherFilterBar({
                 ? "bg-teal-500 text-white"
                 : "text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-border dark:hover:bg-canvas-3"
             }`}
-            title="Listenansicht"
+            title={t("books:filter.listView")}
           >
             <LayoutList size={15} />
           </button>
@@ -84,7 +87,7 @@ export default function BuecherFilterBar({
                 ? "bg-teal-500 text-white"
                 : "text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-border dark:hover:bg-canvas-3"
             }`}
-            title="Kartenansicht"
+            title={t("books:filter.cardView")}
           >
             <LayoutGrid size={15} />
           </button>
@@ -98,26 +101,26 @@ export default function BuecherFilterBar({
           <button
             onClick={onScanEinzel}
             className={`${iconBtnCls} flex-1 sm:flex-none sm:w-auto gap-1.5`}
-            title="Barcode scannen (einzeln)"
+            title={t("books:filter.scanSingle")}
           >
             <ScanLine size={15} />
-            <span className="text-xs sm:hidden">Scan</span>
+            <span className="text-xs sm:hidden">{t("books:filter.scanSingleBtn")}</span>
           </button>
           <button
             onClick={onScanStapel}
             className={`${iconBtnCls} flex-1 sm:flex-none sm:w-auto gap-1.5`}
-            title="Mehrere Bücher scannen (Stapel)"
+            title={t("books:filter.scanBatch")}
           >
             <ScanBarcode size={15} />
-            <span className="text-xs sm:hidden">Stapel</span>
+            <span className="text-xs sm:hidden">{t("books:filter.scanBatchBtn")}</span>
           </button>
           <button
             onClick={onFotoAnalyse}
             className={`${iconBtnCls} flex-1 sm:flex-none sm:w-auto gap-1.5`}
-            title="Regal fotografieren & analysieren"
+            title={t("books:filter.scanPhoto")}
           >
             <Camera size={15} />
-            <span className="text-xs sm:hidden">Foto</span>
+            <span className="text-xs sm:hidden">{t("books:filter.scanPhotoBtn")}</span>
           </button>
         </div>
       </div>
@@ -132,11 +135,11 @@ export default function BuecherFilterBar({
               : "border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-border dark:hover:bg-canvas-3"
           }`}
         >
-          Alle
+          {t("books:filter.all")}
         </button>
-        {Object.entries(BUCH_STATUS)
-          .filter(([key]) => key !== "entsorgt")
-          .map(([key, label]) => (
+        {Object.keys(BUCH_STATUS)
+          .filter((key) => key !== "entsorgt")
+          .map((key) => (
             <button
               key={key}
               onClick={() => onStatusFilterChange(key === statusFilter ? "" : key)}
@@ -146,7 +149,7 @@ export default function BuecherFilterBar({
                   : "border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-border dark:hover:bg-canvas-3"
               }`}
             >
-              {label}
+              {t(`books:status.${key}`)}
             </button>
           ))}
       </div>

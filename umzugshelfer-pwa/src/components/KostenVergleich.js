@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "../supabaseClient";
 import { Scale, Building, Car, TrendingDown, TrendingUp, CheckCircle } from "lucide-react";
 import { useTheme } from "../contexts/ThemeContext";
@@ -7,6 +8,9 @@ import { formatGermanCurrency } from "../utils/formatUtils";
 const EIGENE_KATEGORIEN = ["Transport", "Material", "Verpflegung", "Sonstiges", "Neue Möbel", "Kaution", "Makler", "Helfer", "Renovierung"];
 
 const KostenVergleich = ({ session }) => {
+  const { t } = useTranslation(["move","common"]);
+  void t;
+
   const userId = session?.user?.id;
   useTheme();
   const [angebotUnternehmen, setAngebotUnternehmen] = useState(
@@ -24,6 +28,7 @@ const KostenVergleich = ({ session }) => {
       .from("budget_posten")
       .select("id, beschreibung, kategorie, betrag, teilzahlungen:budget_teilzahlungen(betrag_teilzahlung)")
       .eq("user_id", userId)
+      .in("app_modus", ["umzug", "beides"])
       .order("kategorie");
     setBudgetPosten(data || []);
     setLoading(false);

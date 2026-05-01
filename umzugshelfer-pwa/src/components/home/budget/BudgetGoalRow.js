@@ -1,6 +1,7 @@
 import React from "react";
 import { Edit2, PiggyBank, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useTranslation } from "react-i18next";
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("de-AT", {
@@ -17,15 +18,15 @@ const getDaysRemaining = (zieldatum, today) => {
 
 const statusConfig = {
   aktiv: {
-    label: "Aktiv",
+    labelKey: "common:status.active",
     className: "border-primary-500/20 bg-primary-500/10 text-primary-500",
   },
   fast_erreicht: {
-    label: "Fast erreicht",
+    labelKey: "budget:goals.status.nearlyReached",
     className: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
   },
   erreicht: {
-    label: "Erreicht",
+    labelKey: "budget:goals.status.reached",
     className: "border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400",
   },
 };
@@ -38,23 +39,32 @@ export default function BudgetGoalRow({
   onDelete,
   onDeposit,
 }) {
+  const { t } = useTranslation(["budget", "common"]);
   const tage = getDaysRemaining(ziel.zieldatum, today);
-  const status = statusConfig[meta.status];
+  const status = statusConfig[meta.status] || statusConfig.aktiv;
 
   return (
     <div className="bg-light-card dark:bg-canvas-2 px-4 py-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="text-2xl">{ziel.emoji || "Ziel"}</span>
+            <span className="text-2xl">{ziel.emoji || t("budget:goals.savingsGoal")}</span>
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-light-text-main dark:text-dark-text-main">
                 {ziel.name}
               </p>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                {ziel.zieldatum ? <span>{tage === 0 ? "Heute faellig" : `Noch ${tage} Tage`}</span> : <span>Ohne Zieldatum</span>}
+                {ziel.zieldatum ? (
+                  <span>
+                    {tage === 0
+                      ? t("budget:goals.dueToday")
+                      : t("budget:goals.daysLeft", { count: tage })}
+                  </span>
+                ) : (
+                  <span>{t("budget:goals.noTargetDate")}</span>
+                )}
                 <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 font-medium ${status.className}`}>
-                  {status.label}
+                  {t(status.labelKey)}
                 </span>
               </div>
             </div>
@@ -62,19 +72,19 @@ export default function BudgetGoalRow({
 
           <div className="mt-3 grid gap-2 text-xs text-light-text-secondary dark:text-dark-text-secondary sm:grid-cols-3">
             <div>
-              <p>Restbetrag</p>
+              <p>{t("budget:goals.remainingAmount")}</p>
               <p className="mt-1 text-sm font-medium tabular-nums text-light-text-main dark:text-dark-text-main">
                 {formatCurrency(meta.restbetrag)}
               </p>
             </div>
             <div>
-              <p>Monatlich nötig</p>
+              <p>{t("budget:goals.monthlyNeeded")}</p>
               <p className="mt-1 text-sm font-medium tabular-nums text-light-text-main dark:text-dark-text-main">
                 {meta.monatlichNoetig === null ? "-" : formatCurrency(meta.monatlichNoetig)}
               </p>
             </div>
             <div>
-              <p>Fortschritt</p>
+              <p>{t("budget:goals.progress")}</p>
               <p className="mt-1 text-sm font-medium tabular-nums text-light-text-main dark:text-dark-text-main">
                 {meta.progress.toFixed(0)} %
               </p>
@@ -106,14 +116,14 @@ export default function BudgetGoalRow({
           <button
             onClick={() => onEdit(ziel)}
             className="rounded-card-sm border border-light-border dark:border-dark-border p-2 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500"
-            aria-label="Ziel bearbeiten"
+            aria-label={t("budget:goals.edit")}
           >
             <Edit2 size={13} />
           </button>
           <button
             onClick={() => onDelete(ziel.id)}
             className="rounded-card-sm border border-light-border dark:border-dark-border p-2 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500"
-            aria-label="Ziel loeschen"
+            aria-label={t("budget:goals.delete")}
           >
             <Trash2 size={13} />
           </button>
@@ -127,10 +137,10 @@ export default function BudgetGoalRow({
           style={{ borderColor: `${ziel.farbe || "#10B981"}66`, color: ziel.farbe || "#10B981" }}
         >
           <PiggyBank size={14} />
-          Einzahlen
+          {t("budget:goals.deposit")}
         </button>
       ) : (
-        <p className="mt-3 text-xs font-medium text-green-500">Ziel erreicht</p>
+        <p className="mt-3 text-xs font-medium text-green-500">{t("budget:goals.reached")}</p>
       )}
     </div>
   );

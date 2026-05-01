@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Loader2, AlertCircle, BookOpen, RefreshCw, ArrowLeftRight } from "lucide-react";
 import { supabase } from "../../../supabaseClient";
 import { logVerlauf } from "../../../utils/homeVerlauf";
-import { BUCH_STATUS } from "../../../utils/buecher";
 import BuecherFilterBar from "./BuecherFilterBar";
 import BuchZeile from "./BuchZeile";
 import BuchKarte from "./BuchKarte";
@@ -20,20 +20,18 @@ export default function BuecherRegalTab({
   kontakte = [],
   assistantFlow = null,
 }) {
+  const { t } = useTranslation(["books"]);
   const userId = session?.user?.id;
 
   const [buecher, setBuecher] = useState([]);
   const [laden, setLaden] = useState(true);
   const [fehler, setFehler] = useState(null);
 
-  // Filter/Sortier-State
   const [suche, setSuche] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [sortierung, setSortierung] = useState("titel_asc");
   const [ansicht, setAnsicht] = useState("liste");
 
-  // Modal-State
-  // null | { typ: "form"|"verleih"|"scanner"|"upload"|"review", ...extra }
   const [modal, setModal] = useState(null);
 
   const ladeBuecher = useCallback(async () => {
@@ -41,7 +39,6 @@ export default function BuecherRegalTab({
     setLaden(true);
     setFehler(null);
     try {
-      // Hard Delete — kein status-Filter nötig
       const { data, error } = await supabase
         .from("home_buecher")
         .select("*")
@@ -50,11 +47,11 @@ export default function BuecherRegalTab({
       if (error) throw error;
       setBuecher(data ?? []);
     } catch (e) {
-      setFehler(e.message ?? "Fehler beim Laden.");
+      setFehler(e.message ?? t("books:shelf.errLoad"));
     } finally {
       setLaden(false);
     }
-  }, [householdId]);
+  }, [householdId, t]);
 
   useEffect(() => { ladeBuecher(); }, [ladeBuecher]);
 
@@ -71,7 +68,6 @@ export default function BuecherRegalTab({
     }
   }, [assistantFlow]);
 
-  // Gefilterte + sortierte Liste
   const gefilterteSortiert = useMemo(() => {
     let liste = buecher;
 
@@ -86,7 +82,7 @@ export default function BuecherRegalTab({
           b.autor_anzeige?.toLowerCase().includes(q) ||
           b.isbn_13?.includes(q) ||
           b.isbn_10?.includes(q) ||
-          (b.tags ?? []).some((t) => t.toLowerCase().includes(q)),
+          (b.tags ?? []).some((tag) => tag.toLowerCase().includes(q)),
       );
     }
 
@@ -103,27 +99,25 @@ export default function BuecherRegalTab({
   }, [buecher, suche, statusFilter, sortierung]);
 
   const handleLoeschen = async (buch) => {
-    if (!window.confirm(`„${buch.titel}" wirklich löschen?`)) return;
+    if (!window.confirm(t("books:shelf.deleteConfirm", { title: buch.titel }))) return;
     const { error } = await supabase.from("home_buecher").delete().eq("id", buch.id);
-    if (error) { alert("Fehler: " + error.message); return; }
+    if (error) { alert(t("books:shelf.errDelete", { message: error.message })); return; }
     await logVerlauf(supabase, userId, "home_buecher", buch.titel, "geloescht");
     ladeBuecher();
   };
 
   const handleVerleihenOpen = (buch) => {
     if (buch.status === "verliehen") {
-      setModal({ typ: "verleih_auswahl", buch }); // Zwischenschritt: Verlängern oder Zurückgeben
+      setModal({ typ: "verleih_auswahl", buch });
     } else {
       setModal({ typ: "verleih", buch, modus: "verleihen" });
     }
   };
 
-  // Einzel-Scan: Scanner öffnet, bei Fund → Formular vorausfüllen
   const handleScanEinzelFund = (bookResult) => {
     setModal({ typ: "form", buch: null, prefill: bookResult });
   };
 
-  // Stapel-Scan / Foto-Analyse → Review-Modal
   const handleImportBatchErstellt = (importId) => {
     setModal({ typ: "review", importId });
   };
@@ -131,7 +125,7 @@ export default function BuecherRegalTab({
   if (laden) {
     return (
       <div className="flex items-center justify-center py-16 text-light-text-secondary dark:text-dark-text-secondary">
-        <Loader2 size={22} className="animate-spin mr-2" /> Bücher werden geladen…
+        <Loader2 size={22} className="animate-spin mr-2" /> {t("books:shelf.loading")}
       </div>
     );
   }
@@ -166,8 +160,8 @@ export default function BuecherRegalTab({
           <BookOpen size={32} className="opacity-30" />
           <p className="text-sm">
             {buecher.length === 0
-              ? "Noch keine Bücher vorhanden. Füge dein erstes Buch hinzu!"
-              : "Keine Bücher für die aktuelle Suche gefunden."}
+              ? t("books:shelf.emptyShelf")
+              : t("books:shelf.emptySearch")}
           </p>
         </div>
       ) : ansicht === "karten" ? (
@@ -199,8 +193,8 @@ export default function BuecherRegalTab({
 
       {/* Statusleiste */}
       <p className="mt-4 text-xs text-light-text-secondary dark:text-dark-text-secondary">
-        {gefilterteSortiert.length} {gefilterteSortiert.length === 1 ? "Buch" : "Bücher"}
-        {statusFilter ? ` · Status: ${BUCH_STATUS[statusFilter]}` : ""}
+        {t("books:shelf.bookCount", { count: gefilterteSortiert.length })}
+        {statusFilter ? ` · Status: ${t(`books:status.${statusFilter}`)}` : ""}
       </p>
 
       {/* Modals */}
@@ -270,7 +264,7 @@ export default function BuecherRegalTab({
                 {modal.buch?.titel}
               </p>
               <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
-                Aktuell verliehen — was möchtest du tun?
+                {t("books:loanModal.loanAction")}
               </p>
             </div>
             <div className="mobile-modal-body p-3 flex flex-col gap-2">
@@ -279,20 +273,20 @@ export default function BuecherRegalTab({
                 className="flex items-center gap-2 px-3 py-2.5 text-sm rounded-card-sm border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:bg-light-hover dark:hover:bg-canvas-3"
               >
                 <RefreshCw size={14} className="text-light-text-secondary dark:text-dark-text-secondary" />
-                Ausleihe verlängern
+                {t("books:loanModal.extend")}
               </button>
               <button
                 onClick={() => setModal({ typ: "verleih", buch: modal.buch, modus: "zurueckgeben" })}
                 className="flex items-center gap-2 px-3 py-2.5 text-sm rounded-card-sm border border-green-500/40 text-green-700 dark:text-green-400 hover:bg-green-500/10"
               >
                 <ArrowLeftRight size={14} />
-                Zurückgeben
+                {t("books:loanModal.returnBtn")}
               </button>
               <button
                 onClick={() => setModal(null)}
                 className="px-3 py-2 text-sm rounded-card-sm text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
               >
-                Abbrechen
+                {t("books:loanModal.cancel")}
               </button>
             </div>
           </div>

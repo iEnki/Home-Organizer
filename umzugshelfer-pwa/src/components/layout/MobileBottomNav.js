@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Menu } from "lucide-react";
 import { MOBILE_NAV_REGISTRY } from "../../config/mobileNavConfig";
 
@@ -9,11 +10,12 @@ const isRouteActive = (activeRoute, path) => {
 };
 
 const MobileBottomNav = ({ activeRoute, appMode, onNavigate, onOpenMore, mobileNavFavorites }) => {
+  const { t } = useTranslation(["nav"]);
   const registry  = MOBILE_NAV_REGISTRY[appMode] || MOBILE_NAV_REGISTRY.home;
   const fixedItem = registry.find((i) => i.slot === "fixed-root");
   const favKeys   = mobileNavFavorites?.[appMode] ?? [];
   const favItems  = favKeys.map((k) => registry.find((i) => i.key === k)).filter(Boolean);
-  const items     = [fixedItem, ...favItems, { label: "Mehr", action: "more", icon: Menu }].filter(Boolean);
+  const items     = [fixedItem, ...favItems, { labelKey: "nav:items.more", label: "Mehr", action: "more", icon: Menu }].filter(Boolean);
 
   return (
     <nav
@@ -21,7 +23,7 @@ const MobileBottomNav = ({ activeRoute, appMode, onNavigate, onOpenMore, mobileN
                  border-t border-light-border dark:border-dark-border
                  bg-light-card-bg/95 dark:bg-canvas-2/95 backdrop-blur-md"
       style={{ paddingBottom: "var(--safe-area-bottom)" }}
-      aria-label="Mobile Navigation"
+      aria-label={t("nav:mobile.label")}
     >
       <div className="h-16 mobile-nav-safe-x grid grid-cols-5 gap-1">
         {items.map((item) => {
@@ -37,7 +39,7 @@ const MobileBottomNav = ({ activeRoute, appMode, onNavigate, onOpenMore, mobileN
               className={`${baseClass} text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main`}
             >
               <Icon size={18} />
-              <span className="mt-0.5">{item.label}</span>
+              <span className="mt-0.5">{t(item.labelKey, { defaultValue: item.label })}</span>
             </button>
           ) : (
             <button
@@ -50,7 +52,7 @@ const MobileBottomNav = ({ activeRoute, appMode, onNavigate, onOpenMore, mobileN
               }`}
             >
               <Icon size={18} />
-              <span className="mt-0.5">{item.label}</span>
+              <span className="mt-0.5">{t(item.labelKey, { defaultValue: item.label })}</span>
             </button>
           );
         })}

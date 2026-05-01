@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard, Users, DollarSign, ListChecks, Archive,
   Paintbrush, Calculator, CalendarClock, FolderOpen,
@@ -70,8 +71,35 @@ const homeGruppen = [
   },
 ];
 
+const NAV_LABEL_KEYS_BY_PATH = {
+  "/dashboard": "nav:items.dashboard",
+  "/kontakte": "nav:items.contacts",
+  "/budget": "nav:items.budget",
+  "/todos": "nav:items.todos",
+  "/packliste": "nav:items.packingList",
+  "/materialplaner": "nav:items.materials",
+  "/bedarfsrechner": "nav:items.calculator",
+  "/zeitstrahl": "nav:items.timeline",
+  "/dokumente": "nav:items.documents",
+  "/kalender": "nav:items.calendar",
+  "/home": "nav:items.home",
+  "/home/inventar": "nav:items.inventory",
+  "/home/vorraete": "nav:items.stock",
+  "/home/geraete": "nav:items.devices",
+  "/home/dokumente": "nav:items.documents",
+  "/home/einkaufliste": "nav:items.shopping",
+  "/home/aufgaben": "nav:items.tasks",
+  "/home/projekte": "nav:items.projects",
+  "/home/rechnung-scannen": "nav:items.scanInvoice",
+  "/home/bewohner": "nav:items.residents",
+  "/home/suche": "nav:items.search",
+  "/home/wissen": "nav:items.knowledge",
+  "/home/verlauf": "nav:items.history",
+};
+
 // ── Sidebar ─────────────────────────────────────────────────────────────────────
 const Sidebar = ({ activeRoute, onNavigate, appMode, onToggleMode, mobileNavigationEnabled = false }) => {
+  const { t } = useTranslation(["nav", "common"]);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const gruppen  = appMode === "home" ? homeGruppen : umzugGruppen;
@@ -102,10 +130,12 @@ const Sidebar = ({ activeRoute, onNavigate, appMode, onToggleMode, mobileNavigat
           {gruppe.items.map((item) => {
             const Icon   = item.icon;
             const active = isActive(item.path);
+            const labelKey = item.labelKey || NAV_LABEL_KEYS_BY_PATH[item.path];
+            const label = labelKey ? t(labelKey, { defaultValue: item.name }) : item.name;
             return (
               <button
                 key={item.path}
-                title={item.name}
+                title={label}
                 onClick={() => handleNavigate(item.path)}
                 className={`w-16 h-[52px] rounded-sidebar-tile flex flex-col items-center justify-center gap-0.5
                             transition-all duration-200 shrink-0
@@ -116,7 +146,7 @@ const Sidebar = ({ activeRoute, onNavigate, appMode, onToggleMode, mobileNavigat
               >
                 <Icon size={17} />
                 <span className="text-[9px] font-medium leading-none text-center truncate w-full px-0.5">
-                  {item.name}
+                  {label}
                 </span>
               </button>
             );
@@ -146,7 +176,7 @@ const Sidebar = ({ activeRoute, onNavigate, appMode, onToggleMode, mobileNavigat
                        flex items-center justify-center shadow-elevation-1
                        hover:bg-light-hover dark:hover:bg-canvas-3 transition-all duration-150"
             onClick={() => setMobileOpen(!mobileOpen)}
-            aria-label="Menü öffnen/schließen"
+            aria-label={t("common:actions.toggleMenu")}
           >
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
           </button>

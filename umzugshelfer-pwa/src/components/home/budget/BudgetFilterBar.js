@@ -7,6 +7,7 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export default function BudgetFilterBar({
   suchbegriff,
@@ -21,6 +22,7 @@ export default function BudgetFilterBar({
   onOpenFilterSheet,
   onReset,
 }) {
+  const { t } = useTranslation(["budget", "common"]);
   const aktiveFilterAnzahl = aktiveFilter.length;
 
   return (
@@ -38,14 +40,14 @@ export default function BudgetFilterBar({
             <input
               value={suchbegriff}
               onChange={(event) => onSuche(event.target.value)}
-              placeholder="Buchung suchen..."
+              placeholder={t("budget:entries.searchPlaceholder")}
               className="w-full pl-9 pr-8 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
             />
             {suchbegriff && (
               <button
                 onClick={() => onSuche("")}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
-                aria-label="Suche zuruecksetzen"
+                aria-label={t("budget:filters.clearSearch")}
               >
                 <X size={13} />
               </button>
@@ -55,9 +57,9 @@ export default function BudgetFilterBar({
           <div className="flex w-full min-w-0 items-center justify-between gap-2 sm:w-auto sm:min-w-fit sm:justify-start">
             <div className="inline-flex items-center gap-1 rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 p-1">
               {[
-                ["monat", "Monat"],
-                ["jahr", "Jahr"],
-                ["alle", "Alle"],
+                ["monat", t("budget:period.month")],
+                ["jahr", t("budget:period.year")],
+                ["alle", t("budget:period.all")],
               ].map(([wert, label]) => (
                 <button
                   key={wert}
@@ -78,7 +80,7 @@ export default function BudgetFilterBar({
               className="inline-flex items-center gap-2 px-3 py-2 rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-sm text-light-text-main dark:text-dark-text-main whitespace-nowrap"
             >
               <SlidersHorizontal size={14} className="text-light-text-secondary dark:text-dark-text-secondary" />
-              Filter
+              {t("common:actions.filter")}
               {aktiveFilterAnzahl > 0 && (
                 <span className="px-1.5 py-0.5 rounded-full text-xs bg-primary-500/15 text-primary-500">
                   {aktiveFilterAnzahl}
@@ -95,7 +97,7 @@ export default function BudgetFilterBar({
               <button
                 onClick={onPrevZeitraum}
                 className="p-1 rounded-card-sm text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
-                aria-label="Vorheriger Zeitraum"
+                aria-label={t("budget:period.previous")}
               >
                 <ChevronLeft size={13} />
               </button>
@@ -107,7 +109,7 @@ export default function BudgetFilterBar({
               <button
                 onClick={onNextZeitraum}
                 className="p-1 rounded-card-sm text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
-                aria-label="Naechster Zeitraum"
+                aria-label={t("budget:period.next")}
               >
                 <ChevronRight size={13} />
               </button>
@@ -115,7 +117,7 @@ export default function BudgetFilterBar({
           </div>
 
           <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-            {anzahlGefiltert} {anzahlGefiltert === 1 ? "Buchung" : "Buchungen"}
+            {t("budget:entries.count", { count: anzahlGefiltert })}
           </span>
 
           {aktiveFilterAnzahl > 0 && (
@@ -123,7 +125,7 @@ export default function BudgetFilterBar({
               onClick={onReset}
               className="text-xs text-light-text-secondary dark:text-dark-text-secondary underline underline-offset-2"
             >
-              Zuruecksetzen
+              {t("common:actions.reset")}
             </button>
           )}
         </div>
@@ -140,7 +142,7 @@ export default function BudgetFilterBar({
                   <button
                     onClick={filter.onRemove}
                     className="hover:text-primary-600"
-                    aria-label={`${filter.label} entfernen`}
+                    aria-label={t("budget:filters.remove", { label: filter.label })}
                   >
                     <X size={10} />
                   </button>

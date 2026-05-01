@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { X, Search, Loader2, AlertTriangle, BookOpen, ScanLine, Trash2, Image as ImageIcon } from "lucide-react";
 import { supabase } from "../../../supabaseClient";
 import {
@@ -103,6 +104,7 @@ export default function BuchFormModal({
   onSpeichern,
   onAbbrechen,
 }) {
+  const { t } = useTranslation(["books"]);
   const userId = session?.user?.id;
   const istNeu = !buch;
 
@@ -274,7 +276,7 @@ export default function BuchFormModal({
   }, []);
 
   const handleSpeichern = async () => {
-    if (!form.titel.trim()) { setFehler("Titel ist erforderlich."); return; }
+    if (!form.titel.trim()) { setFehler(t("books:form.errTitleRequired")); return; }
     setSpeichern(true);
     setFehler(null);
     try {
@@ -349,7 +351,7 @@ export default function BuchFormModal({
 
       onSpeichern();
     } catch (e) {
-      setFehler(e.message ?? "Fehler beim Speichern.");
+      setFehler(e.message ?? t("books:form.errSave"));
     } finally {
       setSpeichern(false);
     }
@@ -365,7 +367,7 @@ export default function BuchFormModal({
           <div className="flex items-center gap-2">
             <BookOpen size={18} className="text-teal-500" />
             <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
-              {istNeu ? "Neues Buch hinzufügen" : "Buch bearbeiten"}
+              {istNeu ? t("books:form.addTitle") : t("books:form.editTitle")}
             </h2>
           </div>
           <button onClick={onAbbrechen} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger">
@@ -378,7 +380,7 @@ export default function BuchFormModal({
           {/* API-Suche */}
           <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 p-3 space-y-2">
             <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
-              Bücherdatenbank durchsuchen (optional)
+              {t("books:form.searchDb")}
             </p>
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary" />
@@ -386,7 +388,7 @@ export default function BuchFormModal({
                 type="text"
                 value={suchbegriff}
                 onChange={(e) => setSuchbegriff(e.target.value)}
-                placeholder="Titel oder ISBN suchen…"
+                placeholder={t("books:form.searchPlaceholder")}
                 className={`${inputCls} pl-8`}
               />
               {suchLaed && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-light-text-secondary dark:text-dark-text-secondary" />}
@@ -419,7 +421,7 @@ export default function BuchFormModal({
                 />
                 <div className="min-w-0 flex-1 space-y-2">
                   <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
-                    Aktuelle Bildvorschau
+                    {t("books:form.currentCover")}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -428,7 +430,7 @@ export default function BuchFormModal({
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-card-sm border border-primary-500/30 text-primary-500 hover:bg-primary-500/10"
                     >
                       <ImageIcon size={12} />
-                      Cover ändern
+                      {t("books:form.changeCover")}
                     </button>
                     <button
                       type="button"
@@ -436,7 +438,7 @@ export default function BuchFormModal({
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-card-sm border border-accent-danger/30 text-accent-danger hover:bg-accent-danger/10"
                     >
                       <Trash2 size={12} />
-                      Entfernen
+                      {t("books:form.removeCover")}
                     </button>
                   </div>
                 </div>
@@ -450,7 +452,7 @@ export default function BuchFormModal({
                          text-xs text-light-text-secondary dark:text-dark-text-secondary hover:border-primary-500/40 hover:text-primary-500 transition-colors"
             >
               <ImageIcon size={14} />
-              Cover online suchen
+              {t("books:form.searchCover")}
             </button>
           ) : null}
 
@@ -459,27 +461,27 @@ export default function BuchFormModal({
             <div className="flex items-start gap-2 rounded-card-sm border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
               <AlertTriangle size={14} className="mt-0.5 shrink-0" />
               <span>
-                Mögliche Dublette gefunden: „{dubletten[0].titel}". Du kannst trotzdem speichern.
+                {t("books:form.duplicate", { title: dubletten[0].titel })}
               </span>
             </div>
           )}
 
           {/* Pflichtfelder */}
           <div>
-            <label className={labelCls}>Titel *</label>
+            <label className={labelCls}>{t("books:form.titleLabel")}</label>
             <input type="text" value={form.titel} onChange={(e) => setForm((p) => ({ ...p, titel: e.target.value }))} className={inputCls} />
           </div>
           <div>
-            <label className={labelCls}>Untertitel</label>
+            <label className={labelCls}>{t("books:form.subtitle")}</label>
             <input type="text" value={form.untertitel} onChange={(e) => setForm((p) => ({ ...p, untertitel: e.target.value }))} className={inputCls} />
           </div>
           <div>
-            <label className={labelCls}>Autoren (kommagetrennt)</label>
-            <input type="text" value={form.autoren} onChange={(e) => setForm((p) => ({ ...p, autoren: e.target.value }))} className={inputCls} placeholder="z. B. Frank Herbert, Isaac Asimov" />
+            <label className={labelCls}>{t("books:form.authors")}</label>
+            <input type="text" value={form.autoren} onChange={(e) => setForm((p) => ({ ...p, autoren: e.target.value }))} className={inputCls} placeholder={t("books:form.authorsPlaceholder")} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>ISBN-13</label>
+              <label className={labelCls}>{t("books:form.isbn13")}</label>
               <div className="flex gap-1.5">
                 <input
                   type="text"
@@ -487,59 +489,59 @@ export default function BuchFormModal({
                   onChange={(e) => setForm((p) => ({ ...p, isbn_13: e.target.value }))}
                   onBlur={(e) => handleIsbnBlur(e.target.value)}
                   className={`${inputCls} flex-1`}
-                  placeholder="978…"
+                  placeholder={t("books:form.isbnPlaceholder")}
                 />
                 <button
                   type="button"
                   onClick={() => setScannerOffen(true)}
                   className="flex items-center justify-center px-2 py-2 rounded-card-sm border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-border dark:hover:bg-canvas-3 shrink-0"
-                  title="ISBN scannen"
+                  title={t("books:form.scanIsbn")}
                 >
                   <ScanLine size={14} />
                 </button>
               </div>
             </div>
             <div>
-              <label className={labelCls}>Verlag</label>
+              <label className={labelCls}>{t("books:form.publisher")}</label>
               <input type="text" value={form.verlag} onChange={(e) => setForm((p) => ({ ...p, verlag: e.target.value }))} className={inputCls} />
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className={labelCls}>Jahr</label>
+              <label className={labelCls}>{t("books:form.year")}</label>
               <input type="number" value={form.erscheinungsjahr} onChange={(e) => setForm((p) => ({ ...p, erscheinungsjahr: e.target.value }))} className={inputCls} placeholder="2024" />
             </div>
             <div>
-              <label className={labelCls}>Sprache</label>
-              <input type="text" value={form.sprache} onChange={(e) => setForm((p) => ({ ...p, sprache: e.target.value }))} className={inputCls} placeholder="de" />
+              <label className={labelCls}>{t("books:form.language")}</label>
+              <input type="text" value={form.sprache} onChange={(e) => setForm((p) => ({ ...p, sprache: e.target.value }))} className={inputCls} placeholder={t("books:form.languagePlaceholder")} />
             </div>
             <div>
-              <label className={labelCls}>Seiten</label>
+              <label className={labelCls}>{t("books:form.pages")}</label>
               <input type="number" value={form.seitenzahl} onChange={(e) => setForm((p) => ({ ...p, seitenzahl: e.target.value }))} className={inputCls} />
             </div>
           </div>
           <div>
-            <label className={labelCls}>Beschreibung</label>
+            <label className={labelCls}>{t("books:form.description")}</label>
             <textarea rows={3} value={form.beschreibung} onChange={(e) => setForm((p) => ({ ...p, beschreibung: e.target.value }))} className={inputCls} />
           </div>
           <div>
-            <label className={labelCls}>Tags (kommagetrennt)</label>
-            <input type="text" value={form.tags} onChange={(e) => setForm((p) => ({ ...p, tags: e.target.value }))} className={inputCls} placeholder="z. B. SciFi, Roman" />
+            <label className={labelCls}>{t("books:form.tags")}</label>
+            <input type="text" value={form.tags} onChange={(e) => setForm((p) => ({ ...p, tags: e.target.value }))} className={inputCls} placeholder={t("books:form.tagsPlaceholder")} />
           </div>
 
           {/* Standort */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>Ort</label>
+              <label className={labelCls}>{t("books:form.location")}</label>
               <select value={form.ort_id} onChange={(e) => setForm((p) => ({ ...p, ort_id: e.target.value, lagerort_id: "" }))} className={inputCls}>
-                <option value="">— kein Ort —</option>
+                <option value="">{t("books:form.locationNone")}</option>
                 {orte.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
               </select>
             </div>
             <div>
-              <label className={labelCls}>Lagerort</label>
+              <label className={labelCls}>{t("books:form.storageLocation")}</label>
               <select value={form.lagerort_id} onChange={(e) => setForm((p) => ({ ...p, lagerort_id: e.target.value }))} className={inputCls}>
-                <option value="">— kein Lagerort —</option>
+                <option value="">{t("books:form.storageNone")}</option>
                 {filteredLagerorte.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
             </div>
@@ -548,30 +550,30 @@ export default function BuchFormModal({
           {/* Status/Zustand/Anzahl */}
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className={labelCls}>Status</label>
+              <label className={labelCls}>{t("books:form.statusLabel")}</label>
               <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))} className={inputCls}>
-                {Object.entries(BUCH_STATUS).map(([val, label]) => (
-                  <option key={val} value={val}>{label}</option>
+                {Object.keys(BUCH_STATUS).map((val) => (
+                  <option key={val} value={val}>{t(`books:status.${val}`)}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className={labelCls}>Zustand</label>
+              <label className={labelCls}>{t("books:form.conditionLabel")}</label>
               <select value={form.zustand} onChange={(e) => setForm((p) => ({ ...p, zustand: e.target.value }))} className={inputCls}>
                 <option value="">—</option>
-                {Object.entries(BUCH_ZUSTAND).map(([val, label]) => (
-                  <option key={val} value={val}>{label}</option>
+                {Object.keys(BUCH_ZUSTAND).map((val) => (
+                  <option key={val} value={val}>{t(`books:condition.${val}`)}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className={labelCls}>Anzahl</label>
+              <label className={labelCls}>{t("books:form.quantity")}</label>
               <input type="number" min="1" value={form.anzahl} onChange={(e) => setForm((p) => ({ ...p, anzahl: e.target.value }))} className={inputCls} />
             </div>
           </div>
 
           <div>
-            <label className={labelCls}>Notizen</label>
+            <label className={labelCls}>{t("books:form.notes")}</label>
             <textarea rows={2} value={form.notizen} onChange={(e) => setForm((p) => ({ ...p, notizen: e.target.value }))} className={inputCls} />
           </div>
 
@@ -583,7 +585,7 @@ export default function BuchFormModal({
         {/* Footer */}
         <div className="mobile-modal-footer shrink-0 border-t border-light-border dark:border-dark-border px-4 py-2 flex gap-2 justify-end">
           <button onClick={onAbbrechen} className="px-4 py-1.5 text-sm rounded-pill border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:bg-light-border dark:hover:bg-canvas-3">
-            Abbrechen
+            {t("books:form.cancel")}
           </button>
           <button
             onClick={handleSpeichern}
@@ -591,7 +593,7 @@ export default function BuchFormModal({
             className="px-4 py-1.5 text-sm rounded-pill bg-primary-500 text-white font-medium disabled:opacity-50 flex items-center gap-2"
           >
             {speichern && <Loader2 size={14} className="animate-spin" />}
-            Speichern
+            {t("books:form.save")}
           </button>
         </div>
       </div>

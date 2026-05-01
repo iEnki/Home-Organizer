@@ -1,6 +1,7 @@
 import React from "react";
 import { BarChart2 } from "lucide-react";
 import { Doughnut, Bar, Line } from "react-chartjs-2";
+import { useTranslation } from "react-i18next";
 import {
   Chart as ChartJS,
   ArcElement,
@@ -13,6 +14,7 @@ import {
   LineElement,
   Filler,
 } from "chart.js";
+import { getHomeBudgetCategoryLabel } from "../../../utils/homeBudgetCategories";
 
 ChartJS.register(
   ArcElement,
@@ -61,23 +63,29 @@ export default function BudgetStatsCharts({
   selJahr,
   monatLabel,
 }) {
+  const { t, i18n } = useTranslation(["budget"]);
+  const localizeCategoryData = (data) => ({
+    ...data,
+    labels: (data?.labels || []).map((label) => getHomeBudgetCategoryLabel(label, i18n.language)),
+  });
+
   if (modus === "jahr" && !yearStats.hasData) {
-    return <EmptyState text={`Keine Ausgaben in ${selJahr}`} />;
+    return <EmptyState text={t("budget:statistics.noExpensesYear", { year: selJahr })} />;
   }
 
   if (modus === "monat" && !monthStats.hasData) {
-    return <EmptyState text={`Keine Ausgaben in ${monatLabel}`} />;
+    return <EmptyState text={t("budget:statistics.noExpensesMonth", { month: monatLabel })} />;
   }
 
   return modus === "jahr" ? (
     <div className="space-y-3">
       <section className={CARD_CLS}>
         <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-          Ausgaben nach Kategorie
+          {t("budget:statistics.expensesByCategory")}
         </p>
         <div className="h-44 sm:h-56">
           <Doughnut
-            data={yearStats.doughnutData}
+            data={localizeCategoryData(yearStats.doughnutData)}
             options={{
               ...CHART_OPTS_BASE,
               plugins: {
@@ -95,7 +103,7 @@ export default function BudgetStatsCharts({
 
       <section className={CARD_CLS}>
         <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-          Ausgaben nach Monat {selJahr}
+          {t("budget:statistics.expensesByMonth", { year: selJahr })}
         </p>
         <div className="h-44 sm:h-56">
           <Bar
@@ -113,7 +121,7 @@ export default function BudgetStatsCharts({
                 ...CHART_OPTS_BASE.plugins,
                 tooltip: {
                   callbacks: {
-                    label: (ctx) => `${ctx.dataset.label}: ${Number(ctx.raw).toFixed(2)} EUR`,
+                    label: (ctx) => `${t("budget:expense")}: ${Number(ctx.raw).toFixed(2)} EUR`,
                   },
                 },
               },
@@ -124,7 +132,7 @@ export default function BudgetStatsCharts({
 
       <section className={CARD_CLS}>
         <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-          Kumulierte Ausgaben {selJahr}
+          {t("budget:statistics.cumulativeExpenses", { year: selJahr })}
         </p>
         <div className="h-40 sm:h-52">
           <Line
@@ -142,7 +150,7 @@ export default function BudgetStatsCharts({
                 ...CHART_OPTS_BASE.plugins,
                 tooltip: {
                   callbacks: {
-                    label: (ctx) => `Kumuliert: ${Number(ctx.raw).toFixed(2)} EUR`,
+                    label: (ctx) => `${t("budget:statistics.cumulative", { defaultValue: "Cumulative" })}: ${Number(ctx.raw).toFixed(2)} EUR`,
                   },
                 },
               },
@@ -154,7 +162,7 @@ export default function BudgetStatsCharts({
       {yearStats.accountTotals?.length > 0 && (
         <section className={CARD_CLS}>
           <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-            Ausgaben nach Konto
+            {t("budget:statistics.expensesByAccount")}
           </p>
           <div className="h-44 sm:h-56">
             <Doughnut
@@ -179,11 +187,11 @@ export default function BudgetStatsCharts({
     <div className="space-y-3">
       <section className={CARD_CLS}>
         <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-          Verteilung nach Kategorie
+          {t("budget:statistics.categoryDistribution")}
         </p>
         <div className="h-44 sm:h-56">
           <Doughnut
-            data={monthStats.doughnutData}
+            data={localizeCategoryData(monthStats.doughnutData)}
             options={{
               ...CHART_OPTS_BASE,
               plugins: {
@@ -201,11 +209,11 @@ export default function BudgetStatsCharts({
 
       <section className={CARD_CLS}>
         <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-          Ausgaben pro Kategorie
+          {t("budget:statistics.expensesPerCategory")}
         </p>
         <div style={{ height: `${Math.max(monthStats.categoryTotals.length * 36, 100)}px` }}>
           <Bar
-            data={monthStats.barData}
+            data={localizeCategoryData(monthStats.barData)}
             options={{
               ...CHART_OPTS_BASE,
               indexAxis: "y",
@@ -233,7 +241,7 @@ export default function BudgetStatsCharts({
       {monthStats.accountTotals?.length > 0 && (
         <section className={CARD_CLS}>
           <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-            Ausgaben nach Konto
+            {t("budget:statistics.expensesByAccount")}
           </p>
           <div style={{ height: `${Math.max(monthStats.accountTotals.length * 36, 100)}px` }}>
             <Bar

@@ -46,11 +46,11 @@ export default function ModalShell({
 
   return (
     <div
-      className={`mobile-modal-overlay fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex justify-center ${overlayClassName}`}
+      className={`mobile-modal-overlay fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 pb-safe ${overlayClassName}`}
       onClick={closeOnBackdrop ? onClose : undefined}
     >
       <div
-        className={`mobile-modal-dialog bg-light-card-bg dark:bg-canvas-2 w-full ${maxWidthClass} rounded-card shadow-elevation-3 border border-light-border dark:border-dark-border flex min-h-0 flex-col ${dialogClassName}`}
+        className={`mobile-modal-dialog bg-light-card-bg dark:bg-canvas-2 w-full ${maxWidthClass} max-h-[90vh] rounded-card shadow-elevation-3 border border-light-border dark:border-dark-border flex min-h-0 flex-col overflow-hidden ${dialogClassName}`}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
@@ -64,7 +64,7 @@ export default function ModalShell({
             </button>
           </div>
         )}
-        <div className={`mobile-modal-body flex-1 px-4 py-3 ${bodyClassName}`}>{children}</div>
+        <div className={`mobile-modal-body flex-1 min-h-0 overflow-y-auto px-4 py-3 ${bodyClassName}`}>{children}</div>
         {footer && (
           <div className={`mobile-modal-footer shrink-0 border-t border-light-border dark:border-dark-border px-4 py-3 ${footerClassName}`}>
             {footer}

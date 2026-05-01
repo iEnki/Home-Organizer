@@ -1,20 +1,23 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import LoginForm from "./LoginForm";
 import { useTheme } from "../contexts/ThemeContext";
-import { Sun, Moon } from "lucide-react";
-
+import { useLocale } from "../contexts/LocaleContext";
 import {
-  ListChecks,
-  Package,
-  DollarSign,
-  Users,
-  Truck,
   BrainCircuit,
+  ClipboardList,
+  DollarSign,
+  Home,
+  Languages,
+  ListChecks,
+  Moon,
+  Package,
   QrCode,
   ShoppingCart,
-  ClipboardList,
-  Home,
+  Sun,
+  Truck,
+  Users,
 } from "lucide-react";
 
 const FeatureCard = ({ icon, title, description, accent = "green" }) => (
@@ -33,9 +36,48 @@ const FeatureCard = ({ icon, title, description, accent = "green" }) => (
   </div>
 );
 
+const LocaleToggle = () => {
+  const { t } = useTranslation(["common"]);
+  const { locale, setLocale } = useLocale();
+  const isEnglish = locale === "en-GB";
+  const nextLocale = isEnglish ? "de" : "en-GB";
+
+  return (
+    <button
+      type="button"
+      onClick={() => setLocale(nextLocale)}
+      className="inline-flex items-center gap-2 rounded-md border border-light-border dark:border-dark-border bg-light-bg dark:bg-dark-bg px-3 py-2 text-sm font-semibold text-light-text-main dark:text-dark-text-main hover:bg-light-border dark:hover:bg-dark-border transition-colors"
+      title={t("locale.title")}
+      aria-label={t("locale.title")}
+    >
+      <Languages size={16} />
+      {isEnglish ? "DE" : "EN"}
+    </button>
+  );
+};
+
 const HomePage = ({ setSession }) => {
+  const { t } = useTranslation(["auth", "common"]);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const { theme, toggleTheme } = useTheme();
+
+  const movingFeatures = [
+    { to: "/features/todo-listen", icon: <ListChecks size={24} />, key: "todoLists" },
+    { to: "/features/packliste", icon: <Package size={24} />, key: "packingLists" },
+    { to: "/features/budget-tracker", icon: <DollarSign size={24} />, key: "budgetTracker" },
+    { to: "/features/transport-planer", icon: <Truck size={24} />, key: "transport" },
+    { to: "/features/ki-assistenten", icon: <BrainCircuit size={24} />, key: "aiAssistants" },
+    { to: "/features/qr-code-system", icon: <QrCode size={24} />, key: "qrSystem" },
+  ];
+
+  const homeFeatures = [
+    { icon: <Package size={24} />, key: "inventory" },
+    { icon: <DollarSign size={24} />, key: "finance" },
+    { icon: <Users size={24} />, key: "householdMembers" },
+    { icon: <ClipboardList size={24} />, key: "tasksProjects" },
+    { icon: <ShoppingCart size={24} />, key: "shoppingStock" },
+    { icon: <BrainCircuit size={24} />, key: "homeAi" },
+  ];
 
   const handleLoginSuccess = () => {
     setShowLoginModal(false);
@@ -43,32 +85,33 @@ const HomePage = ({ setSession }) => {
 
   return (
     <div className="text-light-text-main dark:text-dark-text-main min-h-screen">
-      {/* Nav */}
       <nav className="bg-light-bg dark:bg-dark-bg shadow-md sticky top-0 z-40">
-        <div className="container mx-auto px-6 py-3 flex justify-between items-center">
+        <div className="container mx-auto px-6 py-3 flex justify-between items-center gap-4">
           <Link
             to="/"
             className="text-2xl font-bold text-light-accent-green dark:text-dark-accent-green hover:opacity-80"
           >
-            Umzugsplaner
+            {t("landing.brand")}
           </Link>
           <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2 items-center">
+            <LocaleToggle />
             <button
               onClick={() => setShowLoginModal(true)}
               className="w-full sm:w-auto bg-light-accent-green text-white dark:bg-dark-accent-green dark:text-dark-bg font-semibold py-2 px-4 rounded-md hover:opacity-90 transition-colors text-sm"
             >
-              Anmelden
+              {t("login.submit")}
             </button>
             <Link
               to="/register"
               className="w-full sm:w-auto bg-light-border text-light-text-main dark:bg-dark-border dark:text-dark-text-main font-semibold py-2 px-4 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-sm text-center block"
             >
-              Registrieren
+              {t("register.title")}
             </Link>
             <button
               onClick={toggleTheme}
               className="p-2 rounded-full hover:bg-light-border dark:hover:bg-dark-border text-light-text-secondary dark:text-dark-text-secondary transition-colors ml-0 sm:ml-2 mt-2 sm:mt-0"
-              title={theme === "dark" ? "Heller Modus" : "Dunkler Modus"}
+              title={theme === "dark" ? t("common:theme.light") : t("common:theme.dark")}
+              aria-label={theme === "dark" ? t("common:theme.light") : t("common:theme.dark")}
             >
               {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
             </button>
@@ -76,30 +119,23 @@ const HomePage = ({ setSession }) => {
         </div>
       </nav>
 
-      {/* Hero */}
       <header className="bg-light-card-bg/80 dark:bg-dark-card-bg/50 py-20 px-6 text-center border-b border-light-border dark:border-dark-border">
         <div className="container mx-auto">
           <h1 className="text-5xl font-extrabold text-light-text-main dark:text-dark-text-main mb-4">
-            Dein smarter{" "}
-            <span className="text-light-accent-green dark:text-dark-accent-green">
-              Umzugsplaner
-            </span>{" "}
-            &amp; Home Organizer
+            {t("landing.heroTitle")}
           </h1>
           <p className="text-xl text-light-text-secondary dark:text-dark-text-secondary mb-8 max-w-2xl mx-auto">
-            Plane deinen Umzug stressfrei – und behalte danach deinen Haushalt
-            im Griff. Alles an einem Ort.
+            {t("landing.heroSubtitle")}
           </p>
           <button
             onClick={() => setShowLoginModal(true)}
             className="bg-light-accent-green text-white dark:bg-dark-accent-green dark:text-dark-bg font-bold py-3 px-8 rounded-lg text-lg hover:opacity-90 transition-transform transform hover:scale-105 shadow-lg"
           >
-            Jetzt loslegen
+            {t("landing.getStarted")}
           </button>
         </div>
       </header>
 
-      {/* Zwei-Modus-Banner */}
       <section className="py-12 px-6">
         <div className="container mx-auto">
           <div className="grid sm:grid-cols-2 gap-6 max-w-3xl mx-auto">
@@ -109,11 +145,10 @@ const HomePage = ({ setSession }) => {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-light-text-main dark:text-dark-text-main mb-1">
-                  Umzugsplaner
+                  {t("landing.modes.move.title")}
                 </h3>
                 <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-                  Packlisten, Aufgaben, Budget und Zeitplan – alles was du für
-                  einen stressfreien Umzug brauchst.
+                  {t("landing.modes.move.description")}
                 </p>
               </div>
             </div>
@@ -123,11 +158,10 @@ const HomePage = ({ setSession }) => {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-light-text-main dark:text-dark-text-main mb-1">
-                  Home Organizer
+                  {t("landing.modes.home.title")}
                 </h3>
                 <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-                  Inventar, Finanzen, Einkauf und Haushaltsmitglieder – für
-                  einen organisierten Alltag nach dem Umzug.
+                  {t("landing.modes.home.description")}
                 </p>
               </div>
             </div>
@@ -135,144 +169,72 @@ const HomePage = ({ setSession }) => {
         </div>
       </section>
 
-      {/* Features: Umzugsplaner */}
       <section className="py-12 px-6 bg-light-card-bg/40 dark:bg-dark-card-bg/30 border-y border-light-border dark:border-dark-border">
         <div className="container mx-auto">
           <h2 className="text-3xl font-bold text-center text-light-text-main dark:text-dark-text-main mb-3">
-            Alles was du für deinen{" "}
-            <span className="text-light-accent-green dark:text-dark-accent-green">
-              Umzug
-            </span>{" "}
-            brauchst
+            {t("landing.moveSection.title")}
           </h2>
           <p className="text-center text-light-text-secondary dark:text-dark-text-secondary mb-10 max-w-xl mx-auto text-sm">
-            Von der ersten Planung bis zum letzten Umzugskarton.
+            {t("landing.moveSection.subtitle")}
           </p>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Link to="/features/todo-listen" className="no-underline">
-              <FeatureCard
-                icon={<ListChecks size={24} />}
-                title="Smarte To-Do Listen"
-                description="Behalte den Überblick über alle Aufgaben. Automatische Kategorisierung und Priorisierung helfen dir dabei."
-              />
-            </Link>
-            <Link to="/features/packliste" className="no-underline">
-              <FeatureCard
-                icon={<Package size={24} />}
-                title="Intelligente Packlisten"
-                description="Organisiere dein Hab und Gut. Mit QR-Codes, Fotos und KI-Unterstützung für schnelles Finden."
-              />
-            </Link>
-            <Link to="/features/budget-tracker" className="no-underline">
-              <FeatureCard
-                icon={<DollarSign size={24} />}
-                title="Budget Tracker"
-                description="Verwalte deine Umzugskosten. Behalte Einnahmen und Ausgaben im Blick und vermeide böse Überraschungen."
-              />
-            </Link>
-            <Link to="/features/transport-planer" className="no-underline">
-              <FeatureCard
-                icon={<Truck size={24} />}
-                title="Transport & Volumen Planer"
-                description="Berechne das benötigte Ladevolumen und die Transportkosten für deinen Umzug."
-              />
-            </Link>
-            <Link to="/features/ki-assistenten" className="no-underline">
-              <FeatureCard
-                icon={<BrainCircuit size={24} />}
-                title="KI-Assistenten"
-                description="Lass dir von unseren intelligenten Assistenten beim Erstellen von Pack- und To-Do-Listen helfen."
-              />
-            </Link>
-            <Link to="/features/qr-code-system" className="no-underline">
-              <FeatureCard
-                icon={<QrCode size={24} />}
-                title="QR-Code System"
-                description="Generiere und scanne QR-Codes für deine Kisten, um den Inhalt schnell zu identifizieren."
-              />
-            </Link>
+            {movingFeatures.map((feature) => (
+              <Link key={feature.key} to={feature.to} className="no-underline">
+                <FeatureCard
+                  icon={feature.icon}
+                  title={t(`landing.moveFeatures.${feature.key}.title`)}
+                  description={t(`landing.moveFeatures.${feature.key}.description`)}
+                />
+              </Link>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Features: Home Organizer */}
       <section className="py-12 px-6">
         <div className="container mx-auto">
           <h2 className="text-3xl font-bold text-center text-light-text-main dark:text-dark-text-main mb-3">
-            Alles was du für deinen{" "}
-            <span className="text-teal-500">Alltag</span> brauchst
+            {t("landing.homeSection.title")}
           </h2>
           <p className="text-center text-light-text-secondary dark:text-dark-text-secondary mb-10 max-w-xl mx-auto text-sm">
-            Der Home Organizer hilft dir, nach dem Umzug den Überblick zu
-            behalten.
+            {t("landing.homeSection.subtitle")}
           </p>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <FeatureCard
-              accent="teal"
-              icon={<Package size={24} />}
-              title="Haushalts-Inventar"
-              description="Verwalte Möbel, Geräte und Wertgegenstände mit Fotos, Räumen und Kategorien."
-            />
-            <FeatureCard
-              accent="teal"
-              icon={<DollarSign size={24} />}
-              title="Finanzmanager"
-              description="Einnahmen & Ausgaben, Kategorienlimits, Sparziele und Cashflow-Vorschau für die nächsten 30 Tage."
-            />
-            <FeatureCard
-              accent="teal"
-              icon={<Users size={24} />}
-              title="Haushaltsmitglieder"
-              description="Ordne Aufgaben, Ausgaben und Gegenstände einzelnen Personen im Haushalt zu."
-            />
-            <FeatureCard
-              accent="teal"
-              icon={<ClipboardList size={24} />}
-              title="Aufgaben & Projekte"
-              description="Plane Heimwerken, Renovierungen und Alltagsaufgaben strukturiert mit Prioritäten und Fälligkeiten."
-            />
-            <FeatureCard
-              accent="teal"
-              icon={<ShoppingCart size={24} />}
-              title="Einkauf & Vorräte"
-              description="Smarte Einkaufslisten und Vorratsverwaltung mit Mindestmengen – nie wieder etwas vergessen."
-            />
-            <FeatureCard
-              accent="teal"
-              icon={<BrainCircuit size={24} />}
-              title="KI-Haushalt-Assistent"
-              description="Intelligente Hilfe für Budget-Analyse, Inventar-Erfassung und smarte Haushaltsplanung."
-            />
+            {homeFeatures.map((feature) => (
+              <FeatureCard
+                key={feature.key}
+                accent="teal"
+                icon={feature.icon}
+                title={t(`landing.homeFeatures.${feature.key}.title`)}
+                description={t(`landing.homeFeatures.${feature.key}.description`)}
+              />
+            ))}
           </div>
         </div>
       </section>
 
-      {/* CTA */}
       <section className="bg-light-card-bg/80 dark:bg-dark-card-bg/50 py-16 px-6 text-center border-t border-light-border dark:border-dark-border">
         <div className="container mx-auto">
           <h2 className="text-3xl font-bold text-light-text-main dark:text-dark-text-main mb-3">
-            Bereit für einen smarten Alltag?
+            {t("landing.ctaTitle")}
           </h2>
           <p className="text-light-text-secondary dark:text-dark-text-secondary mb-8 max-w-md mx-auto">
-            Starte mit dem Umzugsplaner oder direkt mit dem Home Organizer –
-            kostenlos und ohne Kreditkarte.
+            {t("landing.ctaSubtitle")}
           </p>
           <Link
             to="/register"
             className="bg-light-accent-green text-white dark:bg-dark-accent-green dark:text-dark-bg font-bold py-3 px-8 rounded-lg text-lg hover:opacity-90 transition-transform transform hover:scale-105 shadow-lg inline-block"
           >
-            Kostenlos registrieren
+            {t("landing.registerFree")}
           </Link>
         </div>
       </section>
 
-      {/* Footer */}
       <footer className="bg-light-bg dark:bg-dark-bg py-8 text-center text-light-text-secondary dark:text-dark-text-secondary text-sm border-t border-light-border dark:border-dark-border">
-        <p>&copy; {new Date().getFullYear()} Umzugsplaner. Alle Rechte vorbehalten.</p>
-        <p className="mt-1">Entwickelt mit ❤️ für einen einfacheren Umzug.</p>
+        <p>&copy; {new Date().getFullYear()} {t("landing.brand")}. {t("landing.footer.rights")}</p>
+        <p className="mt-1">{t("landing.footer.madeFor")}</p>
       </footer>
 
-      {/* Login Modal */}
       {showLoginModal && (
         <div className="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <LoginForm

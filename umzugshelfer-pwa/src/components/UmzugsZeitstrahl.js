@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "../supabaseClient";
 import { useTheme } from "../contexts/ThemeContext";
 import { Link, useNavigate } from "react-router-dom";
@@ -32,8 +33,13 @@ import BildVorschau from "./BildVorschau";
 import { PDFDownloadLink } from "@react-pdf/renderer";
 import TagebuchPDF from "./TagebuchPDF";
 import { getKiClient } from "../utils/kiClient";
+const debugLog = (...args) => {
+  if (process.env.NODE_ENV !== "production") console.log(...args);
+};
+
 
 const getTailwindColor = (colorName, theme) => {
+
   const lightColors = {
     cardBg: "#ffffff",
     textMain: "#1f2937",
@@ -70,6 +76,8 @@ const getTailwindColor = (colorName, theme) => {
 };
 
 const UmzugsZeitstrahl = ({ session }) => {
+  const { t } = useTranslation(["move", "common"]);
+  void t;
   const { theme } = useTheme();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -126,6 +134,7 @@ const UmzugsZeitstrahl = ({ session }) => {
         .from("todo_aufgaben")
         .select("*, angehaengte_dokument_ids")
         .eq("user_id", userId)
+        .in("app_modus", ["umzug", "beides"])
         .order("faelligkeitsdatum", { ascending: true });
       if (dbError) throw dbError;
       let alleAufgaben = aufgabenData || [];
@@ -230,7 +239,8 @@ const UmzugsZeitstrahl = ({ session }) => {
       const { data: lieferData, error: lieferError } = await supabase
         .from("budget_posten")
         .select("id, beschreibung, kategorie, lieferdatum, betrag, datum, created_at")
-        .eq("user_id", userId);
+        .eq("user_id", userId)
+        .in("app_modus", ["umzug", "beides"]);
       if (lieferError) throw lieferError;
       const lieferEventsArr =
         (lieferData || [])
@@ -241,7 +251,7 @@ const UmzugsZeitstrahl = ({ session }) => {
             title: `Lieferung: ${p.beschreibung}`,
             details: [
               p.kategorie ? `Kategorie: ${p.kategorie}` : null,
-              p.betrag ? `Betrag: ${p.betrag} â‚¬` : null,
+              p.betrag ? `Betrag: ${p.betrag} ?` : null,
             ]
               .filter(Boolean)
               .join(" | "),
@@ -264,7 +274,8 @@ const UmzugsZeitstrahl = ({ session }) => {
         supabase
           .from("dokumente")
           .select("id, dateiname, datei_typ, beschreibung, todo_aufgabe_id, erstellt_am")
-          .eq("user_id", userId),
+          .eq("user_id", userId)
+          .in("app_modus", ["umzug", "beides"]),
         supabase
           .from("kontakte")
           .select("id, name, typ, telefon, adresse, created_at")
@@ -294,7 +305,7 @@ const UmzugsZeitstrahl = ({ session }) => {
           title: `Kostenposten: ${p.beschreibung}`,
           details: [
             p.kategorie ? `Kategorie: ${p.kategorie}` : null,
-            p.betrag != null ? `Geplant: ${p.betrag} â‚¬` : null,
+            p.betrag != null ? `Geplant: ${p.betrag} ?` : null,
           ]
             .filter(Boolean)
             .join(" | "),
@@ -310,7 +321,7 @@ const UmzugsZeitstrahl = ({ session }) => {
             budgetBeschreibungById[tz.posten_id] || "Budgetposten"
           }`,
           details: [
-            `Bezahlt: ${tz.betrag_teilzahlung} â‚¬`,
+            `Bezahlt: ${tz.betrag_teilzahlung} ?`,
             tz.notiz_teilzahlung ? `Notiz: ${tz.notiz_teilzahlung}` : null,
           ]
             .filter(Boolean)
@@ -361,7 +372,7 @@ const UmzugsZeitstrahl = ({ session }) => {
             rp.kategorie ? `Kategorie: ${rp.kategorie}` : null,
             rp.status ? `Status: ${rp.status}` : null,
             rp.geschaetzter_preis != null
-              ? `Geschätzt: ${rp.geschaetzter_preis} â‚¬`
+              ? `Geschätzt: ${rp.geschaetzter_preis} ?`
               : null,
           ]
             .filter(Boolean)
@@ -402,11 +413,11 @@ const UmzugsZeitstrahl = ({ session }) => {
   const handleSaveApiKey = async () => {
     if (apiKeyInput.trim() === "") {
       setApiKeyError("API-Key darf nicht leer sein.");
-      showApiKeyToast("API-Key darf nicht leer sein.", "error");
+      showApiKeyToast(t("move:timelineManager.toast.apiKeyRequired"), "error");
       return;
     }
     if (!userId) {
-      showApiKeyToast("Benutzer nicht angemeldet.", "error");
+      showApiKeyToast(t("move:timelineManager.toast.notLoggedIn"), "error");
       return;
     }
 
@@ -423,7 +434,7 @@ const UmzugsZeitstrahl = ({ session }) => {
       setCurrentApiKey(apiKeyInput.trim());
       setIsApiKeySetForZeitstrahl(true);
       setShowApiKeyModal(false);
-      showApiKeyToast("OpenAI API-Key erfolgreich gespeichert!", "success");
+      showApiKeyToast(t("move:timelineManager.toast.apiKeySaved"), "success");
     } catch (err) {
       console.error("Fehler Speichern API-Key:", err);
       setApiKeyError("Fehler beim Speichern des API-Keys.");
@@ -607,7 +618,7 @@ const UmzugsZeitstrahl = ({ session }) => {
     setUmzugsdatenJSON(null);
     setPdfBereit(false);
     setSignedImageUrlsMap({});
-    console.log("Starte Tagebuch-Generierung...");
+    debugLog("Starte Tagebuch-Generierung...");
 
     if (!userId) {
       setTagebuchError("Benutzer nicht angemeldet.");
@@ -620,6 +631,7 @@ const UmzugsZeitstrahl = ({ session }) => {
         .from("todo_aufgaben")
         .select("*, angehaengte_dokument_ids")
         .eq("user_id", userId)
+        .in("app_modus", ["umzug", "beides"])
         .order("faelligkeitsdatum", { ascending: true });
       if (todosError) throw todosError;
 
@@ -736,12 +748,12 @@ const UmzugsZeitstrahl = ({ session }) => {
         events: umzugsEvents,
       };
 
-      console.log("Lade signierte URLs für Bilder (nur für Aufgaben)...");
+      debugLog("Lade signierte URLs für Bilder (nur für Aufgaben)...");
       const urlsMap = await fetchSignedImageUrls(datenFuerKI.events);
       setSignedImageUrlsMap(urlsMap);
-      console.log("Signierte URLs geladen:", urlsMap);
+      debugLog("Signierte URLs geladen:", urlsMap);
 
-      console.log(
+      debugLog(
         "Strukturierte Daten für KI:",
         JSON.stringify(datenFuerKI, null, 2)
       );
@@ -783,7 +795,7 @@ Generiere nun das Umzugstagebuch:`;
         throw new Error("Kein Text von der KI erhalten.");
       }
 
-      console.log("Generierter Tagebuchtext:", tagebuchText);
+      debugLog("Generierter Tagebuchtext:", tagebuchText);
       setGenerierterTagebuchText(tagebuchText);
       setUmzugsdatenJSON(datenFuerKI);
       setPdfBereit(true);
@@ -1008,15 +1020,15 @@ Generiere nun das Umzugstagebuch:`;
   });
 
   const eventFilterChips = [
-    { key: "alle", label: "Alle" },
-    { key: "aufgabe", label: "To-Dos" },
-    { key: "kiste", label: "Kisten" },
-    { key: "lieferung", label: "Lieferungen" },
-    { key: "budget", label: "Budget" },
-    { key: "teilzahlung", label: "Teilzahlungen" },
-    { key: "dokument", label: "Dokumente" },
-    { key: "kontakt", label: "Kontakte" },
-    { key: "renovierung", label: "Renovierung" },
+    { key: "alle", label: t("move:timelineManager.filters.alle") },
+    { key: "aufgabe", label: t("move:timelineManager.filters.aufgabe") },
+    { key: "kiste", label: t("move:timelineManager.filters.kiste") },
+    { key: "lieferung", label: t("move:timelineManager.filters.lieferung") },
+    { key: "budget", label: t("move:timelineManager.filters.budget") },
+    { key: "teilzahlung", label: t("move:timelineManager.filters.teilzahlung") },
+    { key: "dokument", label: t("move:timelineManager.filters.dokument") },
+    { key: "kontakt", label: t("move:timelineManager.filters.kontakt") },
+    { key: "renovierung", label: t("move:timelineManager.filters.renovierung") },
   ];
 
   const eventTypeCounts = alleEvents.reduce((acc, event) => {
@@ -1184,8 +1196,7 @@ Generiere nun das Umzugstagebuch:`;
           Mein Umzugs-Zeitstrahl
         </h1>
         <p className="text-light-text-secondary dark:text-dark-text-secondary mt-1">
-          Dein Umzug chronologisch: Aufgaben, Budget, Kisten, Dokumente,
-          Kontakte und Renovierung im Zeitverlauf.
+          {t("move:timelineManager.subtitle")}
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <button
@@ -1230,7 +1241,7 @@ Generiere nun das Umzugstagebuch:`;
                 ? "bg-gray-600 hover:bg-gray-700 text-white"
                 : "bg-gray-200 hover:bg-gray-300 text-gray-800"
             }`}
-            title="OpenAI API-Key verwalten"
+            title={t("move:timelineManager.apiKeyManage")}
           >
             <KeyRound size={18} className="mr-2" />
             API-Key verwalten
@@ -1295,7 +1306,7 @@ Generiere nun das Umzugstagebuch:`;
         <div className="text-center py-10 bg-light-card-bg dark:bg-canvas-2 p-6 rounded-card shadow-elevation-2">
           <p className="text-light-text-secondary dark:text-dark-text-secondary">
             Noch keine Ereignisse vorhanden. Füge Aufgaben, Budgetposten,
-            Teilzahlungen, Kisten, Dokumente oder Kontakte hinzu.
+            {t("move:timelineManager.emptyHint")}
           </p>
           <p className="text-light-text-secondary dark:text-dark-text-secondary mt-2">
             Starte z. B. mit deinen{" "}
@@ -1356,7 +1367,7 @@ Generiere nun das Umzugstagebuch:`;
                   : "text-light-text-main"
               }`}
             >
-              OpenAI API-Key verwalten
+              {t("move:timelineManager.apiKeyManage")}
             </h3>
             <div className="space-y-3">
               <div>
@@ -1475,4 +1486,5 @@ Generiere nun das Umzugstagebuch:`;
 };
 
 export default UmzugsZeitstrahl;
+
 

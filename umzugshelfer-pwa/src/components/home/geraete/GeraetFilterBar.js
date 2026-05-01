@@ -1,6 +1,8 @@
 import React from "react";
 import { Search, Plus, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { STATUS_CONFIG } from "../../../utils/geraetStatus";
+import { getDeviceCategoryLabel } from "./GeraetForm";
 
 const STATUS_CHIP_REIHENFOLGE = [
   { key: "wartung_faellig", label: "Wartung offen" },
@@ -25,6 +27,8 @@ export default function GeraetFilterBar({
   anzahlGefiltert,
   onAdd,
 }) {
+  const { t, i18n } = useTranslation(["home", "common"]);
+  const statusLabel = (key, fallback) => t(`home:devicesStatus.${key}`, { defaultValue: fallback || STATUS_CONFIG[key]?.label || key });
   const hatAktivenFilter =
     statusFilter !== "alle" ||
     kategorieFilter !== "Alle" ||
@@ -52,7 +56,7 @@ export default function GeraetFilterBar({
             <input
               value={suchbegriff}
               onChange={(event) => onSuche(event.target.value)}
-              placeholder="Geraet suchen..."
+              placeholder={t("home:devicesForm.searchPlaceholder")}
               className="w-full rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 py-2 pl-9 pr-8 text-sm text-light-text-main dark:text-dark-text-main focus:border-primary-500 focus:outline-none"
             />
             {suchbegriff && (
@@ -69,7 +73,7 @@ export default function GeraetFilterBar({
             onClick={onAdd}
             className="inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill bg-primary-500 px-3 py-2 text-sm text-white transition-colors hover:bg-primary-600"
           >
-            <Plus size={13} /> Geraet hinzufuegen
+            <Plus size={13} /> {t("home:devicesForm.add")}
           </button>
         </div>
 
@@ -82,7 +86,7 @@ export default function GeraetFilterBar({
                 : "border-light-border bg-light-card text-light-text-secondary hover:border-primary-500/50 dark:border-dark-border dark:bg-canvas-2 dark:text-dark-text-secondary"
             }`}
           >
-            Alle
+            {t("home:householdTasks.all", { defaultValue: "All" })}
             <span className={`text-[10px] ${statusFilter === "alle" ? "opacity-80" : "opacity-60"}`}>
               {gesamtAnzahl}
             </span>
@@ -103,7 +107,7 @@ export default function GeraetFilterBar({
                     : "border-light-border bg-light-card text-light-text-secondary hover:border-primary-500/50 dark:border-dark-border dark:bg-canvas-2 dark:text-dark-text-secondary"
                 }`}
               >
-                {label}
+                {statusLabel(key, label)}
                 <span className={`text-[10px] ${aktiv ? "opacity-80" : "opacity-60"}`}>{anzahl}</span>
               </button>
             );
@@ -126,7 +130,7 @@ export default function GeraetFilterBar({
                     : "border-light-border bg-light-card text-light-text-secondary hover:border-primary-500/50 dark:border-dark-border dark:bg-canvas-2 dark:text-dark-text-secondary"
                 }`}
               >
-                {kategorie}
+                {getDeviceCategoryLabel(kategorie, i18n.language)}
               </button>
             );
           })}
@@ -138,10 +142,10 @@ export default function GeraetFilterBar({
             onChange={(event) => onSortierung(event.target.value)}
             className="flex-shrink-0 rounded-card-sm border border-light-border bg-light-card px-2 py-1.5 text-xs text-light-text-main focus:border-primary-500 focus:outline-none dark:border-dark-border dark:bg-canvas-2 dark:text-dark-text-main"
           >
-            <option value="frist">Naechste Frist zuerst</option>
+            <option value="frist">{t("home:devicesSort.nextDeadline", { defaultValue: "Next deadline first" })}</option>
             <option value="name">Name A-Z</option>
-            <option value="kaufdatum_desc">Kaufdatum neueste zuerst</option>
-            <option value="erstellt_desc">Zuletzt angelegt</option>
+            <option value="kaufdatum_desc">{t("home:devicesSort.purchaseDateNewest", { defaultValue: "Purchase date, newest first" })}</option>
+            <option value="erstellt_desc">{t("home:devicesSort.recentlyCreated", { defaultValue: "Recently created" })}</option>
           </select>
 
           <select
@@ -149,21 +153,21 @@ export default function GeraetFilterBar({
             onChange={(event) => onGruppierung(event.target.value)}
             className="flex-shrink-0 rounded-card-sm border border-light-border bg-light-card px-2 py-1.5 text-xs text-light-text-main focus:border-primary-500 focus:outline-none dark:border-dark-border dark:bg-canvas-2 dark:text-dark-text-main"
           >
-            <option value="keine">Keine Gruppierung</option>
-            <option value="status">Nach Status</option>
-            <option value="kategorie">Nach Kategorie</option>
+            <option value="keine">{t("home:devicesGroup.none", { defaultValue: "No grouping" })}</option>
+            <option value="status">{t("home:devicesGroup.status", { defaultValue: "By status" })}</option>
+            <option value="kategorie">{t("home:devicesGroup.category", { defaultValue: "By category" })}</option>
           </select>
         </div>
 
         {hatAktivenFilter && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-              {anzahlGefiltert} {anzahlGefiltert === 1 ? "Geraet" : "Geraete"}
+              {t("home:devicesCount", { count: anzahlGefiltert, defaultValue: `${anzahlGefiltert} devices` })}
             </span>
 
             {statusFilter !== "alle" && (
               <span className="inline-flex items-center gap-1 rounded-full border border-primary-500/20 bg-primary-500/10 px-2 py-0.5 text-xs text-primary-500">
-                {STATUS_CONFIG[statusFilter]?.label || statusFilter}
+                {statusLabel(statusFilter)}
                 <button onClick={() => onStatus("alle")} className="hover:text-primary-600">
                   <X size={10} />
                 </button>
@@ -172,7 +176,7 @@ export default function GeraetFilterBar({
 
             {kategorieFilter !== "Alle" && (
               <span className="inline-flex items-center gap-1 rounded-full border border-primary-500/20 bg-primary-500/10 px-2 py-0.5 text-xs text-primary-500">
-                {kategorieFilter}
+                {getDeviceCategoryLabel(kategorieFilter, i18n.language)}
                 <button onClick={() => onKategorie("Alle")} className="hover:text-primary-600">
                   <X size={10} />
                 </button>
@@ -184,8 +188,8 @@ export default function GeraetFilterBar({
                 {sortierung === "name"
                   ? "Name A-Z"
                   : sortierung === "kaufdatum_desc"
-                    ? "Kaufdatum"
-                    : "Zuletzt angelegt"}
+                    ? t("home:devicesForm.purchaseDate")
+                    : t("home:devicesSort.recentlyCreated", { defaultValue: "Recently created" })}
                 <button onClick={() => onSortierung("frist")} className="hover:text-primary-600">
                   <X size={10} />
                 </button>
@@ -196,7 +200,7 @@ export default function GeraetFilterBar({
               onClick={resetAlleFilter}
               className="text-xs text-light-text-secondary underline underline-offset-2 hover:text-light-text-main dark:text-dark-text-secondary dark:hover:text-dark-text-main"
             >
-              Alle zuruecksetzen
+              {t("common:actions.reset")}
             </button>
           </div>
         )}

@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { getBewohnerDisplayName } from "../../../utils/budgetAccounts";
 
 const MobileFilterSheet = ({
@@ -13,6 +14,8 @@ const MobileFilterSheet = ({
   bewohner,
   onReset,
 }) => {
+  const { t } = useTranslation(["home", "common"]);
+
   useEffect(() => {
     if (!open) return undefined;
     const handleKeyDown = (event) => {
@@ -33,7 +36,7 @@ const MobileFilterSheet = ({
       <button
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
-        aria-label="Filter schließen"
+        aria-label={t("home:inventorySheets.closeFilters")}
       />
 
       <section
@@ -45,12 +48,14 @@ const MobileFilterSheet = ({
         <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-light-border dark:border-dark-border bg-light-card/95 dark:bg-canvas-2/95 backdrop-blur">
           <div className="flex items-center gap-2">
             <SlidersHorizontal size={16} className="text-primary-500" />
-            <h2 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">Filter</h2>
+            <h2 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
+              {t("common:actions.filter")}
+            </h2>
           </div>
           <button
             onClick={onClose}
             className="w-9 h-9 rounded-card-sm flex items-center justify-center text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
-            aria-label="Filter schließen"
+            aria-label={t("home:inventorySheets.closeFilters")}
           >
             <X size={18} />
           </button>
@@ -59,7 +64,7 @@ const MobileFilterSheet = ({
         <div className="p-4 space-y-4">
           <div>
             <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-              Status
+              {t("home:inventorySheets.status")}
             </label>
             <select
               value={statusFilter}
@@ -67,7 +72,7 @@ const MobileFilterSheet = ({
               className="w-full px-3 py-2.5 text-sm rounded-card-sm border border-light-border dark:border-dark-border
                          bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none"
             >
-              <option value="">Alle Status</option>
+              <option value="">{t("home:inventorySheets.allStatuses")}</option>
               {Object.entries(statusLabel).map(([key, label]) => (
                 <option key={key} value={key}>
                   {label}
@@ -79,7 +84,7 @@ const MobileFilterSheet = ({
           {bewohner.length > 0 && (
             <div>
               <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-                Bewohner
+                {t("home:inventorySheets.residents")}
               </label>
               <select
                 value={bewohnerFilter}
@@ -87,7 +92,7 @@ const MobileFilterSheet = ({
                 className="w-full px-3 py-2.5 text-sm rounded-card-sm border border-light-border dark:border-dark-border
                            bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none"
               >
-                <option value="">Alle Bewohner</option>
+                <option value="">{t("home:inventorySheets.allResidents")}</option>
                 {bewohner.map((eintrag) => (
                   <option key={eintrag.id} value={eintrag.id}>
                     {eintrag.emoji} {getBewohnerDisplayName(eintrag)}
@@ -103,13 +108,13 @@ const MobileFilterSheet = ({
               className="px-3 py-2.5 rounded-card-sm border border-light-border dark:border-dark-border
                          text-sm text-light-text-main dark:text-dark-text-main hover:bg-light-hover dark:hover:bg-canvas-3"
             >
-              Zurücksetzen
+              {t("common:actions.reset")}
             </button>
             <button
               onClick={onClose}
               className="px-3 py-2.5 rounded-pill bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium"
             >
-              Fertig
+              {t("common:actions.done")}
             </button>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom"; // Hinzugefügt
 import { supabase } from "../supabaseClient";
 import {
@@ -101,6 +102,7 @@ const formatDateForDisplay = (value) => {
 };
 
 const BudgetTracker = ({ session }) => {
+  const { t } = useTranslation(["budget"]);
   const { isMobile } = useViewport();
   const location = useLocation();
   const navigate = useNavigate();
@@ -160,6 +162,7 @@ const BudgetTracker = ({ session }) => {
         .from("budget_posten")
         .select("*, teilzahlungen:budget_teilzahlungen(*)")
         .eq("user_id", userId)
+        .in("app_modus", ["umzug", "beides"])
         .order("datum", { ascending: false });
       if (postenError) throw postenError;
       setPosten(postenData || []);
@@ -387,6 +390,7 @@ const BudgetTracker = ({ session }) => {
       datum: normalizedDatum,
       lieferdatum: normalizeDateInputValue(lieferdatum) || null,
       user_id: userId,
+      app_modus: "umzug",
     };
     try {
       if (editingPostenId) {
@@ -592,7 +596,7 @@ const BudgetTracker = ({ session }) => {
     return (
       <div className="text-center py-8">
         <p className="text-light-text-secondary dark:text-dark-text-secondary">
-          Lade Budget-Tracker...
+          {t("budget:tracker.loading")}
         </p>
       </div>
     );
@@ -653,13 +657,13 @@ const BudgetTracker = ({ session }) => {
   return (
     <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4">
       <h2 className="text-2xl font-bold text-light-text-main dark:text-dark-text-main mb-4">
-        Budget-Tracker
+        {t("budget:tracker.title")}
       </h2>
       {/* Neue Gesamtzahlen-Übersicht */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         <div className="bg-light-card-bg dark:bg-canvas-2 p-3 rounded-card border border-light-border dark:border-dark-border text-center">
           <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-            Geplante Gesamtkosten
+            {t("budget:tracker.totalPlanned")}
           </p>
           <p className="text-xl font-bold text-primary-500">
             {formatGermanCurrency(geplanteGesamtkosten)} €
@@ -667,7 +671,7 @@ const BudgetTracker = ({ session }) => {
         </div>
         <div className="bg-light-card-bg dark:bg-canvas-2 p-3 rounded-card border border-light-border dark:border-dark-border text-center">
           <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-            Getätigte Teilzahlungen
+            {t("budget:tracker.totalPaid")}
           </p>
           <p className="text-xl font-bold text-light-accent-purple dark:text-dark-accent-purple">
             {formatGermanCurrency(gesamtTeilzahlungen)} €
@@ -675,7 +679,7 @@ const BudgetTracker = ({ session }) => {
         </div>
         <div className="bg-light-card-bg dark:bg-canvas-2 p-3 rounded-card border border-light-border dark:border-dark-border text-center">
           <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-            Noch offene Zahlungen
+            {t("budget:tracker.totalOpen")}
           </p>
           <p
             className={`text-xl font-bold ${
@@ -692,7 +696,7 @@ const BudgetTracker = ({ session }) => {
         <div className="lg:w-1/3 space-y-4">
           <div className="bg-light-card-bg dark:bg-canvas-2 p-4 rounded-card shadow-elevation-2 border border-light-border dark:border-dark-border">
             <h3 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main mb-3">
-              Gesamtbudget
+              {t("budget:tracker.totalBudget")}
             </h3>
             <form onSubmit={handleGesamtbudgetSpeichern} className="space-y-3">
               <div>
@@ -700,7 +704,7 @@ const BudgetTracker = ({ session }) => {
                   htmlFor="gesamtbudgetEingabe"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Dein Budget (€)
+                  {t("budget:tracker.budgetLabel")}
                 </label>
                 <input
                   type="number"
@@ -709,7 +713,7 @@ const BudgetTracker = ({ session }) => {
                   onChange={(e) => setNeuesGesamtbudget(e.target.value)}
                   disabled={!userId}
                   step="0.01"
-                  placeholder="z.B. 15000"
+                  placeholder={t("budget:tracker.budgetPlaceholder")}
                   className="w-full px-2.5 py-1.5 border border-light-border dark:border-dark-border rounded-card-sm text-sm shadow-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 />
               </div>
@@ -718,7 +722,7 @@ const BudgetTracker = ({ session }) => {
                 disabled={!userId}
                 className="w-full bg-primary-500 hover:bg-primary-600 text-white px-3 py-1.5 rounded-pill shadow hover:opacity-90 text-sm disabled:opacity-50"
               >
-                Speichern
+                {t("budget:tracker.save")}
               </button>
             </form>
           </div>
@@ -727,7 +731,7 @@ const BudgetTracker = ({ session }) => {
             disabled={!userId}
             className="w-full bg-primary-500 hover:bg-primary-600 text-white px-3 py-2 rounded-pill shadow hover:opacity-90 flex items-center justify-center space-x-1.5 disabled:opacity-50 text-sm"
           >
-            <PlusCircle size={18} /> <span>Neuer Kostenposten</span>
+            <PlusCircle size={18} /> <span>{t("budget:tracker.newEntry")}</span>
           </button>
           <button
             onClick={handleCsvExport}
@@ -735,7 +739,7 @@ const BudgetTracker = ({ session }) => {
             className="w-full bg-light-border dark:bg-dark-border text-light-text-main dark:text-dark-text-main px-3 py-2 rounded-pill shadow hover:opacity-80 flex items-center justify-center space-x-1.5 disabled:opacity-40 text-sm"
             title="Alle Kostenposten als CSV herunterladen"
           >
-            <Download size={18} /> <span>CSV exportieren</span>
+            <Download size={18} /> <span>{t("budget:tracker.csvExport")}</span>
           </button>
         </div>
 
@@ -743,7 +747,7 @@ const BudgetTracker = ({ session }) => {
           {/* Budget-Übersicht entfernt, stattdessen neue Gesamtbudget-Box */}
           <div className="bg-light-card-bg dark:bg-canvas-2 p-4 rounded-card shadow-elevation-2 border border-light-border dark:border-dark-border mb-4">
             <h3 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main mb-2">
-              Gesamtbudget
+              {t("budget:tracker.totalBudget")}
             </h3>
             <div className="flex flex-col items-center mb-2">
               <span className="text-3xl font-extrabold text-primary-500 tracking-tight">
@@ -799,10 +803,10 @@ const BudgetTracker = ({ session }) => {
                     }}
                   >
                     <span>
-                      {formatGermanCurrency(budgetAusgegeben)} € verbraucht
+                      {formatGermanCurrency(budgetAusgegeben)} € {t("budget:tracker.budgetUsed")}
                     </span>
                     <span>{Math.round(budgetNutzungProzent)}%</span>
-                    <span>{formatGermanCurrency(gesamtbudget)} € gesamt</span>
+                    <span>{formatGermanCurrency(gesamtbudget)} € {t("budget:tracker.budgetTotal")}</span>
                   </div>
                 </div>
                 {/* Kleine Legende darunter */}
@@ -846,7 +850,7 @@ const BudgetTracker = ({ session }) => {
             <div className="flex flex-col sm:flex-row justify-between items-baseline mb-3">
               <div className="flex items-center gap-2">
                 <h3 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main">
-                  Kostenaufstellung
+                  {t("budget:tracker.costOverview")}
                 </h3>
                 {/* Ansicht-Umschalter */}
                 <button
@@ -858,7 +862,7 @@ const BudgetTracker = ({ session }) => {
                   onClick={() => setAnsichtModus("karten")}
                   title="Kartenansicht"
                 >
-                  Karten
+                  {t("budget:tracker.viewCards")}
                 </button>
                 {!isMobile && (
                   <button
@@ -870,7 +874,7 @@ const BudgetTracker = ({ session }) => {
                     onClick={() => setAnsichtModus("liste")}
                     title="Listenansicht"
                   >
-                    Liste
+                    {t("budget:tracker.viewList")}
                   </button>
                 )}
               </div>
@@ -947,7 +951,7 @@ const BudgetTracker = ({ session }) => {
                           : undefined
                       }
                     >
-                      {kat}
+                      {kat === "Alle" ? t("budget:tracker.all") : t(`budget:tracker.categories.${kat}`, { defaultValue: kat })}
                     </button>
                   );
                 })}
@@ -956,8 +960,8 @@ const BudgetTracker = ({ session }) => {
             {gefiltertePosten.length === 0 && !loading && (
               <p className="text-center text-light-text-secondary dark:text-dark-text-secondary py-6 text-sm">
                 {filterKategorie !== "Alle"
-                  ? "Keine Posten für Kategorie."
-                  : "Keine Kostenposten."}
+                  ? t("budget:tracker.noneForCategory")
+                  : t("budget:tracker.noEntries")}
               </p>
             )}
             {/* Kompakte Listenansicht */}
@@ -966,13 +970,13 @@ const BudgetTracker = ({ session }) => {
                 <table className="min-w-full text-xs border-collapse">
                   <thead>
                     <tr className="bg-light-border dark:bg-dark-border text-light-text-secondary dark:text-dark-text-secondary">
-                      <th className="px-2 py-1 font-semibold">Beschreibung</th>
-                      <th className="px-2 py-1 font-semibold">Kategorie</th>
-                      <th className="px-2 py-1 font-semibold">Geplant (€)</th>
-                      <th className="px-2 py-1 font-semibold">Bezahlt (€)</th>
-                      <th className="px-2 py-1 font-semibold">Offen (€)</th>
-                      <th className="px-2 py-1 font-semibold">Fällig</th>
-                      <th className="px-2 py-1 font-semibold">Aktionen</th>
+                      <th className="px-2 py-1 font-semibold">{t("budget:tracker.tableHeaders.description")}</th>
+                      <th className="px-2 py-1 font-semibold">{t("budget:tracker.tableHeaders.category")}</th>
+                      <th className="px-2 py-1 font-semibold">{t("budget:tracker.tableHeaders.planned")}</th>
+                      <th className="px-2 py-1 font-semibold">{t("budget:tracker.tableHeaders.paid")}</th>
+                      <th className="px-2 py-1 font-semibold">{t("budget:tracker.tableHeaders.open")}</th>
+                      <th className="px-2 py-1 font-semibold">{t("budget:tracker.tableHeaders.due")}</th>
+                      <th className="px-2 py-1 font-semibold">{t("budget:tracker.tableHeaders.actions")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -983,8 +987,8 @@ const BudgetTracker = ({ session }) => {
                           className="text-center py-4 text-light-text-secondary dark:text-dark-text-secondary"
                         >
                           {filterKategorie !== "Alle"
-                            ? "Keine Posten für Kategorie."
-                            : "Keine Kostenposten."}
+                            ? t("budget:tracker.noneForCategory")
+                            : t("budget:tracker.noEntries")}
                         </td>
                       </tr>
                     ) : (
@@ -1036,7 +1040,7 @@ const BudgetTracker = ({ session }) => {
                                     : "#0e7490", // Sonstiges: Dunkles Türkis
                               }}
                             >
-                              {p.kategorie}
+                              {t(`budget:tracker.categories.${p.kategorie}`, { defaultValue: p.kategorie })}
                             </td>
                             <td
                               className="px-2 py-1 text-right font-semibold"
@@ -1140,14 +1144,14 @@ const BudgetTracker = ({ session }) => {
                               {p.beschreibung}
                             </h4>
                             <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                              {p.kategorie} - Geplant:{" "}
+                              {t(`budget:tracker.categories.${p.kategorie}`, { defaultValue: p.kategorie })} - {t("budget:tracker.cardPlanned")}{" "}
                               {formatGermanCurrency(p.betrag)} €
                             </p>
                             <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                              Fällig:{" "}
+                              {t("budget:tracker.cardDue")}{" "}
                               {formatDateForDisplay(p.datum)}
                               {p.lieferdatum &&
-                                ` / Lieferung: ${formatDateForDisplay(
+                                ` / ${t("budget:tracker.cardDelivery")} ${formatDateForDisplay(
                                   p.lieferdatum
                                 )}`}
                             </p>
@@ -1192,17 +1196,17 @@ const BudgetTracker = ({ session }) => {
                       <div className="mt-2 pt-2 border-t border-light-border dark:border-dark-border/50">
                         <div className="flex justify-between items-center text-xs mb-0.5">
                           <span className="font-medium text-light-text-secondary dark:text-dark-text-secondary">
-                            Bezahlt: {formatGermanCurrency(summeBisherGezahlt)}{" "}
+                            {t("budget:tracker.paid")} {formatGermanCurrency(summeBisherGezahlt)}{" "}
                             €
                           </span>
                           {istVollBezahlt ? (
                             <span className="text-primary-500 font-semibold flex items-center">
                               <TrendingUp size={14} className="mr-1" />
-                              Voll bezahlt
+                              {t("budget:tracker.fullyPaid")}
                             </span>
                           ) : (
                             <span className="text-danger-color font-semibold">
-                              Offen: {formatGermanCurrency(nochOffen)} €
+                              {t("budget:tracker.open")} {formatGermanCurrency(nochOffen)} €
                             </span>
                           )}
                         </div>
@@ -1258,7 +1262,7 @@ const BudgetTracker = ({ session }) => {
               <XCircle size={20} />
             </button>
             <h3 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main mb-3">
-              {editingPostenId ? "Posten bearbeiten" : "Neuer Posten"}
+              {editingPostenId ? t("budget:tracker.editTitle") : t("budget:tracker.newTitle")}
             </h3>
             <form onSubmit={handleSubmitPosten} className="space-y-2.5">
               <div>
@@ -1266,7 +1270,7 @@ const BudgetTracker = ({ session }) => {
                   htmlFor="postenBeschreibung"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Beschreibung
+                  {t("budget:tracker.fields.description")}
                 </label>
                 <input
                   type="text"
@@ -1282,7 +1286,7 @@ const BudgetTracker = ({ session }) => {
                   htmlFor="postenKategorie"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Kategorie
+                  {t("budget:tracker.fields.category")}
                 </label>
                 <select
                   id="postenKategorie"
@@ -1292,7 +1296,7 @@ const BudgetTracker = ({ session }) => {
                 >
                   {Object.keys(budgetKategorieIcons).map((key) => (
                     <option key={key} value={key}>
-                      {key}
+                      {t(`budget:tracker.categories.${key}`, { defaultValue: key })}
                     </option>
                   ))}
                 </select>
@@ -1302,7 +1306,7 @@ const BudgetTracker = ({ session }) => {
                   htmlFor="postenBetrag"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Betrag (€)
+                  {t("budget:tracker.fields.amount")}
                 </label>
                 <input
                   type="number"
@@ -1319,7 +1323,7 @@ const BudgetTracker = ({ session }) => {
                   htmlFor="postenBetragBezahlt"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Bereits bezahlt (€)
+                  {t("budget:tracker.fields.paidAmount")}
                 </label>
                 <input
                   type="number"
@@ -1351,13 +1355,12 @@ const BudgetTracker = ({ session }) => {
                     htmlFor="vollBezahlt"
                     className="text-xs text-light-text-secondary dark:text-dark-text-secondary"
                   >
-                    Voll bezahlt (setzt Betrag auf geplanten Wert)
+                    {t("budget:tracker.fields.fullyPaid")}
                   </label>
                 </div>
                 {editingPostenId && (
                   <p className="text-[11px] mt-1 text-light-text-secondary dark:text-dark-text-secondary">
-                    Teilzahlungen bei bestehenden Posten bitte über den
-                    Teilzahlung-Button erfassen.
+                    {t("budget:tracker.fields.partialNote")}
                   </p>
                 )}
               </div>
@@ -1366,7 +1369,7 @@ const BudgetTracker = ({ session }) => {
                   htmlFor="postenDatum"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Fälligkeit
+                  {t("budget:tracker.fields.dueDate")}
                 </label>
                 <input
                   type="date"
@@ -1382,7 +1385,7 @@ const BudgetTracker = ({ session }) => {
                   htmlFor="postenLieferdatum"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Lieferdatum (opt.)
+                  {t("budget:tracker.fields.deliveryDate")}
                 </label>
                 <input
                   type="date"
@@ -1398,13 +1401,13 @@ const BudgetTracker = ({ session }) => {
                   onClick={resetForm}
                   className="px-3 py-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary bg-light-border dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-700 rounded-card-sm"
                 >
-                  Abbrechen
+                  {t("budget:tracker.cancel")}
                 </button>
                 <button
                   type="submit"
                   className="px-3 py-1.5 text-xs text-white bg-primary-500 hover:bg-primary-600 hover:opacity-90 rounded-pill shadow-sm"
                 >
-                  {editingPostenId ? "Speichern" : "Hinzufügen"}
+                  {editingPostenId ? t("budget:tracker.save") : t("budget:tracker.add")}
                 </button>
               </div>
             </form>
@@ -1421,12 +1424,9 @@ const BudgetTracker = ({ session }) => {
               <XCircle size={20} />
             </button>
             <h3 className="text-md font-semibold text-light-text-main dark:text-dark-text-main mb-3 truncate">
-              Teilzahlung für "
-              {
-                posten.find((p) => p.id === showTeilzahlungModalFor)
-                  ?.beschreibung
-              }
-              "
+              {t("budget:tracker.teilzahlungTitle", {
+                name: posten.find((p) => p.id === showTeilzahlungModalFor)?.beschreibung ?? ""
+              })}
             </h3>
             <form onSubmit={handleAddTeilzahlung} className="space-y-2.5">
               <div>
@@ -1434,7 +1434,7 @@ const BudgetTracker = ({ session }) => {
                   htmlFor="teilzahlungBetrag"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Betrag (€)
+                  {t("budget:tracker.fields.amount")}
                 </label>
                 <input
                   type="number"
@@ -1451,7 +1451,7 @@ const BudgetTracker = ({ session }) => {
                   htmlFor="teilzahlungDatum"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Datum
+                  {t("budget:tracker.teilzahlungDate")}
                 </label>
                 <input
                   type="date"
@@ -1467,7 +1467,7 @@ const BudgetTracker = ({ session }) => {
                   htmlFor="teilzahlungNotiz"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Notiz (opt.)
+                  {t("budget:tracker.teilzahlungNote")}
                 </label>
                 <input
                   type="text"
@@ -1483,13 +1483,13 @@ const BudgetTracker = ({ session }) => {
                   onClick={() => setShowTeilzahlungModalFor(null)}
                   className="px-3 py-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary bg-light-border dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-700 rounded-card-sm"
                 >
-                  Abbrechen
+                  {t("budget:tracker.cancel")}
                 </button>
                 <button
                   type="submit"
                   className="px-3 py-1.5 text-xs text-white bg-primary-500 hover:bg-primary-600 hover:opacity-90 rounded-pill"
                 >
-                  Speichern
+                  {t("budget:tracker.save")}
                 </button>
               </div>
             </form>

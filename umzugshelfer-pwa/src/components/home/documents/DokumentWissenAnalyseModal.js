@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
   BookOpen,
@@ -12,9 +13,11 @@ import {
 } from "lucide-react";
 import { supabase, getActiveHouseholdId } from "../../../supabaseClient";
 import { logVerlauf } from "../../../utils/homeVerlauf";
+import { useLocale } from "../../../contexts/LocaleContext";
 import {
   WISSEN_KATEGORIEN,
   analyzeDocumentForKnowledge,
+  buildLocalizedKnowledgeContent,
   buildKnowledgeSummaryText,
   deriveKnowledgeTitle,
   isManualKnowledgeOverride,
@@ -40,7 +43,7 @@ const CARD_CLASS_LABELS = {
   rechnung: "Rechnung",
   behoerde: "Behoerde",
   anleitung: "Anleitung",
-  geraet: "Geraet",
+  geraet: "Ger?t",
   kontakt: "Kontakt",
   masse: "Masse",
   notiz: "Notiz",
@@ -90,6 +93,10 @@ export default function DokumentWissenAnalyseModal({
   onSchliessen,
   onErfolgreich,
 }) {
+  const { t } = useTranslation(["documents","common"]);
+  void t;
+
+  const { locale } = useLocale();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -149,7 +156,7 @@ export default function DokumentWissenAnalyseModal({
       setLockState(claimedStatus);
 
       if (claimedStatus === "busy") {
-        throw new Error("Dieses Dokument wird bereits analysiert. Bitte spaeter erneut versuchen.");
+        throw new Error("Dieses Dokument wird bereits analysiert. Bitte später erneut versuchen.");
       }
 
       const [{ data: entryData }, { data: fileBlob, error: downloadError }] = await Promise.all([
@@ -172,6 +179,7 @@ export default function DokumentWissenAnalyseModal({
         dok,
         session,
         userId,
+        locale,
       });
 
       setExistingEntry(entryData || null);
@@ -245,6 +253,15 @@ export default function DokumentWissenAnalyseModal({
         source: analysisResult.source,
         manual_override: existingSummary.manual_override === true,
       };
+      const localizedContent = {
+        ...(existingEntry?.localized_content || {}),
+        [locale]: buildLocalizedKnowledgeContent(
+          nextSummary,
+          locale,
+          title.trim(),
+          keepManualContent ? existingEntry?.inhalt || manualContent.trim() || "" : manualContent.trim(),
+        ),
+      };
 
       const knowledgePayload = {
         user_id: userId,
@@ -256,6 +273,8 @@ export default function DokumentWissenAnalyseModal({
         dokument_id: dok.id,
         herkunft: analysisResult.analysis.requiresReview ? "auto_low_confidence" : "auto_full",
         summary: nextSummary,
+        localized_content: localizedContent,
+        source_locale: locale === "en-GB" ? "en-GB" : "de",
         analysis_confidence: analysisResult.analysis.confidence,
       };
 
@@ -351,7 +370,7 @@ export default function DokumentWissenAnalyseModal({
                   <p>{error}</p>
                   {lockState === "busy" ? null : (
                     <p className="text-xs opacity-80">
-                      Du kannst das Dokument spaeter erneut analysieren oder manuell als Wissen erfassen.
+                      Du kannst das Dokument später erneut analysieren oder manuell als Wissen erfassen.
                     </p>
                   )}
                 </div>

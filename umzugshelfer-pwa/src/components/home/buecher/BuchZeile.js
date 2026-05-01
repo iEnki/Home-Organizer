@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   AlertCircle,
   ArrowRightLeft,
@@ -12,7 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { supabase } from "../../../supabaseClient";
-import { BUCH_STATUS, BUCH_STATUS_FARBEN, BUCH_ZUSTAND } from "../../../utils/buecher";
+import { BUCH_STATUS_FARBEN } from "../../../utils/buecher";
 import { getBuchCoverUrl } from "../../../utils/buchCoverUtils";
 import {
   buildBookMetadataUpdate,
@@ -24,6 +25,7 @@ import {
 import BuchTrefferReviewModal from "./BuchTrefferReviewModal";
 
 export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen, onAktualisiert }) {
+  const { t } = useTranslation(["books"]);
   const [offen, setOffen] = useState(false);
   const [beschreibungOffen, setBeschreibungOffen] = useState(false);
   const [refreshLaden, setRefreshLaden] = useState(false);
@@ -32,7 +34,7 @@ export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen,
   const [refreshTreffer, setRefreshTreffer] = useState([]);
   const [refreshConflicts, setRefreshConflicts] = useState([]);
 
-  const statusLabel = BUCH_STATUS[buch.status] ?? buch.status;
+  const statusLabel = t(`books:status.${buch.status}`, { defaultValue: buch.status });
   const statusFarbe = BUCH_STATUS_FARBEN[buch.status] ?? "";
 
   const resetRefreshState = () => {
@@ -152,39 +154,39 @@ export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen,
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
               {buch.verlag && (
                 <div>
-                  <span className="text-light-text-secondary dark:text-dark-text-secondary">Verlag</span>
+                  <span className="text-light-text-secondary dark:text-dark-text-secondary">{t("books:row.publisher")}</span>
                   <p className="font-medium text-light-text-main dark:text-dark-text-main">{buch.verlag}</p>
                 </div>
               )}
               {buch.erscheinungsjahr && (
                 <div>
-                  <span className="text-light-text-secondary dark:text-dark-text-secondary">Jahr</span>
+                  <span className="text-light-text-secondary dark:text-dark-text-secondary">{t("books:row.year")}</span>
                   <p className="font-medium text-light-text-main dark:text-dark-text-main">{buch.erscheinungsjahr}</p>
                 </div>
               )}
               {buch.isbn_13 && (
                 <div>
-                  <span className="text-light-text-secondary dark:text-dark-text-secondary">ISBN-13</span>
+                  <span className="text-light-text-secondary dark:text-dark-text-secondary">{t("books:row.isbn13")}</span>
                   <p className="font-medium text-light-text-main dark:text-dark-text-main">{buch.isbn_13}</p>
                 </div>
               )}
               {buch.seitenzahl && (
                 <div>
-                  <span className="text-light-text-secondary dark:text-dark-text-secondary">Seiten</span>
+                  <span className="text-light-text-secondary dark:text-dark-text-secondary">{t("books:row.pages")}</span>
                   <p className="font-medium text-light-text-main dark:text-dark-text-main">{buch.seitenzahl}</p>
                 </div>
               )}
               {buch.zustand && (
                 <div>
-                  <span className="text-light-text-secondary dark:text-dark-text-secondary">Zustand</span>
+                  <span className="text-light-text-secondary dark:text-dark-text-secondary">{t("books:row.conditionLabel")}</span>
                   <p className="font-medium text-light-text-main dark:text-dark-text-main">
-                    {BUCH_ZUSTAND[buch.zustand] ?? buch.zustand}
+                    {t(`books:condition.${buch.zustand}`, { defaultValue: buch.zustand })}
                   </p>
                 </div>
               )}
               {buch.anzahl > 1 && (
                 <div>
-                  <span className="text-light-text-secondary dark:text-dark-text-secondary">Anzahl</span>
+                  <span className="text-light-text-secondary dark:text-dark-text-secondary">{t("books:row.quantity")}</span>
                   <p className="font-medium text-light-text-main dark:text-dark-text-main">{buch.anzahl}</p>
                 </div>
               )}
@@ -192,9 +194,9 @@ export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen,
 
             {buch.status === "verliehen" && (
               <div className="rounded-card-sm bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs text-amber-700 dark:text-amber-300 space-y-0.5">
-                {buch.verliehen_an_name && <p>Ausgeliehen an: <strong>{buch.verliehen_an_name}</strong></p>}
-                {buch.verliehen_seit && <p>Seit: {buch.verliehen_seit}</p>}
-                {buch.rueckgabe_erwartet_am && <p>Rueckgabe bis: {buch.rueckgabe_erwartet_am}</p>}
+                {buch.verliehen_an_name && <p>{t("books:row.loanedTo")}: <strong>{buch.verliehen_an_name}</strong></p>}
+                {buch.verliehen_seit && <p>{t("books:row.loanedSince")}: {buch.verliehen_seit}</p>}
+                {buch.rueckgabe_erwartet_am && <p>{t("books:row.returnBy")}: {buch.rueckgabe_erwartet_am}</p>}
               </div>
             )}
 
@@ -208,7 +210,7 @@ export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen,
                   onClick={() => setBeschreibungOffen((prev) => !prev)}
                   className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-pill border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-border dark:hover:bg-canvas-3"
                 >
-                  {beschreibungOffen ? "Beschreibung ausblenden" : "Beschreibung anzeigen"}
+                  {beschreibungOffen ? t("books:row.hideDesc") : t("books:row.showDesc")}
                 </button>
                 {beschreibungOffen && (
                   <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-2 text-xs leading-5 text-light-text-main dark:text-dark-text-main whitespace-pre-wrap">
@@ -230,27 +232,27 @@ export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen,
 
             {refreshStatus === "vorschau" && refreshVorschau && (
               <div className="rounded-card-sm border border-teal-500/30 bg-teal-500/5 px-3 py-2 text-xs space-y-1">
-                <p className="font-medium text-light-text-main dark:text-dark-text-main">Neue Metadaten gefunden:</p>
+                <p className="font-medium text-light-text-main dark:text-dark-text-main">{t("books:row.newMetadata")}</p>
                 {refreshVorschau.description && (
                   <p className="text-light-text-secondary dark:text-dark-text-secondary line-clamp-2">
                     {refreshVorschau.description}
                   </p>
                 )}
-                {refreshVorschau.publisher && <p>Verlag: <span className="font-medium">{refreshVorschau.publisher}</span></p>}
-                {refreshVorschau.pageCount && <p>Seiten: <span className="font-medium">{refreshVorschau.pageCount}</span></p>}
-                {refreshVorschau.publishedYear && <p>Jahr: <span className="font-medium">{refreshVorschau.publishedYear}</span></p>}
+                {refreshVorschau.publisher && <p>{t("books:row.publisher")}: <span className="font-medium">{refreshVorschau.publisher}</span></p>}
+                {refreshVorschau.pageCount && <p>{t("books:row.pages")}: <span className="font-medium">{refreshVorschau.pageCount}</span></p>}
+                {refreshVorschau.publishedYear && <p>{t("books:row.year")}: <span className="font-medium">{refreshVorschau.publishedYear}</span></p>}
                 <div className="flex gap-2 pt-1">
                   <button
                     onClick={() => handleRefreshBestaetigen(refreshVorschau, getBuchCoverUrl(refreshVorschau))}
                     className="flex items-center gap-1 px-2 py-1 rounded bg-teal-500 text-white"
                   >
-                    <CheckCircle size={11} /> Uebernehmen
+                    <CheckCircle size={11} /> {t("books:row.apply")}
                   </button>
                   <button
                     onClick={resetRefreshState}
                     className="px-2 py-1 rounded border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"
                   >
-                    Verwerfen
+                    {t("books:row.reject")}
                   </button>
                 </div>
               </div>
@@ -258,17 +260,17 @@ export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen,
 
             {refreshStatus === "ok" && (
               <p className="text-xs text-teal-600 dark:text-teal-400 flex items-center gap-1">
-                <CheckCircle size={11} /> Metadaten aktualisiert.
+                <CheckCircle size={11} /> {t("books:row.metaUpdated")}
               </p>
             )}
             {refreshStatus === "kein_treffer" && (
               <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary flex items-center gap-1">
-                <AlertCircle size={11} /> Kein Treffer gefunden.
+                <AlertCircle size={11} /> {t("books:row.noMatch")}
               </p>
             )}
             {refreshStatus === "fehler" && (
               <p className="text-xs text-accent-danger flex items-center gap-1">
-                <AlertCircle size={11} /> Buchsuche vorübergehend nicht erreichbar.
+                <AlertCircle size={11} /> {t("books:row.searchUnavailable")}
               </p>
             )}
 
@@ -277,29 +279,28 @@ export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen,
                 onClick={() => onBearbeiten(buch)}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-card-sm border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:bg-light-border dark:hover:bg-canvas-3"
               >
-                <Edit2 size={12} /> Bearbeiten
+                <Edit2 size={12} /> {t("books:row.edit")}
               </button>
               <button
                 onClick={() => onVerleihen(buch)}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-card-sm border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:bg-light-border dark:hover:bg-canvas-3"
               >
                 <ArrowRightLeft size={12} />
-                {buch.status === "verliehen" ? "Ausleihe" : "Verleihen"}
+                {buch.status === "verliehen" ? t("books:row.loan") : t("books:row.lend")}
               </button>
               <button
                 onClick={handleMetadatenRefresh}
                 disabled={refreshLaden}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-card-sm border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-border dark:hover:bg-canvas-3 disabled:opacity-50"
-                title="Metadaten aus Datenbank nachladen"
               >
                 {refreshLaden ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                Aktualisieren
+                {t("books:row.refresh")}
               </button>
               <button
                 onClick={() => onLoeschen(buch)}
                 className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-card-sm border border-accent-danger/30 text-accent-danger hover:bg-accent-danger/10"
               >
-                <Trash2 size={12} /> Loeschen
+                <Trash2 size={12} /> {t("books:row.delete")}
               </button>
             </div>
           </div>

@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import BudgetLimitRow from "./BudgetLimitRow";
 
 export default function BudgetLimitsList({
@@ -13,6 +14,7 @@ export default function BudgetLimitsList({
   onSave,
   onCancel,
 }) {
+  const { t } = useTranslation(["budget"]);
   const mitLimit = rows.filter((row) => row.limitEuro > 0).length;
   const ueberschritten = rows.filter((row) => row.status === "ueberschritten").length;
 
@@ -22,10 +24,10 @@ export default function BudgetLimitsList({
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-              Budget
+              {t("budget:title")}
             </p>
             <h2 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-              Monatliche Limits
+              {t("budget:limits.monthly")}
             </h2>
             <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
               {monatLabel}
@@ -38,20 +40,20 @@ export default function BudgetLimitsList({
               onClick={onToggleShowAllCategories}
               className="rounded-full border border-light-border dark:border-dark-border px-2 py-1 text-[10px] text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
             >
-              {showAllCategories ? "Nur relevante" : "Alle Kategorien"}
+              {showAllCategories ? t("budget:limits.showRelevant") : t("budget:limits.showAll")}
             </button>
             <button
               type="button"
               onClick={onOpenCategoryManager}
               className="rounded-full border border-light-border dark:border-dark-border px-2 py-1 text-[10px] text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
             >
-              Kategorien verwalten
+              {t("budget:categories.manage")}
             </button>
             <span className="rounded-full bg-light-border dark:bg-canvas-3 px-1.5 py-0.5 text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
-              Mit Limit {mitLimit}
+              {t("budget:limits.withLimit", { count: mitLimit, defaultValue: `With limit ${mitLimit}` })}
             </span>
             <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-500">
-              Ueberschritten {ueberschritten}
+              {t("budget:limits.exceededCount", { count: ueberschritten, defaultValue: `Exceeded ${ueberschritten}` })}
             </span>
           </div>
         </div>
@@ -60,7 +62,7 @@ export default function BudgetLimitsList({
       <div className="divide-y divide-light-border dark:divide-dark-border">
         {rows.length === 0 ? (
           <div className="px-4 py-8 text-sm text-light-text-secondary dark:text-dark-text-secondary">
-            Keine relevanten Kategorien im aktuellen Monat. Ueber "Alle Kategorien" kannst du den gesamten aktiven Katalog einblenden.
+            {t("budget:limits.empty")}
           </div>
         ) : (
           rows.map((row) => (

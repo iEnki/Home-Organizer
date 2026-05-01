@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "../supabaseClient";
 import {
   PlusCircle,
@@ -21,6 +22,7 @@ import {
 // import { Link } from "react-router-dom";
 import { generateIcsData, downloadIcsFile } from "../utils/calendarUtils";
 import KiHomeAssistent from "./home/KiHomeAssistent";
+import KategorieCombobox from "./ui/KategorieCombobox";
 import { useTheme } from "../contexts/ThemeContext";
 import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
@@ -28,6 +30,11 @@ import DokumentenZuordnungModal from "./DokumentenZuordnungModal";
 import BildVorschau from "./BildVorschau";
 import useViewport from "../hooks/useViewport";
 import { applyUmzugTodoAiItems } from "../utils/assistantDomainAdapters";
+import { repairMojibakeFields, repairMojibakeText } from "../utils/mojibake";
+const debugLog = (...args) => {
+  if (process.env.NODE_ENV !== "production") console.log(...args);
+};
+
 
 const prioWerte = { Hoch: 3, Mittel: 2, Niedrig: 1 };
 const kategorieKeywords = {
@@ -291,7 +298,7 @@ const kategorieKeywords = {
     "koffer",
   ],
 };
-const standardKategorien = Object.keys(kategorieKeywords);
+const standardKategorien = Object.keys(kategorieKeywords).map(repairMojibakeText);
 
 const prioritaetKeywordsHoch = [
   "kündigen",
@@ -346,7 +353,35 @@ const wiederholungOptionen = [
   "Jährlich",
 ];
 
+const normalizeTodoTemplate = (vorlage) =>
+  repairMojibakeFields(vorlage, [
+    "beschreibung",
+    "kategorie",
+    "prioritaet",
+    "standard_anhaenge_text",
+    "standard_wiederholung_typ",
+  ]);
+
+
+const normalizeTodoTask = (aufgabe) => {
+  const normalized = repairMojibakeFields(aufgabe, [
+    "beschreibung",
+    "kategorie",
+    "prioritaet",
+    "wiederholung_typ",
+  ]);
+
+  return {
+    ...normalized,
+    budget_posten_id:
+      normalized.budget_posten_id && typeof normalized.budget_posten_id === "object"
+        ? repairMojibakeFields(normalized.budget_posten_id, ["beschreibung"])
+        : normalized.budget_posten_id,
+  };
+};
+
 const formatDateTimeLocalValue = (value) => {
+
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
@@ -390,6 +425,8 @@ const parseDateTimeLocalToIso = (value) => {
 };
 
 const TodoListenManager = ({ session }) => {
+  const { t } = useTranslation(["move", "common"]);
+  void t;
   const { isMobile, mobileBottomOffsetPx } = useViewport();
   const [userId, setUserId] = useState(null);
   const [aufgaben, setAufgaben] = useState([]);
@@ -426,6 +463,41 @@ const TodoListenManager = ({ session }) => {
   const [neueVorlageKategorie, setNeueVorlageKategorie] = useState("");
   const [neueVorlagePrioritaet, setNeueVorlagePrioritaet] = useState("Mittel");
 
+  const translateTodoCategoryName = useCallback(
+    (value) => {
+      const cleanValue = repairMojibakeText(value || "");
+      return t(`move:todosManager.categoryNames.${cleanValue}`, { defaultValue: cleanValue });
+    },
+    [t]
+  );
+
+  const translateTodoTemplateDescription = useCallback(
+    (vorlage) => {
+      const value = vorlage?.beschreibung || "";
+      const cleanValue = repairMojibakeText(value || "");
+      const labelLookup = t("move:todosManager.templateLookup", {
+        returnObjects: true,
+        defaultValue: {},
+      });
+      const orderLookup = t("move:todosManager.templateOrderLookup", {
+        returnObjects: true,
+        defaultValue: {},
+      });
+      const labelKey =
+        labelLookup && typeof labelLookup === "object"
+          ? labelLookup[cleanValue]
+          : null;
+      const orderLabelKey =
+        !vorlage?.user_id && orderLookup && typeof orderLookup === "object"
+          ? orderLookup[String(vorlage?.sortier_reihenfolge)]
+          : null;
+      const resolvedLabelKey = labelKey || orderLabelKey;
+      if (!resolvedLabelKey) return cleanValue;
+      return t(`move:todosManager.templateLabels.${resolvedLabelKey}`, { defaultValue: cleanValue });
+    },
+    [t]
+  );
+
   useEffect(() => {
     setUserId(session?.user?.id || null);
   }, [session]);
@@ -445,7 +517,7 @@ const TodoListenManager = ({ session }) => {
         .order("sortier_reihenfolge", { ascending: true });
       if (fetchError) throw fetchError;
 
-      const vorlagenArray = data || [];
+      const vorlagenArray = (data || []).map(normalizeTodoTemplate);
       setAufgabenVorlagenDB(vorlagenArray); // Flache Liste weiterhin speichern
 
       const gruppiert = vorlagenArray.reduce((acc, vorlage) => {
@@ -472,7 +544,7 @@ const TodoListenManager = ({ session }) => {
         .eq("user_id", userId)
         .order("beschreibung", { ascending: true });
       if (fetchError) throw fetchError;
-      setMeineVorlagen(data || []);
+      setMeineVorlagen((data || []).map(normalizeTodoTemplate));
     } catch (err) {
       console.error("Fehler beim Laden eigener Vorlagen:", err);
     }
@@ -498,12 +570,12 @@ const TodoListenManager = ({ session }) => {
       await fetchMeineVorlagen();
       await fetchVorlagen();
     } catch (err) {
-      alert(`Fehler beim Erstellen der Vorlage: ${err.message}`);
+      alert(t("move:todosManager.alerts.templateCreateError", { message: err.message }));
     }
   };
 
   const handleVorlageLoeschen = async (vorlageId) => {
-    if (!userId || !window.confirm("Vorlage löschen?")) return;
+    if (!userId || !window.confirm(t("move:todosManager.alerts.deleteTemplateConfirm"))) return;
     try {
       const { error: deleteError } = await supabase
         .from("todo_vorlagen")
@@ -513,7 +585,7 @@ const TodoListenManager = ({ session }) => {
       await fetchMeineVorlagen();
       await fetchVorlagen();
     } catch (err) {
-      alert(`Fehler: ${err.message}`);
+      alert(t("move:todosManager.alerts.error", { message: err.message }));
     }
   };
 
@@ -550,6 +622,7 @@ const TodoListenManager = ({ session }) => {
           "*, budget_posten_id (id, beschreibung), angehaengte_dokument_ids"
         )
         .eq("user_id", userId)
+        .in("app_modus", ["umzug", "beides"])
         .order("erledigt", { ascending: true })
         .order("faelligkeitsdatum", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: true });
@@ -572,7 +645,7 @@ const TodoListenManager = ({ session }) => {
           dokumenteData.forEach((doc) => (dokumenteDetailsMap[doc.id] = doc));
         }
         aufgabenData = aufgabenData.map((aufg) => ({
-          ...aufg,
+          ...normalizeTodoTask(aufg),
           angehaengteDokumenteDetails:
             aufg.angehaengte_dokument_ids
               ?.map((id) => dokumenteDetailsMap[id])
@@ -597,14 +670,14 @@ const TodoListenManager = ({ session }) => {
           return prioBWert - prioAWert;
         });
       }
-      setAufgaben(aufgabenData || []);
+      setAufgaben((aufgabenData || []).map(normalizeTodoTask));
     } catch (err) {
       console.error("Fehler Laden To-Do:", err);
-      setError("To-Do Aufgaben nicht geladen.");
+      setError(t("move:todosManager.loadError"));
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, t]);
 
   useEffect(() => {
     if (userId) {
@@ -631,10 +704,10 @@ const TodoListenManager = ({ session }) => {
       for (const kat in kategorieKeywords) {
         if (
           kategorieKeywords[kat].some((keyword) =>
-            lowerBeschreibung.includes(keyword)
+            lowerBeschreibung.includes(repairMojibakeText(keyword))
           )
         ) {
-          vorgeschlageneKategorie = kat;
+          vorgeschlageneKategorie = repairMojibakeText(kat);
           break;
         }
       }
@@ -645,7 +718,7 @@ const TodoListenManager = ({ session }) => {
       const lowerBeschreibung = neueBeschreibung.toLowerCase();
       if (
         prioritaetKeywordsHoch.some((keyword) =>
-          lowerBeschreibung.includes(keyword)
+          lowerBeschreibung.includes(repairMojibakeText(keyword))
         )
       ) {
         setPrioritaet("Hoch");
@@ -671,9 +744,9 @@ const TodoListenManager = ({ session }) => {
     } else {
       const vorlage = aufgabenVorlagenDB.find((v) => v.id === vorlageId);
       if (vorlage) {
-        setBeschreibung(vorlage.beschreibung || "");
-        setKategorie(vorlage.kategorie || "");
-        setPrioritaet(vorlage.prioritaet || "Mittel");
+        setBeschreibung(repairMojibakeText(vorlage.beschreibung) || "");
+        setKategorie(repairMojibakeText(vorlage.kategorie) || "");
+        setPrioritaet(repairMojibakeText(vorlage.prioritaet) || "Mittel");
 
         if (
           vorlage.faelligkeitsdatum_offset_tage !== null &&
@@ -752,11 +825,11 @@ const TodoListenManager = ({ session }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!userId) {
-      alert("Bitte einloggen.");
+      alert(t("move:todosManager.alerts.loginRequired"));
       return;
     }
     if (!beschreibung || !kategorie) {
-      alert("Beschreibung & Kategorie Pflicht.");
+      alert(t("move:todosManager.alerts.descriptionCategoryRequired"));
       return;
     }
 
@@ -764,7 +837,7 @@ const TodoListenManager = ({ session }) => {
       ? parseDateTimeLocalToIso(faelligkeitsdatum)
       : null;
     if (faelligkeitsdatum && !faelligkeitsdatumIso) {
-      alert("Ungültiges Fälligkeitsdatum. Bitte Eingabe prüfen.");
+      alert(t("move:todosManager.alerts.invalidDueDate"));
       return;
     }
 
@@ -772,12 +845,13 @@ const TodoListenManager = ({ session }) => {
       ? parseDateTimeLocalToIso(erinnerungsDatum)
       : null;
     if (erinnerungsDatum && !erinnerungsDatumIso) {
-      alert("Ungültiges Erinnerungsdatum. Bitte Eingabe prüfen.");
+      alert(t("move:todosManager.alerts.invalidReminderDate"));
       return;
     }
 
     const aufgabeDaten = {
       user_id: userId,
+      app_modus: "umzug",
       beschreibung,
       kategorie,
       prioritaet,
@@ -822,7 +896,7 @@ const TodoListenManager = ({ session }) => {
       resetForm();
     } catch (err) {
       console.error(`Fehler: ${err.message}`);
-      alert(`Fehler: ${err.message}`);
+      alert(t("move:todosManager.alerts.error", { message: err.message }));
     }
   };
   const berechnNaechstesDatum = (basisDatum, typ, intervall) => {
@@ -864,6 +938,7 @@ const TodoListenManager = ({ session }) => {
           if (naechstesDatum) {
             await supabase.from("todo_aufgaben").insert([{
               user_id: userId,
+              app_modus: erledigteAufgabe.app_modus || "umzug",
               beschreibung: erledigteAufgabe.beschreibung,
               kategorie: erledigteAufgabe.kategorie,
               prioritaet: erledigteAufgabe.prioritaet,
@@ -878,12 +953,12 @@ const TodoListenManager = ({ session }) => {
 
       fetchAufgaben();
     } catch (err) {
-      alert(`Fehler: ${err.message}`);
+      alert(t("move:todosManager.alerts.error", { message: err.message }));
     }
   };
   const handleDeleteAufgabe = async (id) => {
     if (!userId) return;
-    if (!window.confirm("Aufgabe löschen?")) return;
+    if (!window.confirm(t("move:todosManager.alerts.deleteTaskConfirm"))) return;
     try {
       const { error: deleteError } = await supabase
         .from("todo_aufgaben")
@@ -892,7 +967,7 @@ const TodoListenManager = ({ session }) => {
       if (deleteError) throw deleteError;
       setAufgaben(aufgaben.filter((aufg) => aufg.id !== id));
     } catch (err) {
-      alert(`Fehler: ${err.message}`);
+      alert(t("move:todosManager.alerts.error", { message: err.message }));
     }
   };
   const handleKiExtractedTodos = async (extractedTodos) => {
@@ -906,10 +981,10 @@ const TodoListenManager = ({ session }) => {
   };
 
   const handleExportTaskToIcs = async (aufgabe) => {
-    console.log("handleExportTaskToIcs aufgerufen für Aufgabe:", aufgabe);
+    debugLog("handleExportTaskToIcs aufgerufen für Aufgabe:", aufgabe);
     if (!aufgabe.faelligkeitsdatum) {
-      alert("Für diese Aufgabe ist kein Fälligkeitsdatum gesetzt.");
-      console.log("Export abgebrochen: Kein Fälligkeitsdatum.");
+      alert(t("move:todosManager.alerts.missingDueDate"));
+      debugLog("Export abgebrochen: Kein Fälligkeitsdatum.");
       return;
     }
     const faelligkeit = new Date(aufgabe.faelligkeitsdatum);
@@ -938,18 +1013,18 @@ const TodoListenManager = ({ session }) => {
       uid: `umzug-todo-${aufgabe.id}@umzugsplaner.app`,
       calName: "Umzugsplaner Aufgaben",
     };
-    console.log("EventDetails für ICS:", eventDetails);
+    debugLog("EventDetails für ICS:", eventDetails);
 
     const icsData = await generateIcsData(eventDetails);
-    console.log(
+    debugLog(
       "Generierte ICS Daten:",
       icsData ? "Daten vorhanden" : "null oder leer"
     );
 
     if (icsData) {
-      console.log("Versuche, ICS-Datei herunterzuladen...");
+      debugLog("Versuche, ICS-Datei herunterzuladen...");
       downloadIcsFile(icsData, aufgabe.beschreibung);
-      console.log("Download-Funktion aufgerufen.");
+      debugLog("Download-Funktion aufgerufen.");
     } else {
       alert(
         "Fehler beim Erstellen der Kalenderdatei. Bitte versuche es erneut oder prüfe die Konsolenausgabe (generateIcsData hat null zurückgegeben)."
@@ -1136,7 +1211,7 @@ const TodoListenManager = ({ session }) => {
                           ? "text-dark-text-secondary hover:text-dark-text-main"
                           : "text-light-text-secondary hover:text-light-text-main"
                       }`}
-                      title={aufgabe.erledigt ? "Unerledigt" : "Erledigt"}
+                      title={aufgabe.erledigt ? t("move:todosManager.markOpen") : t("move:todosManager.markDone")}
                     >
                       {aufgabe.erledigt ? (
                         <CheckCircle size={18} strokeWidth={2} />
@@ -1236,7 +1311,7 @@ const TodoListenManager = ({ session }) => {
                     <div className="flex items-center space-x-0.5 transition-opacity ml-1 self-start mt-0.5">
                       <button
                         onClick={() => handleEditClick(aufgabe)}
-                        title="Bearbeiten"
+                        title={t("move:todosManager.edit")}
                         className={`p-1 rounded hover:bg-opacity-20 ${
                           theme === "dark"
                             ? "text-dark-text-secondary hover:text-primary-400 hover:bg-dark-border/50"
@@ -1248,7 +1323,7 @@ const TodoListenManager = ({ session }) => {
                       </button>
                       <button
                         onClick={() => handleExportTaskToIcs(aufgabe)}
-                        title="Als Kalendereintrag exportieren"
+                        title={t("move:todosManager.exportCalendar")}
                         disabled={!aufgabe.faelligkeitsdatum}
                         className={`p-1 rounded hover:bg-opacity-20 disabled:opacity-50 disabled:cursor-not-allowed ${
                           theme === "dark"
@@ -1261,7 +1336,7 @@ const TodoListenManager = ({ session }) => {
                       </button>
                       <button
                         onClick={() => handleDeleteAufgabe(aufgabe.id)}
-                        title="Löschen"
+                        title={t("move:todosManager.delete")}
                         className={`p-1 rounded hover:bg-opacity-20 ${
                           theme === "dark"
                             ? "text-dark-text-secondary hover:text-danger-color hover:bg-dark-border/50"
@@ -1273,7 +1348,7 @@ const TodoListenManager = ({ session }) => {
                       </button>
                       <button
                         onClick={() => handleOpenDokumentenModal(aufgabe)}
-                        title="Dokumente verwalten"
+                        title={t("move:todosManager.manageDocuments")}
                         className={`p-1 rounded hover:bg-opacity-20 ${
                           theme === "dark"
                             ? "text-dark-text-secondary hover:text-indigo-400 hover:bg-dark-border/50"
@@ -1332,19 +1407,19 @@ const TodoListenManager = ({ session }) => {
                 >
                   <tr>
                     <th scope="col" className="px-3 py-2 w-16 text-center">
-                      Erledigt
+                      {t("move:todosManager.columns.done")}
                     </th>
                     <th scope="col" className="px-3 py-2 min-w-[200px]">
-                      Beschreibung
+                      {t("move:todosManager.columns.description")}
                     </th>
                     <th scope="col" className="px-3 py-2 w-28 text-center">
-                      Priorität
+                      {t("move:todosManager.columns.priority")}
                     </th>
                     <th scope="col" className="px-3 py-2 w-32 text-center">
-                      Fällig
+                      {t("move:todosManager.columns.due")}
                     </th>
                     <th scope="col" className="px-3 py-2 w-28 text-center">
-                      Aktionen
+                      {t("move:todosManager.columns.actions")}
                     </th>
                   </tr>
                 </thead>
@@ -1370,7 +1445,7 @@ const TodoListenManager = ({ session }) => {
                               ? "text-dark-text-secondary hover:text-dark-text-main"
                               : "text-light-text-secondary hover:text-light-text-main"
                           }`}
-                          title={aufgabe.erledigt ? "Unerledigt" : "Erledigt"}
+                          title={aufgabe.erledigt ? t("move:todosManager.markOpen") : t("move:todosManager.markDone")}
                         >
                           {aufgabe.erledigt ? (
                             <CheckCircle size={18} />
@@ -1448,7 +1523,7 @@ const TodoListenManager = ({ session }) => {
                         <div className="flex items-center justify-center space-x-1">
                           <button
                             onClick={() => handleEditClick(aufgabe)}
-                            title="Bearbeiten"
+                            title={t("move:todosManager.edit")}
                             className={`p-1 rounded hover:bg-opacity-20 ${
                               theme === "dark"
                                 ? "text-dark-text-secondary hover:text-primary-400 hover:bg-dark-border/50"
@@ -1460,7 +1535,7 @@ const TodoListenManager = ({ session }) => {
                           </button>
                           <button
                             onClick={() => handleExportTaskToIcs(aufgabe)}
-                            title="Als Kalendereintrag exportieren"
+                            title={t("move:todosManager.exportCalendar")}
                             disabled={!aufgabe.faelligkeitsdatum}
                             className={`p-1 rounded hover:bg-opacity-20 disabled:opacity-50 ${
                               theme === "dark"
@@ -1473,7 +1548,7 @@ const TodoListenManager = ({ session }) => {
                           </button>
                           <button
                             onClick={() => handleDeleteAufgabe(aufgabe.id)}
-                            title="Löschen"
+                            title={t("move:todosManager.delete")}
                             className={`p-1 rounded hover:bg-opacity-20 ${
                               theme === "dark"
                                 ? "text-dark-text-secondary hover:text-danger-color hover:bg-dark-border/50"
@@ -1485,7 +1560,7 @@ const TodoListenManager = ({ session }) => {
                           </button>
                           <button
                             onClick={() => handleOpenDokumentenModal(aufgabe)}
-                            title="Dokumente verwalten"
+                            title={t("move:todosManager.manageDocuments")}
                             className={`p-1 rounded hover:bg-opacity-20 ${
                               theme === "dark"
                                 ? "text-dark-text-secondary hover:text-indigo-400 hover:bg-dark-border/50"
@@ -1532,7 +1607,7 @@ const TodoListenManager = ({ session }) => {
     >
       <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
         <h2 className="text-2xl font-bold text-light-text-main dark:text-dark-text-main">
-          Smarte To-Do Listen
+          {t("move:todosManager.heading")}
         </h2>
         <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
           <button
@@ -1542,7 +1617,7 @@ const TodoListenManager = ({ session }) => {
                 ? "bg-primary-500 hover:bg-primary-600 text-white"
                 : "bg-light-border text-light-text-secondary dark:bg-dark-border dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-gray-700"
             }`}
-            title="Kachelansicht"
+            title={t("move:todosManager.tileView")}
           >
             {" "}
             <LayoutGrid size={18} />{" "}
@@ -1555,7 +1630,7 @@ const TodoListenManager = ({ session }) => {
                   ? "bg-primary-500 hover:bg-primary-600 text-white"
                   : "bg-light-border text-light-text-secondary dark:bg-dark-border dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-gray-700"
               }`}
-              title="Listenansicht"
+              title={t("move:todosManager.listView")}
             >
               {" "}
               <List size={18} />{" "}
@@ -1565,7 +1640,7 @@ const TodoListenManager = ({ session }) => {
             onClick={() => { setShowVorlagenModal(true); fetchMeineVorlagen(); }}
             disabled={!userId}
             className="flex items-center bg-indigo-500 hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white px-3 py-1.5 rounded-pill transition-colors shadow-sm text-sm disabled:opacity-50"
-            title="Meine Vorlagen verwalten"
+            title={t("move:todosManager.manageTemplates")}
           >
             <BookMarked size={18} className="mr-1.5" /> Vorlagen
           </button>
@@ -1573,7 +1648,7 @@ const TodoListenManager = ({ session }) => {
             onClick={() => setShowKiTodoAssistent(!showKiTodoAssistent)}
             disabled={!userId}
             className="flex items-center bg-purple-500 hover:bg-purple-600 dark:bg-purple-600 dark:hover:bg-purple-700 text-white px-3 py-1.5 rounded-pill transition-colors shadow-sm text-sm disabled:opacity-50"
-            title="To-Dos mit KI-Assistent erstellen"
+            title={t("move:todosManager.createWithAi")}
           >
             {" "}
             <BrainCircuit size={18} className="mr-1.5" /> KI Assistent{" "}
@@ -1589,8 +1664,8 @@ const TodoListenManager = ({ session }) => {
         />
       )}
       {showFormModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-start py-4 px-3 z-50 overflow-y-auto">
-          <div className="bg-light-card-bg dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-md relative border border-light-border dark:border-dark-border">
+        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-4 pb-safe z-50">
+          <div className="bg-light-card-bg dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-md max-h-[90vh] overflow-y-auto relative border border-light-border dark:border-dark-border">
             <button
               onClick={resetForm}
               className="absolute top-2.5 right-2.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main z-10"
@@ -1599,7 +1674,9 @@ const TodoListenManager = ({ session }) => {
               <XCircle size={20} />{" "}
             </button>
             <h3 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main mb-3">
-              {editingAufgabeId ? "Aufgabe bearbeiten" : "Neue Aufgabe"}
+              {editingAufgabeId
+                ? t("move:todosManager.editTask")
+                : t("move:todosManager.newTask")}
             </h3>
             <form onSubmit={handleSubmit} className="space-y-3">
               {!editingAufgabeId && (
@@ -1610,7 +1687,7 @@ const TodoListenManager = ({ session }) => {
                     className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                   >
                     {" "}
-                    Vorlage (optional){" "}
+                    {t("move:todosManager.templates.optionalLabel")}{" "}
                   </label>{" "}
                   <select
                     id="todoVorlage"
@@ -1618,14 +1695,21 @@ const TodoListenManager = ({ session }) => {
                     onChange={handleVorlageChange}
                     className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm shadow-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500"
                   >
-                    <option value="">-- Bitte Vorlage wählen --</option>
+                    <option value="">
+                      {t("move:todosManager.templates.selectPlaceholder")}
+                    </option>
                     {Object.entries(gruppierteVorlagen)
-                      .sort(([katA], [katB]) => katA.localeCompare(katB)) // Kategorien alphabetisch sortieren
+                      .sort(([katA], [katB]) =>
+                        translateTodoCategoryName(katA).localeCompare(translateTodoCategoryName(katB))
+                      )
                       .map(([kategorieName, vorlagenInGruppe]) => (
-                        <optgroup key={kategorieName} label={kategorieName}>
+                        <optgroup
+                          key={kategorieName}
+                          label={translateTodoCategoryName(kategorieName)}
+                        >
                           {vorlagenInGruppe.map((vorlage) => (
                             <option key={vorlage.id} value={vorlage.id}>
-                              {vorlage.beschreibung}
+                              {translateTodoTemplateDescription(vorlage)}
                             </option>
                           ))}
                         </optgroup>
@@ -1640,7 +1724,7 @@ const TodoListenManager = ({ session }) => {
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
                   {" "}
-                  Beschreibung{" "}
+                  {t("move:todosManager.description")}{" "}
                 </label>{" "}
                 <input
                   type="text"
@@ -1658,23 +1742,18 @@ const TodoListenManager = ({ session }) => {
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
                   {" "}
-                  Kategorie (Liste){" "}
+                  {t("move:todosManager.categoryList")}{" "}
                 </label>{" "}
-                <input
-                  type="text"
+                <KategorieCombobox
                   id="todoKategorie"
                   value={kategorie}
-                  onChange={(e) => setKategorie(e.target.value)}
-                  placeholder="z.B. Behörden"
+                  onChange={setKategorie}
+                  options={standardKategorien}
+                  placeholder={t("move:todosManager.categoryPlaceholder")}
                   required
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500"
-                  list="kategorie-vorschlaege"
-                />{" "}
-                <datalist id="kategorie-vorschlaege">
-                  {standardKategorien.map((kat) => (
-                    <option key={kat} value={kat} />
-                  ))}
-                </datalist>
+                  className="border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500 outline-none border"
+                  optionLabel={(opt) => t(`move:todosManager.categoryNames.${opt}`, { defaultValue: opt })}
+                />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {" "}
@@ -1685,7 +1764,7 @@ const TodoListenManager = ({ session }) => {
                     className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                   >
                     {" "}
-                    Priorität{" "}
+                    {t("move:todosManager.priority")}{" "}
                   </label>{" "}
                   <select
                     id="todoPrioritaet"
@@ -1694,9 +1773,9 @@ const TodoListenManager = ({ session }) => {
                     className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500"
                   >
                     {" "}
-                    <option value="Hoch">Hoch</option>{" "}
-                    <option value="Mittel">Mittel</option>{" "}
-                    <option value="Niedrig">Niedrig</option>{" "}
+                    <option value="Hoch">{t("move:todosManager.priorities.Hoch")}</option>{" "}
+                    <option value="Mittel">{t("move:todosManager.priorities.Mittel")}</option>{" "}
+                    <option value="Niedrig">{t("move:todosManager.priorities.Niedrig")}</option>{" "}
                   </select>{" "}
                 </div>{" "}
                 <div>
@@ -1706,7 +1785,7 @@ const TodoListenManager = ({ session }) => {
                     className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                   >
                     {" "}
-                    Fällig (opt.){" "}
+                    {t("move:todosManager.dueOptional")}{" "}
                   </label>{" "}
                   <input
                     type="datetime-local"
@@ -1724,7 +1803,7 @@ const TodoListenManager = ({ session }) => {
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
                   {" "}
-                  Erinnerung (opt.){" "}
+                  {t("move:todosManager.reminderOptional")}{" "}
                 </label>{" "}
                 <input
                   type="datetime-local"
@@ -1741,7 +1820,7 @@ const TodoListenManager = ({ session }) => {
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
                   {" "}
-                  Anhänge (Links/Notizen, kommasep., opt.){" "}
+                  {t("move:todosManager.attachmentsOptional")}{" "}
                 </label>{" "}
                 <textarea
                   id="todoAnhaenge"
@@ -1760,7 +1839,7 @@ const TodoListenManager = ({ session }) => {
                     className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                   >
                     {" "}
-                    Wiederholung (opt.){" "}
+                    {t("move:todosManager.recurrenceOptional")}{" "}
                   </label>{" "}
                   <select
                     id="todoWiederholungTyp"
@@ -1785,7 +1864,7 @@ const TodoListenManager = ({ session }) => {
                       className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                     >
                       {" "}
-                      Intervall{" "}
+                      {t("move:todosManager.interval")}{" "}
                     </label>{" "}
                     <input
                       type="number"
@@ -1809,7 +1888,7 @@ const TodoListenManager = ({ session }) => {
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
                   {" "}
-                  Budget-Posten (opt.){" "}
+                  {t("move:todosManager.budgetItemOptional")}{" "}
                 </label>{" "}
                 <select
                   id="todoBudgetVerknuepfung"
@@ -1818,7 +1897,7 @@ const TodoListenManager = ({ session }) => {
                   className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500"
                 >
                   {" "}
-                  <option value="">Keine Verknüpfung</option>{" "}
+                  <option value="">{t("move:todosManager.noLink")}</option>{" "}
                   {budgetPostenListe.map((p) => (
                     <option key={p.id} value={p.id}>
                       {" "}
@@ -1835,14 +1914,14 @@ const TodoListenManager = ({ session }) => {
                   className="px-3 py-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary bg-light-border dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-700 rounded-card-sm"
                 >
                   {" "}
-                  Abbrechen{" "}
+                  {t("common:actions.cancel")}{" "}
                 </button>{" "}
                 <button
                   type="submit"
                   className="px-3 py-1.5 text-xs text-white bg-primary-500 hover:bg-primary-600 rounded-pill"
                 >
                   {" "}
-                  {editingAufgabeId ? "Speichern" : "Hinzufügen"}{" "}
+                  {editingAufgabeId ? t("common:actions.save") : t("move:todosManager.add")}{" "}
                 </button>{" "}
               </div>
             </form>
@@ -1853,7 +1932,7 @@ const TodoListenManager = ({ session }) => {
         !loading &&
         !showFormModal && (
           <p className="text-center text-light-text-secondary dark:text-dark-text-secondary py-6 text-sm">
-            Keine Aufgaben. Erstelle deine erste!
+            {t("move:todosManager.empty")}
           </p>
         )}
       {Object.keys(gruppierteAufgaben).length > 0 &&
@@ -1867,7 +1946,7 @@ const TodoListenManager = ({ session }) => {
         )}
       <button
         onClick={handleAddNewClick}
-        title="Neue Aufgabe"
+        title={t("move:todosManager.newTask")}
         className="fixed right-4 bg-primary-500 hover:bg-primary-600 text-white p-3 rounded-full shadow-elevation-2 z-40"
         style={{ bottom: `calc(var(--mobile-bottom-offset, 0px) + ${isMobile ? "12px" : "16px"})` }}
       >
@@ -1881,8 +1960,8 @@ const TodoListenManager = ({ session }) => {
         index={lightboxIndex}
       />
       {showVorlagenModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-start py-4 px-3 z-50 overflow-y-auto">
-          <div className="bg-light-card-bg dark:bg-canvas-2 p-5 rounded-card shadow-elevation-3 w-full max-w-md relative border border-light-border dark:border-dark-border">
+        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-4 pb-safe z-50">
+          <div className="bg-light-card-bg dark:bg-canvas-2 p-5 rounded-card shadow-elevation-3 w-full max-w-md max-h-[90vh] overflow-y-auto relative border border-light-border dark:border-dark-border">
             <button
               onClick={() => setShowVorlagenModal(false)}
               className="absolute top-2.5 right-2.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
@@ -1890,53 +1969,50 @@ const TodoListenManager = ({ session }) => {
               <XCircle size={20} />
             </button>
             <h3 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main mb-4">
-              Meine Vorlagen
+              {t("move:todosManager.templates.title")}
             </h3>
             <form onSubmit={handleVorlageErstellen} className="space-y-2 mb-5 pb-4 border-b border-light-border dark:border-dark-border">
-              <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">Neue Vorlage erstellen</p>
+              <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">{t("move:todosManager.templates.create")}</p>
               <input
                 type="text"
-                placeholder="Beschreibung *"
+                placeholder={t("move:todosManager.templates.descriptionPlaceholder")}
                 value={neueVorlageBeschreibung}
                 onChange={(e) => setNeueVorlageBeschreibung(e.target.value)}
                 required
                 className="w-full px-2.5 py-1.5 border border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main"
               />
-              <input
-                type="text"
-                placeholder="Kategorie *"
+              <KategorieCombobox
                 value={neueVorlageKategorie}
-                onChange={(e) => setNeueVorlageKategorie(e.target.value)}
+                onChange={setNeueVorlageKategorie}
+                options={standardKategorien}
+                placeholder={t("move:todosManager.templates.categoryPlaceholder")}
                 required
-                list="kategorie-vorschlaege-vorlage"
-                className="w-full px-2.5 py-1.5 border border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main"
+                className="border border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main outline-none"
+                optionLabel={(opt) => t(`move:todosManager.categoryNames.${opt}`, { defaultValue: opt })}
               />
-              <datalist id="kategorie-vorschlaege-vorlage">
-                {standardKategorien.map((kat) => <option key={kat} value={kat} />)}
-              </datalist>
               <select
                 value={neueVorlagePrioritaet}
                 onChange={(e) => setNeueVorlagePrioritaet(e.target.value)}
                 className="w-full px-2.5 py-1.5 border border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main"
               >
-                <option value="Hoch">Hoch</option>
-                <option value="Mittel">Mittel</option>
-                <option value="Niedrig">Niedrig</option>
+                <option value="Hoch">{t("move:todosManager.priorities.Hoch")}</option>
+                <option value="Mittel">{t("move:todosManager.priorities.Mittel")}</option>
+                <option value="Niedrig">{t("move:todosManager.priorities.Niedrig")}</option>
               </select>
               <button
                 type="submit"
                 className="w-full px-3 py-1.5 text-sm text-white dark:text-dark-bg bg-indigo-500 hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-700 rounded-pill"
               >
-                Vorlage speichern
+                {t("move:todosManager.templates.save")}
               </button>
             </form>
             <div className="space-y-2">
               <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">
-                Gespeicherte Vorlagen ({meineVorlagen.length})
+                {t("move:todosManager.templates.savedCount", { count: meineVorlagen.length })}
               </p>
               {meineVorlagen.length === 0 ? (
                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary text-center py-3">
-                  Noch keine eigenen Vorlagen erstellt.
+                  {t("move:todosManager.templates.empty")}
                 </p>
               ) : (
                 meineVorlagen.map((v) => (
@@ -1951,7 +2027,7 @@ const TodoListenManager = ({ session }) => {
                     <button
                       onClick={() => handleVorlageLoeschen(v.id)}
                       className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500"
-                      title="Vorlage löschen"
+                      title={t("move:todosManager.templates.delete")}
                     >
                       <Trash2 size={14} />
                     </button>

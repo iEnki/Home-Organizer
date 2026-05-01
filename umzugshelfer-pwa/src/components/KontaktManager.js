@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "../supabaseClient";
 import {
   UserPlus,
@@ -95,6 +96,7 @@ const getKontaktTypMetaInfo = (typ, theme) => {
 const kontaktTypenFürFilter = ["Alle", ...Object.keys(kontaktTypMeta)];
 
 const KontaktManager = ({ session }) => {
+  const { t } = useTranslation(["move"]);
   const userId = session?.user?.id;
   const { theme } = useTheme();
   const vcardImportRef = useRef(null); // Theme aus Context holen
@@ -321,7 +323,7 @@ const KontaktManager = ({ session }) => {
     return (
       <div className="text-center py-8">
         <p className="text-light-text-secondary dark:text-dark-text-secondary">
-          Lade Kontakte...
+          {t("move:contacts.loading")}
         </p>
       </div>
     );
@@ -336,7 +338,7 @@ const KontaktManager = ({ session }) => {
     <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
         <h2 className="text-2xl font-bold text-light-text-main dark:text-dark-text-main">
-          Kontakt-Manager
+          {t("move:contacts.title")}
         </h2>
         <div className="flex flex-wrap gap-2 self-start sm:self-center">
           <button
@@ -344,7 +346,7 @@ const KontaktManager = ({ session }) => {
             disabled={!userId}
             className="bg-primary-500 hover:bg-primary-600 text-white px-3 py-1.5 rounded-pill shadow-elevation-2 hover:opacity-90 flex items-center space-x-1.5 text-sm disabled:opacity-50"
           >
-            <UserPlus size={18} /> <span>Neuer Kontakt</span>
+            <UserPlus size={18} /> <span>{t("move:contacts.newContact")}</span>
           </button>
           <button
             onClick={handleVcardExport}
@@ -352,7 +354,7 @@ const KontaktManager = ({ session }) => {
             className="bg-light-border dark:bg-dark-border text-light-text-main dark:text-dark-text-main px-3 py-1.5 rounded-pill shadow-elevation-2 hover:opacity-80 flex items-center space-x-1.5 text-sm disabled:opacity-40"
             title="Alle Kontakte als .vcf exportieren"
           >
-            <Download size={18} /> <span>vCard Export</span>
+            <Download size={18} /> <span>{t("move:contacts.vcardExport")}</span>
           </button>
           <button
             onClick={() => vcardImportRef.current?.click()}
@@ -360,7 +362,7 @@ const KontaktManager = ({ session }) => {
             className="bg-light-border dark:bg-dark-border text-light-text-main dark:text-dark-text-main px-3 py-1.5 rounded-pill shadow-elevation-2 hover:opacity-80 flex items-center space-x-1.5 text-sm disabled:opacity-40"
             title=".vcf Datei importieren"
           >
-            <Upload size={18} /> <span>vCard Import</span>
+            <Upload size={18} /> <span>{t("move:contacts.vcardImport")}</span>
           </button>
           <input
             ref={vcardImportRef}
@@ -374,7 +376,7 @@ const KontaktManager = ({ session }) => {
       <div className="mb-4 relative">
         <input
           type="text"
-          placeholder="Suchen..."
+          placeholder={t("move:contacts.searchPlaceholder")}
           value={searchTerm}
           onChange={handleSearchChange}
           className="w-full pl-9 pr-3 py-2 border border-light-border dark:border-dark-border rounded-card-sm focus:ring-2 focus:ring-secondary-500 shadow-sm text-sm text-light-text-main dark:text-dark-text-main bg-white dark:bg-dark-border placeholder-light-text-secondary dark:placeholder-dark-text-secondary"
@@ -386,7 +388,7 @@ const KontaktManager = ({ session }) => {
       </div>
       <div className="mb-3 p-3 border border-light-border dark:border-dark-border rounded-card-sm bg-light-card-bg/80 dark:bg-canvas-2/50">
         <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-          Kartendienst für Adressen:
+          {t("move:contacts.mapService")}
         </label>
         <div className="flex flex-wrap gap-2">
           {["google", "apple", "osm"].map((service) => (
@@ -419,7 +421,7 @@ const KontaktManager = ({ session }) => {
                 : "bg-light-border text-light-text-secondary dark:bg-dark-border dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-gray-700"
             }`}
           >
-            {typOption}
+            {typOption === "Alle" ? t("move:contacts.all") : t(`move:contacts.types.${typOption}`, { defaultValue: typOption })}
           </button>
         ))}
       </div>
@@ -442,7 +444,7 @@ const KontaktManager = ({ session }) => {
               <XCircle size={20} />
             </button>
             <h3 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main mb-4">
-              {editingKontaktId ? "Kontakt bearbeiten" : "Neuer Kontakt"}
+              {editingKontaktId ? t("move:contacts.editTitle") : t("move:contacts.newTitle")}
             </h3>
             <form onSubmit={handleSubmit} className="space-y-3">
               <div>
@@ -450,7 +452,7 @@ const KontaktManager = ({ session }) => {
                   htmlFor="kontaktName"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Name
+                  {t("move:contacts.fields.name")}
                 </label>
                 <input
                   type="text"
@@ -466,7 +468,7 @@ const KontaktManager = ({ session }) => {
                   htmlFor="kontaktTyp"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Typ
+                  {t("move:contacts.fields.type")}
                 </label>
                 <select
                   id="kontaktTyp"
@@ -476,7 +478,7 @@ const KontaktManager = ({ session }) => {
                 >
                   {Object.keys(kontaktTypMeta).map((key) => (
                     <option key={key} value={key}>
-                      {key}
+                      {t(`move:contacts.types.${key}`, { defaultValue: key })}
                     </option>
                   ))}
                 </select>
@@ -486,7 +488,7 @@ const KontaktManager = ({ session }) => {
                   htmlFor="kontaktTelefon"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Telefon
+                  {t("move:contacts.fields.phone")}
                 </label>
                 <input
                   type="tel"
@@ -502,14 +504,14 @@ const KontaktManager = ({ session }) => {
                   htmlFor="kontaktAdresse"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Adresse (optional)
+                  {t("move:contacts.fields.address")}
                 </label>
                 <input
                   type="text"
                   id="kontaktAdresse"
                   value={adresse}
                   onChange={(e) => setAdresse(e.target.value)}
-                  placeholder="Straße Hausnummer, PLZ Ort"
+                  placeholder={t("move:contacts.fields.addressPlaceholder")}
                   className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm shadow-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 />
               </div>
@@ -518,7 +520,7 @@ const KontaktManager = ({ session }) => {
                   htmlFor="kontaktNotiz"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Notiz
+                  {t("move:contacts.fields.note")}
                 </label>
                 <textarea
                   id="kontaktNotiz"
@@ -530,7 +532,7 @@ const KontaktManager = ({ session }) => {
               </div>
               <div>
                 <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5">
-                  Bewertung (optional)
+                  {t("move:contacts.fields.rating")}
                 </label>
                 <div className="flex gap-1">
                   {[1, 2, 3, 4, 5].map((stern) => (
@@ -558,14 +560,14 @@ const KontaktManager = ({ session }) => {
                   htmlFor="kontaktBemerkungen"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Bemerkungen (optional)
+                  {t("move:contacts.fields.remarks")}
                 </label>
                 <textarea
                   id="kontaktBemerkungen"
                   value={bemerkungen}
                   onChange={(e) => setBemerkungen(e.target.value)}
                   rows="2"
-                  placeholder="z.B. Preis, Verfügbarkeit, Empfehlung..."
+                  placeholder={t("move:contacts.fields.remarksPlaceholder")}
                   className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm shadow-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 />
               </div>
@@ -575,13 +577,13 @@ const KontaktManager = ({ session }) => {
                   onClick={resetForm}
                   className="px-3 py-1.5 text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary bg-light-border dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-700 rounded-pill"
                 >
-                  Abbrechen
+                  {t("move:contacts.actions.cancel")}
                 </button>
                 <button
                   type="submit"
                   className="px-3 py-1.5 text-xs font-medium text-white bg-primary-500 hover:bg-primary-600 hover:opacity-90 rounded-pill shadow-elevation-2"
                 >
-                  {editingKontaktId ? "Speichern" : "Hinzufügen"}
+                  {editingKontaktId ? t("move:contacts.actions.save") : t("move:contacts.actions.add")}
                 </button>
               </div>
             </form>
@@ -595,8 +597,8 @@ const KontaktManager = ({ session }) => {
         userId && (
           <p className="text-center text-light-text-secondary dark:text-dark-text-secondary py-6 text-sm">
             {searchTerm || filterTyp !== "Alle"
-              ? "Keine Kontakte für Filter."
-              : "Keine Kontakte vorhanden."}
+              ? t("move:contacts.noContactsFilter")
+              : t("move:contacts.noContacts")}
           </p>
         )}
 
@@ -610,7 +612,7 @@ const KontaktManager = ({ session }) => {
               return (
                 <section key={typGruppe} className="mb-5">
                   <h3 className="text-md font-semibold text-light-text-main dark:text-dark-text-main mb-2 pb-1 border-b border-light-border dark:border-dark-border/50">
-                    {typGruppe}
+                    {t(`move:contacts.types.${typGruppe}`, { defaultValue: typGruppe })}
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {gefilterteUndGruppierteKontakte[typGruppe].map(
@@ -635,7 +637,7 @@ const KontaktManager = ({ session }) => {
                                 <p
                                   className={`text-xs font-medium px-1.5 py-0.5 rounded-full inline-block ${meta.color}`}
                                 >
-                                  {kontakt.typ}
+                                  {t(`move:contacts.types.${kontakt.typ}`, { defaultValue: kontakt.typ })}
                                 </p>
                               </div>
                             </div>

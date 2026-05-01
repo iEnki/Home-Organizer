@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "../supabaseClient";
 import {
   PlusCircle,
@@ -29,10 +30,15 @@ import {
 import { QRCodeCanvas } from "qrcode.react";
 import { Html5QrcodeScanner } from "html5-qrcode";
 import KiHomeAssistent from "./home/KiHomeAssistent";
+import KategorieCombobox from "./ui/KategorieCombobox";
 import { PDFDownloadLink } from "@react-pdf/renderer";
 import PacklistePDF from "./PacklistePDF";
 import useViewport from "../hooks/useViewport";
 import { applyPacklisteAiActions } from "../utils/assistantDomainAdapters";
+const debugLog = (...args) => {
+  if (process.env.NODE_ENV !== "production") console.log(...args);
+};
+
 
 const gegenstandIconsDark = {
   buch: <Book size={14} className="mr-1.5 text-gray-400" />,
@@ -2268,6 +2274,8 @@ const RaumInventar = ({ kisten }) => {
 };
 
 const PacklisteManager = ({ session }) => {
+  const { t } = useTranslation(["move", "common"]);
+  void t;
   const { isMobile } = useViewport();
   const [userId, setUserId] = useState(null);
   const [kisten, setKisten] = useState([]);
@@ -2319,15 +2327,15 @@ const PacklisteManager = ({ session }) => {
   // eslint-disable-next-line no-unused-vars
   const handleKiExtractedItems = async (items) => {
     if (!userId) {
-      alert("Bitte einloggen, um Items zu speichern.");
+      alert(t("move:packlistManager.alerts.loginItems"));
       return;
     }
     if (!items || items.length === 0) {
-      alert("Keine Items von KI extrahiert.");
+      alert(t("move:packlistManager.alerts.noAiItems"));
       return;
     }
 
-    console.log("Verarbeite von KI extrahierte Items:", items);
+    debugLog("Verarbeite von KI extrahierte Items:", items);
     setLoading(true);
     let kistenWurdenGeaendert = false;
     const kistenIdCache = {};
@@ -2474,7 +2482,7 @@ const PacklisteManager = ({ session }) => {
           "Fehler in der Schleife beim Verarbeiten eines KI-Items:",
           loopError
         );
-        alert(`Ein Fehler ist aufgetreten: ${loopError.message}`);
+        alert(t("move:packlistManager.alerts.error", { message: loopError.message }));
       }
     }
 
@@ -2482,17 +2490,17 @@ const PacklisteManager = ({ session }) => {
       await fetchKisten();
     }
     setLoading(false);
-    alert("KI-Anweisungen wurden verarbeitet!");
+    alert(t("move:packlistManager.alerts.processed"));
     setShowKiAssistent(false);
   };
 
   const handleKiAssistantResult = async (items) => {
     if (!userId) {
-      alert("Bitte einloggen, um Items zu speichern.");
+      alert(t("move:packlistManager.alerts.loginItems"));
       return;
     }
     if (!items || items.length === 0) {
-      alert("Keine Items von KI extrahiert.");
+      alert(t("move:packlistManager.alerts.noAiItems"));
       return;
     }
 
@@ -2505,11 +2513,11 @@ const PacklisteManager = ({ session }) => {
         suggestCategory: schlageKategorieVor,
       });
       await fetchKisten();
-      alert("KI-Anweisungen wurden verarbeitet!");
+      alert(t("move:packlistManager.alerts.processed"));
       setShowKiAssistent(false);
     } catch (error) {
       console.error("Fehler beim Verarbeiten der KI-Anweisungen:", error);
-      alert(`Ein Fehler ist aufgetreten: ${error.message}`);
+      alert(t("move:packlistManager.alerts.error", { message: error.message }));
     } finally {
       setLoading(false);
     }
@@ -2531,7 +2539,7 @@ const PacklisteManager = ({ session }) => {
       downloadLink.click();
       document.body.removeChild(downloadLink);
     } else {
-      alert("QR-Code Canvas nicht gefunden oder keine Kiste aktiv.");
+      alert(t("move:packlistManager.alerts.qrCanvasMissing"));
     }
   };
 
@@ -2662,8 +2670,8 @@ const PacklisteManager = ({ session }) => {
     if (!userId || !neueKisteName.trim()) {
       alert(
         !userId
-          ? "Bitte einloggen."
-          : "Name des Packstücks darf nicht leer sein."
+          ? t("move:packlistManager.alerts.loginRequired")
+          : t("move:packlistManager.alerts.boxNameRequired")
       );
       return;
     }
@@ -2709,7 +2717,7 @@ const PacklisteManager = ({ session }) => {
         else if (updatedKiste) setAktuelleKiste(updatedKiste);
       }
     } catch (err) {
-      alert(`Fehler beim Speichern: ${err.message}`);
+      alert(t("move:packlistManager.alerts.saveError", { message: err.message }));
     }
   };
   const schlageKategorieVor = (beschreibung) => {
@@ -2741,15 +2749,15 @@ const PacklisteManager = ({ session }) => {
   };
   const handleSaveGegenstand = async () => {
     if (!neuerGegenstandBeschreibung.trim()) {
-      alert("Beschreibung des Gegenstands darf nicht leer sein.");
+      alert(t("move:packlistManager.alerts.itemDescriptionRequired"));
       return;
     }
     if (!aktuelleKiste || !aktuelleKiste.id) {
-      alert("Keine Kiste ausgewählt.");
+      alert(t("move:packlistManager.alerts.noBoxSelected"));
       return;
     }
     if (!userId) {
-      alert("Bitte einloggen.");
+      alert(t("move:packlistManager.alerts.loginRequired"));
       return;
     }
     const finaleKategorie = showManuelleKategorieInput
@@ -2780,7 +2788,7 @@ const PacklisteManager = ({ session }) => {
       fetchKisten();
       resetGegenstandForm();
     } catch (err) {
-      alert(`Fehler beim Speichern des Gegenstands: ${err.message}`);
+      alert(t("move:packlistManager.alerts.itemSaveError", { message: err.message }));
     }
   };
   const handleToggleAusgepakt = async (gegenstandId, aktuellerWert) => {
@@ -2818,7 +2826,7 @@ const PacklisteManager = ({ session }) => {
   };
 
   const handleDeleteGegenstand = async (gegenstandId) => {
-    if (!window.confirm("Gegenstand löschen?")) return;
+    if (!window.confirm(t("move:packlistManager.alerts.deleteItemConfirm"))) return;
     if (!userId) return;
     try {
       const { error } = await supabase
@@ -2838,11 +2846,11 @@ const PacklisteManager = ({ session }) => {
       if (kisteMitNeuemInhalt) setAktuelleKiste(kisteMitNeuemInhalt);
       fetchKisten();
     } catch (err) {
-      alert(`Fehler beim Löschen des Gegenstands: ${err.message}`);
+      alert(t("move:packlistManager.alerts.itemDeleteError", { message: err.message }));
     }
   };
   const handleDeleteKiste = async (kisteId) => {
-    if (!window.confirm("Packstück und Inhalt (inkl. Foto) löschen?")) return;
+    if (!window.confirm(t("move:packlistManager.alerts.deleteBoxConfirm"))) return;
     if (!userId) return;
     try {
       const kisteToDelete = kisten.find((k) => k.id === kisteId);
@@ -2867,7 +2875,7 @@ const PacklisteManager = ({ session }) => {
       setShowPhotoSectionInModal(false);
       setShowQrCodeSectionInModal(false);
     } catch (err) {
-      alert(`Fehler beim Löschen: ${err.message}`);
+      alert(t("move:packlistManager.alerts.deleteError", { message: err.message }));
     }
   };
   const handleFileChange = (event) => {
@@ -2904,7 +2912,7 @@ const PacklisteManager = ({ session }) => {
         console.error("Supabase Storage Upload Fehler:", uploadError);
         throw uploadError;
       }
-      console.log("Foto erfolgreich in Storage hochgeladen:", filePath);
+      debugLog("Foto erfolgreich in Storage hochgeladen:", filePath);
 
       const { data: updateData, error: updateError } = await supabase
         .from("pack_kisten")
@@ -2916,7 +2924,7 @@ const PacklisteManager = ({ session }) => {
         console.error("Supabase DB Update Fehler (foto_pfad):", updateError);
         throw updateError;
       }
-      console.log("Datenbank-Update für foto_pfad erfolgreich:", updateData);
+      debugLog("Datenbank-Update für foto_pfad erfolgreich:", updateData);
 
       const resolvedFotoUrl = await resolveKisteFotoUrl(filePath);
       setCurrentKistePhotoUrl(resolvedFotoUrl);
@@ -2934,17 +2942,17 @@ const PacklisteManager = ({ session }) => {
       );
       setSelectedFile(null);
       setPhotoPreviewUrl(null);
-      alert("Foto erfolgreich hochgeladen!");
+      alert(t("move:packlistManager.alerts.photoUploaded"));
     } catch (error) {
       console.error("Fehler beim Foto-Upload:", error);
-      alert(`Fehler beim Foto-Upload: ${error.message}`);
+      alert(t("move:packlistManager.alerts.photoUploadError", { message: error.message }));
     } finally {
       setUploadingPhoto(false);
     }
   };
   const handleRemovePhoto = async () => {
     if (!aktuelleKiste?.foto_pfad || !aktuelleKiste?.id || !userId) return;
-    if (!window.confirm("Foto wirklich entfernen?")) return;
+    if (!window.confirm(t("move:packlistManager.alerts.removePhotoConfirm"))) return;
     setUploadingPhoto(true);
     try {
       await supabase.storage
@@ -2963,10 +2971,10 @@ const PacklisteManager = ({ session }) => {
             : k
         )
       );
-      alert("Foto entfernt.");
+      alert(t("move:packlistManager.alerts.photoRemoved"));
     } catch (error) {
       console.error("Fehler beim Entfernen des Fotos:", error);
-      alert(`Fehler beim Entfernen des Fotos: ${error.message}`);
+      alert(t("move:packlistManager.alerts.photoRemoveError", { message: error.message }));
     } finally {
       setUploadingPhoto(false);
     }
@@ -2975,7 +2983,7 @@ const PacklisteManager = ({ session }) => {
     let html5QrcodeScanner;
     if (showScanner && userId) {
       const onScanSuccess = (decodedText, decodedResult) => {
-        console.log(`Code matched = ${decodedText}`, decodedResult);
+        debugLog(`Code matched = ${decodedText}`, decodedResult);
         if (
           html5QrcodeScanner &&
           html5QrcodeScanner.getState &&
@@ -2991,7 +2999,7 @@ const PacklisteManager = ({ session }) => {
               if (gefundeneKiste) {
                 handleOpenKisteModal(gefundeneKiste);
               } else {
-                alert("Kiste mit diesem QR-Code nicht gefunden.");
+                alert(t("move:packlistManager.alerts.boxByQrNotFound"));
               }
             })
             .catch((err) =>
@@ -3013,7 +3021,7 @@ const PacklisteManager = ({ session }) => {
           if (gefundeneKiste) {
             handleOpenKisteModal(gefundeneKiste);
           } else {
-            alert("Kiste mit diesem QR-Code nicht gefunden.");
+            alert(t("move:packlistManager.alerts.boxByQrNotFound"));
           }
         }
       };
@@ -3030,7 +3038,7 @@ const PacklisteManager = ({ session }) => {
       } catch (e) {
         console.error("Fehler beim Initialisieren des Html5QrcodeScanners:", e);
         setShowScanner(false);
-        alert("QR-Code-Scanner konnte nicht initialisiert werden.");
+        alert(t("move:packlistManager.alerts.scannerInitFailed"));
       }
     }
     return () => {
@@ -3059,11 +3067,11 @@ const PacklisteManager = ({ session }) => {
         }
       }
     };
-  }, [showScanner, userId, kisten, handleOpenKisteModal]);
+  }, [showScanner, userId, kisten, handleOpenKisteModal, t]);
   if (loading)
     return (
       <div className="text-center py-8">
-        <p className="text-dark-text-secondary">Lade Packliste...</p>
+        <p className="text-dark-text-secondary">{t("move:packlistManager.loading")}</p>
       </div>
     );
   if (error)
@@ -3143,7 +3151,7 @@ const PacklisteManager = ({ session }) => {
                       setShowKisteModal(true);
                     }}
                     className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 dark:hover:text-primary-400"
-                    title="QR-Code anzeigen"
+                    title={t("move:packlistManager.showQr")}
                   >
                     <QrCode size={18} />
                   </button>
@@ -3153,7 +3161,7 @@ const PacklisteManager = ({ session }) => {
                       handleOpenKisteModal(kiste);
                     }}
                     className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 dark:hover:text-primary-400"
-                    title="Bearbeiten"
+                    title={t("move:packlistManager.edit")}
                   >
                     <Edit3 size={16} />
                   </button>
@@ -3175,19 +3183,19 @@ const PacklisteManager = ({ session }) => {
             <th scope="col" className="px-2 py-2 w-10"></th>{" "}
             {/* Spalte für Aufklapp-Button */}
             <th scope="col" className="px-4 py-2">
-              Name
+              {t("move:packlistManager.columns.name")}
             </th>
             <th scope="col" className="px-4 py-2">
-              Zielraum
+              {t("move:packlistManager.columns.targetRoom")}
             </th>
             <th scope="col" className="px-4 py-2 text-center">
-              Inhalt (Anzahl)
+              {t("move:packlistManager.columns.contentCount")}
             </th>
             <th scope="col" className="px-4 py-2 text-center">
-              Foto
+              {t("move:packlistManager.columns.photo")}
             </th>
             <th scope="col" className="px-4 py-2 text-center">
-              Aktionen
+              {t("move:packlistManager.columns.actions")}
             </th>
           </tr>
         </thead>
@@ -3203,7 +3211,7 @@ const PacklisteManager = ({ session }) => {
                     <button
                       onClick={() => toggleKisteAufklappen(kiste.id)}
                       className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-accent-purple dark:hover:text-dark-accent-purple"
-                      title={isAufgeklappt ? "Einklappen" : "Aufklappen"}
+                      title={isAufgeklappt ? t("move:packlistManager.collapse") : t("move:packlistManager.expand")}
                     >
                       {isAufgeklappt ? (
                         <ChevronUp size={16} />
@@ -3266,21 +3274,21 @@ const PacklisteManager = ({ session }) => {
                           setShowKisteModal(true);
                         }}
                         className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 dark:hover:text-primary-400"
-                        title="QR-Code anzeigen"
+                        title={t("move:packlistManager.showQr")}
                       >
                         <QrCode size={16} />
                       </button>
                       <button
                         onClick={() => handleOpenKisteModal(kiste)}
                         className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 dark:hover:text-primary-400"
-                        title="Bearbeiten"
+                        title={t("move:packlistManager.edit")}
                       >
                         <Edit3 size={16} />
                       </button>
                       <button
                         onClick={() => handleDeleteKiste(kiste.id)}
                         className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-danger-color"
-                        title="Löschen"
+                        title={t("move:packlistManager.delete")}
                       >
                         <Trash2 size={16} />
                       </button>
@@ -3328,7 +3336,7 @@ const PacklisteManager = ({ session }) => {
       </div>
       {gefilterteKisten.length === 0 && (
         <p className="text-center text-light-text-secondary dark:text-dark-text-secondary py-4">
-          Keine Packstücke entsprechen den Filterkriterien.
+          {t("move:packlistManager.emptyFiltered")}
         </p>
       )}
     </div>
@@ -3338,7 +3346,7 @@ const PacklisteManager = ({ session }) => {
     <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
         <h2 className="text-2xl font-bold text-light-text-main dark:text-dark-text-main">
-          Intelligente Packliste
+          {t("move:packlistManager.heading")}
         </h2>
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -3348,7 +3356,7 @@ const PacklisteManager = ({ session }) => {
                 ? "bg-primary-500 text-white dark:bg-primary-600 dark:text-dark-bg"
                 : "bg-light-border text-light-text-secondary dark:bg-dark-border dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-gray-700"
             }`}
-            title="Kachelansicht"
+            title={t("move:packlistManager.tileView")}
           >
             <LayoutGrid size={18} />
           </button>
@@ -3360,7 +3368,7 @@ const PacklisteManager = ({ session }) => {
                   ? "bg-primary-500 text-white dark:bg-primary-600 dark:text-dark-bg"
                   : "bg-light-border text-light-text-secondary dark:bg-dark-border dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-gray-700"
               }`}
-              title="Listenansicht"
+              title={t("move:packlistManager.listView")}
             >
               <List size={18} />
             </button>
@@ -3376,13 +3384,13 @@ const PacklisteManager = ({ session }) => {
             onClick={handleAddKiste}
             className="flex items-center bg-primary-500 hover:bg-primary-600 text-white dark:bg-primary-600 dark:text-dark-bg px-3 py-1.5 rounded-pill transition-colors shadow-sm text-sm"
           >
-            <PlusCircle size={18} className="mr-1.5" /> Neues Packstück
+            <PlusCircle size={18} className="mr-1.5" /> {t("move:packlistManager.newBox")}
           </button>
           <button
             onClick={() => setShowKiAssistent(!showKiAssistent)}
             disabled={!userId}
             className="flex items-center bg-purple-500 hover:bg-purple-600 dark:bg-purple-600 dark:hover:bg-purple-700 text-white px-3 py-1.5 rounded-pill transition-colors shadow-sm text-sm disabled:opacity-50"
-            title="Packliste mit KI-Assistent füllen"
+            title={t("move:packlistManager.fillWithAi")}
           >
             <BrainCircuit size={18} className="mr-1.5" /> KI Assistent
           </button>
@@ -3391,13 +3399,13 @@ const PacklisteManager = ({ session }) => {
               document={<PacklistePDF kisten={kisten} />}
               fileName={`packliste_${new Date().toISOString().slice(0, 10)}.pdf`}
               className="flex items-center bg-light-border dark:bg-dark-border text-light-text-main dark:text-dark-text-main px-3 py-1.5 rounded-pill hover:opacity-80 transition-colors shadow-sm text-sm"
-              title="Packliste als PDF herunterladen"
+              title={t("move:packlistManager.pdfTitle")}
             >
               {({ loading: pdfLoading }) =>
                 pdfLoading ? (
-                  <span className="flex items-center"><Download size={18} className="mr-1.5" /> PDF wird erstellt...</span>
+                  <span className="flex items-center"><Download size={18} className="mr-1.5" /> {t("move:packlistManager.pdfLoading")}</span>
                 ) : (
-                  <span className="flex items-center"><Download size={18} className="mr-1.5" /> PDF Export</span>
+                  <span className="flex items-center"><Download size={18} className="mr-1.5" /> {t("move:packlistManager.pdfExport")}</span>
                 )
               }
             </PDFDownloadLink>
@@ -3415,7 +3423,7 @@ const PacklisteManager = ({ session }) => {
       <div className="relative mb-4">
         <input
           type="text"
-          placeholder="Suchen (Name, Kiste, Raum, QR, Kategorie)..."
+          placeholder={t("move:packlistManager.searchPlaceholder")}
           value={searchTerm}
           onChange={handleSearchChange}
           className="w-full pl-9 pr-3 py-2 border border-light-border dark:border-dark-border rounded-card-sm focus:ring-2 focus:ring-secondary-500 shadow-sm text-sm text-light-text-main dark:text-dark-text-main bg-white dark:bg-dark-border placeholder-light-text-secondary dark:placeholder-dark-text-secondary"
@@ -3442,14 +3450,14 @@ const PacklisteManager = ({ session }) => {
               className="mt-4 w-full bg-danger-color text-white px-3 py-1.5 rounded-pill hover:opacity-90 text-sm"
             >
               {" "}
-              Schließen{" "}
+              {t("move:packlistManager.close")}{" "}
             </button>{" "}
           </div>{" "}
         </div>
       )}
       {gefilterteKisten.length === 0 && !loading && (
         <p className="text-center text-dark-text-secondary py-6 text-sm">
-          Keine Packstücke. Erstelle dein erstes!
+          {t("move:packlistManager.empty")}
         </p>
       )}
 
@@ -3461,8 +3469,8 @@ const PacklisteManager = ({ session }) => {
       )}
 
       {showKisteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-start py-4 px-3 z-50 overflow-y-auto">
-          <div className="bg-light-card-bg dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-lg relative my-auto border border-light-border dark:border-dark-border">
+        <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
+          <div className="mobile-modal-dialog bg-light-card-bg dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-lg overflow-y-auto relative border border-light-border dark:border-dark-border">
             <button
               onClick={() => {
                 setShowKisteModal(false);
@@ -3478,8 +3486,8 @@ const PacklisteManager = ({ session }) => {
             </button>
             <h3 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main mb-3">
               {aktuelleKiste?.id
-                ? `Packstück: ${neueKisteName || aktuelleKiste.name}`
-                : "Neues Packstück"}
+                ? t("move:packlistManager.editBoxTitle", { name: neueKisteName || aktuelleKiste.name })
+                : t("move:packlistManager.newBox")}
             </h3>
             <form
               onSubmit={(e) => {
@@ -3493,7 +3501,7 @@ const PacklisteManager = ({ session }) => {
                   htmlFor="kisteNameModal"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Name
+                  {t("move:packlistManager.columns.name")}
                 </label>
                 <input
                   type="text"
@@ -3509,29 +3517,25 @@ const PacklisteManager = ({ session }) => {
                   htmlFor="kisteRaumModal"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Zielraum
+                  {t("move:packlistManager.targetRoom")}
                 </label>
-                <input
-                  type="text"
+                <KategorieCombobox
                   id="kisteRaumModal"
                   value={neueKisteRaum}
-                  onChange={(e) => setNeueKisteRaum(e.target.value)}
-                  placeholder="z.B. Wohnzimmer"
-                  list="raumVorschlaegeDatalist"
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500 dark:focus:border-primary-500"
+                  onChange={setNeueKisteRaum}
+                  options={raumVorschlaege}
+                  placeholder={t("move:packlistManager.targetRoomPlaceholder")}
+                  className="border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500 dark:focus:border-primary-500 outline-none border"
+                  optionLabel={(opt) => t(`move:packlistManager.rooms.${opt}`, { defaultValue: opt })}
+                  dropdownPortal
                 />
-                <datalist id="raumVorschlaegeDatalist">
-                  {raumVorschlaege.map((raum) => (
-                    <option key={raum} value={raum} />
-                  ))}
-                </datalist>
               </div>
               <div className="flex justify-end">
                 <button
                   type="submit"
                   className="px-3 py-1.5 text-xs text-white dark:text-dark-bg bg-primary-500 hover:bg-primary-600 dark:bg-primary-600 rounded-pill"
                 >
-                  {aktuelleKiste?.id ? "Details speichern" : "Erstellen"}
+                  {aktuelleKiste?.id ? t("move:packlistManager.saveDetails") : t("common:actions.create")}
                 </button>
               </div>
             </form>
@@ -3565,7 +3569,7 @@ const PacklisteManager = ({ session }) => {
                         <div className="mb-2">
                           <div
                             className="cursor-pointer"
-                            title="Foto vergrößern"
+                            title={t("move:packlistManager.photoZoom")}
                             onClick={() => {
                               setLightboxImageUrl(
                                 photoPreviewUrl || currentKistePhotoUrl
@@ -3698,14 +3702,14 @@ const PacklisteManager = ({ session }) => {
                         htmlFor="gegenstandBeschreibung"
                         className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                       >
-                        Neuer Gegenstand
+                        {t("move:packlistManager.newItemLabel")}
                       </label>
                       <input
                         type="text"
                         id="gegenstandBeschreibung"
                         value={neuerGegenstandBeschreibung}
                         onChange={handleGegenstandBeschreibungChange}
-                        placeholder="Beschreibung"
+                        placeholder={t("move:packlistManager.itemDescription")}
                         required
                         className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-xs bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500 dark:focus:border-primary-500"
                       />
@@ -3715,7 +3719,7 @@ const PacklisteManager = ({ session }) => {
                         htmlFor="gegenstandMenge"
                         className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                       >
-                        Menge
+                        {t("move:packlistManager.quantity")}
                       </label>
                       <input
                         type="number"
@@ -3732,7 +3736,7 @@ const PacklisteManager = ({ session }) => {
                     </div>{" "}
                     <button
                       type="submit"
-                      title="Hinzufügen"
+                      title={t("move:packlistManager.newItem")}
                       className="p-2 text-white dark:text-dark-bg bg-primary-500 hover:bg-primary-600 dark:bg-primary-600 rounded-pill self-end"
                     >
                       <PackagePlus size={18} />
@@ -3741,11 +3745,11 @@ const PacklisteManager = ({ session }) => {
                   {!showManuelleKategorieInput && vorgeschlageneKategorie && (
                     <div
                       className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1 p-1.5 bg-light-border dark:bg-dark-border rounded-card-sm flex justify-between items-center"
-                      title={`Automatisch als ${vorgeschlageneKategorie} erkannt`}
+                      title={t("move:packlistManager.autoCategoryTitle", { category: vorgeschlageneKategorie })}
                     >
                       {" "}
                       <span>
-                        Vorschlag:{" "}
+                        {t("move:packlistManager.suggestion")} {" "}
                         <span className="font-semibold text-primary-500">
                           {vorgeschlageneKategorie}
                         </span>
@@ -3758,7 +3762,7 @@ const PacklisteManager = ({ session }) => {
                         }}
                         className="ml-2 text-xs text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300"
                       >
-                        Ändern
+                        {t("move:packlistManager.change")}
                       </button>{" "}
                     </div>
                   )}{" "}
@@ -3768,22 +3772,18 @@ const PacklisteManager = ({ session }) => {
                         htmlFor="manuelleKategorie"
                         className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                       >
-                        Kategorie manuell
+                        {t("move:packlistManager.manualCategory")}
                       </label>
-                      <input
-                        type="text"
+                      <KategorieCombobox
                         id="manuelleKategorie"
                         value={manuelleKategorie}
-                        onChange={(e) => setManuelleKategorie(e.target.value)}
-                        list="kategorieVorschlaege"
-                        placeholder="Eigene Kategorie oder Auswahl"
-                        className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-xs bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500 dark:focus:border-primary-500"
+                        onChange={setManuelleKategorie}
+                        options={standardKategorien}
+                        placeholder={t("move:packlistManager.manualCategoryPlaceholder")}
+                        className="border-light-border dark:border-dark-border rounded-card-sm text-xs bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500 dark:focus:border-primary-500 outline-none border"
+                        optionLabel={(opt) => t(`move:packlistManager.itemCategories.${opt}`, { defaultValue: opt })}
+                        dropdownPortal
                       />{" "}
-                      <datalist id="kategorieVorschlaege">
-                        {standardKategorien.map((kat) => (
-                          <option key={kat} value={kat} />
-                        ))}
-                      </datalist>{" "}
                     </div>
                   )}{" "}
                 </form>{" "}
@@ -3836,7 +3836,7 @@ const PacklisteManager = ({ session }) => {
                         <button
                           onClick={() => handleDeleteGegenstand(item.id)}
                           className="p-0.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-danger-color"
-                          title="Löschen"
+                          title={t("move:packlistManager.delete")}
                         >
                           <Trash2 size={14} />
                         </button>
@@ -3867,10 +3867,10 @@ const PacklisteManager = ({ session }) => {
                   resetFotoForm();
                   setShowPhotoSectionInModal(false);
                   setShowQrCodeSectionInModal(false);
-                }}
+              }}
                 className="px-3 py-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary bg-light-border dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-700 rounded-card-sm"
               >
-                Schließen
+                {t("move:packlistManager.close")}
               </button>
             </div>
           </div>
@@ -3885,7 +3885,7 @@ const PacklisteManager = ({ session }) => {
       {/* Foto Lightbox Modal */}
       {showPhotoLightbox && lightboxImageUrl && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-md flex justify-center items-center p-4 z-[60]"
+          className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-md flex justify-center items-center p-4 z-[120]"
           onClick={() => setShowPhotoLightbox(false)}
         >
           <div
@@ -3900,7 +3900,7 @@ const PacklisteManager = ({ session }) => {
             <button
               onClick={() => setShowPhotoLightbox(false)}
               className="absolute -top-2 -right-2 bg-light-card-bg dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main rounded-full p-1 shadow-elevation-2 hover:bg-danger-color hover:text-white"
-              title="Schließen"
+              title={t("move:packlistManager.close")}
             >
               <XCircle size={28} />
             </button>

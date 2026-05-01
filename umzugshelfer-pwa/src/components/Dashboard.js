@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "../supabaseClient";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, animate, useMotionValue, useTransform } from "framer-motion";
@@ -53,17 +54,17 @@ ChartJS.register(ArcElement, Tooltip, Legend);
 // ── Umzugsfortschritt-Phasen ──────────────────────────────────────────────────
 const PHASEN = [
   {
-    name: "Vor dem Umzug",
+    nameKey: "dashboard.phases.before",
     kategorien: ["Verträge", "Organisation", "Finanzen", "Dokumente", "Ausmisten", "Wohnung"],
     farbe: { bar: "bg-blue-500", text: "text-blue-600 dark:text-blue-400", badge: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
   },
   {
-    name: "Umzugstag",
+    nameKey: "dashboard.phases.movingDay",
     kategorien: ["Umzugstag", "Transport"],
     farbe: { bar: "bg-orange-500", text: "text-orange-600 dark:text-orange-400", badge: "bg-orange-500/10 text-orange-600 dark:text-orange-400" },
   },
   {
-    name: "Nach dem Umzug",
+    nameKey: "dashboard.phases.after",
     kategorien: ["Behörde", "Versorger", "Gesundheit", "Sonstiges", "Fahrzeuge", "Küche", "Bad", "Kinderzimmer"],
     farbe: { bar: "bg-primary-500", text: "text-primary-600 dark:text-primary-400", badge: "bg-primary-500/10 text-primary-600 dark:text-primary-400" },
   },
@@ -107,11 +108,11 @@ const defaultChartColorsLight = [
 ];
 
 // ── Hilfsfunktionen ───────────────────────────────────────────────────────────
-const getGreeting = () => {
+const getGreeting = (t) => {
   const h = new Date().getHours();
-  if (h < 12) return "Guten Morgen";
-  if (h < 18) return "Guten Tag";
-  return "Guten Abend";
+  if (h < 12) return t("move:dashboard.greeting.morning");
+  if (h < 18) return t("move:dashboard.greeting.day");
+  return t("move:dashboard.greeting.evening");
 };
 
 const formatDate = (dateString) => {
@@ -125,13 +126,14 @@ const formatDate = (dateString) => {
 
 /** Heldenbegrüßung mit Nutzername */
 const HeroHeader = ({ session }) => {
+  const { t } = useTranslation(["move"]);
   const name = session?.user?.user_metadata?.full_name
     || session?.user?.email?.split("@")[0]
-    || "Nutzer";
+    || t("move:dashboard.defaultUser");
   return (
     <div className="pt-2 pb-1">
       <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5">
-        {getGreeting()},
+        {getGreeting(t)},
       </p>
       <h1 className="text-3xl lg:text-4xl font-bold tracking-tight
                      text-light-text-main dark:text-dark-text-main">
@@ -147,6 +149,7 @@ const UmzugSummaryCard = ({
   kistenGepacktCount, kistenGesamtCount,
   packlisteItemsCount, todosErledigt, todosGesamt,
 }) => {
+  const { t } = useTranslation(["move"]);
   const todosProzent = todosGesamt > 0 ? Math.round((todosErledigt / todosGesamt) * 100) : 0;
   return (
     <div className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-2
@@ -156,7 +159,7 @@ const UmzugSummaryCard = ({
       <div className="flex items-end justify-between mb-4">
         <div>
           <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider mb-1">
-            Gesamtfortschritt
+            {t("move:dashboard.totalProgress")}
           </p>
           <p className="text-5xl font-bold text-light-text-main dark:text-dark-text-main leading-none">
             <AnimatedNumber value={gesamtFortschrittProzent} />
@@ -189,7 +192,7 @@ const UmzugSummaryCard = ({
                         border border-light-border/50 dark:border-dark-border/50">
           <div className="flex items-center gap-2 mb-1">
             <Archive size={14} className="text-primary-500" />
-            <span className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">Kisten</span>
+            <span className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">{t("move:dashboard.boxes")}</span>
           </div>
           <p className="text-xl font-bold text-light-text-main dark:text-dark-text-main">
             <AnimatedNumber value={kistenGepacktCount} />
@@ -201,13 +204,13 @@ const UmzugSummaryCard = ({
                         border border-light-border/50 dark:border-dark-border/50">
           <div className="flex items-center gap-2 mb-1">
             <ListChecks size={14} className="text-secondary-500" />
-            <span className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">To-Dos</span>
+            <span className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">{t("move:dashboard.todos")}</span>
           </div>
           <p className="text-xl font-bold text-light-text-main dark:text-dark-text-main">
             <AnimatedNumber value={todosErledigt} />
             <span className="text-sm font-normal text-light-text-secondary dark:text-dark-text-secondary">/<AnimatedNumber value={todosGesamt} /></span>
           </p>
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary"><AnimatedNumber value={todosProzent} />% erledigt</p>
+          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary"><AnimatedNumber value={todosProzent} />{t("move:dashboard.donePercent")}</p>
         </div>
       </div>
     </div>
@@ -216,13 +219,14 @@ const UmzugSummaryCard = ({
 
 /** Schnellzugriff-Kacheln: 6 Haupt-Features im 2×3-Grid */
 const KategorienCard = ({ navigate }) => {
+  const { t } = useTranslation(["move"]);
   const features = [
-    { name: "Packliste",   icon: Archive,      path: "/packliste",      color: "text-violet-400",  bg: "bg-violet-500/10" },
-    { name: "Budget",      icon: DollarSign,   path: "/budget",         color: "text-primary-400", bg: "bg-primary-500/10" },
-    { name: "To-Dos",      icon: ListChecks,   path: "/todos",          color: "text-secondary-400",bg: "bg-secondary-500/10" },
-    { name: "Kontakte",    icon: Users,        path: "/kontakte",       color: "text-pink-400",    bg: "bg-pink-500/10" },
-    { name: "Dokumente",   icon: FolderOpen,   path: "/dokumente",      color: "text-amber-400",   bg: "bg-amber-500/10" },
-    { name: "Zeitstrahl",  icon: CalendarClock,path: "/zeitstrahl",     color: "text-sky-400",     bg: "bg-sky-500/10" },
+    { nameKey: "dashboard.navItems.packingList", icon: Archive,      path: "/packliste",  color: "text-violet-400",   bg: "bg-violet-500/10" },
+    { nameKey: "dashboard.navItems.budget",      icon: DollarSign,   path: "/budget",     color: "text-primary-400",  bg: "bg-primary-500/10" },
+    { nameKey: "dashboard.navItems.todos",       icon: ListChecks,   path: "/todos",      color: "text-secondary-400",bg: "bg-secondary-500/10" },
+    { nameKey: "dashboard.navItems.contacts",    icon: Users,        path: "/kontakte",   color: "text-pink-400",     bg: "bg-pink-500/10" },
+    { nameKey: "dashboard.navItems.documents",   icon: FolderOpen,   path: "/dokumente",  color: "text-amber-400",    bg: "bg-amber-500/10" },
+    { nameKey: "dashboard.navItems.timeline",    icon: CalendarClock,path: "/zeitstrahl", color: "text-sky-400",      bg: "bg-sky-500/10" },
   ];
 
   return (
@@ -231,7 +235,7 @@ const KategorienCard = ({ navigate }) => {
                     hover:shadow-elevation-3 transition-shadow duration-300">
       <h3 className="text-sm font-semibold text-light-text-secondary dark:text-dark-text-secondary
                      uppercase tracking-wider mb-4">
-        Schnellzugriff
+        {t("move:dashboard.quickAccess")}
       </h3>
       <motion.div
         className="grid grid-cols-3 gap-3"
@@ -259,7 +263,7 @@ const KategorienCard = ({ navigate }) => {
               </div>
               <span className="text-xs font-medium text-light-text-main dark:text-dark-text-main
                                text-center leading-tight">
-                {f.name}
+                {t(`move:${f.nameKey}`)}
               </span>
             </motion.button>
           );
@@ -271,6 +275,7 @@ const KategorienCard = ({ navigate }) => {
 
 /** Aktive Aufgaben: Die 3 wichtigsten offenen Todos */
 const AktiveAufgabenCard = ({ todos }) => {
+  const { t } = useTranslation(["move"]);
   const heute = new Date().toISOString().split("T")[0];
   return (
     <div className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-2
@@ -279,13 +284,13 @@ const AktiveAufgabenCard = ({ todos }) => {
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-light-text-secondary dark:text-dark-text-secondary
                        uppercase tracking-wider">
-          Wichtige Aufgaben
+          {t("move:dashboard.importantTasks")}
         </h3>
         <Link
           to="/todos"
           className="text-xs text-primary-500 hover:text-primary-400 font-medium transition-colors"
         >
-          Alle →
+          {t("move:dashboard.showAll")}
         </Link>
       </div>
 
@@ -329,11 +334,11 @@ const AktiveAufgabenCard = ({ todos }) => {
                     </p>
                     <div className="flex items-center gap-2 mt-0.5">
                       {isHoch && (
-                        <span className="text-xs font-medium text-accent-danger">Hohe Priorität</span>
+                        <span className="text-xs font-medium text-accent-danger">{t("move:dashboard.priorityHigh")}</span>
                       )}
                       {todo.faelligkeitsdatum && (
                         <span className={`text-xs ${isHeute ? "text-accent-danger font-medium" : "text-light-text-secondary dark:text-dark-text-secondary"}`}>
-                          {isHeute ? "⚡ Heute fällig" : formatDate(todo.faelligkeitsdatum)}
+                          {isHeute ? t("move:dashboard.dueToday") : formatDate(todo.faelligkeitsdatum)}
                         </span>
                       )}
                     </div>
@@ -352,7 +357,7 @@ const AktiveAufgabenCard = ({ todos }) => {
         >
           <CheckCircle size={28} className="text-primary-500 mb-2 opacity-60" />
           <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-            Alle wichtigen Aufgaben erledigt!
+            {t("move:dashboard.noImportantTasks")}
           </p>
         </motion.div>
       )}
@@ -362,6 +367,7 @@ const AktiveAufgabenCard = ({ todos }) => {
 
 /** Kontakte-Übersicht + Budget-Mini-Bar */
 const KontakteCard = ({ kontakteCount, budgetAusgegeben, budgetGesamt, kostenNachKategorie, theme, doughnutOptions }) => {
+  const { t } = useTranslation(["move"]);
   const budgetProzent = budgetGesamt > 0 ? (budgetAusgegeben / budgetGesamt) * 100 : 0;
   const budgetKritisch = budgetGesamt > 0 && budgetProzent >= 80;
 
@@ -387,21 +393,21 @@ const KontakteCard = ({ kontakteCount, budgetAusgegeben, budgetGesamt, kostenNac
               <Users size={16} className="text-violet-400" />
             </div>
             <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-              Kontakte
+              {t("move:dashboard.contacts")}
             </span>
           </div>
           <p className="text-4xl font-bold text-light-text-main dark:text-dark-text-main mb-1">
             <AnimatedNumber value={kontakteCount} />
           </p>
           <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-3">
-            Gespeicherte Kontakte
+            {t("move:dashboard.savedContacts")}
           </p>
           <Link
             to="/kontakte"
             className="inline-flex items-center gap-1.5 text-xs font-medium
                        text-primary-500 hover:text-primary-400 transition-colors"
           >
-            Alle anzeigen →
+            {t("move:dashboard.showAllContacts")}
           </Link>
         </div>
 
@@ -417,7 +423,7 @@ const KontakteCard = ({ kontakteCount, budgetAusgegeben, budgetGesamt, kostenNac
               </motion.span>
             </div>
             <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-              Budget
+              {t("move:dashboard.budget")}
             </span>
           </div>
           <p className="text-sm font-bold text-light-text-main dark:text-dark-text-main mb-1">
@@ -435,7 +441,7 @@ const KontakteCard = ({ kontakteCount, budgetAusgegeben, budgetGesamt, kostenNac
             animate={budgetKritisch ? { opacity: [1, 0.6, 1] } : {}}
             transition={budgetKritisch ? { repeat: Infinity, duration: 1.5 } : {}}
           >
-            <AnimatedNumber value={Math.round(budgetProzent)} />% verbraucht
+            <AnimatedNumber value={Math.round(budgetProzent)} />{t("move:dashboard.usedPercent")}
             {budgetKritisch && " ⚠️"}
           </motion.p>
 
@@ -446,7 +452,7 @@ const KontakteCard = ({ kontakteCount, budgetAusgegeben, budgetGesamt, kostenNac
             </div>
           ) : (
             <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-              Noch keine Ausgaben erfasst.
+              {t("move:dashboard.noExpenses")}
             </p>
           )}
         </div>
@@ -457,6 +463,7 @@ const KontakteCard = ({ kontakteCount, budgetAusgegeben, budgetGesamt, kostenNac
 
 // ── Haupt-Komponente ───────────────────────────────────────────────────────────
 const Dashboard = ({ session }) => {
+  const { t } = useTranslation(["move"]);
   const userId   = session?.user?.id;
   const { theme } = useTheme();
   const navigate  = useNavigate();
@@ -508,7 +515,8 @@ const Dashboard = ({ session }) => {
       const { data: todosDataRes } = await supabase
         .from("todo_aufgaben")
         .select("erledigt, beschreibung, faelligkeitsdatum, prioritaet, kategorie")
-        .eq("user_id", userId);
+        .eq("user_id", userId)
+        .in("app_modus", ["umzug", "beides"]);
       setTodosGesamt(todosDataRes?.length || 0);
       setTodosErledigt(todosDataRes?.filter((t) => t.erledigt).length || 0);
       setPhasenTodos(todosDataRes || []);
@@ -538,9 +546,12 @@ const Dashboard = ({ session }) => {
       const { data: deadlineTodos } = await supabase
         .from("todo_aufgaben")
         .select("id, beschreibung, faelligkeitsdatum")
-        .eq("user_id", userId).eq("erledigt", false)
+        .eq("user_id", userId)
+        .eq("erledigt", false)
+        .in("app_modus", ["umzug", "beides"])
         .gte("faelligkeitsdatum", heuteString)
-        .order("faelligkeitsdatum", { ascending: true }).limit(3);
+        .order("faelligkeitsdatum", { ascending: true })
+        .limit(3);
       const { data: deadlineBudgetsFromDB } = await supabase
         .from("budget_posten")
         .select("id, beschreibung, datum, betrag, teilzahlungen:budget_teilzahlungen(betrag_teilzahlung)")
@@ -601,11 +612,11 @@ const Dashboard = ({ session }) => {
       }
     } catch (err) {
       console.error("Fehler Dashboard:", err);
-      setError("Dashboard nicht geladen.");
+      setError(t("move:dashboard.error"));
     } finally {
       setLoading(false);
     }
-  }, [userId, theme]);
+  }, [userId, theme, t]);
 
   useEffect(() => {
     if (userId) fetchData();
@@ -672,7 +683,7 @@ const Dashboard = ({ session }) => {
         <div className="text-center space-y-3">
           <div className="w-10 h-10 rounded-full border-2 border-primary-500 border-t-transparent animate-spin mx-auto" />
           <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-            Lade Dashboard…
+            {t("move:dashboard.loading")}
           </p>
         </div>
       </div>
@@ -688,7 +699,7 @@ const Dashboard = ({ session }) => {
           onClick={fetchData}
           className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-pill text-sm font-medium transition-colors"
         >
-          Erneut versuchen
+          {t("move:dashboard.retry")}
         </button>
       </div>
     );
@@ -716,11 +727,11 @@ const Dashboard = ({ session }) => {
               <Zap size={18} className="shrink-0" />
             </motion.span>
             <div>
-              <p className="font-semibold text-sm">Wichtige Hinweise</p>
+              <p className="font-semibold text-sm">{t("move:dashboard.hinweise")}</p>
               <ul className="list-disc list-inside text-xs mt-0.5 space-y-0.5">
-                {budgetWarnungAktiv && <li>Budget zu {budgetProzent.toFixed(0)}% ausgeschöpft!</li>}
+                {budgetWarnungAktiv && <li>{t("move:dashboard.budgetWarning", { pct: budgetProzent.toFixed(0) })}</li>}
                 {aufgabenHeuteFaellig > 0 && (
-                  <li>{aufgabenHeuteFaellig} Aufgabe{aufgabenHeuteFaellig > 1 ? "n sind" : " ist"} heute fällig!</li>
+                  <li>{t("move:dashboard.tasksDue", { count: aufgabenHeuteFaellig })}</li>
                 )}
               </ul>
             </div>
@@ -736,10 +747,10 @@ const Dashboard = ({ session }) => {
               <CheckCircle size={20} className="text-primary-500 shrink-0" />
               <div>
                 <p className="font-semibold text-sm text-light-text-main dark:text-dark-text-main">
-                  Umzug abgeschlossen! 🎉
+                  {t("move:dashboard.moveComplete")}
                 </p>
                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                  Möchtest du in den Home Organizer wechseln?
+                  {t("move:dashboard.moveCompleteHint")}
                 </p>
               </div>
             </div>
@@ -749,7 +760,7 @@ const Dashboard = ({ session }) => {
                 className="px-3 py-1.5 text-xs border border-primary-500/30 rounded-pill
                            text-primary-500 hover:bg-primary-500/10 transition-colors"
               >
-                Nicht jetzt
+                {t("move:dashboard.notNow")}
               </button>
               <button
                 onClick={() => setZeigeAbschlussModal(true)}
@@ -757,7 +768,7 @@ const Dashboard = ({ session }) => {
                            bg-primary-500 hover:bg-primary-600 text-white rounded-pill font-medium transition-colors"
               >
                 <Home size={12} />
-                Wechseln
+                {t("move:dashboard.switchMode")}
               </button>
             </div>
           </div>
@@ -809,7 +820,7 @@ const Dashboard = ({ session }) => {
                         border border-light-border dark:border-dark-border p-5 lg:p-6 mb-6">
           <h2 className="text-sm font-semibold text-light-text-secondary dark:text-dark-text-secondary
                          uppercase tracking-wider mb-4">
-            Umzugsfortschritt nach Phase
+            {t("move:dashboard.progressByPhase")}
           </h2>
           <div className="space-y-4">
             {PHASEN.map((phase) => {
@@ -818,10 +829,10 @@ const Dashboard = ({ session }) => {
               const erledigt   = phaseTodos.filter((t) => t.erledigt).length;
               const prozent    = gesamt > 0 ? Math.round((erledigt / gesamt) * 100) : 0;
               return (
-                <div key={phase.name}>
+                <div key={phase.nameKey}>
                   <div className="flex justify-between items-center mb-1.5">
                     <div className="flex items-center gap-2">
-                      <span className={`text-xs font-semibold ${phase.farbe.text}`}>{phase.name}</span>
+                      <span className={`text-xs font-semibold ${phase.farbe.text}`}>{t(`move:${phase.nameKey}`)}</span>
                       <motion.span
                         className={`text-xs px-1.5 py-0.5 rounded ${phase.farbe.badge}`}
                         animate={prozent === 100 ? { scale: [1, 1.15, 1] } : {}}
@@ -840,9 +851,9 @@ const Dashboard = ({ session }) => {
             })}
           </div>
           <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-3">
-            Nur kategorisierte Aufgaben werden gezählt.{" "}
+            {t("move:dashboard.onlyCategorized")}{" "}
             <Link to="/todos" className="text-primary-500 hover:text-primary-400 underline">
-              Alle To-Dos anzeigen
+              {t("move:dashboard.showAllTasks")}
             </Link>
           </p>
         </div>

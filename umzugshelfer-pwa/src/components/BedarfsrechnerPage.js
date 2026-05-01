@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import BedarfsrechnerFarbe from "./BedarfsrechnerFarbe";
 import BedarfsrechnerBoden from "./BedarfsrechnerBoden";
 import BedarfsrechnerTapete from "./BedarfsrechnerTapete";
@@ -15,22 +16,23 @@ import {
 import { useTheme } from "../contexts/ThemeContext";
 
 const BedarfsrechnerPage = ({ session }) => {
+  const { t } = useTranslation(["move"]);
   const [activeCalculator, setActiveCalculator] = useState("farbe");
   const { theme } = useTheme();
 
   const calculatorTypes = [
     {
       id: "farbe",
-      name: "Wandfarbe",
+      nameKey: "calculator.types.wallPaint",
       Icon: PaintBucket,
       lightColor: "text-primary-500",
       darkColor: "text-primary-400",
-      lightBgActive: "bg-green-100", // Beispiel für aktiven hellen Hintergrund
+      lightBgActive: "bg-green-100",
       darkBgActive: "bg-canvas-1",
     },
     {
       id: "boden",
-      name: "Bodenbelag",
+      nameKey: "calculator.types.flooring",
       Icon: Layers,
       lightColor: "text-light-accent-purple",
       darkColor: "text-dark-accent-purple",
@@ -39,16 +41,16 @@ const BedarfsrechnerPage = ({ session }) => {
     },
     {
       id: "tapete",
-      name: "Tapete",
+      nameKey: "calculator.types.wallpaper",
       Icon: Wallpaper,
-      lightColor: "text-blue-600", // Helleres Blau für Light Mode
+      lightColor: "text-blue-600",
       darkColor: "text-blue-400",
       lightBgActive: "bg-blue-100",
       darkBgActive: "bg-canvas-1",
     },
     {
       id: "daemmstoff",
-      name: "Dämmstoff",
+      nameKey: "calculator.types.insulation",
       Icon: ThermometerSnowflake,
       lightColor: "text-sky-600",
       darkColor: "text-sky-400",
@@ -57,7 +59,7 @@ const BedarfsrechnerPage = ({ session }) => {
     },
     {
       id: "szenarien",
-      name: "Szenarien",
+      nameKey: "calculator.types.scenarios",
       Icon: BookmarkCheck,
       lightColor: "text-amber-600",
       darkColor: "text-amber-400",
@@ -91,7 +93,7 @@ const BedarfsrechnerPage = ({ session }) => {
             size={30}
             className="mr-3 text-primary-500 dark:text-primary-400"
           />
-          Bedarfsrechner (Material)
+          {t("move:calculator.title")}
         </h1>
         <div className="flex flex-wrap gap-2 border border-light-border dark:border-dark-border p-1 rounded-card justify-center">
           {calculatorTypes.map((calc) => {
@@ -117,7 +119,7 @@ const BedarfsrechnerPage = ({ session }) => {
                   className={`mr-2 ${isActive ? textColor : ""}`}
                 />{" "}
                 {/* Icon Farbe auch anpassen wenn aktiv */}
-                {calc.name}
+                {t(`move:${calc.nameKey}`)}
               </button>
             );
           })}

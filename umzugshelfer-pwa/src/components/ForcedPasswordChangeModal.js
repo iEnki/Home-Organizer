@@ -48,7 +48,7 @@ const ForcedPasswordChangeModal = ({ open, onCompleted }) => {
     setSuccess("");
 
     if (password !== confirmPassword) {
-      setError("Die Passwoerter stimmen nicht ueberein.");
+      setError("Die Passwörter stimmen nicht überein.");
       return;
     }
 

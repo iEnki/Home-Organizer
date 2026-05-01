@@ -1,13 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  Bookmark,
-  Check,
-  Pencil,
-  Save,
-  Star,
-  Trash2,
-  X,
-} from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { Bookmark, Check, Pencil, Save, Star, Trash2, X } from "lucide-react";
 
 const INPUT_CLS =
   "w-full rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-2 text-sm text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500";
@@ -26,6 +19,7 @@ function ViewRow({
   onSetDefault,
   onClearDefault,
   busy,
+  t,
 }) {
   return (
     <div className="space-y-3 rounded-card border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 p-3">
@@ -41,7 +35,7 @@ function ViewRow({
               value={renameValue}
               onChange={(event) => onRenameValueChange(event.target.value)}
               className={INPUT_CLS}
-              placeholder="Ansichtsname"
+              placeholder={t("budget:savedViews.namePlaceholder")}
             />
           ) : (
             <div className="flex flex-wrap items-center gap-2">
@@ -51,19 +45,21 @@ function ViewRow({
               {view.is_default && (
                 <span className="inline-flex items-center gap-1 rounded-pill border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300">
                   <Star size={10} />
-                  Standard
+                  {t("budget:savedViews.default")}
                 </span>
               )}
               {isActive && (
                 <span className="inline-flex items-center gap-1 rounded-pill border border-primary-500/20 bg-primary-500/10 px-2 py-0.5 text-[11px] text-primary-500">
                   <Check size={10} />
-                  Aktiv
+                  {t("common:status.active")}
                 </span>
               )}
             </div>
           )}
           <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
-            Zuletzt aktualisiert {new Date(view.updated_at || view.created_at || Date.now()).toLocaleString("de-AT")}
+            {t("budget:savedViews.updatedAt", {
+              date: new Date(view.updated_at || view.created_at || Date.now()).toLocaleString("de-AT"),
+            })}
           </p>
         </div>
       </div>
@@ -74,14 +70,14 @@ function ViewRow({
           disabled={busy}
           className="rounded-pill bg-primary-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-600 disabled:opacity-50"
         >
-          Laden
+          {t("budget:savedViews.load")}
         </button>
         <button
           onClick={() => onOverwrite(view)}
           disabled={busy}
           className="rounded-pill border border-light-border dark:border-dark-border px-3 py-1.5 text-xs text-light-text-main dark:text-dark-text-main hover:bg-light-hover dark:hover:bg-canvas-3 disabled:opacity-50"
         >
-          Überschreiben
+          {t("budget:savedViews.overwrite")}
         </button>
         {renameId === view.id ? (
           <>
@@ -90,14 +86,14 @@ function ViewRow({
               disabled={busy}
               className="rounded-pill border border-light-border dark:border-dark-border px-3 py-1.5 text-xs text-light-text-main dark:text-dark-text-main hover:bg-light-hover dark:hover:bg-canvas-3 disabled:opacity-50"
             >
-              Speichern
+              {t("common:actions.save")}
             </button>
             <button
               onClick={() => onStartRename(null, "")}
               disabled={busy}
               className="rounded-pill border border-light-border dark:border-dark-border px-3 py-1.5 text-xs text-light-text-main dark:text-dark-text-main hover:bg-light-hover dark:hover:bg-canvas-3 disabled:opacity-50"
             >
-              Abbrechen
+              {t("common:actions.cancel")}
             </button>
           </>
         ) : (
@@ -108,7 +104,7 @@ function ViewRow({
           >
             <span className="inline-flex items-center gap-1">
               <Pencil size={12} />
-              Umbenennen
+              {t("budget:savedViews.rename")}
             </span>
           </button>
         )}
@@ -117,7 +113,7 @@ function ViewRow({
           disabled={busy}
           className="rounded-pill border border-light-border dark:border-dark-border px-3 py-1.5 text-xs text-light-text-main dark:text-dark-text-main hover:bg-light-hover dark:hover:bg-canvas-3 disabled:opacity-50"
         >
-          {view.is_default ? "Standard entfernen" : "Als Standard setzen"}
+          {view.is_default ? t("budget:savedViews.clearDefault") : t("budget:savedViews.setDefault")}
         </button>
         <button
           onClick={() => onDelete(view)}
@@ -126,7 +122,7 @@ function ViewRow({
         >
           <span className="inline-flex items-center gap-1">
             <Trash2 size={12} />
-            Löschen
+            {t("common:actions.delete")}
           </span>
         </button>
       </div>
@@ -149,6 +145,7 @@ export default function BudgetSavedViewsSheet({
   onClearDefaultView,
   saving = false,
 }) {
+  const { t } = useTranslation(["budget", "common"]);
   const [newName, setNewName] = useState("");
   const [renameId, setRenameId] = useState(null);
   const [renameValue, setRenameValue] = useState("");
@@ -198,7 +195,7 @@ export default function BudgetSavedViewsSheet({
     try {
       await action();
     } catch (err) {
-      setError(err?.message || "Aktion fehlgeschlagen.");
+      setError(err?.message || t("budget:savedViews.actionFailed"));
     } finally {
       setBusyViewId(null);
     }
@@ -216,7 +213,7 @@ export default function BudgetSavedViewsSheet({
       <button
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
-        aria-label="Ansichten schliessen"
+        aria-label={t("budget:savedViews.close")}
       />
 
       <section
@@ -227,13 +224,13 @@ export default function BudgetSavedViewsSheet({
           <div className="flex items-center gap-2">
             <Bookmark size={16} className="text-primary-500" />
             <h2 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-              Gespeicherte Ansichten
+              {t("budget:savedViews.title")}
             </h2>
           </div>
           <button
             onClick={onClose}
             className="flex h-9 w-9 items-center justify-center rounded-card-sm text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
-            aria-label="Ansichten schliessen"
+            aria-label={t("budget:savedViews.close")}
           >
             <X size={18} />
           </button>
@@ -242,16 +239,16 @@ export default function BudgetSavedViewsSheet({
         <div className="space-y-4 p-4">
           <div className="rounded-card border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 p-4">
             <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-              Aktuelle Filter speichern
+              {t("budget:savedViews.saveCurrentTitle")}
             </h3>
             <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
-              Die aktuelle Budget-Übersicht wird als neue persönliche Ansicht gespeichert.
+              {t("budget:savedViews.saveCurrentDescription")}
             </p>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
               <input
                 value={newName}
                 onChange={(event) => setNewName(event.target.value)}
-                placeholder="z. B. Privat monatlich"
+                placeholder={t("budget:savedViews.newNamePlaceholder")}
                 className={`${INPUT_CLS} sm:flex-1`}
               />
               <button
@@ -260,7 +257,7 @@ export default function BudgetSavedViewsSheet({
                 className="inline-flex items-center justify-center gap-2 rounded-pill bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
               >
                 <Save size={14} />
-                Speichern
+                {t("common:actions.save")}
               </button>
             </div>
           </div>
@@ -273,7 +270,7 @@ export default function BudgetSavedViewsSheet({
 
           {sortedViews.length === 0 ? (
             <div className="rounded-card border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 py-10 text-center text-sm text-light-text-secondary dark:text-dark-text-secondary">
-              Noch keine gespeicherten Budget-Ansichten vorhanden.
+              {t("budget:savedViews.empty")}
             </div>
           ) : (
             <div className="space-y-3">
@@ -290,12 +287,8 @@ export default function BudgetSavedViewsSheet({
                     setRenameValue(value);
                     setError("");
                   }}
-                  onApply={(currentView) =>
-                    handleAsync(currentView.id, () => onApplyView?.(currentView))
-                  }
-                  onOverwrite={(currentView) =>
-                    handleAsync(currentView.id, () => onOverwriteView?.(currentView.id))
-                  }
+                  onApply={(currentView) => handleAsync(currentView.id, () => onApplyView?.(currentView))}
+                  onOverwrite={(currentView) => handleAsync(currentView.id, () => onOverwriteView?.(currentView.id))}
                   onRename={(currentView) =>
                     handleAsync(currentView.id, async () => {
                       await onRenameView?.(currentView.id, renameValue);
@@ -303,16 +296,11 @@ export default function BudgetSavedViewsSheet({
                       setRenameValue("");
                     })
                   }
-                  onDelete={(currentView) =>
-                    handleAsync(currentView.id, () => onDeleteView?.(currentView.id))
-                  }
-                  onSetDefault={(currentView) =>
-                    handleAsync(currentView.id, () => onSetDefaultView?.(currentView.id))
-                  }
-                  onClearDefault={(currentView) =>
-                    handleAsync(currentView.id, () => onClearDefaultView?.(currentView.id))
-                  }
+                  onDelete={(currentView) => handleAsync(currentView.id, () => onDeleteView?.(currentView.id))}
+                  onSetDefault={(currentView) => handleAsync(currentView.id, () => onSetDefaultView?.(currentView.id))}
+                  onClearDefault={(currentView) => handleAsync(currentView.id, () => onClearDefaultView?.(currentView.id))}
                   busy={saving || busyViewId === view.id}
+                  t={t}
                 />
               ))}
             </div>

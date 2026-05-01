@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ChevronDown,
   Edit2,
@@ -13,6 +14,7 @@ import {
   getScopeKontoHinweis,
 } from "../../../utils/budgetAccounts";
 import BudgetAccountBadge from "./BudgetAccountBadge";
+import { getHomeBudgetCategoryLabel } from "../../../utils/homeBudgetCategories";
 
 const DETAIL_LABEL_CLS =
   "text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary";
@@ -38,7 +40,9 @@ export default function BudgetEntryRow({
   onPreviewInvoice,
   onOpenInvoicePositions,
 }) {
+  const { t, i18n } = useTranslation(["budget", "common"]);
   const meta = useMemo(() => getBudgetEntryMeta(entry, ctx), [entry, ctx]);
+  const categoryLabel = getHomeBudgetCategoryLabel(entry?.kategorie, i18n.language);
   const hatRechnungsPositionen = useMemo(
     () => meta.verknuepfteRechnungen.some((rechnung) => Boolean(rechnung?.rechnung_id)),
     [meta.verknuepfteRechnungen],
@@ -99,7 +103,7 @@ export default function BudgetEntryRow({
                 </div>
 
                 <div className="mt-1 flex items-center gap-2 text-xs text-light-text-secondary dark:text-dark-text-secondary flex-wrap">
-                  <span>{entry.kategorie || "Ohne Kategorie"}</span>
+                  <span>{categoryLabel}</span>
                   <span>{meta.anzeigeDatumLabel}</span>
                   {meta.bewohner && <span>{getBewohnerDisplayName(meta.bewohner)}</span>}
                   {meta.konto?.name && <BudgetAccountBadge konto={meta.konto} compact />}
@@ -126,7 +130,7 @@ export default function BudgetEntryRow({
         <div className="border-t border-light-border dark:border-dark-border px-3 pb-3 pt-3 space-y-3">
           {meta.datumIstProjiziert && (
             <div className="rounded-card-sm border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-              Dieses Datum ist fuer den gewaehlten Zukunftsmonat projiziert. Bearbeiten und Loeschen
+              Dieses Datum ist für den gewählten Zukunftsmonat projiziert. Bearbeiten und Löschen
               wirken auf die zugrunde liegende Vorlage.
             </div>
           )}
@@ -143,8 +147,8 @@ export default function BudgetEntryRow({
               </p>
             </div>
             <div>
-              <p className={DETAIL_LABEL_CLS}>Kategorie</p>
-              <p className={DETAIL_VALUE_CLS}>{entry.kategorie || "Ohne Kategorie"}</p>
+              <p className={DETAIL_LABEL_CLS}>{t("budget:category")}</p>
+              <p className={DETAIL_VALUE_CLS}>{categoryLabel}</p>
             </div>
             <div>
               <p className={DETAIL_LABEL_CLS}>Datum</p>
@@ -217,7 +221,7 @@ export default function BudgetEntryRow({
                 <p className={DETAIL_VALUE_CLS}>
                   {meta.hatRechnung
                     ? `${meta.verknuepfteRechnungen.length} verknuepft`
-                    : "Keine Rechnung verknuepft"}
+                    : t("budget:invoice.noneLinked", { defaultValue: "No invoice linked" })}
                 </p>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">

@@ -1,9 +1,11 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "../supabaseClient";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { LogIn, Mail, KeyRound, XCircle } from "lucide-react";
 
 const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
+  const { t } = useTranslation(["auth", "common"]);
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState("");
@@ -42,20 +44,16 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
         if (onLoginSuccess) onLoginSuccess();
         navigate(redirectPath);
       } else {
-        setError(
-          "Login fehlgeschlagen. Bitte überprüfe deine E-Mail-Bestätigung oder versuche es erneut."
-        );
+        setError(t("auth:login.errors.generic"));
       }
     } catch (err) {
       console.error("Login-Fehler:", err);
       if (err.message.includes("Invalid login credentials")) {
-        setError("Ungültige E-Mail oder Passwort.");
+        setError(t("auth:login.errors.invalidCredentials"));
       } else if (err.message.includes("Email not confirmed")) {
-        setError(
-          "Bitte bestätige zuerst deine E-Mail-Adresse. Überprüfe dein Postfach (auch Spam)."
-        );
+        setError(t("auth:login.errors.emailNotConfirmed"));
       } else {
-        setError(err.message || "Ein Fehler ist beim Login aufgetreten.");
+        setError(err.message || t("auth:login.errors.unknown"));
       }
     } finally {
       setLoading(false);
@@ -69,7 +67,7 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
     setForgotPasswordLoading(true);
 
     if (!forgotPasswordEmail) {
-      setForgotPasswordError("Bitte gib deine E-Mail-Adresse ein.");
+      setForgotPasswordError(t("auth:login.errors.emailRequired"));
       setForgotPasswordLoading(false);
       return;
     }
@@ -85,9 +83,7 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
       if (resetError) {
         throw resetError;
       }
-      setForgotPasswordMessage(
-        "Wenn ein Konto mit dieser E-Mail existiert, wurde ein Link zum Zurücksetzen des Passworts gesendet."
-      );
+      setForgotPasswordMessage(t("auth:reset.success"));
       setForgotPasswordEmail("");
     } catch (err) {
       const resetErrorMessage = `${err?.message || ""}`.toLowerCase();
@@ -95,15 +91,12 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
         resetErrorMessage.includes("redirect") &&
         resetErrorMessage.includes("not allowed")
       ) {
-        setForgotPasswordError(
-          "Die Redirect-URL ist in Supabase nicht freigegeben. Bitte trage die URL in Authentication > URL Configuration > Redirect URLs ein."
-        );
+        setForgotPasswordError(t("auth:reset.errors.redirectNotAllowed"));
         return;
       }
       console.error("Passwort zurücksetzen Fehler:", err);
       setForgotPasswordError(
-        err.message ||
-          "Ein Fehler ist beim Zurücksetzen des Passworts aufgetreten."
+        err.message || t("auth:reset.errors.unknown")
       );
     } finally {
       setForgotPasswordLoading(false);
@@ -117,7 +110,7 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
           <button
             onClick={closeLoginModal}
             className="absolute top-3 right-3 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main z-10"
-            aria-label="Login-Modal schließen"
+            aria-label={t("common:actions.close")}
           >
             <XCircle size={24} />
           </button>
@@ -125,7 +118,7 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
         <div>
           <LogIn className="mx-auto h-12 w-auto text-light-accent-green dark:text-dark-accent-green" />
           <h2 className="mt-6 text-center text-3xl font-extrabold text-light-text-main dark:text-dark-text-main">
-            Anmelden
+            {t("auth:login.title")}
           </h2>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleLogin}>
@@ -150,7 +143,7 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
                 autoComplete="email"
                 required
                 className="appearance-none rounded-md relative block w-full px-3 py-3 pl-10 border border-light-border dark:border-dark-border placeholder-light-text-secondary dark:placeholder-dark-text-secondary text-light-text-main dark:text-dark-text-main bg-white dark:bg-dark-border focus:outline-none focus:ring-light-accent-green dark:focus:ring-dark-accent-green focus:border-light-accent-green dark:focus:border-dark-accent-green sm:text-sm"
-                placeholder="E-Mail-Adresse"
+                placeholder={t("auth:login.emailLabel")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={loading}
@@ -170,7 +163,7 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
                 autoComplete="current-password"
                 required
                 className="appearance-none rounded-md relative block w-full px-3 py-3 pl-10 border border-light-border dark:border-dark-border placeholder-light-text-secondary dark:placeholder-dark-text-secondary text-light-text-main dark:text-dark-text-main bg-white dark:bg-dark-border focus:outline-none focus:ring-light-accent-green dark:focus:ring-dark-accent-green focus:border-light-accent-green dark:focus:border-dark-accent-green sm:text-sm"
-                placeholder="Passwort"
+                placeholder={t("auth:login.passwordLabel")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
@@ -184,7 +177,7 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
               disabled={loading}
               className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white dark:text-dark-bg bg-light-accent-green dark:bg-dark-accent-green hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-light-accent-green dark:focus:ring-dark-accent-green focus:ring-offset-light-card-bg dark:focus:ring-offset-dark-card-bg disabled:opacity-50"
             >
-              {loading ? "Melde an..." : "Anmelden"}
+              {loading ? t("auth:login.submitting") : t("auth:login.submit")}
             </button>
           </div>
         </form>
@@ -197,7 +190,7 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
             }
             className="font-medium text-light-accent-green dark:text-dark-accent-green hover:opacity-80"
           >
-            Noch kein Konto? Hier registrieren
+            {t("auth:login.noAccount")} {t("auth:login.registerHere")}
           </Link>
           <button
             type="button"
@@ -209,7 +202,7 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
             }}
             className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary hover:text-light-accent-green dark:hover:text-dark-accent-green mt-2 mx-auto"
           >
-            Passwort vergessen?
+            {t("auth:login.forgotPassword")}
           </button>
         </div>
       </div>
@@ -226,7 +219,7 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
               <XCircle size={20} />
             </button>
             <h3 className="text-xl font-semibold text-light-text-main dark:text-dark-text-main mb-4">
-              Passwort zurücksetzen
+              {t("auth:reset.title")}
             </h3>
             {forgotPasswordMessage && (
               <p className="text-sm text-light-accent-green bg-light-accent-green/20 dark:text-dark-accent-green dark:bg-dark-accent-green/20 p-3 rounded-md mb-4">
@@ -245,7 +238,7 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
                     htmlFor="forgot-email"
                     className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1"
                   >
-                    E-Mail-Adresse
+                    {t("auth:reset.emailLabel")}
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -261,7 +254,7 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
                       autoComplete="email"
                       required
                       className="appearance-none rounded-md relative block w-full px-3 py-3 pl-10 border border-light-border dark:border-dark-border placeholder-light-text-secondary dark:placeholder-dark-text-secondary text-light-text-main dark:text-dark-text-main bg-white dark:bg-dark-border focus:outline-none focus:ring-light-accent-green dark:focus:ring-dark-accent-green focus:border-light-accent-green dark:focus:border-dark-accent-green sm:text-sm"
-                      placeholder="Deine E-Mail-Adresse"
+                      placeholder={t("auth:reset.emailPlaceholder")}
                       value={forgotPasswordEmail}
                       onChange={(e) => setForgotPasswordEmail(e.target.value)}
                       disabled={forgotPasswordLoading}
@@ -275,8 +268,8 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
                     className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white dark:text-dark-bg bg-light-accent-green dark:bg-dark-accent-green hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-light-accent-green dark:focus:ring-dark-accent-green focus:ring-offset-light-card-bg dark:focus:ring-offset-dark-card-bg disabled:opacity-50"
                   >
                     {forgotPasswordLoading
-                      ? "Sende..."
-                      : "Link zum Zurücksetzen senden"}
+                      ? t("auth:reset.submitting")
+                      : t("auth:reset.submit")}
                   </button>
                 </div>
               </form>
@@ -286,7 +279,7 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
               onClick={() => setShowForgotPasswordModal(false)}
               className="mt-4 w-full text-center text-sm text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
             >
-              Zurück zum Login-Formular
+              {t("auth:reset.back")}
             </button>
           </div>
         </div>

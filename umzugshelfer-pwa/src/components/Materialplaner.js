@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import {
@@ -73,6 +74,7 @@ const statusOptionsList = [
 const formStatusOptions = statusOptionsList.filter((s) => s !== "Alle Status"); // Für Formular
 
 const parseMengeEinheitValue = (rawValue) => {
+
   if (!rawValue || typeof rawValue !== "string") {
     return { menge: 1, einheit: "" };
   }
@@ -111,6 +113,7 @@ const formatMengeEinheitValue = (menge, einheit) => {
 };
 
 const Materialplaner = ({ session }) => {
+  const { t } = useTranslation(["move", "common"]);
   const location = useLocation();
   const navigate = useNavigate();
   const [userId, setUserId] = useState(null);
@@ -129,6 +132,19 @@ const Materialplaner = ({ session }) => {
   const [error, setError] = useState(null);
   const [editingPostenId, setEditingPostenId] = useState(null);
   const [showFormModal, setShowFormModal] = useState(false);
+
+  const materialRoomLabel = useCallback(
+    (value) => t(`move:materialsPlanner.rooms.${value}`, { defaultValue: value }),
+    [t]
+  );
+  const materialCategoryLabel = useCallback(
+    (value) => t(`move:materialsPlanner.categories.${value}`, { defaultValue: value }),
+    [t]
+  );
+  const materialStatusLabel = useCallback(
+    (value) => t(`move:materialsPlanner.statuses.${value}`, { defaultValue: value }),
+    [t]
+  );
   const [viewMode, setViewMode] = useState("kacheln");
 
   const [alleMaterialien, setAlleMaterialien] = useState([]);
@@ -259,7 +275,7 @@ const Materialplaner = ({ session }) => {
 
     if (aktuellGefiltertePosten.length > 0) {
       const groups = aktuellGefiltertePosten.reduce((acc, currentPosten) => {
-        const groupKey = currentPosten.raum || "Ohne Raum/Bereich";
+        const groupKey = currentPosten.raum || t("move:materialsPlanner.noRoom");
         if (!acc[groupKey]) {
           acc[groupKey] = [];
         }
@@ -277,7 +293,7 @@ const Materialplaner = ({ session }) => {
     } else {
       setFilteredAndGroupedPosten({});
     }
-  }, [posten, filterText, filterKategorie, filterStatus]);
+  }, [posten, filterText, filterKategorie, filterStatus, t]);
 
   useEffect(() => {
     if (location.state?.neuerPosten) {
@@ -369,13 +385,13 @@ const Materialplaner = ({ session }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!userId || !beschreibung) {
-      alert(!userId ? "Bitte einloggen." : "Beschreibung ist ein Pflichtfeld.");
+      alert(!userId ? t("move:materialsPlanner.alerts.loginRequired") : t("move:materialsPlanner.alerts.descriptionRequired"));
       return;
     }
 
     const parsedFormMenge = parseFloat(formMenge);
     if (!Number.isFinite(parsedFormMenge) || parsedFormMenge <= 0) {
-      alert("Bitte eine gültige Menge größer 0 eingeben.");
+      alert(t("move:materialsPlanner.alerts.validQuantity"));
       return;
     }
 
@@ -407,12 +423,12 @@ const Materialplaner = ({ session }) => {
       fetchRenovierungsposten();
       resetForm();
     } catch (err) {
-      alert(`Fehler: ${err.message}`);
+      alert(t("move:materialsPlanner.alerts.genericError", { message: err.message }));
     }
   };
 
   const handleDeletePosten = async (id) => {
-    if (!userId || !window.confirm("Posten löschen?")) return;
+    if (!userId || !window.confirm(t("move:materialsPlanner.alerts.confirmDelete"))) return;
     try {
       const { error } = await supabase
         .from("renovierungs_posten")
@@ -421,7 +437,7 @@ const Materialplaner = ({ session }) => {
       if (error) throw error;
       setPosten(posten.filter((p) => p.id !== id));
     } catch (err) {
-      alert(`Fehler: ${err.message}`);
+      alert(t("move:materialsPlanner.alerts.genericError", { message: err.message }));
     }
   };
   const handleUpdateStatus = async (id, neuerStatus) => {
@@ -436,7 +452,7 @@ const Materialplaner = ({ session }) => {
         posten.map((p) => (p.id === id ? { ...p, status: neuerStatus } : p))
       );
     } catch (err) {
-      alert(`Fehler: ${err.message}`);
+      alert(t("move:materialsPlanner.alerts.genericError", { message: err.message }));
     }
   };
 
@@ -476,7 +492,7 @@ const Materialplaner = ({ session }) => {
     return (
       <div className="text-center py-8">
         <p className="text-light-text-secondary dark:text-dark-text-secondary">
-          Lade Materialplaner...
+          {t("move:materialsPlanner.loading")}
         </p>
       </div>
     );
@@ -492,7 +508,7 @@ const Materialplaner = ({ session }) => {
     Object.entries(filteredAndGroupedPosten).map(([raumName, postenInRaum]) => (
       <section key={raumName} className="mb-6">
         <h3 className="text-xl font-semibold text-light-text-main dark:text-dark-text-main border-b border-light-border dark:border-dark-border pb-2 mb-3">
-          {raumName}
+          {materialRoomLabel(raumName)}
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {postenInRaum.map((p) => (
@@ -507,24 +523,24 @@ const Materialplaner = ({ session }) => {
                   </h4>
                   <div
                     className="flex-shrink-0 p-1 rounded-full bg-light-border dark:bg-dark-border"
-                    title={p.status}
+                    title={materialStatusLabel(p.status)}
                   >
                     {getStatusIcon(p.status)}
                   </div>
                 </div>
                 {p.kategorie && (
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                    Kategorie: {p.kategorie}
+                    {t("move:materialsPlanner.category")}: {materialCategoryLabel(p.kategorie)}
                   </p>
                 )}
                 {p.menge_einheit && (
                   <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                    Menge: {p.menge_einheit}
+                    {t("move:materialsPlanner.quantity")}: {p.menge_einheit}
                   </p>
                 )}
                 {p.geschaetzter_preis && (
                   <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                    Preis: ca. {parseFloat(p.geschaetzter_preis).toFixed(2)} €
+                    {t("move:materialsPlanner.priceApprox", { price: parseFloat(p.geschaetzter_preis).toFixed(2) })}
                   </p>
                 )}
                 {p.baumarkt_link && (
@@ -532,10 +548,10 @@ const Materialplaner = ({ session }) => {
                     href={p.baumarkt_link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    title="Zum Produkt"
+                    title={t("move:materialsPlanner.openProduct")}
                     className="text-xs text-primary-500 dark:text-primary-400 hover:opacity-80 flex items-center mt-0.5"
                   >
-                    <ExternalLink size={12} className="mr-1" /> Produktlink
+                    <ExternalLink size={12} className="mr-1" /> {t("move:materialsPlanner.openProduct")}
                   </a>
                 )}
               </div>
@@ -547,20 +563,20 @@ const Materialplaner = ({ session }) => {
                 >
                   {formStatusOptions.map((opt) => (
                     <option key={opt} value={opt}>
-                      {opt}
+                      {materialStatusLabel(opt)}
                     </option>
                   ))}
                 </select>
                 <button
                   onClick={() => handleEditClick(p)}
-                  title="Bearbeiten"
+                  title={t("move:materialsPlanner.edit")}
                   className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 dark:hover:text-primary-400 rounded hover:bg-gray-200 dark:hover:bg-dark-border/50"
                 >
                   <Edit3 size={16} />
                 </button>
                 <button
                   onClick={() => handleDeletePosten(p.id)}
-                  title="Löschen"
+                  title={t("move:materialsPlanner.delete")}
                   className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-danger-color rounded hover:bg-gray-200 dark:hover:bg-dark-border/50"
                 >
                   <Trash2 size={16} />
@@ -576,29 +592,29 @@ const Materialplaner = ({ session }) => {
     Object.entries(filteredAndGroupedPosten).map(([raumName, postenInRaum]) => (
       <section key={raumName} className="mb-6">
         <h3 className="text-xl font-semibold text-light-text-main dark:text-dark-text-main border-b border-light-border dark:border-dark-border pb-2 mb-3">
-          {raumName}
+          {materialRoomLabel(raumName)}
         </h3>
         <div className="overflow-x-auto -mx-4 px-4">
           <table className="min-w-full text-sm text-left text-light-text-secondary dark:text-dark-text-secondary">
             <thead className="text-xs text-light-text-main dark:text-dark-text-main uppercase bg-gray-50 dark:bg-canvas-1 border-b border-light-border dark:border-dark-border">
               <tr>
                 <th scope="col" className="px-4 py-2">
-                  Beschreibung
+                  {t("move:materialsPlanner.fields.description")}
                 </th>
                 <th scope="col" className="px-4 py-2">
-                  Kategorie
+                  {t("move:materialsPlanner.category")}
                 </th>
                 <th scope="col" className="px-4 py-2">
-                  Menge
+                  {t("move:materialsPlanner.quantity")}
                 </th>
                 <th scope="col" className="px-4 py-2">
-                  Preis (ca.)
+                  {t("move:materialsPlanner.fields.price")}
                 </th>
                 <th scope="col" className="px-4 py-2">
-                  Status
+                  {t("move:materialsPlanner.fields.status")}
                 </th>
                 <th scope="col" className="px-4 py-2">
-                  Aktionen
+                  {t("common:actions.manage")}
                 </th>
               </tr>
             </thead>
@@ -626,8 +642,8 @@ const Materialplaner = ({ session }) => {
                     >
                       {formStatusOptions.map((opt) => (
                         <option key={opt} value={opt}>
-                          {opt}
-                        </option>
+                          {materialStatusLabel(opt)}
+                    </option>
                       ))}
                     </select>
                   </td>
@@ -637,7 +653,7 @@ const Materialplaner = ({ session }) => {
                         href={p.baumarkt_link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        title="Zum Produkt"
+                        title={t("move:materialsPlanner.openProduct")}
                         className="p-1.5 text-primary-500 dark:text-primary-400 hover:opacity-80"
                       >
                         <ExternalLink size={14} />
@@ -645,14 +661,14 @@ const Materialplaner = ({ session }) => {
                     )}
                     <button
                       onClick={() => handleEditClick(p)}
-                      title="Bearbeiten"
+                      title={t("move:materialsPlanner.edit")}
                       className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 dark:hover:text-primary-400 rounded hover:bg-gray-200 dark:hover:bg-dark-border/50"
                     >
                       <Edit3 size={14} />
                     </button>
                     <button
                       onClick={() => handleDeletePosten(p.id)}
-                      title="Löschen"
+                      title={t("move:materialsPlanner.delete")}
                       className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-danger-color rounded hover:bg-gray-200 dark:hover:bg-dark-border/50"
                     >
                       <Trash2 size={14} />
@@ -669,9 +685,7 @@ const Materialplaner = ({ session }) => {
   return (
     <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-        <h2 className="text-2xl font-bold text-light-text-main dark:text-dark-text-main">
-          Material-Planer
-        </h2>
+        <h2 className="text-2xl font-bold text-light-text-main dark:text-dark-text-main">{t("move:materialsPlanner.title")}</h2>
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setViewMode("kacheln")}
@@ -680,7 +694,7 @@ const Materialplaner = ({ session }) => {
                 ? "bg-primary-500 text-white dark:bg-primary-600 dark:text-dark-bg"
                 : "bg-light-border text-light-text-secondary dark:bg-dark-border dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-gray-700"
             }`}
-            title="Kachelansicht"
+            title={t("move:materialsPlanner.tileView")}
           >
             <LayoutGrid size={18} />
           </button>
@@ -691,7 +705,7 @@ const Materialplaner = ({ session }) => {
                 ? "bg-primary-500 text-white dark:bg-primary-600 dark:text-dark-bg"
                 : "bg-light-border text-light-text-secondary dark:bg-dark-border dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-gray-700"
             }`}
-            title="Listenansicht"
+            title={t("move:materialsPlanner.listView")}
           >
             <List size={18} />
           </button>
@@ -699,7 +713,7 @@ const Materialplaner = ({ session }) => {
             onClick={handleAddNewClick}
             className="bg-primary-500 hover:bg-primary-600 text-white dark:text-dark-bg px-3 py-1.5 rounded-pill shadow-elevation-2 hover:opacity-90 flex items-center space-x-1.5 text-sm"
           >
-            <PlusCircle size={18} /> <span>Neuer Posten</span>
+            <PlusCircle size={18} /> <span>{t("move:materialsPlanner.newItem")}</span>
           </button>
         </div>
       </div>
@@ -712,7 +726,7 @@ const Materialplaner = ({ session }) => {
               htmlFor="filterText"
               className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
             >
-              Suche Beschreibung
+              {t("move:materialsPlanner.searchDescription")}
             </label>
             <div className="relative">
               <input
@@ -720,7 +734,7 @@ const Materialplaner = ({ session }) => {
                 id="filterText"
                 value={filterText}
                 onChange={(e) => setFilterText(e.target.value)}
-                placeholder="Suchen..."
+                placeholder={t("move:materialsPlanner.searchPlaceholder")}
                 className="w-full pl-8 pr-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
               />
               <Search
@@ -734,7 +748,7 @@ const Materialplaner = ({ session }) => {
               htmlFor="filterKategorie"
               className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
             >
-              Filter Kategorie
+              {t("move:materialsPlanner.filterCategory")}
             </label>
             <select
               id="filterKategorie"
@@ -744,8 +758,8 @@ const Materialplaner = ({ session }) => {
             >
               {kategorieOptionsList.map((option) => (
                 <option key={option} value={option}>
-                  {option}
-                </option>
+                  {materialCategoryLabel(option)}
+                  </option>
               ))}
             </select>
           </div>
@@ -754,7 +768,7 @@ const Materialplaner = ({ session }) => {
               htmlFor="filterStatus"
               className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
             >
-              Filter Status
+              {t("move:materialsPlanner.filterStatus")}
             </label>
             <select
               id="filterStatus"
@@ -764,8 +778,8 @@ const Materialplaner = ({ session }) => {
             >
               {statusOptionsList.map((option) => (
                 <option key={option} value={option}>
-                  {option}
-                </option>
+                  {materialStatusLabel(option)}
+                  </option>
               ))}
             </select>
           </div>
@@ -782,20 +796,20 @@ const Materialplaner = ({ session }) => {
               <XCircle size={20} />
             </button>
             <h3 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main mb-3">
-              {editingPostenId ? "Posten bearbeiten" : "Neues Material/Aufgabe"}
+              {editingPostenId ? t("move:materialsPlanner.editItem") : t("move:materialsPlanner.newMaterialTask")}
             </h3>
             <form onSubmit={handleSubmit} className="space-y-3">
               {/* Materialauswahl Sektion */}
               <div className="p-3 border border-light-border dark:border-dark-border/50 rounded-card-sm space-y-2 bg-gray-50 dark:bg-canvas-1/30">
                 <h4 className="text-sm font-medium text-light-text-main dark:text-dark-text-main">
-                  Vordefiniertes Material auswählen (optional)
+                  {t("move:materialsPlanner.materialPicker.title")}
                 </h4>
                 <div>
                   <label
                     htmlFor="materialKategorieAuswahl"
                     className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                   >
-                    Material-Kategorie
+                    {t("move:materialsPlanner.materialPicker.category")}
                   </label>
                   <select
                     id="materialKategorieAuswahl"
@@ -805,7 +819,7 @@ const Materialplaner = ({ session }) => {
                     }
                     className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                   >
-                    <option value="">Alle Kategorien anzeigen</option>
+                    <option value="">{t("move:materialsPlanner.materialPicker.allCategories")}</option>
                     {materialKategorien.map((kat) => (
                       <option key={kat} value={kat}>
                         {kat}
@@ -819,7 +833,7 @@ const Materialplaner = ({ session }) => {
                       htmlFor="materialAuswahl"
                       className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                     >
-                      Material auswählen
+                      {t("move:materialsPlanner.materialPicker.material")}
                     </label>
                     <select
                       id="materialAuswahl"
@@ -830,7 +844,7 @@ const Materialplaner = ({ session }) => {
                       className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                     >
                       <option value="">
-                        -- Material wählen oder manuell eingeben --
+                        {t("move:materialsPlanner.materialPicker.chooseOrManual")}
                       </option>
                       {gefilterteMaterialienFuerAuswahl.map((mat) => (
                         <option key={mat.id} value={mat.id}>
@@ -848,7 +862,7 @@ const Materialplaner = ({ session }) => {
                   htmlFor="renoBeschreibung"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Beschreibung*
+                  {t("move:materialsPlanner.fields.description")}
                 </label>
                 <input
                   type="text"
@@ -867,7 +881,7 @@ const Materialplaner = ({ session }) => {
                   htmlFor="renoKategorie"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Kategorie
+                  {t("move:materialsPlanner.fields.category")}
                 </label>
                 <select
                   id="renoKategorie"
@@ -877,8 +891,8 @@ const Materialplaner = ({ session }) => {
                 >
                   {formKategorieOptions.map((option) => (
                     <option key={option} value={option}>
-                      {option}
-                    </option>
+                      {materialCategoryLabel(option)}
+                  </option>
                   ))}
                 </select>
               </div>
@@ -887,7 +901,7 @@ const Materialplaner = ({ session }) => {
                   htmlFor="renoRaum"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Raum/Bereich
+                  {t("move:materialsPlanner.fields.room")}
                 </label>
                 <select
                   id="renoRaum"
@@ -895,11 +909,11 @@ const Materialplaner = ({ session }) => {
                   onChange={(e) => setRaum(e.target.value)}
                   className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 >
-                  {raumOptionsList.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
+              {raumOptionsList.map((option) => (
+                <option key={option} value={option}>
+                      {materialRoomLabel(option)}
+                  </option>
+              ))}
                 </select>
               </div>
               <div>
@@ -907,7 +921,7 @@ const Materialplaner = ({ session }) => {
                   htmlFor="renoMenge"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Benötigte Menge*
+                  {t("move:materialsPlanner.fields.quantity")}
                 </label>
                 <input
                   type="number"
@@ -934,7 +948,7 @@ const Materialplaner = ({ session }) => {
                   htmlFor="renoEinheit"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Einheit (opt.)
+                  {t("move:materialsPlanner.fields.unit")}
                 </label>
                 <input
                   type="text"
@@ -944,7 +958,7 @@ const Materialplaner = ({ session }) => {
                     setMengeEinheit(e.target.value);
                     if (ausgewaehltesMaterialId) setAusgewaehltesMaterialId("");
                   }}
-                  placeholder="z.B. Liter, qm, Stück"
+                  placeholder={t("move:materialsPlanner.fields.unitPlaceholder")}
                   readOnly={
                     !!ausgewaehltesMaterialId &&
                     !!alleMaterialien.find(
@@ -959,7 +973,7 @@ const Materialplaner = ({ session }) => {
                   htmlFor="renoPreis"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Preis (€, opt.)
+                  {t("move:materialsPlanner.fields.price")}
                 </label>
                 <input
                   type="number"
@@ -975,7 +989,7 @@ const Materialplaner = ({ session }) => {
                   htmlFor="renoBaumarktLink"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Link (opt.)
+                  {t("move:materialsPlanner.fields.link")}
                 </label>
                 <input
                   type="url"
@@ -991,7 +1005,7 @@ const Materialplaner = ({ session }) => {
                   htmlFor="renoStatus"
                   className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5"
                 >
-                  Status
+                  {t("move:materialsPlanner.fields.status")}
                 </label>
                 <select
                   id="renoStatus"
@@ -1001,7 +1015,7 @@ const Materialplaner = ({ session }) => {
                 >
                   {formStatusOptions.map((opt) => (
                     <option key={opt} value={opt}>
-                      {opt}
+                      {materialStatusLabel(opt)}
                     </option>
                   ))}
                 </select>
@@ -1011,14 +1025,12 @@ const Materialplaner = ({ session }) => {
                   type="button"
                   onClick={resetForm}
                   className="px-3 py-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary bg-light-border dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-700 rounded-pill"
-                >
-                  Abbrechen
-                </button>
+                >{t("common:actions.cancel")}</button>
                 <button
                   type="submit"
                   className="px-3 py-1.5 text-xs text-white dark:text-dark-bg bg-primary-500 hover:bg-primary-600 hover:opacity-90 rounded-pill"
                 >
-                  {editingPostenId ? "Speichern" : "Hinzufügen"}
+                  {editingPostenId ? t("common:actions.save") : t("common:actions.add")}
                 </button>
               </div>
             </form>
@@ -1030,7 +1042,7 @@ const Materialplaner = ({ session }) => {
         !loading &&
         !showFormModal && (
           <p className="text-center text-light-text-secondary dark:text-dark-text-secondary py-6 text-sm">
-            Keine Materialposten für die aktuellen Filter gefunden.
+            {t("move:materialsPlanner.noItemsForFilters")}
           </p>
         )}
 
@@ -1048,3 +1060,6 @@ const Materialplaner = ({ session }) => {
 };
 
 export default Materialplaner;
+
+
+

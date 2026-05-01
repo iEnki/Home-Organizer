@@ -1,5 +1,6 @@
 import React from "react";
 import { ChevronRight, Plus } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { getBewohnerDisplayName } from "../../../utils/budgetAccounts";
 
 const formatCurrency = (value) =>
@@ -18,18 +19,20 @@ export default function BudgetAccountsSummaryCard({
   onAdd,
   onEdit,
 }) {
+  const { t } = useTranslation(["budget"]);
+
   return (
     <section className="overflow-hidden rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2">
       <div className="flex items-center justify-between gap-2 border-b border-light-border dark:border-dark-border px-4 py-3">
         <div>
           <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-            Zahlungsquellen
+            {t("budget:accounts.paymentSources", { defaultValue: "Payment sources" })}
           </p>
           <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-            Konten im Budget
+            {t("budget:accounts.budgetAccounts", { defaultValue: "Budget accounts" })}
           </h3>
           <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
-            Nutzung im aktuellen Monat {monatLabel}
+            {t("budget:accounts.usageThisMonth", { month: monatLabel })}
           </p>
         </div>
 
@@ -38,19 +41,24 @@ export default function BudgetAccountsSummaryCard({
           className="inline-flex items-center gap-1 rounded-pill bg-primary-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-600"
         >
           <Plus size={12} />
-          Konto
+          {t("budget:account")}
         </button>
       </div>
 
       {konten.length === 0 ? (
         <div className="px-4 py-8 text-center text-sm text-light-text-secondary dark:text-dark-text-secondary">
-          Noch keine aktiven Konten angelegt.
+          {t("budget:accounts.noActive")}
         </div>
       ) : (
         <div className="divide-y divide-light-border dark:divide-dark-border">
           {konten.map((konto) => {
             const inhaber = konto.inhaber_bewohner_id ? bewohnerById[konto.inhaber_bewohner_id] : null;
             const stats = kontoStatsById[konto.id] || { buchungen: 0, summe: 0 };
+            const ownerLabel = inhaber
+              ? getBewohnerDisplayName(inhaber)
+              : konto.inhaber_typ === "household"
+                ? t("budget:scope.household")
+                : "";
 
             return (
               <button
@@ -69,17 +77,13 @@ export default function BudgetAccountsSummaryCard({
                   </p>
                   <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
                     {konto.konto_typ}
-                    {inhaber
-                      ? ` · ${getBewohnerDisplayName(inhaber)}`
-                      : konto.inhaber_typ === "household"
-                        ? " · Haushalt"
-                        : ""}
+                    {ownerLabel ? ` · ${ownerLabel}` : ""}
                   </p>
                 </div>
 
                 <div className="text-right">
                   <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                    {stats.buchungen} {stats.buchungen === 1 ? "Buchung" : "Buchungen"}
+                    {t("budget:entries.count", { count: stats.buchungen })}
                   </p>
                   <p className="mt-1 text-sm font-semibold tabular-nums text-primary-500">
                     {formatCurrency(stats.summe)}

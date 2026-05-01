@@ -1,7 +1,10 @@
 import React, { useEffect } from "react";
 import { X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export default function BottomSheet({ open, onClose, title, children }) {
+  const { t } = useTranslation(["common"]);
+
   useEffect(() => {
     if (!open) return undefined;
     const onEscape = (e) => {
@@ -24,7 +27,7 @@ export default function BottomSheet({ open, onClose, title, children }) {
     >
       <button
         className="absolute inset-0 bg-canvas-0/65 backdrop-blur-sm"
-        aria-label="Schließen"
+        aria-label={t("common:actions.close")}
         onClick={onClose}
       />
       <section
@@ -42,7 +45,7 @@ export default function BottomSheet({ open, onClose, title, children }) {
             className="w-9 h-9 rounded-card-sm flex items-center justify-center
                        text-light-text-secondary dark:text-dark-text-secondary
                        hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors"
-            aria-label="Schließen"
+            aria-label={t("common:actions.close")}
           >
             <X size={18} />
           </button>

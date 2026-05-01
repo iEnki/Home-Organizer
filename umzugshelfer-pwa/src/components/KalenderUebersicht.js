@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Calendar, dateFnsLocalizer } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay, addMonths, addWeeks, addDays } from "date-fns";
 import { de } from "date-fns/locale";
@@ -66,6 +67,7 @@ const LEGENDE_UMZUG = ["aufgabe", "meilenstein"];
 
 // ── Komponente ───────────────────────────────────────────────────────────────
 const KalenderUebersicht = ({ session }) => {
+  const { t, i18n } = useTranslation(["home"]);
   const userId = session?.user?.id;
   const { appMode } = useAppMode();
   const { isMobile } = useViewport();
@@ -119,7 +121,7 @@ const KalenderUebersicht = ({ session }) => {
           title: a.beschreibung,
           start: d, end: d, allDay: true,
           typ: "aufgabe",
-          sub: `Priorität: ${a.prioritaet || "–"}`,
+          sub: t("home:calendar.priority", { priority: a.prioritaet || "–" }),
           link: appMode === "home" ? "/home/aufgaben" : "/todos",
         });
       });
@@ -136,10 +138,10 @@ const KalenderUebersicht = ({ session }) => {
           const d = new Date(g.naechste_wartung);
           alleEvents.push({
             id: `wartung-${g.id}`,
-            title: `Wartung: ${g.name}`,
+            title: t("home:calendar.maintenanceTitle", { name: g.name }),
             start: d, end: d, allDay: true,
             typ: "wartung",
-            sub: g.hersteller ? `Hersteller: ${g.hersteller}` : "Gerätewartung",
+            sub: g.hersteller ? t("home:calendar.manufacturer", { manufacturer: g.hersteller }) : t("home:calendar.deviceMaintenance"),
             link: "/home/geraete",
           });
         });
@@ -162,7 +164,7 @@ const KalenderUebersicht = ({ session }) => {
               title: `${b.beschreibung} (${b.betrag} €)`,
               start: d, end: d, allDay: true,
               typ: "budget",
-              sub: `${b.intervall} · ${b.kategorie || "Keine Kategorie"}`,
+              sub: `${b.intervall} · ${b.kategorie || t("home:calendar.noCategory")}`,
               link: "/home/budget",
             });
           }
@@ -183,7 +185,7 @@ const KalenderUebersicht = ({ session }) => {
               title: m.titel,
               start: d, end: d, allDay: true,
               typ: "meilenstein",
-              sub: m.beschreibung || "Umzugsmeilenstein",
+              sub: m.beschreibung || t("home:calendar.movingMilestone"),
               link: "/zeitstrahl",
             });
           });
@@ -197,13 +199,18 @@ const KalenderUebersicht = ({ session }) => {
     }
 
     setEvents(alleEvents);
-  }, [userId, appMode]);
+  }, [userId, appMode, t]);
 
   useEffect(() => { ladeEvents(); }, [ladeEvents]);
 
   // ── Legende ───────────────────────────────────────────────────────────────
   const legendeTypen = appMode === "home" ? LEGENDE_HOME : LEGENDE_UMZUG;
-  const LEGENDE_LABELS = { aufgabe: "Aufgaben", wartung: "Wartungen", budget: "Zahlungen", meilenstein: "Meilensteine" };
+  const LEGENDE_LABELS = {
+    aufgabe: t("home:calendar.legend.tasks"),
+    wartung: t("home:calendar.legend.maintenance"),
+    budget: t("home:calendar.legend.payments"),
+    meilenstein: t("home:calendar.legend.milestones"),
+  };
   const Legende = () => (
     <div className="flex flex-wrap gap-3 text-xs">
       {legendeTypen.map((typ) => (
@@ -262,11 +269,11 @@ const KalenderUebersicht = ({ session }) => {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">Kalender</h1>
+          <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">{t("home:calendar.title")}</h1>
           <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
             {appMode === "home"
-              ? "Aufgaben, Wartungen & Zahlungen im Überblick"
-              : "Aufgaben & Meilensteine im Überblick"}
+              ? t("home:calendar.subtitleHome")
+              : t("home:calendar.subtitleMove")}
           </p>
         </div>
         <div className="flex gap-2">
@@ -274,7 +281,7 @@ const KalenderUebersicht = ({ session }) => {
             <button key={v} onClick={() => setAnsicht(v)}
                     className={`px-3 py-1.5 rounded-pill text-sm font-medium transition-colors
                       ${ansicht === v ? "bg-primary-500 text-white" : "bg-light-surface-1 dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-2 dark:hover:bg-canvas-4"}`}>
-              {v === "month" ? "Monat" : v === "week" ? "Woche" : "Agenda"}
+              {t(`home:calendar.views.${v}`)}
             </button>
           ))}
         </div>
@@ -289,7 +296,7 @@ const KalenderUebersicht = ({ session }) => {
             className="w-9 h-9 rounded-card-sm border border-light-border dark:border-dark-border
                        bg-light-card-bg dark:bg-canvas-2 text-light-text-secondary dark:text-dark-text-secondary
                        flex items-center justify-center"
-            aria-label="Vorheriger Zeitraum"
+            aria-label={t("home:calendar.previous")}
           >
             <ChevronLeft size={16} />
           </button>
@@ -301,7 +308,7 @@ const KalenderUebersicht = ({ session }) => {
             className="w-9 h-9 rounded-card-sm border border-light-border dark:border-dark-border
                        bg-light-card-bg dark:bg-canvas-2 text-light-text-secondary dark:text-dark-text-secondary
                        flex items-center justify-center"
-            aria-label="Nächster Zeitraum"
+            aria-label={t("home:calendar.next")}
           >
             <ChevronRight size={16} />
           </button>
@@ -337,7 +344,7 @@ const KalenderUebersicht = ({ session }) => {
           <div className="h-96 flex items-center justify-center">
             <div className="flex flex-col items-center gap-3 text-light-text-secondary dark:text-dark-text-secondary">
               <CalendarDays size={32} className="animate-pulse text-primary-500" />
-              <span className="text-sm">Ereignisse werden geladen…</span>
+              <span className="text-sm">{t("home:calendar.loading")}</span>
             </div>
           </div>
         ) : (
@@ -354,12 +361,17 @@ const KalenderUebersicht = ({ session }) => {
             popup
             eventPropGetter={eventStyleGetter}
             onSelectEvent={(event) => setSelectedEvent(event)}
-            culture="de"
+            culture={i18n.language}
             messages={{
-              next: "Vor", previous: "Zurück", today: "Heute",
-              month: "Monat", week: "Woche", day: "Tag", agenda: "Agenda",
-              noEventsInRange: "Keine Ereignisse in diesem Zeitraum",
-              showMore: (n) => `+${n} weitere`,
+              next: t("home:calendar.nextShort"),
+              previous: t("home:calendar.previousShort"),
+              today: t("home:calendar.today"),
+              month: t("home:calendar.views.month"),
+              week: t("home:calendar.views.week"),
+              day: t("home:calendar.views.day"),
+              agenda: t("home:calendar.views.agenda"),
+              noEventsInRange: t("home:calendar.noEvents"),
+              showMore: (n) => t("home:calendar.showMore", { count: n }),
             }}
           />
         )}

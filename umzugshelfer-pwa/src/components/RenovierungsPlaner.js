@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "../supabaseClient";
 import {
   PlusCircle,
@@ -13,6 +14,9 @@ import {
 } from "lucide-react";
 
 const RenovierungsPlaner = ({ session }) => {
+  const { t } = useTranslation(["move","common"]);
+  void t;
+
   const [userId, setUserId] = useState(null);
   const [posten, setPosten] = useState([]);
   const [beschreibung, setBeschreibung] = useState("");

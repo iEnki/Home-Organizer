@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Info, Loader2, Receipt, Save } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "../../../supabaseClient";
 import ModalShell from "../../ui/ModalShell";
 import { useToast } from "../../../hooks/useToast";
@@ -7,6 +8,7 @@ import { syncInvoiceKnowledgeEntry } from "../../../utils/invoiceDateSync";
 import { notifyHouseholdEvent } from "../../../utils/pushNotifications";
 import {
   DEFAULT_HOME_BUDGET_CATEGORY,
+  getHomeBudgetCategoryLabel,
   getSelectableHomeBudgetCategoryNames,
   normalizeHomeBudgetCategory,
 } from "../../../utils/homeBudgetCategories";
@@ -19,8 +21,8 @@ const formatCurrency = (value) =>
     maximumFractionDigits: 2,
   }).format(Number(value || 0));
 
-const formatDate = (value) => {
-  if (!value) return "Ohne Datum";
+const formatDate = (value, noDateLabel = "No date") => {
+  if (!value) return noDateLabel;
   const parsed = new Date(`${value}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleDateString("de-AT", {
@@ -52,6 +54,7 @@ export default function BudgetInvoicePositionsModal({
   onClose,
   onSaved,
 }) {
+  const { t, i18n } = useTranslation(["budget", "common"]);
   const { success, error: toastError, info } = useToast();
   const [invoiceMeta, setInvoiceMeta] = useState(invoice || null);
   const [positionen, setPositionen] = useState([]);
@@ -77,7 +80,7 @@ export default function BudgetInvoicePositionsModal({
   const ladePositionen = useCallback(async () => {
     if (!invoice?.rechnung_id) {
       setPositionen([]);
-      setFehler("Zu dieser Rechnung wurden keine Positionsdaten gefunden.");
+      setFehler(t("budget:invoice.noPositionsData", { defaultValue: "No line item data was found for this invoice." }));
       return;
     }
 
@@ -109,11 +112,11 @@ export default function BudgetInvoicePositionsModal({
       );
     } catch (err) {
       setPositionen([]);
-      setFehler(err.message || "Rechnungspositionen konnten nicht geladen werden.");
+      setFehler(err.message || t("budget:invoice.positionsLoadFailed", { defaultValue: "Invoice positions could not be loaded." }));
     } finally {
       setLoading(false);
     }
-  }, [categories, invoice?.rechnung_id]);
+  }, [categories, invoice?.rechnung_id, t]);
 
   useEffect(() => {
     if (!open) return;
@@ -142,12 +145,12 @@ export default function BudgetInvoicePositionsModal({
       return;
     }
     if (!session?.user?.id) {
-      toastError("Keine gueltige Sitzung vorhanden.");
+      toastError(t("common:auth.noSession", { defaultValue: "No valid session available." }));
       return;
     }
     if (positionen.length === 0) return;
     if (hatLeereBeschreibung) {
-      setFehler("Jede vorhandene Position braucht eine Beschreibung.");
+      setFehler(t("budget:invoice.positionDescriptionRequired", { defaultValue: "Each existing line item needs a description." }));
       return;
     }
 
@@ -217,7 +220,7 @@ export default function BudgetInvoicePositionsModal({
         recordName:
           nextInvoiceMeta.lieferant_name ||
           nextInvoiceMeta.dateiname ||
-          "Rechnung",
+          t("budget:invoice.invoice"),
         recordId: invoice.rechnung_id,
         url: "/home/budget",
         tag: `rechnung-update-${invoice.rechnung_id}`,
@@ -225,7 +228,7 @@ export default function BudgetInvoicePositionsModal({
       });
 
       setInvoiceMeta(nextInvoiceMeta);
-      success("Rechnungspositionen gespeichert.");
+      success(t("budget:invoice.positionsSaved", { defaultValue: "Invoice positions saved." }));
       if (wissenFehler) {
         info(wissenFehler, 5000);
       }
@@ -233,8 +236,8 @@ export default function BudgetInvoicePositionsModal({
         await onSaved(nextInvoiceMeta);
       }
     } catch (err) {
-      setFehler(err.message || "Speichern fehlgeschlagen.");
-      toastError(err.message || "Speichern fehlgeschlagen.");
+      setFehler(err.message || t("common:actions.saveFailed", { defaultValue: "Saving failed." }));
+      toastError(err.message || t("common:actions.saveFailed", { defaultValue: "Saving failed." }));
     } finally {
       setSaving(false);
     }
@@ -251,6 +254,7 @@ export default function BudgetInvoicePositionsModal({
     positionen,
     session?.user?.id,
     success,
+    t,
     toastError,
   ]);
 
@@ -293,10 +297,10 @@ export default function BudgetInvoicePositionsModal({
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-                {invoiceMeta.lieferant_name || invoiceMeta.dateiname || "Rechnung"}
+                {invoiceMeta.lieferant_name || invoiceMeta.dateiname || t("budget:invoice.invoice")}
               </p>
               <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                {formatDate(invoiceMeta.rechnungsdatum)}
+                {formatDate(invoiceMeta.rechnungsdatum, t("budget:invoice.noDate", { defaultValue: "No date" }))}
                 {invoiceMeta.dateiname ? ` · ${invoiceMeta.dateiname}` : ""}
               </p>
               <p className="mt-2 text-xs text-light-text-secondary dark:text-dark-text-secondary">
@@ -452,7 +456,7 @@ export default function BudgetInvoicePositionsModal({
                         currentValue: pos.budget_kategorie,
                       }).map((category) => (
                         <option key={category} value={category}>
-                          {category}
+                          {getHomeBudgetCategoryLabel(category, i18n.language)}
                         </option>
                       ))}
                     </select>

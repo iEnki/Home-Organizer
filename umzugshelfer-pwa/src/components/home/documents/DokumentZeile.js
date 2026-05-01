@@ -1,4 +1,5 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { FileText, File, Eye, Pencil, MoreVertical, BookOpen, Plus, Trash2, CheckCircle, Loader2 } from "lucide-react";
 import { getDokDatum } from "../../../utils/dokumentArchiv";
 
@@ -62,6 +63,9 @@ export default function DokumentZeile({
   onBudget,
   isHighlighted,
 }) {
+  const { t } = useTranslation(["documents","common"]);
+  void t;
+
   const [menuOffen, setMenuOffen] = useState(false);
   const [laedt, setLaedt] = useState(false);
   const [menuOeffnetNachOben, setMenuOeffnetNachOben] = useState(false);

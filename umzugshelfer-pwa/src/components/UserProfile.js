@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   Eye, EyeOff, Save, Truck, Home, CheckCircle, AlertCircle,
@@ -14,6 +15,7 @@ import { supabase } from "../supabaseClient";
 import { useTheme } from "../contexts/ThemeContext";
 import { useTourContext } from "../contexts/TourContext";
 import { useAppMode } from "../contexts/AppModeContext";
+import { useLocale } from "../contexts/LocaleContext";
 import useViewport from "../hooks/useViewport";
 import ThemeSwitch from "./ThemeSwitch";
 import usePushSubscription from "../hooks/usePushSubscription";
@@ -80,6 +82,8 @@ function GruppenLabel({ children }) {
 
 // ── Haupt-Komponente ─────────────────────────────────────────────────────────
 const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNavChange }) => {
+  const { t } = useTranslation(["common", "profile"]);
+  const { locale, supportedLocales, setLocale } = useLocale();
   const navigate  = useNavigate();
   const location  = useLocation();
   const { theme } = useTheme();
@@ -107,6 +111,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
 
   // ── Basis-States ──────────────────────────────────────────────────────────
   const [ladend, setLadend] = useState(true);
+  const [localeStatus, setLocaleStatus] = useState(null);
 
   // Panel & Tab
   const [aktivesPanel, setAktivesPanel] = useState(null);
@@ -274,7 +279,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         if (cancelled) return;
         setHaushaltMitglieder([]);
         setBewohnerAnzahl(0);
-        setHaushaltUebersichtFehler("Haushaltsuebersicht nicht verfuegbar - Migration ausfuehren.");
+        setHaushaltUebersichtFehler("Haushaltsübersicht nicht verfügbar - Migration ausführen.");
       } finally {
         if (!cancelled) setHaushaltUebersichtLadend(false);
       }
@@ -336,6 +341,13 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     setHaushaltsNameStatus(error ? "fehler" : "ok");
     if (!error) setHaushaltsNameBearbeiten(false);
     setTimeout(() => setHaushaltsNameStatus(null), 3000);
+  };
+
+  const handleLocaleChange = async (nextLocale) => {
+    setLocaleStatus("saving");
+    const { error } = await setLocale(nextLocale, { userId });
+    setLocaleStatus(error ? "fehler" : "ok");
+    setTimeout(() => setLocaleStatus(null), 3000);
   };
 
   const handleAvatarHochladen = async (e) => {
@@ -522,6 +534,9 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     }
 
     const eintrag = Array.isArray(data) ? data[0] : data;
+    if (eintrag?.id) {
+      await supabase.from("household_invites").update({ locale }).eq("id", eintrag.id);
+    }
     const relativeUrl = eintrag?.invite_url || "";
     const absoluteUrl = relativeUrl.startsWith("http")
       ? relativeUrl
@@ -550,6 +565,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
           inviteLink: absoluteUrl,
           householdName: householdContext?.household_name || "",
           inviterName: displayName?.trim() || nameRaw,
+          locale,
         }),
       });
 
@@ -661,23 +677,23 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
   // ── Status-Berechnungen für Karten ────────────────────────────────────────
   const kiStatus = isHouseholdAdmin
     ? (kiProvider === "openai" && apiKey
-        ? { label: "OpenAI konfiguriert", farbe: "emerald" }
+        ? { label: t("profile:ki.openAiConfigured"), farbe: "emerald" }
         : kiProvider === "ollama" && ollamaUrl
-        ? { label: "Ollama konfiguriert", farbe: "emerald" }
-        : { label: "Nicht konfiguriert", farbe: "gray" })
+        ? { label: t("profile:ki.ollamaConfigured"), farbe: "emerald" }
+        : { label: t("common:status.notConfigured"), farbe: "gray" })
     : (memberKiStatus?.ki_konfiguriert
-        ? { label: "Konfiguriert", farbe: "emerald" }
-        : { label: "Nicht konfiguriert", farbe: "gray" });
+        ? { label: t("common:status.configured"), farbe: "emerald" }
+        : { label: t("common:status.notConfigured"), farbe: "gray" });
 
   const pushStatus = !pushUnterstuetzt
-    ? { label: "Nicht unterstützt", farbe: "gray" }
+    ? { label: t("common:status.notSupported"), farbe: "gray" }
     : pushAktiv
-    ? { label: "Aktiv", farbe: "emerald" }
+    ? { label: t("common:status.active"), farbe: "emerald" }
     : pushBerechtigung === "denied"
-    ? { label: "Blockiert", farbe: "red" }
+    ? { label: t("common:status.blocked"), farbe: "red" }
     : pushFehler
-    ? { label: "Fehler", farbe: "amber" }
-    : { label: "Inaktiv", farbe: "gray" };
+    ? { label: t("common:status.error"), farbe: "amber" }
+    : { label: t("common:status.inactive"), farbe: "gray" };
 
   const modusStatus = {
     label: appMode === "home" ? "Home Organizer" : "Umzugsplaner",
@@ -691,21 +707,21 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
   }[bildanalyseModus] ?? "–";
 
   const mitgliederLabel = haushaltUebersichtLadend
-    ? "Laden…"
-    : `${haushaltMitglieder.length} Mitglieder`;
+    ? t("profile:members.loading")
+    : t("profile:members.count", { count: haushaltMitglieder.length });
 
   // ── Panel-Titel ───────────────────────────────────────────────────────────
   const panelTitel = {
-    "erscheinungsbild": "Erscheinungsbild",
-    "app-modus":        "App-Modus",
-    "haushalt":         "Haushalt & Bewohner",
-    "einladen":         "Mitglieder einladen",
-    "ki":               "KI-Einstellungen",
-    "bildanalyse":      "Bildanalyse",
-    "push":             "Push-Benachrichtigungen",
-    "touren":           "Interaktive Anleitungen",
-    "mobile-nav":       "Mobile Navigation",
-    "account":          "Account & Sicherheit",
+    "erscheinungsbild": t("profile:panels.appearance"),
+    "app-modus":        t("profile:panels.appMode"),
+    "haushalt":         t("profile:panels.household"),
+    "einladen":         t("profile:panels.invite"),
+    "ki":               t("profile:panels.ai"),
+    "bildanalyse":      t("profile:panels.imageAnalysis"),
+    "push":             t("profile:panels.push"),
+    "touren":           t("profile:panels.tours"),
+    "mobile-nav":       t("profile:panels.mobileNav"),
+    "account":          t("profile:panels.account"),
   };
 
   // ── Panel-Inhalte ─────────────────────────────────────────────────────────
@@ -714,12 +730,40 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">Farbmodus</p>
+            <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">{t("theme.colorMode")}</p>
             <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
-              Aktuell: {theme === "dark" ? "Dunkles Design" : "Helles Design"}
+              {t("locale.current", { language: t("theme." + theme) })}
             </p>
           </div>
           <ThemeSwitch />
+        </div>
+        <div className="border-t border-light-border dark:border-dark-border pt-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">{t("locale.title")}</p>
+              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                {t("locale.description")}
+              </p>
+            </div>
+            <div className="inline-flex rounded-card-sm border border-light-border dark:border-dark-border overflow-hidden bg-light-bg dark:bg-canvas-1">
+              {supportedLocales.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => handleLocaleChange(option)}
+                  className={`px-3 py-2 text-xs font-medium transition-colors ${
+                    locale === option
+                      ? "bg-primary-500 text-white"
+                      : "text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
+                  }`}
+                >
+                  {t(`locale.${option}`)}
+                </button>
+              ))}
+            </div>
+          </div>
+          {localeStatus === "ok" && <p className="text-xs text-accent-success mt-2">{t("locale.updated")}</p>}
+          {localeStatus === "fehler" && <p className="text-xs text-accent-danger mt-2">{t("locale.updateFailed")}</p>}
         </div>
       </div>
     );
@@ -727,7 +771,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     if (key === "app-modus") return (
       <div className="space-y-4">
         <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-          Wähle, welchen Bereich du primär nutzt. Du kannst jederzeit wechseln.
+          {t("profile:panelContent.appMode.intro")}
         </p>
         <div className="grid grid-cols-2 gap-3">
           <button
@@ -743,13 +787,13 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
           >
             <Truck size={28} />
             <div className="text-center">
-              <p className="text-sm font-semibold">Umzugplaner</p>
+              <p className="text-sm font-semibold">{t("profile:panelContent.appMode.movers")}</p>
               <p className="text-xs opacity-70 mt-0.5">
-                {umzugDeaktiviertLokal ? "Deaktiviert" : "Umzug planen & organisieren"}
+                {umzugDeaktiviertLokal ? t("profile:panelContent.appMode.moversDisabled") : t("profile:panelContent.appMode.moversDesc")}
               </p>
             </div>
             {appMode === "umzug" && !umzugDeaktiviertLokal && (
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-pill bg-primary-500 text-white">Aktiv</span>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-pill bg-primary-500 text-white">{t("profile:panelContent.appMode.active")}</span>
             )}
           </button>
           <button
@@ -762,19 +806,18 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
           >
             <Home size={28} />
             <div className="text-center">
-              <p className="text-sm font-semibold">Home Organizer</p>
-              <p className="text-xs opacity-70 mt-0.5">Haushalt & Alltag verwalten</p>
+              <p className="text-sm font-semibold">{t("profile:panelContent.appMode.homeOrg")}</p>
+              <p className="text-xs opacity-70 mt-0.5">{t("profile:panelContent.appMode.homeOrgDesc")}</p>
             </div>
             {appMode === "home" && (
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-pill bg-secondary-500 text-white">Aktiv</span>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-pill bg-secondary-500 text-white">{t("profile:panelContent.appMode.active")}</span>
             )}
           </button>
         </div>
         {umzugDeaktiviertLokal ? (
           <div className="p-3 rounded-card-sm bg-accent-success/10 border border-accent-success/30">
             <p className="text-xs text-accent-success mb-2.5 leading-snug">
-              Umzugsplaner ist dauerhaft deaktiviert. Du bleibst immer im Home Organizer,
-              auch nach einem Neustart oder auf neuen Geräten.
+              {t("profile:panelContent.appMode.deactivatedInfo")}
             </p>
             <button
               onClick={handleUmzugAktivieren}
@@ -782,14 +825,13 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                          bg-primary-500/10 hover:bg-primary-500/20 text-primary-500
                          border border-primary-500/30 transition-colors"
             >
-              <Truck size={13} /> Umzugsplaner wieder aktivieren
+              <Truck size={13} /> {t("profile:panelContent.appMode.reactivate")}
             </button>
           </div>
         ) : appMode === "home" ? (
           <div className="p-3 rounded-card-sm bg-light-surface-1 dark:bg-canvas-3 border border-light-border dark:border-dark-border">
             <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-2.5 leading-snug">
-              Umzug abgeschlossen? Den Umzugsplaner dauerhaft deaktivieren –
-              er bleibt gespeichert und kann jederzeit reaktiviert werden.
+              {t("profile:panelContent.appMode.deactivateInfo")}
             </p>
             <button
               onClick={handleUmzugDeaktivieren}
@@ -797,7 +839,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                          bg-accent-danger/10 hover:bg-accent-danger/20 text-accent-danger
                          border border-accent-danger/30 transition-colors"
             >
-              <Truck size={13} /> Umzugsplaner dauerhaft deaktivieren
+              <Truck size={13} /> {t("profile:panelContent.appMode.deactivate")}
             </button>
           </div>
         ) : null}
@@ -820,13 +862,13 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               />
               <button onClick={handleHaushaltsNameSpeichern} className="text-primary-500 hover:text-primary-400 transition-colors"><Check size={14} /></button>
               <button onClick={() => { setHaushaltsNameBearbeiten(false); setHaushaltsName(householdContext?.household_name || ""); }} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger transition-colors"><X size={14} /></button>
-              {haushaltsNameStatus === "fehler" && <span className="text-[10px] text-accent-danger">Fehler</span>}
+              {haushaltsNameStatus === "fehler" && <span className="text-[10px] text-accent-danger">{t("common:status.error")}</span>}
             </div>
           ) : (
             <div className="flex items-center gap-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary">
-              <span>{haushaltsName || householdContext?.household_name || "Dein Haushalt"}</span>
+              <span>{haushaltsName || householdContext?.household_name || t("profile:panelContent.household.defaultName")}</span>
               {isHouseholdAdmin && (
-                <button onClick={() => setHaushaltsNameBearbeiten(true)} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 transition-colors" title="Haushaltsname bearbeiten">
+                <button onClick={() => setHaushaltsNameBearbeiten(true)} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 transition-colors" title={t("profile:panelContent.household.editNameTitle")}>
                   <Pencil size={12} />
                 </button>
               )}
@@ -838,16 +880,16 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-xs font-medium
                        border border-secondary-500/30 text-secondary-500 hover:bg-secondary-500/10 transition-colors"
           >
-            <Users size={13} /> Bewohner verwalten
+            <Users size={13} /> {t("profile:panelContent.household.manageBewohner")}
           </button>
         </div>
 
         <div className="flex flex-wrap gap-2 text-xs">
           <span className="px-2 py-1 rounded-pill bg-primary-500/10 text-primary-500 border border-primary-500/30">
-            Haushaltsmitglieder: {haushaltMitglieder.length}
+            {t("profile:panelContent.household.memberCount", { count: haushaltMitglieder.length })}
           </span>
           <span className="px-2 py-1 rounded-pill bg-light-surface-1 dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary border border-light-border dark:border-dark-border">
-            Bewohner-Eintraege: {bewohnerAnzahl}
+            {t("profile:panelContent.household.residentCount", { count: bewohnerAnzahl })}
           </span>
         </div>
 
@@ -871,7 +913,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     {mitglied.avatar_url ? (
-                      <img src={mitglied.avatar_url} alt={mitglied.display_name || "Profilbild"} className="w-9 h-9 rounded-full object-cover" />
+                      <img src={mitglied.avatar_url} alt={mitglied.display_name || t("profile:panelContent.household.profilePicAlt")} className="w-9 h-9 rounded-full object-cover" />
                     ) : (
                       <div className="w-9 h-9 rounded-full bg-primary-500 text-white text-xs font-semibold flex items-center justify-center">
                         {initial}
@@ -879,28 +921,28 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                     )}
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main truncate">
-                        {mitglied.display_name || "Mitglied"} {mitglied.is_current_user ? "(Du)" : ""}
+                        {mitglied.display_name || t("common:profile.member")} {mitglied.is_current_user ? t("profile:panelContent.household.youSuffix") : ""}
                       </p>
                       <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">
-                        {mitglied.email || "Keine E-Mail"}
+                        {mitglied.email || t("profile:panelContent.household.noEmail")}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     {mitglied.role === "admin" ? (
                       <span className="inline-flex items-center gap-1 px-2 py-1 rounded-pill text-[11px] font-medium bg-secondary-500/10 text-secondary-500 border border-secondary-500/30">
-                        <Crown size={11} /> Admin
+                        <Crown size={11} /> {t("common:profile.admin")}
                       </span>
                     ) : (
                       <span className="px-2 py-1 rounded-pill text-[11px] font-medium bg-light-bg dark:bg-canvas-2 text-light-text-secondary dark:text-dark-text-secondary border border-light-border dark:border-dark-border">
-                        Mitglied
+                        {t("common:profile.member")}
                       </span>
                     )}
                     {isHouseholdAdmin && !mitglied.is_current_user && (
                       <button
                         onClick={() => setMitgliedZuEntfernen(mitglied)}
                         className="ml-1 p-1.5 rounded-card-sm text-red-500 hover:bg-red-500/10 transition-colors"
-                        title="Mitglied entfernen"
+                        title={t("profile:panelContent.household.removeTitle")}
                       >
                         <X size={14} />
                       </button>
@@ -917,8 +959,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     if (key === "einladen") return (
       <div className="space-y-3">
         <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-          Lade neue Personen per E-Mail ein. Sie koennen auch ohne bestehenden Account beitreten:
-          Link oeffnen, registrieren/anmelden und Einladung wird direkt angenommen.
+          {t("profile:panelContent.invite.intro")}
         </p>
         <div className="flex flex-col sm:flex-row gap-2">
           <input
@@ -935,26 +976,26 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                        bg-secondary-500 hover:bg-secondary-600 text-white
                        transition-colors disabled:opacity-50"
           >
-            {inviteLadend ? "Erstelle..." : "Einladung erstellen"}
+            {inviteLadend ? t("profile:panelContent.invite.creating") : t("profile:panelContent.invite.create")}
           </button>
         </div>
         {inviteLink && (
           <div className="p-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-surface-1 dark:bg-canvas-3">
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">Einladungslink</p>
+            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("profile:panelContent.invite.linkLabel")}</p>
             <p className="text-xs break-all text-light-text-main dark:text-dark-text-main">{inviteLink}</p>
             <button
               onClick={handleInviteLinkKopieren}
               className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-xs font-medium
                          border border-primary-500/30 text-primary-500 hover:bg-primary-500/10 transition-colors"
             >
-              <Copy size={13} /> Link kopieren
+              <Copy size={13} /> {t("profile:panelContent.invite.copyLink")}
             </button>
           </div>
         )}
-        {inviteStatus === "ok" && <p className="text-xs text-accent-success flex items-center gap-1"><CheckCircle size={13} /> Einladung erstellt.</p>}
-        {inviteStatus === "copied" && <p className="text-xs text-accent-success flex items-center gap-1"><CheckCircle size={13} /> Link kopiert.</p>}
-        {inviteStatus === "fehler" && <p className="text-xs text-accent-danger flex items-center gap-1"><AlertCircle size={13} /> {inviteFehler || "Fehler beim Erstellen der Einladung."}</p>}
-        {inviteMailStatus === "sending" && <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Einladungs-Mail wird versendet...</p>}
+        {inviteStatus === "ok" && <p className="text-xs text-accent-success flex items-center gap-1"><CheckCircle size={13} /> {t("profile:panelContent.invite.created")}</p>}
+        {inviteStatus === "copied" && <p className="text-xs text-accent-success flex items-center gap-1"><CheckCircle size={13} /> {t("profile:panelContent.invite.copied")}</p>}
+        {inviteStatus === "fehler" && <p className="text-xs text-accent-danger flex items-center gap-1"><AlertCircle size={13} /> {inviteFehler || t("profile:panelContent.invite.error")}</p>}
+        {inviteMailStatus === "sending" && <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("profile:panelContent.invite.mailSending")}</p>}
         {inviteMailStatus === "sent" && <p className="text-xs text-accent-success flex items-center gap-1"><CheckCircle size={13} /> {inviteMailHinweis}</p>}
         {inviteMailStatus === "failed" && <p className="text-xs text-accent-danger flex items-center gap-1"><AlertCircle size={13} /> {inviteMailHinweis}</p>}
       </div>
@@ -965,28 +1006,28 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         {!isHouseholdAdmin ? (
           <>
             <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-4">
-              Die KI-Konfiguration wird vom Haushalts-Admin verwaltet. Du siehst hier den aktuellen Status.
+              {t("profile:panelContent.ki.memberIntro")}
             </p>
             {memberKiStatus ? (
               <div className="space-y-2">
                 <div className="flex items-center justify-between py-2 border-b border-light-border dark:border-dark-border">
-                  <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary">KI verfügbar</span>
+                  <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("profile:panelContent.ki.available")}</span>
                   {memberKiStatus.ki_konfiguriert ? (
-                    <span className="flex items-center gap-1.5 text-sm text-accent-success"><CheckCircle size={14} /> Ja</span>
+                    <span className="flex items-center gap-1.5 text-sm text-accent-success"><CheckCircle size={14} /> {t("profile:panelContent.ki.yes")}</span>
                   ) : (
-                    <span className="flex items-center gap-1.5 text-sm text-accent-danger"><AlertCircle size={14} /> Nicht konfiguriert</span>
+                    <span className="flex items-center gap-1.5 text-sm text-accent-danger"><AlertCircle size={14} /> {t("common:status.notConfigured")}</span>
                   )}
                 </div>
                 <div className="flex items-center justify-between py-2 border-b border-light-border dark:border-dark-border">
-                  <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Provider</span>
+                  <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("profile:panelContent.ki.providerLabel")}</span>
                   <span className="text-sm font-medium text-light-text-main dark:text-dark-text-main capitalize">{memberKiStatus.ki_provider || "–"}</span>
                 </div>
                 <div className="flex items-center justify-between py-2">
-                  <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Bildanalyse</span>
+                  <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("profile:panelContent.ki.imageAnalysisLabel")}</span>
                   {memberKiStatus.bildanalyse_key_gesetzt ? (
-                    <span className="flex items-center gap-1.5 text-sm text-accent-success"><CheckCircle size={14} /> Konfiguriert</span>
+                    <span className="flex items-center gap-1.5 text-sm text-accent-success"><CheckCircle size={14} /> {t("common:status.configured")}</span>
                   ) : (
-                    <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Nicht konfiguriert</span>
+                    <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("common:status.notConfigured")}</span>
                   )}
                 </div>
               </div>
@@ -999,11 +1040,11 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         ) : (
           <>
             <div>
-              <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2 uppercase tracking-wide">KI-Provider</p>
+              <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2 uppercase tracking-wide">{t("profile:panelContent.ki.providerSection")}</p>
               <div className="grid grid-cols-2 gap-2">
                 {[
                   { id: "openai", label: "OpenAI", desc: "GPT-4o + Whisper" },
-                  { id: "ollama", label: "Ollama", desc: "Eigener Server" },
+                  { id: "ollama", label: "Ollama", desc: t("profile:panelContent.ki.ollamaDesc") },
                 ].map((p) => (
                   <button
                     key={p.id}
@@ -1023,7 +1064,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
 
             {kiProvider === "openai" && (
               <div className="space-y-2">
-                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">OpenAI API-Key</p>
+                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.ki.apiKeySection")}</p>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <input
@@ -1045,9 +1086,9 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                     className="flex items-center gap-1.5 px-4 py-2.5 rounded-pill text-sm font-medium
                                bg-primary-500 hover:bg-primary-600 text-white transition-colors shrink-0"
                   >
-                    {speichernStatus === "ok" ? <><CheckCircle size={15} /> Gespeichert</>
-                      : speichernStatus === "fehler" ? <><AlertCircle size={15} /> Fehler</>
-                      : <><Save size={15} /> Speichern</>}
+                    {speichernStatus === "ok" ? <><CheckCircle size={15} /> {t("common:status.saved")}</>
+                      : speichernStatus === "fehler" ? <><AlertCircle size={15} /> {t("common:status.error")}</>
+                      : <><Save size={15} /> {t("common:actions.save")}</>}
                   </button>
                 </div>
               </div>
@@ -1055,7 +1096,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
 
             {kiProvider === "ollama" && (
               <div className="space-y-3">
-                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">Ollama Server</p>
+                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.ki.ollamaServerSection")}</p>
                 <div className="space-y-2">
                   <div>
                     <input
@@ -1066,9 +1107,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                       className={inputCls}
                     />
                     <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                      Nur die Basis-URL ohne Pfad, z.B.&nbsp;
-                      <code className="font-mono text-[11px]">https://mein-server.de</code>&nbsp;
-                      oder&nbsp;<code className="font-mono text-[11px]">http://localhost:11434</code>
+                      {t("profile:panelContent.ki.ollamaUrlHint")}
                     </p>
                   </div>
                   <input
@@ -1114,20 +1153,20 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                     ) : (
                       <Wifi size={14} />
                     )}
-                    {ollamaTestStatus === "ok" ? "Verbunden" : ollamaTestStatus === "fehler" ? "Nicht erreichbar" : "Testen"}
+                    {ollamaTestStatus === "ok" ? t("profile:panelContent.ki.connected") : ollamaTestStatus === "fehler" ? t("profile:panelContent.ki.notReachable") : t("profile:panelContent.ki.testBtn")}
                   </button>
                   <button
                     onClick={handleOllamaSpeichern}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-pill text-sm font-medium
                                bg-secondary-500 hover:bg-secondary-600 text-white transition-colors"
                   >
-                    {ollamaStatus === "ok" ? <><CheckCircle size={14} /> Gespeichert</>
-                      : ollamaStatus === "fehler" ? <><AlertCircle size={14} /> Fehler</>
-                      : <><Save size={14} /> Speichern</>}
+                    {ollamaStatus === "ok" ? <><CheckCircle size={14} /> {t("common:status.saved")}</>
+                      : ollamaStatus === "fehler" ? <><AlertCircle size={14} /> {t("common:status.error")}</>
+                      : <><Save size={14} /> {t("common:actions.save")}</>}
                   </button>
                 </div>
                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                  Hinweis: Im Ollama-Modus wird die Spracheingabe über die Browser-Spracherkennung (Web Speech API) verarbeitet statt über Whisper.
+                  {t("profile:panelContent.ki.ollamaNote")}
                 </p>
               </div>
             )}
@@ -1143,13 +1182,13 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         ) : (
           <>
             <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-              Waehle den Modus fuer die KI-gestuetzte Rechnungserkennung. Diese Einstellung gilt fuer den gesamten Haushalt.
+              {t("profile:panelContent.imageAnalysis.intro")}
             </p>
             <div className="grid grid-cols-2 gap-2">
               {[
-                { id: "chatgpt_vision", label: "ChatGPT Vision",  desc: "GPT-4o analysiert das Bild direkt" },
-                { id: "ocr_regeln",     label: "OCR + Regeln",    desc: "Textextraktion, kein API-Key noetig" },
-                { id: "ocr_ollama",     label: "OCR + Ollama",    desc: "OCR-Text wird an Ollama uebergeben" },
+                { id: "chatgpt_vision", label: "ChatGPT Vision",  desc: t("profile:panelContent.imageAnalysis.chatgptVisionDesc") },
+                { id: "ocr_regeln",     label: "OCR + Regeln",    desc: t("profile:panelContent.imageAnalysis.ocrRegelnDesc") },
+                { id: "ocr_ollama",     label: "OCR + Ollama",    desc: t("profile:panelContent.imageAnalysis.ocrOllamaDesc") },
               ].map((m) => (
                 <button
                   key={m.id}
@@ -1167,16 +1206,16 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
             </div>
             {bildanalyseModus === "chatgpt_vision" && (
               <div className="space-y-2">
-                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">OpenAI API-Key (Bildanalyse)</p>
+                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.imageAnalysis.apiKeySection")}</p>
                 {bildanalyseOpenaiKeySet && (
                   <div className="flex items-center gap-3">
-                    <p className="text-xs text-accent-success flex items-center gap-1.5"><CheckCircle size={13} /> Key gesetzt: <span className="font-mono">***</span></p>
+                    <p className="text-xs text-accent-success flex items-center gap-1.5"><CheckCircle size={13} /> {t("profile:panelContent.imageAnalysis.keySet")} <span className="font-mono">***</span></p>
                     <button
                       onClick={handleOpenaiKeyLoeschen}
                       disabled={loescheOpenaiKey}
                       className="text-xs text-accent-danger hover:underline disabled:opacity-50"
                     >
-                      {loescheOpenaiKey ? "…" : "Key löschen"}
+                      {loescheOpenaiKey ? "…" : t("profile:panelContent.imageAnalysis.deleteKey")}
                     </button>
                   </div>
                 )}
@@ -1185,7 +1224,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                   autoComplete="new-password"
                   value={bildanalyseOpenaiKey}
                   onChange={(e) => setBildanalyseOpenaiKey(e.target.value)}
-                  placeholder={bildanalyseOpenaiKeySet ? "Neuen Key eingeben um zu ersetzen" : "sk-..."}
+                  placeholder={bildanalyseOpenaiKeySet ? t("profile:panelContent.imageAnalysis.replaceKeyPlaceholder") : "sk-..."}
                   className={`w-full px-3 py-2.5 rounded-card-sm border text-sm
                               bg-light-surface-1 dark:bg-canvas-2
                               border-light-border dark:border-dark-border
@@ -1194,13 +1233,13 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                               focus:outline-none focus:border-secondary-500 transition-colors`}
                 />
                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                  Unabhaengig von den KI-Einstellungen. Wird nur fuer die Rechnungsanalyse verwendet.
+                  {t("profile:panelContent.imageAnalysis.apiKeyNote")}
                 </p>
               </div>
             )}
             {bildanalyseModus === "ocr_ollama" && (
               <div className="space-y-2">
-                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">Ollama Vision-Modell</p>
+                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.imageAnalysis.ollamaModelSection")}</p>
                 <input
                   type="text"
                   value={ollamaVisionModel}
@@ -1214,7 +1253,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                               focus:outline-none focus:border-secondary-500 transition-colors`}
                 />
                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                  Separates Modell fuer die Bildanalyse (muss Vision-Faehigkeiten haben).
+                  {t("profile:panelContent.imageAnalysis.ollamaModelNote")}
                 </p>
               </div>
             )}
@@ -1223,9 +1262,9 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               className="flex items-center gap-1.5 px-4 py-2.5 rounded-pill text-sm font-medium
                          bg-secondary-500 hover:bg-secondary-600 text-white transition-colors"
             >
-              {bildanalyseStatus === "ok" ? <><CheckCircle size={15} /> Gespeichert</>
-                : bildanalyseStatus === "fehler" ? <><AlertCircle size={15} /> Fehler</>
-                : <><Save size={15} /> Einstellungen speichern</>}
+              {bildanalyseStatus === "ok" ? <><CheckCircle size={15} /> {t("common:status.saved")}</>
+                : bildanalyseStatus === "fehler" ? <><AlertCircle size={15} /> {t("common:status.error")}</>
+                : <><Save size={15} /> {t("profile:panelContent.imageAnalysis.saveSettings")}</>}
             </button>
           </>
         )}
@@ -1235,39 +1274,38 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     if (key === "push") return (
       <div className="space-y-4">
         <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-          Erhalte Benachrichtigungen auch wenn die App geschlossen ist – für Aufgaben, Vorräte, Wartungen und Deadlines.
+          {t("profile:panelContent.push.intro")}
         </p>
         {isIOS && !isStandalone && (
           <div className="flex gap-2.5 p-3 rounded-card-sm bg-accent-yellow/10 border border-accent-yellow/30">
             <BellRing size={16} className="text-accent-yellow shrink-0 mt-0.5" />
             <p className="text-xs text-accent-yellow leading-relaxed">
-              Auf iOS müssen Push-Nachrichten über Safari aktiviert werden und die App muss
-              zuerst zum Homescreen hinzugefügt werden <strong>(Teilen → Zum Home-Bildschirm)</strong>.
+              {t("profile:panelContent.push.iosHint")}
             </p>
           </div>
         )}
         {!pushUnterstuetzt ? (
           <div className="flex items-center gap-2 text-sm text-light-text-secondary dark:text-dark-text-secondary">
-            <BellOff size={15} /> Push-Benachrichtigungen werden von diesem Browser nicht unterstützt.
+            <BellOff size={15} /> {t("profile:panelContent.push.notSupported")}
           </div>
         ) : (
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               {pushAktiv ? (
                 <span className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-pill bg-accent-success/15 text-accent-success border border-accent-success/30">
-                  <Bell size={12} /> Aktiv
+                  <Bell size={12} /> {t("profile:panelContent.push.active")}
                 </span>
               ) : pushBerechtigung === "denied" ? (
                 <span className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-pill bg-accent-danger/10 text-accent-danger border border-accent-danger/30">
-                  <BellOff size={12} /> Verweigert
+                  <BellOff size={12} /> {t("profile:panelContent.push.denied")}
                 </span>
               ) : pushFehler ? (
                 <span className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-pill bg-amber-500/10 text-amber-600 dark:text-amber-300 border border-amber-500/30">
-                  <AlertCircle size={12} /> Technischer Fehler
+                  <AlertCircle size={12} /> {t("profile:panelContent.push.techError")}
                 </span>
               ) : (
                 <span className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-pill bg-light-surface-1 dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary border border-light-border dark:border-dark-border">
-                  <BellOff size={12} /> Inaktiv
+                  <BellOff size={12} /> {t("profile:panelContent.push.inactive")}
                 </span>
               )}
             </div>
@@ -1285,15 +1323,15 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 {pushLadend ? (
                   <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                 ) : pushAktiv ? (
-                  <><BellOff size={15} /> Deaktivieren</>
+                  <><BellOff size={15} /> {t("profile:panelContent.push.deactivate")}</>
                 ) : (
-                  <><Bell size={15} /> Aktivieren</>
+                  <><Bell size={15} /> {t("profile:panelContent.push.activate")}</>
                 )}
               </button>
             )}
             {pushBerechtigung === "denied" && (
               <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                Bitte erteile die Berechtigung in den Browser-Einstellungen.
+                {t("profile:panelContent.push.permissionHint")}
               </p>
             )}
           </div>
@@ -1305,7 +1343,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         )}
         {pushAktiv && (
           <div className="pt-4 border-t border-light-border dark:border-dark-border space-y-3">
-            <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">Einkaufsliste-Erinnerung</p>
+            <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">{t("profile:panelContent.push.shoppingReminder")}</p>
             <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"
@@ -1314,12 +1352,12 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 className="mt-0.5 accent-primary-500 w-4 h-4 cursor-pointer"
               />
               <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary leading-snug">
-                Täglich erinnern, wenn unerledigte Einkäufe in der Liste vorhanden sind
+                {t("profile:panelContent.push.shoppingReminderDesc")}
               </span>
             </label>
             {einkaufReminderAktiv && (
               <div className="flex items-center gap-3 pl-7">
-                <label className="text-sm text-light-text-secondary dark:text-dark-text-secondary whitespace-nowrap">Uhrzeit (UTC):</label>
+                <label className="text-sm text-light-text-secondary dark:text-dark-text-secondary whitespace-nowrap">{t("profile:panelContent.push.timeUtc")}</label>
                 <input
                   type="time"
                   value={einkaufReminderZeit}
@@ -1338,10 +1376,10 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                            bg-primary-500/10 hover:bg-primary-500/20 text-primary-500
                            border border-primary-500/30 transition-colors"
               >
-                <Save size={14} /> Speichern
+                <Save size={14} /> {t("common:actions.save")}
               </button>
-              {reminderStatus === "ok" && <span className="flex items-center gap-1 text-xs text-accent-success"><CheckCircle size={13} /> Gespeichert</span>}
-              {reminderStatus === "fehler" && <span className="flex items-center gap-1 text-xs text-accent-danger"><AlertCircle size={13} /> Fehler beim Speichern</span>}
+              {reminderStatus === "ok" && <span className="flex items-center gap-1 text-xs text-accent-success"><CheckCircle size={13} /> {t("common:status.saved")}</span>}
+              {reminderStatus === "fehler" && <span className="flex items-center gap-1 text-xs text-accent-danger"><AlertCircle size={13} /> {t("common:actions.saveFailed")}</span>}
             </div>
           </div>
         )}
@@ -1351,20 +1389,20 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     if (key === "touren") return (
       <div className="space-y-3">
         <div className="flex items-center gap-2 text-sm">
-          <span className="text-light-text-secondary dark:text-dark-text-secondary">Status:</span>
+          <span className="text-light-text-secondary dark:text-dark-text-secondary">{t("profile:panelContent.tours.statusLabel")}</span>
           {!tourGeladen ? (
-            <span className="text-light-text-secondary dark:text-dark-text-secondary text-xs">Lädt…</span>
+            <span className="text-light-text-secondary dark:text-dark-text-secondary text-xs">{t("profile:panelContent.tours.loading")}</span>
           ) : tourState?.intro_opt_in === true ? (
-            <span className="text-primary-500 text-xs font-medium">Touren aktiv</span>
+            <span className="text-primary-500 text-xs font-medium">{t("profile:panelContent.tours.active")}</span>
           ) : tourState?.intro_opt_in === false ? (
-            <span className="text-light-text-secondary dark:text-dark-text-secondary text-xs">Deaktiviert</span>
+            <span className="text-light-text-secondary dark:text-dark-text-secondary text-xs">{t("profile:panelContent.tours.disabled")}</span>
           ) : (
-            <span className="text-amber-400 text-xs font-medium">Noch nicht entschieden</span>
+            <span className="text-amber-400 text-xs font-medium">{t("profile:panelContent.tours.undecided")}</span>
           )}
         </div>
         {tourState?.intro_opt_in === true && (
           <div className="flex items-center justify-between">
-            <span className="text-sm text-light-text-main dark:text-dark-text-main">Automatische Touren</span>
+            <span className="text-sm text-light-text-main dark:text-dark-text-main">{t("profile:panelContent.tours.autoTours")}</span>
             <button
               onClick={() => setAutoTours?.(!tourState.auto_tours_enabled)}
               className={`px-3 py-1 rounded-pill text-xs font-medium transition-colors
@@ -1372,7 +1410,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                   ? "bg-primary-500 text-white"
                   : "border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-1 dark:hover:bg-canvas-3"}`}
             >
-              {tourState.auto_tours_enabled ? "An" : "Aus"}
+              {tourState.auto_tours_enabled ? t("profile:panelContent.tours.on") : t("profile:panelContent.tours.off")}
             </button>
           </div>
         )}
@@ -1384,10 +1422,10 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                          bg-secondary-500/10 hover:bg-secondary-500/20 text-secondary-500
                          border border-secondary-500/30 transition-colors"
             >
-              {tourReset ? <><CheckCircle size={15} /> Zurückgesetzt</> : <><RotateCcw size={15} /> Alle Modul-Touren zurücksetzen</>}
+              {tourReset ? <><CheckCircle size={15} /> {t("profile:panelContent.tours.resetDone")}</> : <><RotateCcw size={15} /> {t("profile:panelContent.tours.resetAll")}</>}
             </button>
             <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-              Automatischer Start hängt von der Einstellung „Automatische Touren" ab.
+              {t("profile:panelContent.tours.autoStartNote")}
             </p>
           </div>
         )}
@@ -1399,7 +1437,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                        text-light-text-secondary dark:text-dark-text-secondary
                        hover:bg-light-surface-1 dark:hover:bg-canvas-3 transition-colors"
           >
-            <RotateCcw size={15} /> Dashboard-Tour neu starten
+            <RotateCcw size={15} /> {t("profile:panelContent.tours.restartDashboard")}
           </button>
         )}
         {tourState?.intro_opt_in === false && (
@@ -1409,7 +1447,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                        bg-primary-500/10 hover:bg-primary-500/20 text-primary-500
                        border border-primary-500/30 transition-colors"
           >
-            <RotateCcw size={15} /> Touren aktivieren &amp; Dashboard-Tour starten
+            <RotateCcw size={15} /> {t("profile:panelContent.tours.activateAndStart")}
           </button>
         )}
       </div>
@@ -1418,13 +1456,12 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     if (key === "mobile-nav") return (
       <div className="space-y-5">
         <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-          Passe die {MOBILE_NAV_FAVORITE_COUNT} mittleren Slots der mobilen Navigationsleiste an.
-          Der erste (Home/Dashboard) und letzte Slot (Mehr) sind fest.
+          {t("profile:panelContent.mobileNav.intro", { count: MOBILE_NAV_FAVORITE_COUNT })}
         </p>
         {navEdit && ["home", "umzug"].map((mode) => (
           <div key={mode} className="space-y-2">
             <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">
-              {mode === "home" ? "Home Organizer" : "Umzugsplaner"}
+              {mode === "home" ? t("common:app.name") : t("common:app.moveName")}
             </p>
             <div className="space-y-1.5">
               {navEdit[mode].map((key2, idx) => {
@@ -1445,19 +1482,19 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                         onClick={() => handleNavFavoritVerschieben(mode, idx, -1)}
                         disabled={idx === 0}
                         className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main disabled:opacity-30 transition-colors"
-                        title="Nach oben"
+                        title={t("profile:panelContent.mobileNav.moveUp")}
                       >↑</button>
                       <button
                         onClick={() => handleNavFavoritVerschieben(mode, idx, 1)}
                         disabled={idx === navEdit[mode].length - 1}
                         className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main disabled:opacity-30 transition-colors"
-                        title="Nach unten"
+                        title={t("profile:panelContent.mobileNav.moveDown")}
                       >↓</button>
                       <button
                         onClick={() => { setNavPickerModus(mode); setNavPickerSlotIdx(idx); }}
                         className="px-2 py-0.5 rounded-pill text-xs border border-primary-500/30 text-primary-500 hover:bg-primary-500/10 transition-colors"
                       >
-                        Ersetzen
+                        {t("profile:panelContent.mobileNav.replace")}
                       </button>
                     </div>
                   </div>
@@ -1467,12 +1504,12 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
             {navPickerModus === mode && navPickerSlotIdx !== null && (
               <div className="mt-2 p-3 rounded-card-sm border border-secondary-500/30 bg-secondary-500/5">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-medium text-secondary-500">Modul wählen:</p>
+                  <p className="text-xs font-medium text-secondary-500">{t("profile:panelContent.mobileNav.chooseModule")}</p>
                   <button
                     onClick={() => { setNavPickerModus(null); setNavPickerSlotIdx(null); }}
                     className="text-xs text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
                   >
-                    Abbrechen
+                    {t("common:actions.cancel")}
                   </button>
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
@@ -1503,7 +1540,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               onClick={() => handleNavFavoritenZuruecksetzen(mode)}
               className="text-xs text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main underline underline-offset-2 transition-colors"
             >
-              Auf Standard zurücksetzen
+              {t("profile:panelContent.mobileNav.resetDefault")}
             </button>
           </div>
         ))}
@@ -1513,12 +1550,12 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-pill text-sm font-medium
                        bg-primary-500 hover:bg-primary-600 text-white transition-colors"
           >
-            {navSaveStatus === "ok" ? <><CheckCircle size={15} /> Gespeichert</>
-              : navSaveStatus === "fehler" ? <><AlertCircle size={15} /> Fehler</>
-              : <><Save size={15} /> Speichern</>}
+            {navSaveStatus === "ok" ? <><CheckCircle size={15} /> {t("common:status.saved")}</>
+              : navSaveStatus === "fehler" ? <><AlertCircle size={15} /> {t("common:status.error")}</>
+              : <><Save size={15} /> {t("common:actions.save")}</>}
           </button>
-          {navSaveStatus === "ok" && <p className="text-xs text-accent-success">Bottombar aktualisiert</p>}
-          {navSaveStatus === "fehler" && <p className="text-xs text-accent-danger">Fehler beim Speichern</p>}
+          {navSaveStatus === "ok" && <p className="text-xs text-accent-success">{t("profile:panelContent.mobileNav.navUpdated")}</p>}
+          {navSaveStatus === "fehler" && <p className="text-xs text-accent-danger">{t("common:actions.saveFailed")}</p>}
         </div>
       </div>
     );
@@ -1526,7 +1563,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     if (key === "account") return (
       <div className="space-y-5">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">Passwort</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">{t("profile:panelContent.account.passwordSection")}</p>
           <button
             onClick={handlePasswortReset}
             className="flex items-center gap-2 px-4 py-2.5 rounded-pill text-sm font-medium
@@ -1535,16 +1572,16 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                        border border-light-border dark:border-dark-border
                        hover:border-secondary-500/50 transition-colors"
           >
-            <KeyRound size={14} /> Passwort-Reset-Mail senden
+            <KeyRound size={14} /> {t("profile:panelContent.account.sendResetMail")}
           </button>
           {passwortStatus === "ok" && (
             <p className="text-xs text-accent-success mt-2 flex items-center gap-1">
-              <CheckCircle size={12} /> E-Mail wurde gesendet.
+              <CheckCircle size={12} /> {t("profile:panelContent.account.emailSent")}
             </p>
           )}
         </div>
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">E-Mail-Adresse ändern</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">{t("profile:panelContent.account.emailSection")}</p>
           <div className="flex gap-2">
             <input
               type="email"
@@ -1560,11 +1597,11 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                          bg-secondary-500/10 hover:bg-secondary-500/20 text-secondary-500
                          border border-secondary-500/30 transition-colors disabled:opacity-40 shrink-0"
             >
-              <Save size={14} /> Ändern
+              <Save size={14} /> {t("common:actions.change")}
             </button>
           </div>
-          {emailStatus === "ok" && <p className="text-xs text-accent-success mt-2 flex items-center gap-1"><CheckCircle size={12} /> Bestätigungs-Mail wurde gesendet.</p>}
-          {emailStatus === "fehler" && <p className="text-xs text-accent-danger mt-2 flex items-center gap-1"><AlertCircle size={12} /> Fehler beim Ändern der E-Mail.</p>}
+          {emailStatus === "ok" && <p className="text-xs text-accent-success mt-2 flex items-center gap-1"><CheckCircle size={12} /> {t("profile:panelContent.account.emailConfirmSent")}</p>}
+          {emailStatus === "fehler" && <p className="text-xs text-accent-danger mt-2 flex items-center gap-1"><AlertCircle size={12} /> {t("profile:panelContent.account.emailChangeFailed")}</p>}
         </div>
         <div className="pt-2 border-t border-light-border dark:border-dark-border">
           {!loeschenBestaetigung ? (
@@ -1572,19 +1609,19 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               onClick={() => setLoeschenBestaetigung(true)}
               className="text-xs text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger transition-colors underline underline-offset-2"
             >
-              Account unwiderruflich löschen
+              {t("profile:panelContent.account.deleteAccount")}
             </button>
           ) : (
             <div className="p-3 bg-accent-danger/10 border border-accent-danger/30 rounded-card-sm space-y-3">
               <p className="text-xs text-accent-danger font-medium leading-snug">
-                Alle Daten werden dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.
+                {t("profile:panelContent.account.deleteWarning")}
               </p>
               <div className="flex gap-2">
                 <button
                   onClick={handleAccountLoeschen}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-xs font-medium bg-accent-danger text-white hover:bg-accent-danger/90 transition-colors"
                 >
-                  Ja, Account löschen
+                  {t("profile:panelContent.account.confirmDelete")}
                 </button>
                 <button
                   onClick={() => setLoeschenBestaetigung(false)}
@@ -1594,7 +1631,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                              border border-light-border dark:border-dark-border
                              hover:border-secondary-500/50 transition-colors"
                 >
-                  Abbrechen
+                  {t("common:actions.cancel")}
                 </button>
               </div>
             </div>
@@ -1613,7 +1650,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
       {avatarUrl ? (
         <img
           src={avatarUrl}
-          alt="Profilbild"
+          alt={t("profile:panelContent.household.profilePicAlt")}
           className={`${gross ? "w-20 h-20" : "w-14 h-14"} rounded-full object-cover shadow-glow-primary`}
         />
       ) : (
@@ -1638,9 +1675,9 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
       {mitgliedZuEntfernen && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 p-4">
           <div className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-4 p-6 max-w-sm w-full space-y-4">
-            <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">Mitglied entfernen</h3>
+            <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">{t("profile:panelContent.household.removeTitle")}</h3>
             <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-              <strong>{mitgliedZuEntfernen.display_name || mitgliedZuEntfernen.email}</strong> wird sofort aus dem Haushalt entfernt und verliert den Zugriff.
+              {t("profile:panelContent.household.removeConfirm", { name: mitgliedZuEntfernen.display_name || mitgliedZuEntfernen.email })}
             </p>
             <div className="flex gap-2 justify-end">
               <button
@@ -1648,14 +1685,14 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 disabled={entfernenLadend}
                 className="px-4 py-2 rounded-pill text-sm font-medium border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:bg-light-surface-1 dark:hover:bg-canvas-3 transition-colors"
               >
-                Abbrechen
+                {t("common:actions.cancel")}
               </button>
               <button
                 onClick={handleMitgliedEntfernen}
                 disabled={entfernenLadend}
                 className="px-4 py-2 rounded-pill text-sm font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
               >
-                {entfernenLadend ? "Wird entfernt…" : "Entfernen"}
+                {entfernenLadend ? t("profile:panelContent.household.removing") : t("profile:panelContent.household.remove")}
               </button>
             </div>
           </div>
@@ -1746,19 +1783,19 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
             {/* Status-Chips */}
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-surface-1 dark:bg-canvas-3 px-3 py-2">
-                <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary mb-0.5">App-Modus</p>
+                <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary mb-0.5">{t("profile:chips.appMode")}</p>
                 <StatusBadge label={modusStatus.label} farbe={modusStatus.farbe} />
               </div>
               <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-surface-1 dark:bg-canvas-3 px-3 py-2">
-                <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary mb-0.5">Push</p>
+                <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary mb-0.5">{t("profile:chips.push")}</p>
                 <StatusBadge label={pushStatus.label} farbe={pushStatus.farbe} />
               </div>
               <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-surface-1 dark:bg-canvas-3 px-3 py-2">
-                <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary mb-0.5">KI</p>
+                <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary mb-0.5">{t("profile:chips.ai")}</p>
                 <StatusBadge label={kiStatus.label} farbe={kiStatus.farbe} />
               </div>
               <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-surface-1 dark:bg-canvas-3 px-3 py-2">
-                <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary mb-0.5">Haushalt</p>
+                <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary mb-0.5">{t("profile:chips.household")}</p>
                 <StatusBadge label={mitgliederLabel} farbe="primary" />
               </div>
             </div>
@@ -1773,7 +1810,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                            hover:border-primary-500/30 hover:bg-primary-500/5 transition-colors text-sm"
               >
                 <Building2 size={15} className="text-secondary-500 shrink-0" />
-                <span className="flex-1 text-left">Haushalt verwalten</span>
+                <span className="flex-1 text-left">{t("profile:sidebar.manageHousehold")}</span>
                 <ChevronRight size={13} className="text-light-text-secondary dark:text-dark-text-secondary" />
               </button>
               {isHouseholdAdmin && (
@@ -1785,7 +1822,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                              hover:border-primary-500/30 hover:bg-primary-500/5 transition-colors text-sm"
                 >
                   <UserPlus size={15} className="text-secondary-500 shrink-0" />
-                  <span className="flex-1 text-left">Mitglied einladen</span>
+                  <span className="flex-1 text-left">{t("profile:sidebar.inviteMember")}</span>
                   <ChevronRight size={13} className="text-light-text-secondary dark:text-dark-text-secondary" />
                 </button>
               )}
@@ -1797,7 +1834,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                            hover:border-primary-500/30 hover:bg-primary-500/5 transition-colors text-sm"
               >
                 <Cpu size={15} className="text-secondary-500 shrink-0" />
-                <span className="flex-1 text-left">KI konfigurieren</span>
+                <span className="flex-1 text-left">{t("profile:sidebar.configureAI")}</span>
                 <ChevronRight size={13} className="text-light-text-secondary dark:text-dark-text-secondary" />
               </button>
               <button
@@ -1808,7 +1845,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                            hover:border-primary-500/30 hover:bg-primary-500/5 transition-colors text-sm"
               >
                 <Bell size={15} className="text-secondary-500 shrink-0" />
-                <span className="flex-1 text-left">Push-Benachrichtigungen</span>
+                <span className="flex-1 text-left">{t("profile:sidebar.pushNotifications")}</span>
                 <ChevronRight size={13} className="text-light-text-secondary dark:text-dark-text-secondary" />
               </button>
             </div>
@@ -1820,42 +1857,42 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
 
           {/* Gruppe: Persönlich */}
           <div>
-            <GruppenLabel>Persönlich</GruppenLabel>
+            <GruppenLabel>{t("profile:groups.personal")}</GruppenLabel>
             <div className="grid grid-cols-2 gap-3">
               <ModulKarte
                 icon={<Sun size={16} />}
-                titel="Erscheinungsbild"
-                status={theme === "dark" ? "Dunkles Design" : "Helles Design"}
+                titel={t("profile:cards.appearance.title")}
+                status={theme === "dark" ? t("common:theme.dark") : t("common:theme.light")}
                 statusFarbe="gray"
-                beschreibung="Farbmodus und visuelle Einstellungen"
-                aktionLabel="Ändern"
+                beschreibung={t("profile:cards.appearance.desc")}
+                aktionLabel={t("profile:cards.appearance.action")}
                 onAktion={() => setAktivesPanel("erscheinungsbild")}
               />
               {isHouseholdAdmin && (
                 <ModulKarte
                   icon={<Layers size={16} />}
-                  titel="App-Modus"
+                  titel={t("profile:cards.appMode.title")}
                   status={modusStatus.label}
                   statusFarbe={modusStatus.farbe}
-                  beschreibung="Zwischen Home Organizer und Umzugsplaner wechseln"
-                  aktionLabel="Umschalten"
+                  beschreibung={t("profile:cards.appMode.desc")}
+                  aktionLabel={t("profile:cards.appMode.action")}
                   onAktion={() => setAktivesPanel("app-modus")}
                 />
               )}
               <ModulKarte
                 icon={<Smartphone size={16} />}
-                titel="Mobile Navigation"
-                beschreibung="Bottombar-Favoriten anpassen"
-                aktionLabel="Anpassen"
+                titel={t("profile:cards.mobileNav.title")}
+                beschreibung={t("profile:cards.mobileNav.desc")}
+                aktionLabel={t("profile:cards.mobileNav.action")}
                 onAktion={() => setAktivesPanel("mobile-nav")}
               />
               <ModulKarte
                 icon={<RotateCcw size={16} />}
-                titel="Interaktive Anleitungen"
-                status={tourState?.intro_opt_in === true ? "Aktiv" : tourState?.intro_opt_in === false ? "Deaktiviert" : "–"}
+                titel={t("profile:cards.tours.title")}
+                status={tourState?.intro_opt_in === true ? t("common:status.active") : tourState?.intro_opt_in === false ? t("common:status.inactive") : "–"}
                 statusFarbe={tourState?.intro_opt_in === true ? "emerald" : "gray"}
-                beschreibung="Seitentouren und Onboarding verwalten"
-                aktionLabel="Verwalten"
+                beschreibung={t("profile:cards.tours.desc")}
+                aktionLabel={t("profile:cards.tours.action")}
                 onAktion={() => setAktivesPanel("touren")}
               />
             </div>
@@ -1863,23 +1900,23 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
 
           {/* Gruppe: Haushalt */}
           <div>
-            <GruppenLabel>Haushalt</GruppenLabel>
+            <GruppenLabel>{t("profile:groups.household")}</GruppenLabel>
             <div className="grid grid-cols-2 gap-3">
               <ModulKarte
                 icon={<Users size={16} />}
-                titel="Haushalt & Bewohner"
+                titel={t("profile:cards.household.title")}
                 status={mitgliederLabel}
                 statusFarbe="primary"
-                beschreibung="Mitglieder, Rollen und Haushaltsname"
-                aktionLabel="Verwalten"
+                beschreibung={t("profile:cards.household.desc")}
+                aktionLabel={t("profile:cards.household.action")}
                 onAktion={() => setAktivesPanel("haushalt")}
               />
               {isHouseholdAdmin && (
                 <ModulKarte
                   icon={<UserPlus size={16} />}
-                  titel="Mitglieder einladen"
-                  beschreibung="Einladungslink per E-Mail versenden"
-                  aktionLabel="Einladen"
+                  titel={t("profile:cards.invite.title")}
+                  beschreibung={t("profile:cards.invite.desc")}
+                  aktionLabel={t("profile:cards.invite.action")}
                   onAktion={() => setAktivesPanel("einladen")}
                 />
               )}
@@ -1888,25 +1925,25 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
 
           {/* Gruppe: Intelligenz & Analyse */}
           <div>
-            <GruppenLabel>Intelligenz & Analyse</GruppenLabel>
+            <GruppenLabel>{t("profile:groups.intelligence")}</GruppenLabel>
             <div className="grid grid-cols-2 gap-3">
               <ModulKarte
                 icon={<Cpu size={16} />}
-                titel="KI-Einstellungen"
+                titel={t("profile:cards.ai.title")}
                 status={kiStatus.label}
                 statusFarbe={kiStatus.farbe}
-                beschreibung={isHouseholdAdmin ? "OpenAI oder Ollama konfigurieren" : "Vom Admin verwaltet"}
-                aktionLabel="Konfigurieren"
+                beschreibung={isHouseholdAdmin ? t("profile:cards.ai.descAdmin") : t("profile:cards.ai.descMember")}
+                aktionLabel={t("profile:cards.ai.action")}
                 onAktion={() => setAktivesPanel("ki")}
               />
               {isHouseholdAdmin && (
                 <ModulKarte
                   icon={<Camera size={16} />}
-                  titel="Bildanalyse"
+                  titel={t("profile:cards.imageAnalysis.title")}
                   status={bildanalyseLabel}
                   statusFarbe="gray"
-                  beschreibung="Modus für KI-gestützte Rechnungserkennung"
-                  aktionLabel="Ändern"
+                  beschreibung={t("profile:cards.imageAnalysis.desc")}
+                  aktionLabel={t("profile:cards.imageAnalysis.action")}
                   onAktion={() => setAktivesPanel("bildanalyse")}
                 />
               )}
@@ -1915,22 +1952,22 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
 
           {/* Gruppe: Benachrichtigungen & Sicherheit */}
           <div>
-            <GruppenLabel>Benachrichtigungen & Sicherheit</GruppenLabel>
+            <GruppenLabel>{t("profile:groups.notifications")}</GruppenLabel>
             <div className="grid grid-cols-2 gap-3">
               <ModulKarte
                 icon={<Bell size={16} />}
-                titel="Push-Benachrichtigungen"
+                titel={t("profile:cards.push.title")}
                 status={pushStatus.label}
                 statusFarbe={pushStatus.farbe}
-                beschreibung="Erinnerungen für Aufgaben, Vorräte und Wartungen"
-                aktionLabel={pushAktiv ? "Verwalten" : "Aktivieren"}
+                beschreibung={t("profile:cards.push.desc")}
+                aktionLabel={pushAktiv ? t("profile:cards.push.actionManage") : t("profile:cards.push.actionActivate")}
                 onAktion={() => setAktivesPanel("push")}
               />
               <ModulKarte
                 icon={<Shield size={16} />}
-                titel="Account & Sicherheit"
-                beschreibung="Passwort, E-Mail und Account verwalten"
-                aktionLabel="Verwalten"
+                titel={t("profile:cards.account.title")}
+                beschreibung={t("profile:cards.account.desc")}
+                aktionLabel={t("profile:cards.account.action")}
                 onAktion={() => setAktivesPanel("account")}
               />
             </div>
@@ -1993,11 +2030,11 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         {/* Quick-Actions Strip */}
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
           {[
-            { key: "haushalt", icon: <Building2 size={16} />, label: "Haushalt" },
-            { key: "ki",       icon: <Cpu size={16} />,       label: "KI" },
-            { key: "push",     icon: <Bell size={16} />,      label: "Push" },
-            ...(isHouseholdAdmin ? [{ key: "einladen", icon: <UserPlus size={16} />, label: "Einladen" }] : []),
-            { key: "account",  icon: <Shield size={16} />,    label: "Sicherheit" },
+            { key: "haushalt", icon: <Building2 size={16} />, label: t("profile:mobileQuickActions.household") },
+            { key: "ki",       icon: <Cpu size={16} />,       label: t("profile:mobileQuickActions.ai") },
+            { key: "push",     icon: <Bell size={16} />,      label: t("profile:mobileQuickActions.push") },
+            ...(isHouseholdAdmin ? [{ key: "einladen", icon: <UserPlus size={16} />, label: t("profile:mobileQuickActions.invite") }] : []),
+            { key: "account",  icon: <Shield size={16} />,    label: t("profile:mobileQuickActions.security") },
           ].map((a) => (
             <button
               key={a.key}
@@ -2016,10 +2053,10 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         {/* Segment-Tabs */}
         <div className="flex rounded-card-sm border border-light-border dark:border-dark-border overflow-hidden bg-light-surface-1 dark:bg-canvas-3 p-0.5 gap-0.5">
           {[
-            { id: "allgemein",  label: "Allgemein" },
-            { id: "haushalt",   label: "Haushalt" },
-            { id: "ki",         label: "KI" },
-            { id: "sicherheit", label: "Sicherheit" },
+            { id: "allgemein",  label: t("profile:mobileTabs.general") },
+            { id: "haushalt",   label: t("profile:mobileTabs.household") },
+            { id: "ki",         label: t("profile:mobileTabs.ai") },
+            { id: "sicherheit", label: t("profile:mobileTabs.security") },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -2040,38 +2077,38 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
           {mobilTab === "allgemein" && <>
             <ModulKarte
               icon={<Sun size={16} />}
-              titel="Erscheinungsbild"
-              status={theme === "dark" ? "Dunkles Design" : "Helles Design"}
+              titel={t("profile:cards.appearance.title")}
+              status={theme === "dark" ? t("common:theme.dark") : t("common:theme.light")}
               statusFarbe="gray"
-              beschreibung="Farbmodus umschalten"
-              aktionLabel="Ändern"
+              beschreibung={t("profile:cards.appearance.descMobile")}
+              aktionLabel={t("profile:cards.appearance.action")}
               onAktion={() => setAktivesPanel("erscheinungsbild")}
             />
             {isHouseholdAdmin && (
               <ModulKarte
                 icon={<Layers size={16} />}
-                titel="App-Modus"
+                titel={t("profile:cards.appMode.title")}
                 status={modusStatus.label}
                 statusFarbe={modusStatus.farbe}
-                beschreibung="Home Organizer oder Umzugsplaner"
-                aktionLabel="Umschalten"
+                beschreibung={t("profile:cards.appMode.descMobile")}
+                aktionLabel={t("profile:cards.appMode.action")}
                 onAktion={() => setAktivesPanel("app-modus")}
               />
             )}
             <ModulKarte
               icon={<Smartphone size={16} />}
-              titel="Mobile Navigation"
-              beschreibung="Bottombar-Favoriten anpassen"
-              aktionLabel="Anpassen"
+              titel={t("profile:cards.mobileNav.title")}
+              beschreibung={t("profile:cards.mobileNav.desc")}
+              aktionLabel={t("profile:cards.mobileNav.action")}
               onAktion={() => setAktivesPanel("mobile-nav")}
             />
             <ModulKarte
               icon={<RotateCcw size={16} />}
-              titel="Interaktive Anleitungen"
-              status={tourState?.intro_opt_in === true ? "Aktiv" : tourState?.intro_opt_in === false ? "Deaktiviert" : "–"}
+              titel={t("profile:cards.tours.title")}
+              status={tourState?.intro_opt_in === true ? t("common:status.active") : tourState?.intro_opt_in === false ? t("common:status.inactive") : "–"}
               statusFarbe={tourState?.intro_opt_in === true ? "emerald" : "gray"}
-              beschreibung="Seitentouren und Onboarding"
-              aktionLabel="Verwalten"
+              beschreibung={t("profile:cards.tours.descMobile")}
+              aktionLabel={t("profile:cards.tours.action")}
               onAktion={() => setAktivesPanel("touren")}
             />
           </>}
@@ -2079,19 +2116,19 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
           {mobilTab === "haushalt" && <>
             <ModulKarte
               icon={<Users size={16} />}
-              titel="Haushalt & Bewohner"
+              titel={t("profile:cards.household.title")}
               status={mitgliederLabel}
               statusFarbe="primary"
-              beschreibung="Mitglieder, Rollen und Haushaltsname"
-              aktionLabel="Verwalten"
+              beschreibung={t("profile:cards.household.desc")}
+              aktionLabel={t("profile:cards.household.action")}
               onAktion={() => setAktivesPanel("haushalt")}
             />
             {isHouseholdAdmin && (
               <ModulKarte
                 icon={<UserPlus size={16} />}
-                titel="Mitglieder einladen"
-                beschreibung="Einladungslink per E-Mail versenden"
-                aktionLabel="Einladen"
+                titel={t("profile:cards.invite.title")}
+                beschreibung={t("profile:cards.invite.desc")}
+                aktionLabel={t("profile:cards.invite.action")}
                 onAktion={() => setAktivesPanel("einladen")}
               />
             )}
@@ -2100,21 +2137,21 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
           {mobilTab === "ki" && <>
             <ModulKarte
               icon={<Cpu size={16} />}
-              titel="KI-Einstellungen"
+              titel={t("profile:cards.ai.title")}
               status={kiStatus.label}
               statusFarbe={kiStatus.farbe}
-              beschreibung={isHouseholdAdmin ? "OpenAI oder Ollama konfigurieren" : "Vom Admin verwaltet"}
-              aktionLabel="Konfigurieren"
+              beschreibung={isHouseholdAdmin ? t("profile:cards.ai.descAdmin") : t("profile:cards.ai.descMember")}
+              aktionLabel={t("profile:cards.ai.action")}
               onAktion={() => setAktivesPanel("ki")}
             />
             {isHouseholdAdmin && (
               <ModulKarte
                 icon={<Camera size={16} />}
-                titel="Bildanalyse"
+                titel={t("profile:cards.imageAnalysis.title")}
                 status={bildanalyseLabel}
                 statusFarbe="gray"
-                beschreibung="Modus für Rechnungserkennung"
-                aktionLabel="Ändern"
+                beschreibung={t("profile:cards.imageAnalysis.descMobile")}
+                aktionLabel={t("profile:cards.imageAnalysis.action")}
                 onAktion={() => setAktivesPanel("bildanalyse")}
               />
             )}
@@ -2123,18 +2160,18 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
           {mobilTab === "sicherheit" && <>
             <ModulKarte
               icon={<Bell size={16} />}
-              titel="Push-Benachrichtigungen"
+              titel={t("profile:cards.push.title")}
               status={pushStatus.label}
               statusFarbe={pushStatus.farbe}
-              beschreibung="Erinnerungen für Aufgaben und Deadlines"
-              aktionLabel={pushAktiv ? "Verwalten" : "Aktivieren"}
+              beschreibung={t("profile:cards.push.descMobile")}
+              aktionLabel={pushAktiv ? t("profile:cards.push.actionManage") : t("profile:cards.push.actionActivate")}
               onAktion={() => setAktivesPanel("push")}
             />
             <ModulKarte
               icon={<Shield size={16} />}
-              titel="Account & Sicherheit"
-              beschreibung="Passwort, E-Mail und Account verwalten"
-              aktionLabel="Verwalten"
+              titel={t("profile:cards.account.title")}
+              beschreibung={t("profile:cards.account.desc")}
+              aktionLabel={t("profile:cards.account.action")}
               onAktion={() => setAktivesPanel("account")}
             />
           </>}

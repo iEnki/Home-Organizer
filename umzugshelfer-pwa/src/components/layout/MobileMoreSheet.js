@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { X, Repeat, Settings } from "lucide-react";
 import { MOBILE_NAV_REGISTRY } from "../../config/mobileNavConfig";
 
@@ -12,6 +13,7 @@ const MobileMoreSheet = ({
   mobileNavFavorites,
   onOpenNavSettings,
 }) => {
+  const { t } = useTranslation(["nav"]);
   useEffect(() => {
     if (!open) return undefined;
     const onEscape = (e) => {
@@ -29,7 +31,7 @@ const MobileMoreSheet = ({
 
   const registry  = MOBILE_NAV_REGISTRY[appMode] || MOBILE_NAV_REGISTRY.home;
   const favKeySet = new Set(mobileNavFavorites?.[appMode] ?? []);
-  const modeLabel = appMode === "home" ? "Zum Umzugsplaner wechseln" : "Zum Home Organizer wechseln";
+  const modeLabel = appMode === "home" ? t("nav:mobile.switchToMove") : t("nav:mobile.switchToHome");
 
   const handleNavigate = (path) => {
     onNavigate(path);
@@ -40,7 +42,7 @@ const MobileMoreSheet = ({
     <div className="lg:hidden fixed inset-0 z-[120]">
       <button
         className="absolute inset-0 bg-canvas-0/65 backdrop-blur-sm"
-        aria-label="Menü schließen"
+        aria-label={t("nav:mobile.closeMenu")}
         onClick={onClose}
       />
 
@@ -51,11 +53,11 @@ const MobileMoreSheet = ({
       >
         <div className="sticky top-0 z-10 px-4 py-3 border-b border-light-border dark:border-dark-border bg-light-card-bg/95 dark:bg-canvas-2/95 backdrop-blur">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">Mehr</h2>
+            <h2 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">{t("nav:items.more")}</h2>
             <button
               onClick={onClose}
               className="w-9 h-9 rounded-card-sm flex items-center justify-center text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
-              aria-label="Menü schließen"
+              aria-label={t("nav:mobile.closeMenu")}
             >
               <X size={18} />
             </button>
@@ -78,11 +80,11 @@ const MobileMoreSheet = ({
                 }`}
               >
                 <Icon size={16} />
-                <span className="text-sm font-medium flex-1">{item.label}</span>
+                <span className="text-sm font-medium flex-1">{t(item.labelKey, { defaultValue: item.label })}</span>
                 {isFavorite && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-pill
                                    bg-primary-500/10 text-primary-500 border border-primary-500/20 shrink-0">
-                    Bottombar
+                    {t("nav:mobile.bottomBar")}
                   </span>
                 )}
               </button>
@@ -97,7 +99,7 @@ const MobileMoreSheet = ({
                        bg-light-surface-1 dark:bg-canvas-3 border border-light-border dark:border-dark-border
                        text-light-text-secondary dark:text-dark-text-secondary text-sm"
           >
-            <Settings size={16} /> Bottombar anpassen
+            <Settings size={16} /> {t("nav:mobile.customizeBottomBar")}
           </button>
 
           <button

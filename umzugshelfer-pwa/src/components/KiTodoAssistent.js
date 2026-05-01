@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "../supabaseClient";
 import OpenAI from "openai";
 import { ReactMic } from "react-mic";
+import { useLocale } from "../contexts/LocaleContext";
 import { getKiClient, isKiClientReady, startSpeechRecognition } from "../utils/kiClient";
 import {
   Mic,
@@ -19,7 +21,11 @@ import {
 } from "lucide-react";
 
 const KiTodoAssistent = ({ session, onTodosExtracted }) => {
+  const { t } = useTranslation(["assistant","common"]);
+  void t;
+
   const userId = session?.user?.id;
+  const { locale } = useLocale();
   const [apiKey, setApiKey] = useState("");
   const [isApiKeySet, setIsApiKeySet] = useState(true);
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
@@ -110,7 +116,8 @@ const KiTodoAssistent = ({ session, onTodosExtracted }) => {
       (err) => {
         setError(`Spracherkennung Fehler: ${err}`);
         showToast(`Spracherkennung Fehler: ${err}`, "error");
-      }
+      },
+      locale
     );
   };
 

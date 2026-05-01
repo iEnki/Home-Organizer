@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import {
   X, ScanLine, Loader2, AlertCircle, CheckCircle, BookOpen,
@@ -39,6 +40,7 @@ export default function BuchScannerModal({
   onImportBatchErstellt,
   onAbbrechen,
 }) {
+  const { t } = useTranslation(["books"]);
   const userId = session?.user?.id;
 
   const [scanning, setScanning] = useState(false);
@@ -61,7 +63,7 @@ export default function BuchScannerModal({
   const verarbeiteIsbn = useCallback(async (rawIsbn) => {
     const norm = normalizeIsbn(rawIsbn);
     if (!isValidIsbn(norm)) {
-      setFehler("Kein gültiger ISBN-Code erkannt.");
+      setFehler(t("books:scannerModal.errNoIsbn"));
       return;
     }
     setFehler(null);
@@ -89,7 +91,7 @@ export default function BuchScannerModal({
       try {
         const results = await suchePerIsbn(norm);
         if (!results.length) {
-          setFehler(`Kein Buch für ISBN ${norm} gefunden.`);
+          setFehler(t("books:scannerModal.errNotFound", { isbn: norm }));
         } else {
           setTreffer(results);
         }
@@ -97,7 +99,7 @@ export default function BuchScannerModal({
         setLadeTreffer(false);
       }
     }
-  }, [modus, gescannteIsbns]);
+  }, [modus, gescannteIsbns, t]);
 
   const stopScanner = useCallback(async () => {
     aktiv.current = false;
@@ -145,9 +147,9 @@ export default function BuchScannerModal({
       );
       setScanning(true);
     } catch (e) {
-      setFehler("Kamera konnte nicht gestartet werden: " + (e?.message ?? e));
+      setFehler(t("books:scannerModal.errCamera", { error: e?.message ?? String(e) }));
     }
-  }, [modus, stopScanner, verarbeiteIsbn]);
+  }, [modus, stopScanner, verarbeiteIsbn, t]);
 
   useEffect(() => () => { stopScanner(); }, [stopScanner]);
 
@@ -203,6 +205,8 @@ export default function BuchScannerModal({
     }
   };
 
+  const gueltigeAnzahl = kandidaten.filter((k) => k.bookResult).length;
+
   return (
     <div className="fixed app-centered-modal-overlay z-[100] flex items-center justify-center bg-black/60">
       <div
@@ -212,7 +216,7 @@ export default function BuchScannerModal({
           <div className="flex items-center gap-2">
             <ScanLine size={18} className="text-teal-500" />
             <h2 className="font-semibold text-light-text-main dark:text-dark-text-main text-sm">
-              {modus === "stapel" ? "Bücher scannen (Stapel)" : "ISBN scannen"}
+              {modus === "stapel" ? t("books:scannerModal.titleBatch") : t("books:scannerModal.titleSingle")}
             </h2>
           </div>
           <button onClick={() => { stopScanner(); onAbbrechen(); }} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger">
@@ -233,7 +237,7 @@ export default function BuchScannerModal({
                 className="w-full flex items-center justify-center gap-2 py-8 rounded-card-sm border-2 border-dashed border-teal-500/40 text-teal-500 hover:bg-teal-500/5 transition-colors text-sm"
               >
                 <ScanLine size={20} />
-                Kamera starten
+                {t("books:scannerModal.startCamera")}
               </button>
             )}
           </div>
@@ -246,7 +250,7 @@ export default function BuchScannerModal({
 
           {ladeTreffer && (
             <div className="flex items-center justify-center gap-2 text-sm text-light-text-secondary dark:text-dark-text-secondary py-2">
-              <Loader2 size={15} className="animate-spin" /> Buch wird gesucht…
+              <Loader2 size={15} className="animate-spin" /> {t("books:scannerModal.searching")}
             </div>
           )}
 
@@ -262,14 +266,14 @@ export default function BuchScannerModal({
               className="w-full flex items-center justify-center gap-2 py-3 rounded-card-sm border-2 border-dashed border-teal-500/40 text-teal-500 hover:bg-teal-500/5 transition-colors text-sm"
             >
               <ScanLine size={16} />
-              Erneut scannen
+              {t("books:scannerModal.scanAgain")}
             </button>
           )}
 
           {modus === "einzel" && treffer.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
-                Treffer — wähle das richtige Buch:
+                {t("books:scannerModal.resultsTitle")}
               </p>
               {treffer.map((buch, idx) => (
                 <button
@@ -299,7 +303,7 @@ export default function BuchScannerModal({
           {modus === "stapel" && kandidaten.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
-                {kandidaten.length} {kandidaten.length === 1 ? "Buch" : "Bücher"} gescannt:
+                {t("books:scannerModal.scannedCount", { count: kandidaten.length })}
               </p>
               {kandidaten.map(({ isbn, bookResult }) => (
                 <div key={isbn} className="flex items-center gap-3 p-2.5 rounded-card-sm border border-light-border dark:border-dark-border">
@@ -317,7 +321,7 @@ export default function BuchScannerModal({
                         <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">{bookResult.authorDisplay}</p>
                       </>
                     ) : (
-                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary font-mono">{isbn} — kein Treffer</p>
+                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary font-mono">{isbn} {t("books:scannerModal.noMatch")}</p>
                     )}
                   </div>
                   <button
@@ -337,7 +341,7 @@ export default function BuchScannerModal({
                     onChange={(e) => setOrtId(e.target.value)}
                     className="w-full pl-7 pr-6 py-1.5 text-xs rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main appearance-none focus:outline-none focus:border-primary-500"
                   >
-                    <option value="">Ort (optional)</option>
+                    <option value="">{t("books:scannerModal.location")}</option>
                     {orte.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
                   </select>
                   <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary pointer-events-none" />
@@ -348,7 +352,7 @@ export default function BuchScannerModal({
                     onChange={(e) => setLagerortId(e.target.value)}
                     className="w-full px-2.5 pr-6 py-1.5 text-xs rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main appearance-none focus:outline-none focus:border-primary-500"
                   >
-                    <option value="">Lagerort (optional)</option>
+                    <option value="">{t("books:scannerModal.storageLocation")}</option>
                     {lagerorte.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
                   </select>
                   <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary pointer-events-none" />
@@ -362,7 +366,7 @@ export default function BuchScannerModal({
               type="text"
               value={manuelleIsbn}
               onChange={(e) => setManuelleIsbn(e.target.value)}
-              placeholder="ISBN manuell eingeben…"
+              placeholder={t("books:scannerModal.manualIsbn")}
               className="flex-1 px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500 font-mono"
             />
             <button
@@ -370,7 +374,7 @@ export default function BuchScannerModal({
               disabled={!manuelleIsbn.trim()}
               className="px-3 py-2 text-sm rounded-card-sm bg-teal-500 text-white font-medium disabled:opacity-40"
             >
-              Suchen
+              {t("books:scannerModal.search")}
             </button>
           </form>
         </div>
@@ -380,7 +384,7 @@ export default function BuchScannerModal({
             onClick={() => { stopScanner(); onAbbrechen(); }}
             className="px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"
           >
-            Abbrechen
+            {t("books:scannerModal.cancel")}
           </button>
 
           {modus === "stapel" && (
@@ -390,7 +394,7 @@ export default function BuchScannerModal({
               className="flex items-center gap-2 px-3 py-2 text-sm rounded-card-sm bg-teal-500 text-white font-medium disabled:opacity-40"
             >
               {speichern && <Loader2 size={14} className="animate-spin" />}
-              Importieren ({kandidaten.filter((k) => k.bookResult).length} {kandidaten.filter((k) => k.bookResult).length === 1 ? "Buch" : "Bücher"})
+              {t("books:scannerModal.import")} ({t("books:shelf.bookCount", { count: gueltigeAnzahl })})
             </button>
           )}
         </div>

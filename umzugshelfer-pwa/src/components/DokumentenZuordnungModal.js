@@ -31,6 +31,7 @@ const DokumentenZuordnungModal = ({
         .from("dokumente")
         .select("*")
         .eq("user_id", userId)
+        .in("app_modus", ["umzug", "beides"])
         .order("erstellt_am", { ascending: false });
       if (dbError) throw dbError;
       setAlleDokumente(data || []);
@@ -89,6 +90,7 @@ const DokumentenZuordnungModal = ({
 
       const newDokument = {
         user_id: userId,
+        app_modus: "umzug",
         dateiname: selectedFile.name,
         datei_typ: selectedFile.type,
         storage_pfad: filePath,

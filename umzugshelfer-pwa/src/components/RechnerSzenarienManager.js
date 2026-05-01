@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { PlusCircle, Save, Trash2, XCircle } from "lucide-react";
 import { supabase } from "../supabaseClient";
-import { Save, Trash2, PlusCircle, XCircle } from "lucide-react";
 import { useTheme } from "../contexts/ThemeContext";
 
 const RECHNER_TYPEN = ["Wandfarbe", "Bodenbelag", "Tapete", "Dämmstoff", "Kisten", "Volumen", "Sonstiges"];
 
 const RechnerSzenarienManager = ({ session }) => {
+  const { i18n, t } = useTranslation(["move", "common"]);
   const userId = session?.user?.id;
   useTheme();
   const [szenarien, setSzenarien] = useState([]);
@@ -17,7 +19,10 @@ const RechnerSzenarienManager = ({ session }) => {
   const [notizen, setNotizen] = useState("");
 
   const fetchSzenarien = useCallback(async () => {
-    if (!userId) { setLoading(false); return; }
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
     const { data } = await supabase
       .from("rechner_szenarien")
       .select("*")
@@ -41,7 +46,10 @@ const RechnerSzenarienManager = ({ session }) => {
       ergebnis: ergebnis || null,
       notizen: notizen || null,
     }]);
-    if (error) { alert(`Fehler: ${error.message}`); return; }
+    if (error) {
+      alert(t("move:calculator.scenarios.saveError", { message: error.message }));
+      return;
+    }
     setName("");
     setRechnerTyp("Wandfarbe");
     setErgebnis("");
@@ -51,7 +59,7 @@ const RechnerSzenarienManager = ({ session }) => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Szenario löschen?")) return;
+    if (!window.confirm(t("move:calculator.scenarios.confirmDelete"))) return;
     await supabase.from("rechner_szenarien").delete().match({ id, user_id: userId });
     setSzenarien(szenarien.filter((s) => s.id !== id));
   };
@@ -60,9 +68,9 @@ const RechnerSzenarienManager = ({ session }) => {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center gap-3">
         <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-          Speichere Berechnungsergebnisse als Szenarien, um verschiedene Varianten zu vergleichen.
+          {t("move:calculator.scenarios.description")}
         </p>
         <button
           onClick={() => setShowForm(!showForm)}
@@ -70,7 +78,7 @@ const RechnerSzenarienManager = ({ session }) => {
           className="flex items-center gap-1.5 px-3 py-1.5 bg-light-accent-green dark:bg-dark-accent-green text-white dark:text-dark-bg rounded-md text-sm font-medium hover:opacity-90 disabled:opacity-50"
         >
           <PlusCircle size={16} />
-          Szenario speichern
+          {t("move:calculator.scenarios.saveScenario")}
         </button>
       </div>
 
@@ -78,7 +86,7 @@ const RechnerSzenarienManager = ({ session }) => {
         <div className={cardBase}>
           <div className="flex justify-between items-center mb-3">
             <h3 className="font-semibold text-light-text-main dark:text-dark-text-main text-sm">
-              Neues Szenario
+              {t("move:calculator.scenarios.newScenario")}
             </h3>
             <button onClick={() => setShowForm(false)}>
               <XCircle size={18} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-danger-color" />
@@ -88,51 +96,55 @@ const RechnerSzenarienManager = ({ session }) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5">
-                  Name *
+                  {t("move:calculator.scenarios.name")}
                 </label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
-                  placeholder="z.B. Wohnzimmer – Variante 1"
+                  placeholder={t("move:calculator.scenarios.namePlaceholder")}
                   className="w-full px-2.5 py-1.5 border border-light-border dark:border-dark-border rounded-md text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-1 focus:ring-light-accent-green dark:focus:ring-dark-accent-green"
                 />
               </div>
               <div>
                 <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5">
-                  Rechner-Typ
+                  {t("move:calculator.scenarios.type")}
                 </label>
                 <select
                   value={rechnerTyp}
                   onChange={(e) => setRechnerTyp(e.target.value)}
                   className="w-full px-2.5 py-1.5 border border-light-border dark:border-dark-border rounded-md text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-1 focus:ring-light-accent-green dark:focus:ring-dark-accent-green"
                 >
-                  {RECHNER_TYPEN.map((t) => <option key={t} value={t}>{t}</option>)}
+                  {RECHNER_TYPEN.map((type) => (
+                    <option key={type} value={type}>
+                      {t(`move:calculator.scenarios.types.${type}`, { defaultValue: type })}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
             <div>
               <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5">
-                Ergebnis / Menge
+                {t("move:calculator.scenarios.resultAmount")}
               </label>
               <input
                 type="text"
                 value={ergebnis}
                 onChange={(e) => setErgebnis(e.target.value)}
-                placeholder="z.B. 12,5 Liter Farbe"
+                placeholder={t("move:calculator.scenarios.resultPlaceholder")}
                 className="w-full px-2.5 py-1.5 border border-light-border dark:border-dark-border rounded-md text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-1 focus:ring-light-accent-green dark:focus:ring-dark-accent-green"
               />
             </div>
             <div>
               <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5">
-                Notizen
+                {t("move:calculator.scenarios.notes")}
               </label>
               <textarea
                 value={notizen}
                 onChange={(e) => setNotizen(e.target.value)}
                 rows={2}
-                placeholder="Eingabewerte, Annahmen, Bemerkungen..."
+                placeholder={t("move:calculator.scenarios.notesPlaceholder")}
                 className="w-full px-2.5 py-1.5 border border-light-border dark:border-dark-border rounded-md text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-1 focus:ring-light-accent-green dark:focus:ring-dark-accent-green resize-none"
               />
             </div>
@@ -142,14 +154,14 @@ const RechnerSzenarienManager = ({ session }) => {
                 onClick={() => setShowForm(false)}
                 className="px-3 py-1.5 text-sm border border-light-border dark:border-dark-border rounded-md text-light-text-secondary dark:text-dark-text-secondary hover:opacity-80"
               >
-                Abbrechen
+                {t("common:actions.cancel")}
               </button>
               <button
                 type="submit"
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-light-accent-green dark:bg-dark-accent-green text-white dark:text-dark-bg rounded-md text-sm font-medium hover:opacity-90"
               >
                 <Save size={14} />
-                Speichern
+                {t("common:actions.save")}
               </button>
             </div>
           </form>
@@ -157,10 +169,12 @@ const RechnerSzenarienManager = ({ session }) => {
       )}
 
       {loading ? (
-        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Lade Szenarien...</p>
+        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+          {t("move:calculator.scenarios.loading")}
+        </p>
       ) : szenarien.length === 0 ? (
         <div className="text-center py-8 text-light-text-secondary dark:text-dark-text-secondary text-sm italic">
-          Noch keine Szenarien gespeichert.
+          {t("move:calculator.scenarios.empty")}
         </div>
       ) : (
         <div className="space-y-2">
@@ -169,28 +183,26 @@ const RechnerSzenarienManager = ({ session }) => {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
                   <span className="text-xs px-1.5 py-0.5 rounded bg-light-accent-purple/10 dark:bg-dark-accent-purple/20 text-light-accent-purple dark:text-dark-accent-purple font-medium">
-                    {s.rechner_typ}
+                    {t(`move:calculator.scenarios.types.${s.rechner_typ}`, { defaultValue: s.rechner_typ })}
                   </span>
                   <h4 className="font-semibold text-sm text-light-text-main dark:text-dark-text-main truncate">
                     {s.name}
                   </h4>
                 </div>
-                {s.ergebnis && (
-                  <p className="text-sm font-medium text-light-accent-green dark:text-dark-accent-green">{s.ergebnis}</p>
-                )}
+                {s.ergebnis && <p className="text-sm font-medium text-light-accent-green dark:text-dark-accent-green">{s.ergebnis}</p>}
                 {s.notizen && (
                   <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5 whitespace-pre-line">
                     {s.notizen}
                   </p>
                 )}
                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1 opacity-60">
-                  {new Date(s.created_at).toLocaleDateString("de-DE")}
+                  {new Date(s.created_at).toLocaleDateString(i18n.language === "en-GB" ? "en-GB" : "de-DE")}
                 </p>
               </div>
               <button
                 onClick={() => handleDelete(s.id)}
                 className="text-light-text-secondary dark:text-dark-text-secondary hover:text-danger-color flex-shrink-0 mt-0.5"
-                title="Szenario löschen"
+                title={t("move:calculator.scenarios.delete")}
               >
                 <Trash2 size={15} />
               </button>

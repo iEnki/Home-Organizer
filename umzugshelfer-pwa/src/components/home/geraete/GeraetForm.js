@@ -1,15 +1,50 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 
 const KATEGORIEN = [
-  "Haushaltsgeräte",
+  "Haushaltsgeraete",
   "Elektronik",
   "Heizung & Klima",
-  "Sanitär",
+  "Sanitaer",
   "Werkzeug",
   "Unterhaltung",
-  "Küche",
+  "Kueche",
   "Sonstiges",
 ];
+
+const CATEGORY_LABELS = {
+  de: {
+    Haushaltsgeraete: "Haushaltsgeraete",
+    Elektronik: "Elektronik",
+    "Heizung & Klima": "Heizung & Klima",
+    Sanitaer: "Sanitaer",
+    Werkzeug: "Werkzeug",
+    Unterhaltung: "Unterhaltung",
+    Kueche: "Kueche",
+    Sonstiges: "Sonstiges",
+  },
+  "en-GB": {
+    Haushaltsgeraete: "Household appliances",
+    Elektronik: "Electronics",
+    "Heizung & Klima": "Heating & climate",
+    Sanitaer: "Sanitary",
+    Werkzeug: "Tools",
+    Unterhaltung: "Entertainment",
+    Kueche: "Kitchen",
+    Sonstiges: "Other",
+  },
+};
+
+export const normalizeDeviceCategory = (value) => {
+  const text = String(value || "");
+  return text
+    .replace("Haushaltsger?te", "Haushaltsgeraete")
+    .replace("Haushaltsgeräte", "Haushaltsgeraete")
+    .replace("Sanit?r", "Sanitaer")
+    .replace("Sanitär", "Sanitaer")
+    .replace("K?che", "Kueche")
+    .replace("Küche", "Kueche");
+};
 
 const inputKlasse =
   "w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500";
@@ -17,140 +52,120 @@ const inputKlasse =
 const labelKlasse =
   "block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1";
 
+export function getDeviceCategoryLabel(value, locale = "de") {
+  const normalized = normalizeDeviceCategory(value);
+  if (!normalized) return "";
+  const lang = locale === "en-GB" ? "en-GB" : "de";
+  return CATEGORY_LABELS[lang][normalized] || value;
+}
+
 export default function GeraetForm({ value, onChange }) {
+  const { t, i18n } = useTranslation(["home", "common"]);
   const set = (field) => (e) => onChange({ ...value, [field]: e.target.value });
 
   return (
     <div className="space-y-3">
-      {/* Name */}
       <div>
-        <label className={labelKlasse}>Gerätebezeichnung *</label>
+        <label className={labelKlasse}>{t("home:devicesForm.name")}</label>
         <input
           value={value.name}
           onChange={set("name")}
-          placeholder="z.B. Waschmaschine"
+          placeholder={t("home:devicesForm.namePlaceholder")}
           className={inputKlasse}
         />
       </div>
 
-      {/* Hersteller + Modell */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className={labelKlasse}>Hersteller</label>
+          <label className={labelKlasse}>{t("home:devicesForm.manufacturer")}</label>
           <input
             value={value.hersteller}
             onChange={set("hersteller")}
-            placeholder="z.B. Bosch"
+            placeholder={t("home:devicesForm.manufacturerPlaceholder")}
             className={inputKlasse}
           />
         </div>
         <div>
-          <label className={labelKlasse}>Modell</label>
+          <label className={labelKlasse}>{t("home:devicesForm.model")}</label>
           <input
             value={value.modell}
             onChange={set("modell")}
-            placeholder="z.B. WAX32K42"
+            placeholder={t("home:devicesForm.modelPlaceholder")}
             className={inputKlasse}
           />
         </div>
       </div>
 
-      {/* Kategorie */}
       <div>
-        <label className={labelKlasse}>Kategorie</label>
+        <label className={labelKlasse}>{t("home:devicesForm.category")}</label>
         <select value={value.kategorie} onChange={set("kategorie")} className={inputKlasse}>
-          <option value="">– Keine –</option>
+          <option value="">{t("home:devicesForm.noCategory")}</option>
           {KATEGORIEN.map((k) => (
-            <option key={k} value={k}>{k}</option>
+            <option key={k} value={k}>{getDeviceCategoryLabel(k, i18n.language)}</option>
           ))}
         </select>
       </div>
 
-      {/* Kaufdatum + Kaufpreis */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className={labelKlasse}>Kaufdatum</label>
-          <input
-            type="date"
-            value={value.kaufdatum}
-            onChange={set("kaufdatum")}
-            className={inputKlasse}
-          />
+          <label className={labelKlasse}>{t("home:devicesForm.purchaseDate")}</label>
+          <input type="date" value={value.kaufdatum} onChange={set("kaufdatum")} className={inputKlasse} />
         </div>
         <div>
-          <label className={labelKlasse}>Kaufpreis (€)</label>
+          <label className={labelKlasse}>{t("home:devicesForm.purchasePrice")}</label>
           <input
             type="number"
             min="0"
             step="0.01"
             value={value.kaufpreis}
             onChange={set("kaufpreis")}
-            placeholder="z.B. 499.00"
+            placeholder={t("home:devicesForm.purchasePricePlaceholder")}
             className={inputKlasse}
           />
         </div>
       </div>
 
-      {/* Gewährleistung + Garantie */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className={labelKlasse}>Gewährleistung bis</label>
-          <input
-            type="date"
-            value={value.gewaehrleistung_bis}
-            onChange={set("gewaehrleistung_bis")}
-            className={inputKlasse}
-          />
+          <label className={labelKlasse}>{t("home:devicesForm.warrantyUntil")}</label>
+          <input type="date" value={value.gewaehrleistung_bis} onChange={set("gewaehrleistung_bis")} className={inputKlasse} />
         </div>
         <div>
-          <label className={labelKlasse}>Herstellergarantie bis</label>
-          <input
-            type="date"
-            value={value.garantie_bis}
-            onChange={set("garantie_bis")}
-            className={inputKlasse}
-          />
+          <label className={labelKlasse}>{t("home:devicesForm.manufacturerWarrantyUntil")}</label>
+          <input type="date" value={value.garantie_bis} onChange={set("garantie_bis")} className={inputKlasse} />
         </div>
       </div>
 
-      {/* Wartung */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className={labelKlasse}>Nächste Wartung</label>
-          <input
-            type="date"
-            value={value.naechste_wartung}
-            onChange={set("naechste_wartung")}
-            className={inputKlasse}
-          />
+          <label className={labelKlasse}>{t("home:devicesForm.nextMaintenance")}</label>
+          <input type="date" value={value.naechste_wartung} onChange={set("naechste_wartung")} className={inputKlasse} />
         </div>
         <div>
-          <label className={labelKlasse}>Intervall (Monate)</label>
+          <label className={labelKlasse}>{t("home:devicesForm.intervalMonths")}</label>
           <input
             type="number"
             min="1"
             value={value.wartungsintervall_monate}
             onChange={set("wartungsintervall_monate")}
-            placeholder="z.B. 12"
+            placeholder={t("home:devicesForm.intervalPlaceholder")}
             className={inputKlasse}
           />
         </div>
       </div>
 
-      {/* Seriennummer */}
       <div>
-        <label className={labelKlasse}>Seriennummer</label>
+        <label className={labelKlasse}>{t("home:devicesForm.serialNumber")}</label>
         <input
           value={value.seriennummer}
           onChange={set("seriennummer")}
-          placeholder="Optional"
+          placeholder={t("home:devicesForm.optional")}
           className={inputKlasse}
         />
       </div>
 
-      {/* Notizen */}
       <div>
-        <label className={labelKlasse}>Notizen</label>
+        <label className={labelKlasse}>{t("home:devicesForm.notes")}</label>
         <textarea
           value={value.notizen}
           onChange={set("notizen")}

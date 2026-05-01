@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useDropzone } from "react-dropzone";
 import { supabase } from "../supabaseClient";
 import { getKiClient, isKiClientReady } from "../utils/kiClient";
@@ -17,6 +18,7 @@ import {
 } from "lucide-react";
 
 const DokumentenManager = ({ session }) => {
+  const { t } = useTranslation(["documents"]);
   const { theme } = useTheme();
   const location = useLocation();
 
@@ -51,6 +53,7 @@ const DokumentenManager = ({ session }) => {
         .from("dokumente")
         .select("*, todo_aufgaben(beschreibung)")
         .eq("user_id", userId)
+        .in("app_modus", ["umzug", "beides"])
         .order("erstellt_am", { ascending: false });
       if (dbError) throw dbError;
       setDokumente(data || []);
@@ -150,6 +153,7 @@ Antworte nur mit dem JSON.`;
 
       const newDokument = {
         user_id: userId,
+        app_modus: "umzug",
         dateiname: selectedFile.name,
         datei_typ: selectedFile.type,
         storage_pfad: filePath,
@@ -237,7 +241,7 @@ Antworte nur mit dem JSON.`;
         theme === "dark" ? "text-dark-text-main" : "text-light-text-main"
       }`}
     >
-      <h1 className="text-2xl font-bold mb-6">Meine Dokumente</h1>
+      <h1 className="text-2xl font-bold mb-6">{t("documents:manager.title")}</h1>
       {zugehoerigeAufgabeId && (
         <p
           className={`mb-4 p-3 rounded-card-sm text-sm ${
@@ -246,13 +250,13 @@ Antworte nur mit dem JSON.`;
               : "bg-light-accent-blue/20 text-light-accent-blue"
           }`}
         >
-          Dokumente werden der Aufgabe mit ID zugeordnet: {zugehoerigeAufgabeId}
+          {t("documents:manager.assignedTo")} {zugehoerigeAufgabeId}
           (
           <Link
             to={`/todos?edit=${zugehoerigeAufgabeId}`}
             className="underline hover:opacity-80"
           >
-            Zur Aufgabe
+            {t("documents:manager.goToTask")}
           </Link>
           )
         </p>
@@ -263,7 +267,7 @@ Antworte nur mit dem JSON.`;
           theme === "dark" ? "bg-dark-card-bg" : "bg-light-card-bg"
         }`}
       >
-        <h2 className="text-xl font-semibold mb-4">Neues Dokument hochladen</h2>
+        <h2 className="text-xl font-semibold mb-4">{t("documents:manager.uploadTitle")}</h2>
         <div
           {...getRootProps()}
           className={`p-8 border-2 border-dashed rounded-card-sm cursor-pointer text-center transition-colors
@@ -287,20 +291,19 @@ Antworte nur mit dem JSON.`;
             }`}
           />
           {isDragActive ? (
-            <p>Datei hier fallen lassen...</p>
+            <p>{t("documents:manager.dropHere")}</p>
           ) : (
-            <p>Datei hierher ziehen oder klicken, um auszuwählen.</p>
+            <p>{t("documents:manager.dropOrClick")}</p>
           )}
         </div>
         {selectedFile && (
           <div className="mt-4">
             <p className="text-sm">
-              Ausgewählt: {selectedFile.name} (
-              {Math.round(selectedFile.size / 1024)} KB)
+              {t("documents:manager.selected")} {selectedFile.name} ({Math.round(selectedFile.size / 1024)} {t("documents:manager.kb")})
             </p>
             <input
               type="text"
-              placeholder="Optionale Beschreibung..."
+              placeholder={t("documents:manager.descriptionPlaceholder")}
               value={beschreibung}
               onChange={(e) => setBeschreibung(e.target.value)}
               className={`mt-2 w-full p-2 border rounded-card-sm ${
@@ -312,7 +315,7 @@ Antworte nur mit dem JSON.`;
             {!location.search.includes("aufgabeId=") && (
               <input
                 type="text"
-                placeholder="Aufgaben-ID (optional)"
+                placeholder={t("documents:manager.taskIdPlaceholder")}
                 value={zugehoerigeAufgabeId}
                 onChange={(e) => setZugehoerigeAufgabeId(e.target.value)}
                 className={`mt-2 w-full p-2 border rounded-card-sm ${
@@ -337,7 +340,7 @@ Antworte nur mit dem JSON.`;
               : "bg-primary-500 hover:bg-primary-600 text-white"
           }`}
         >
-          {uploading ? "Lädt hoch..." : "Hochladen"}
+          {uploading ? t("documents:manager.uploading") : t("documents:manager.upload")}
         </button>
         {error && <p className="text-red-500 mt-2 text-sm">{error}</p>}
       </div>
@@ -353,15 +356,15 @@ Antworte nur mit dem JSON.`;
           <div className="flex-1 min-w-0">
             {kiLaed ? (
               <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-                KI analysiert das Dokument...
+                {t("documents:manager.aiAnalyzing")}
               </p>
             ) : kiVorschlag ? (
               <>
                 <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main mb-0.5">
-                  KI-Vorschlag: <span className="font-normal">{kiVorschlag.beschreibung}</span>
+                  {t("documents:manager.aiSuggestion")} <span className="font-normal">{kiVorschlag.beschreibung}</span>
                 </p>
                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                  Kategorie: {kiVorschlag.kategorie_hinweis}
+                  {t("documents:manager.aiCategory")} {kiVorschlag.kategorie_hinweis}
                 </p>
               </>
             ) : null}
@@ -373,7 +376,7 @@ Antworte nur mit dem JSON.`;
                 className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-card-sm bg-primary-500 hover:bg-primary-600 text-white hover:opacity-90"
                 title="Vorschlag übernehmen"
               >
-                <Check size={13} /> Übernehmen
+                <Check size={13} /> {t("documents:manager.aiAccept")}
               </button>
               <button
                 onClick={() => setKiVorschlag(null)}
@@ -388,7 +391,7 @@ Antworte nur mit dem JSON.`;
       )}
 
       <div>
-        <h2 className="text-xl font-semibold mb-4">Hochgeladene Dokumente</h2>
+        <h2 className="text-xl font-semibold mb-4">{t("documents:manager.uploadedTitle")}</h2>
         {dokumente.length === 0 && !loading && (
           <p
             className={`${
@@ -397,7 +400,7 @@ Antworte nur mit dem JSON.`;
                 : "text-light-text-secondary"
             }`}
           >
-            Noch keine Dokumente hochgeladen.
+            {t("documents:manager.empty")}
           </p>
         )}
         {loading && dokumente.length === 0 && (
@@ -408,7 +411,7 @@ Antworte nur mit dem JSON.`;
                 : "text-light-text-secondary"
             }`}
           >
-            Lade Dokumente...
+            {t("documents:manager.loading")}
           </p>
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -446,8 +449,8 @@ Antworte nur mit dem JSON.`;
                     : "text-light-text-disabled"
                 }`}
               >
-                Typ: {doc.datei_typ || "Unbekannt"}, Größe:{" "}
-                {doc.groesse_kb || "?"} KB
+                {t("documents:manager.typeLabel")} {doc.datei_typ || t("documents:manager.unknown")}, {t("documents:manager.sizeLabel")}{" "}
+                {doc.groesse_kb || "?"} {t("documents:manager.kb")}
               </p>
               {doc.todo_aufgabe_id && doc.todo_aufgaben && (
                 <Link
@@ -473,7 +476,7 @@ Antworte nur mit dem JSON.`;
                     : "text-light-text-disabled"
                 }`}
               >
-                Hochgeladen:{" "}
+                {t("documents:manager.uploadedLabel")}{" "}
                 {new Date(doc.erstellt_am).toLocaleDateString("de-DE")}
               </p>
               <div className="flex flex-wrap gap-2">

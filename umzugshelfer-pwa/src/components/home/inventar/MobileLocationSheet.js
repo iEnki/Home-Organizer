@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Box,
   ChevronDown,
@@ -32,6 +33,9 @@ const MobileLocationSheet = ({
   onEditLagerort,
   onDeleteLagerort,
 }) => {
+  const { t } = useTranslation(["home","common"]);
+  void t;
+
   const [suche, setSuche] = useState("");
   const [offenesAktionsMenue, setOffenesAktionsMenue] = useState(null);
 

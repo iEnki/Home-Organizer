@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import {
   X, CheckCircle, XCircle, Edit2, Loader2, AlertCircle, BookOpen,
   CheckCheck, Trash2
@@ -15,7 +16,7 @@ function ConfidenceBadge({ value }) {
   return <span className="px-1.5 py-0.5 text-xs rounded-pill bg-red-500/10 text-red-700 dark:text-red-400 font-medium">Unsicher</span>;
 }
 
-function KandidatZeile({ kandidat, onStatusChange }) {
+function KandidatZeile({ kandidat, onStatusChange, t }) {
   const [bearbeiten, setBearbeiten] = useState(false);
   const [titel, setTitel] = useState(kandidat.vorschlag?.titel ?? "");
   const [autor, setAutor] = useState(kandidat.vorschlag?.autor_anzeige ?? "");
@@ -37,7 +38,6 @@ function KandidatZeile({ kandidat, onStatusChange }) {
 
   return (
     <div className={`rounded-card-sm border border-light-border dark:border-dark-border p-3 space-y-2 transition-colors ${statusFarbe}`}>
-      {/* Kopfzeile */}
       <div className="flex items-start gap-3">
         {v.thumbnail_url || v.cover_url ? (
           <img src={v.thumbnail_url ?? v.cover_url} alt="" className="w-8 h-10 object-cover rounded shrink-0" />
@@ -78,7 +78,6 @@ function KandidatZeile({ kandidat, onStatusChange }) {
         </div>
       </div>
 
-      {/* Aktionsleiste */}
       <div className="flex gap-1.5 flex-wrap">
         {bearbeiten ? (
           <>
@@ -86,13 +85,13 @@ function KandidatZeile({ kandidat, onStatusChange }) {
               onClick={handleBearbeitenSpeichern}
               className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-card-sm bg-green-500 text-white"
             >
-              <CheckCircle size={11} /> Übernehmen
+              <CheckCircle size={11} /> {t("books:importReview.applyItem")}
             </button>
             <button
               onClick={() => setBearbeiten(false)}
               className="px-2.5 py-1 text-xs rounded-card-sm border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"
             >
-              Abbrechen
+              {t("books:importReview.cancelEdit")}
             </button>
           </>
         ) : (
@@ -106,13 +105,13 @@ function KandidatZeile({ kandidat, onStatusChange }) {
                   : "border border-green-500/40 text-green-700 dark:text-green-400 hover:bg-green-500/10"
               }`}
             >
-              <CheckCircle size={11} /> Übernehmen
+              <CheckCircle size={11} /> {t("books:importReview.applyItem")}
             </button>
             <button
               onClick={() => setBearbeiten(true)}
               className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-card-sm border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:bg-light-border dark:hover:bg-canvas-3"
             >
-              <Edit2 size={11} /> Bearbeiten
+              <Edit2 size={11} /> {t("books:importReview.editItem")}
             </button>
             <button
               onClick={() => onStatusChange(kandidat.id, "abgelehnt", null)}
@@ -123,7 +122,7 @@ function KandidatZeile({ kandidat, onStatusChange }) {
                   : "border border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/10"
               }`}
             >
-              <XCircle size={11} /> Verwerfen
+              <XCircle size={11} /> {t("books:importReview.rejectItem")}
             </button>
           </>
         )}
@@ -139,6 +138,7 @@ export default function BuchImportReviewModal({
   onErledigt,
   onAbbrechen,
 }) {
+  const { t } = useTranslation(["books"]);
   const userId = session?.user?.id;
 
   const [laden, setLaden] = useState(true);
@@ -161,11 +161,11 @@ export default function BuchImportReviewModal({
       setImportDaten(imp);
       setKandidaten(kands ?? []);
     } catch (e) {
-      setFehler(e?.message ?? "Fehler beim Laden.");
+      setFehler(e?.message ?? t("books:shelf.errLoad"));
     } finally {
       setLaden(false);
     }
-  }, [importId]);
+  }, [importId, t]);
 
   useEffect(() => { ladeDaten(); }, [ladeDaten]);
 
@@ -204,7 +204,6 @@ export default function BuchImportReviewModal({
       const ortId = importDaten?.ort_id ?? null;
       const lagerortId = importDaten?.lagerort_id ?? null;
 
-      // Bücher anlegen
       for (const kand of bestaetigte) {
         const buchPayload = kandidatZuBuch(kand, householdId, userId, ortId, lagerortId);
         const { data: neuesBuch, error: buchErr } = await supabase
@@ -214,7 +213,6 @@ export default function BuchImportReviewModal({
           .single();
         if (buchErr) throw buchErr;
 
-        // buch_id im Kandidaten setzen
         await supabase
           .from("home_buch_import_kandidaten")
           .update({ review_status: "bestaetigt", buch_id: neuesBuch.id })
@@ -223,7 +221,6 @@ export default function BuchImportReviewModal({
         await logVerlauf(supabase, userId, "home_buecher", kand.vorschlag?.titel ?? "Buch", "erstellt");
       }
 
-      // Abgelehnte Kandidaten persistieren
       const abgelehnte = kandidaten.filter((k) => k.review_status === "abgelehnt");
       for (const kand of abgelehnte) {
         await supabase
@@ -232,7 +229,6 @@ export default function BuchImportReviewModal({
           .eq("id", kand.id);
       }
 
-      // Import-Status setzen
       const alleEntschieden = kandidaten.every(
         (k) => k.review_status === "bestaetigt" || k.review_status === "abgelehnt"
       );
@@ -258,13 +254,13 @@ export default function BuchImportReviewModal({
           url: "/home/inventar?tab=buecher",
           history: false,
           title: "Buch-Import gespeichert",
-          body: `${bestaetigte.length} ${bestaetigte.length === 1 ? "Buch wurde" : "Buecher wurden"} ins Regal uebernommen.`,
+          body: `${bestaetigte.length} ${bestaetigte.length === 1 ? "Buch wurde" : "Bücher wurden"} ins Regal übernommen.`,
         });
       }
 
       onErledigt();
     } catch (e) {
-      setFehler("Fehler beim Speichern: " + (e?.message ?? e));
+      setFehler(t("books:form.errSave") + ": " + (e?.message ?? e));
     } finally {
       setSpeichern(false);
     }
@@ -281,7 +277,7 @@ export default function BuchImportReviewModal({
       <div className="fixed app-centered-modal-overlay z-[100] flex items-center justify-center bg-black/60">
         <div className="bg-light-card dark:bg-canvas-2 rounded-card p-8 flex flex-col items-center gap-3">
           <Loader2 size={24} className="animate-spin text-teal-500" />
-          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Import wird geladen…</p>
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("books:importReview.loading")}</p>
         </div>
       </div>
     );
@@ -295,11 +291,11 @@ export default function BuchImportReviewModal({
         {/* Header */}
         <div className="shrink-0 border-b border-light-border dark:border-dark-border px-4 py-3 flex items-center justify-between">
           <div>
-            <h2 className="font-semibold text-light-text-main dark:text-dark-text-main text-sm">Import prüfen</h2>
+            <h2 className="font-semibold text-light-text-main dark:text-dark-text-main text-sm">{t("books:importReview.title")}</h2>
             <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
-              {kandidaten.length} {kandidaten.length === 1 ? "Kandidat" : "Kandidaten"}
-              {ausstehende > 0 ? ` · ${ausstehende} ausstehend` : ""}
-              {bestaetigte > 0 ? ` · ${bestaetigte} übernommen` : ""}
+              {t("books:importReview.candidateCount", { count: kandidaten.length })}
+              {ausstehende > 0 ? ` · ${t("books:importReview.pendingCount", { count: ausstehende })}` : ""}
+              {bestaetigte > 0 ? ` · ${t("books:importReview.confirmedCount", { count: bestaetigte })}` : ""}
             </p>
           </div>
           <button onClick={onAbbrechen} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger">
@@ -316,7 +312,7 @@ export default function BuchImportReviewModal({
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-card-sm border border-green-500/40 text-green-700 dark:text-green-400 hover:bg-green-500/10"
               >
                 <CheckCheck size={12} />
-                Alle sicheren übernehmen ({hoheKonfidenz})
+                {t("books:importReview.applyAll")} ({hoheKonfidenz})
               </button>
             )}
             <button
@@ -324,7 +320,7 @@ export default function BuchImportReviewModal({
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-card-sm border border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/10"
             >
               <Trash2 size={12} />
-              Alle verwerfen
+              {t("books:importReview.rejectAll")}
             </button>
           </div>
         )}
@@ -339,7 +335,7 @@ export default function BuchImportReviewModal({
 
           {kandidaten.length === 0 && !laden && (
             <p className="text-sm text-center text-light-text-secondary dark:text-dark-text-secondary py-8">
-              Keine Kandidaten in diesem Import.
+              {t("books:importReview.empty")}
             </p>
           )}
 
@@ -348,6 +344,7 @@ export default function BuchImportReviewModal({
               key={kand.id}
               kandidat={kand}
               onStatusChange={handleStatusChange}
+              t={t}
             />
           ))}
         </div>
@@ -358,7 +355,7 @@ export default function BuchImportReviewModal({
             onClick={onAbbrechen}
             className="px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"
           >
-            Schließen
+            {t("books:importReview.close")}
           </button>
           <button
             onClick={handleSpeichern}
@@ -367,8 +364,8 @@ export default function BuchImportReviewModal({
           >
             {speichern && <Loader2 size={14} className="animate-spin" />}
             {bestaetigte > 0
-              ? `Speichern (${bestaetigte} ${bestaetigte === 1 ? "Buch" : "Bücher"})`
-              : "Import verwerfen"}
+              ? `${t("books:importReview.save")} (${t("books:shelf.bookCount", { count: bestaetigte })})`
+              : t("books:importReview.rejectImport")}
           </button>
         </div>
       </div>
