@@ -17,6 +17,41 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const normalizeLocale = (value: unknown) => {
+  const raw = String(value || "").trim().toLowerCase();
+  return raw === "en" || raw === "en-gb" ? "en-GB" : "de";
+};
+
+const translatePushFallback = (value: string, locale: string) => {
+  if (locale !== "en-GB") return value;
+  const exact: Record<string, string> = {
+    "Umzugsplaner – Erinnerung": "Moving Planner - reminder",
+    "Aufgaben-Erinnerung": "Task reminder",
+    "Aufgabe bald faellig": "Task due soon",
+    "Aufgabe überfällig": "Task overdue",
+    "Aufgabe ueberfaellig": "Task overdue",
+    "Vorrat unter Mindestmenge": "Stock below minimum",
+    "Wartung faellig": "Maintenance due",
+    "Garantie laeuft ab": "Guarantee expiring",
+    "Gewaehrleistung laeuft ab": "Statutory warranty expiring",
+    "Projekt-Deadline": "Project deadline",
+    "Budget-Limit ueberschritten": "Budget limit exceeded",
+    "Budget-Limit bald erreicht": "Budget limit almost reached",
+    "Einkaufsliste": "Shopping list",
+    "Offene Ausgleiche": "Open settlements",
+    "Buch ueberfaellig": "Book overdue",
+    "Buch-Rueckgabe faellig": "Book return due",
+  };
+  const trimmed = value.trim();
+  if (exact[trimmed]) return exact[trimmed];
+  return value
+    .replace(/\bist bald faellig\b/g, "is due soon")
+    .replace(/\bist ueberfaellig\b/g, "is overdue")
+    .replace(/\bvon\b/g, "of")
+    .replace(/\bverbraucht\b/g, "used")
+    .replace(/\bArtikel offen\b/g, "open items");
+};
+
 Deno.serve(async (req: Request) => {
   // CORS preflight
   if (req.method === "OPTIONS") {
@@ -49,14 +84,21 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { user_id, title, body, url = "/", tag = "default" } = await req.json();
+    const { user_id, title, body, url = "/", tag = "default", locale: requestedLocale } = await req.json();
 
     if (!user_id || !title || !body) {
       return new Response(
-        JSON.stringify({ error: "user_id, title und body sind erforderlich." }),
+        JSON.stringify({ error: "user_id, title and body are required." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+
+    const { data: profile } = await supabase
+      .from("user_profile")
+      .select("locale")
+      .eq("id", user_id)
+      .maybeSingle();
+    const locale = normalizeLocale(requestedLocale || profile?.locale);
 
     // Subscriptions des Nutzers laden
     const { data: subscriptions, error: dbError } = await supabase
@@ -67,12 +109,18 @@ Deno.serve(async (req: Request) => {
     if (dbError) throw dbError;
     if (!subscriptions?.length) {
       return new Response(
-        JSON.stringify({ sent: 0, message: "Keine aktiven Subscriptions." }),
+        JSON.stringify({ sent: 0, message: locale === "en-GB" ? "No active subscriptions." : "Keine aktiven Subscriptions." }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    const payload = JSON.stringify({ title, body, url, tag });
+    const payload = JSON.stringify({
+      title: translatePushFallback(String(title), locale),
+      body: translatePushFallback(String(body), locale),
+      url,
+      tag,
+      locale,
+    });
     const ungueltigeIds: string[] = [];
     let gesendet = 0;
 

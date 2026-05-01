@@ -127,6 +127,110 @@ function formatDateDE(iso: string | null | undefined): string | null {
   return `${m[3]}.${m[2]}.${m[1]}`;
 }
 
+type SupportedLocale = "de" | "en-GB";
+
+function normalizeLocale(locale: string | null | undefined): SupportedLocale {
+  return locale === "en-GB" || locale === "en" ? "en-GB" : "de";
+}
+
+function formatDateForLocale(iso: string | null | undefined, locale: SupportedLocale): string {
+  if (!iso) return locale === "en-GB" ? "an unknown date" : "einem unbekannten Datum";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat(locale === "en-GB" ? "en-GB" : "de-AT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatCurrencyForLocale(value: unknown, currency: string | null | undefined, locale: SupportedLocale): string {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return locale === "en-GB" ? "an unknown amount" : "einem unbekannten Betrag";
+  return new Intl.NumberFormat(locale === "en-GB" ? "en-GB" : "de-AT", {
+    style: "currency",
+    currency: currency || "EUR",
+  }).format(amount);
+}
+
+function invoiceContent(summary: Record<string, unknown>, locale: SupportedLocale): string {
+  const merchant = String(summary.merchant || summary.merchant_name || summary.haendler || (locale === "en-GB" ? "an unknown merchant" : "einem unbekannten Haendler"));
+  const dateText = formatDateForLocale((summary.date || summary.purchase_date || summary.datum) as string | null, locale);
+  const total = formatCurrencyForLocale(summary.amount ?? summary.total_amount ?? summary.gesamt, summary.currency as string | null, locale);
+  const rawItems = Array.isArray(summary.items) ? summary.items : Array.isArray(summary.key_items) ? summary.key_items : [];
+  const items = rawItems.slice(0, 3).map((item) => {
+    if (typeof item === "string") return item;
+    const row = item as Record<string, unknown>;
+    const name = String(row.name || row.description || row.beschreibung || "").trim();
+    const amount = row.amount ?? row.total ?? row.gesamtpreis ?? row.price;
+    return `${name}${amount != null ? ` (${formatCurrencyForLocale(amount, summary.currency as string | null, locale)})` : ""}`;
+  }).filter(Boolean);
+
+  if (items.length > 0) {
+    return locale === "en-GB"
+      ? `On ${dateText}, you bought from ${merchant}: ${items.join(", ")}. Total amount: ${total}.`
+      : `Du hast am ${dateText} bei ${merchant} gekauft: ${items.join(", ")}. Gesamtbetrag: ${total}.`;
+  }
+
+  return locale === "en-GB"
+    ? `On ${dateText}, you shopped at ${merchant} and spent ${total} in total.`
+    : `Du hast am ${dateText} bei ${merchant} eingekauft und insgesamt ${total} ausgegeben.`;
+}
+
+function localizedInvoiceContent(title: string, summary: Record<string, unknown>) {
+  return {
+    de: { title, content: invoiceContent(summary, "de"), headline: invoiceContent(summary, "de") },
+    "en-GB": { title, content: invoiceContent(summary, "en-GB"), headline: invoiceContent(summary, "en-GB") },
+  };
+}
+
+async function translateKnowledgeContent(
+  fnHeaders: Record<string, string>,
+  functionsUrl: string,
+  source: { title: string; content: string; headline?: string },
+  targetLocale: SupportedLocale,
+): Promise<{ title: string; content: string; headline: string }> {
+  const targetLanguage = targetLocale === "en-GB" ? "English (United Kingdom)" : "German";
+  const prompt = `Translate this automatically generated home knowledge entry into ${targetLanguage}.
+Keep product names, merchant names, document numbers, dates and amounts unchanged.
+Return only valid JSON with keys title, content and headline.
+
+JSON:
+${JSON.stringify(source)}`;
+
+  const resp = await fetch(`${functionsUrl}/ki-chat`, {
+    method: "POST",
+    headers: fnHeaders,
+    body: JSON.stringify({
+      purpose: "translation",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.1,
+      response_format: { type: "json_object" },
+    }),
+  });
+  if (!resp.ok) return source;
+  const data = await resp.json() as { choices?: Array<{ message?: { content?: string } }> };
+  const raw = data.choices?.[0]?.message?.content ?? "{}";
+  const parsed = parseKiJson(raw);
+  return {
+    title: String(parsed.title || source.title || "").trim(),
+    content: String(parsed.content || source.content || "").trim(),
+    headline: String(parsed.headline || source.headline || source.content || "").trim(),
+  };
+}
+
+async function localizedContentFromGerman(
+  fnHeaders: Record<string, string>,
+  functionsUrl: string,
+  title: string,
+  content: string,
+  headline = content,
+) {
+  const de = { title, content, headline };
+  const en = await translateKnowledgeContent(fnHeaders, functionsUrl, de, "en-GB");
+  return { de, "en-GB": en };
+}
+
 // ── SAFE UPSERT home_wissen (kapselt manuell-Guard) ──────────────────────────
 // Gibt wissen_id zurück oder null bei Fehler.
 
@@ -143,21 +247,32 @@ async function safeUpsertHomeWissen(
   // Guard: manuelle Einträge nicht überschreiben
   if (existing?.herkunft === "manuell") return existing.id as string;
 
-  if (existing?.id) {
-    const { error } = await supabaseAdmin
+  const writePayload = async (nextPayload: Record<string, unknown>) => {
+    if (existing?.id) {
+      return await supabaseAdmin
       .from("home_wissen")
-      .update(payload)
+        .update(nextPayload)
       .eq("id", existing.id as string);
-    if (error) throw error;
-    return existing.id as string;
-  }
+    }
+    return await supabaseAdmin
+      .from("home_wissen")
+      .insert(nextPayload)
+      .select("id")
+      .single();
+  };
 
-  const { data, error } = await supabaseAdmin
-    .from("home_wissen")
-    .insert(payload)
-    .select("id")
-    .single();
+  let { data, error } = await writePayload(payload);
+  if (error && /summary|localized_content|source_locale/i.test(error.message || "")) {
+    const fallbackPayload = { ...payload };
+    delete fallbackPayload.summary;
+    delete fallbackPayload.localized_content;
+    delete fallbackPayload.source_locale;
+    const fallbackResult = await writePayload(fallbackPayload);
+    data = fallbackResult.data;
+    error = fallbackResult.error;
+  }
   if (error) throw error;
+  if (existing?.id) return existing.id as string;
   return (data as { id: string })?.id ?? null;
 }
 
@@ -231,7 +346,7 @@ Deno.serve(async (req: Request) => {
   const householdId: string = membership.household_id;
 
   // ── Input parsen ──────────────────────────────────────────────────────────
-  let body: { dokument_id?: string; level?: string; force?: boolean };
+  let body: { dokument_id?: string; level?: string; force?: boolean; locale?: string };
   try {
     body = await req.json();
   } catch {
@@ -239,6 +354,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const { dokument_id, level = "classify_only", force = false } = body;
+  const requestLocale = normalizeLocale(body.locale);
 
   if (!dokument_id) {
     return jsonResponse({ error: "dokument_id fehlt." }, 400);
@@ -420,6 +536,7 @@ Deno.serve(async (req: Request) => {
           file_base64: base64,
           mime_type:   dateiTyp,
           file_name:   (dokument as { dateiname?: string }).dateiname,
+          locale:      requestLocale,
           prompt:      "Extrahiere den vollständigen sichtbaren Text dieses Dokuments OCR-genau.\n" +
                        "Wichtig:\n" +
                        "- Keine Bildbeschreibung\n" +
@@ -564,6 +681,8 @@ ${klassiText}`;
       "brutto", "netto", "mwst", "ust.", "gesamtbetrag",
       "rechnungsnummer", "bon-nr", "kassennummer",
       "summe", "gesamt", "zahlungsziel", "eur",
+      "invoice", "receipt", "tax invoice", "vat", "total amount",
+      "subtotal", "grand total", "invoice number", "receipt number",
     ];
     const hits = invoiceSignals.filter((w) => lower.includes(w));
     if (hits.length >= 2) {
@@ -596,6 +715,14 @@ ${klassiText}`;
 
   if (effektivesLevel === "classify_only") {
     try {
+      const stubSummary = {
+        kind: "document",
+        documentClass: docType,
+        documentType: docType,
+        title: dateiname,
+        headline: dateiname,
+      };
+      const localizedContent = { de: { title: dateiname, content: "", headline: dateiname }, "en-GB": { title: dateiname, content: "", headline: dateiname } };
       wissenId = await safeUpsertHomeWissen(supabaseAdmin, {
         household_id: householdId,
         user_id:      null,
@@ -604,6 +731,9 @@ ${klassiText}`;
         tags,
         dokument_id,
         herkunft:     "auto_stub",
+        summary:      stubSummary,
+        localized_content: localizedContent,
+        source_locale: requestLocale,
       });
     } catch (e) {
       warnings.push(`home_wissen (auto_stub): ${(e as Error).message}`);
@@ -723,6 +853,21 @@ ${smartTruncate(extrahierterText)}`;
         purchase_type: purchaseType,
       };
 
+      const invoiceSummary = {
+        kind: "invoice",
+        documentClass: "rechnung",
+        documentType: "rechnung",
+        merchant: merchantName,
+        date: purchaseDate,
+        amount: totalAmount,
+        currency,
+        invoice_number: invoiceNumber,
+        purchase_type: purchaseType,
+        items: keyItems.map((name) => ({ name })),
+        key_items: keyItems,
+        headline: summary,
+      };
+
       // Strukturierter home_wissen-Inhalt
       const inhaltZeilen = [
         summary,
@@ -735,6 +880,7 @@ ${smartTruncate(extrahierterText)}`;
         ...(keyItems.length > 0 ? [`Enthält: ${keyItems.join(", ")}`] : []),
       ];
       const inhalt = inhaltZeilen.join("\n");
+      const localizedContent = localizedInvoiceContent(titel, invoiceSummary);
 
       // Kategorie auf Dokument setzen
       await supabaseAdmin.from("dokumente").update({ kategorie: "Rechnung" }).eq("id", dokument_id);
@@ -776,6 +922,9 @@ ${smartTruncate(extrahierterText)}`;
         tags:         ["rechnung", ...(merchantTag ? [merchantTag] : []), ...tags].filter(Boolean),
         dokument_id,
         herkunft:     "auto_full",
+        summary:      invoiceSummary,
+        localized_content: localizedContent,
+        source_locale: requestLocale,
       });
 
       // dokument_links
@@ -892,6 +1041,21 @@ ${smartTruncate(extrahierterText)}`;
           keyPoints.forEach((p: string) => inhaltZeilen.push(`• ${p}`));
         }
         const inhalt = inhaltZeilen.join("\n");
+        const contractSummary = {
+          kind: "contract",
+          documentClass: "vertrag",
+          documentType: "vertrag",
+          counterparty,
+          subject,
+          contract_type: contractType,
+          start_date: parsed.start_date,
+          end_date: parsed.end_date,
+          monthly_amount: monthlyAmount,
+          notice_period_days: noticePeriodDays,
+          highlights: keyPoints,
+          headline: summary,
+        };
+        const localizedContent = await localizedContentFromGerman(fnHeaders, FUNCTIONS_URL, titel, inhalt, summary);
 
         if (extractionConfidence >= 0.50) {
           // Reprocess-Schutz: reviewed_at gesetzt → manuell korrigiert
@@ -943,6 +1107,9 @@ ${smartTruncate(extrahierterText)}`;
               tags:         ["vertrag", ...(counterpartyTag ? [counterpartyTag] : []), ...tags].filter(Boolean),
               dokument_id,
               herkunft,
+              summary:      contractSummary,
+              localized_content: localizedContent,
+              source_locale: requestLocale,
             });
 
             if (entityId) {
@@ -965,6 +1132,9 @@ ${smartTruncate(extrahierterText)}`;
             tags:         ["vertrag", ...(counterpartyTag ? [counterpartyTag] : []), ...tags].filter(Boolean),
             dokument_id,
             herkunft:     "auto_stub",
+            summary:      contractSummary,
+            localized_content: localizedContent,
+            source_locale: requestLocale,
           });
         }
       } else {
@@ -1076,6 +1246,22 @@ ${smartTruncate(extrahierterText)}`;
           ...(coverageSummary ? ["", `Deckung: ${coverageSummary}`] : []),
         ];
         const inhalt = pInhaltZeilen.join("\n");
+        const policySummary = {
+          kind: "policy",
+          documentClass: "versicherung",
+          documentType: "versicherung",
+          insurer,
+          policy_type: policyType,
+          policy_number: polizzenNummer,
+          start_date: parsed.start_date,
+          end_date: parsed.end_date,
+          premium: praemie,
+          coverage_sum: deckung,
+          deductible: selbst,
+          coverage_summary: coverageSummary,
+          headline: summary,
+        };
+        const localizedContent = await localizedContentFromGerman(fnHeaders, FUNCTIONS_URL, titel, inhalt, summary);
 
         const rawVersicherungsart = policyType;
         const normiertArt = normalisiereVersicherungsart(rawVersicherungsart);
@@ -1133,6 +1319,9 @@ ${smartTruncate(extrahierterText)}`;
               tags:         ["versicherung", ...(insurerTag ? [insurerTag] : []), normiertArt, ...tags].filter(Boolean),
               dokument_id,
               herkunft,
+              summary:      policySummary,
+              localized_content: localizedContent,
+              source_locale: requestLocale,
             });
 
             if (entityId) {
@@ -1155,6 +1344,9 @@ ${smartTruncate(extrahierterText)}`;
             tags:         ["versicherung", ...(insurerTag ? [insurerTag] : []), ...tags].filter(Boolean),
             dokument_id,
             herkunft:     "auto_stub",
+            summary:      policySummary,
+            localized_content: localizedContent,
+            source_locale: requestLocale,
           });
         }
       } else {
@@ -1206,6 +1398,14 @@ ${smartTruncate(extrahierterText || dateiname, 2000)}`;
       } else {
         warnings.push(`ki-chat (other): HTTP ${resp.status}`);
       }
+      const otherSummary = {
+        kind: "document",
+        documentClass: "sonstiges",
+        documentType: "sonstiges",
+        title: titel,
+        headline: inhalt,
+      };
+      const localizedContent = await localizedContentFromGerman(fnHeaders, FUNCTIONS_URL, titel, inhalt, inhalt);
 
       wissenId = await safeUpsertHomeWissen(supabaseAdmin, {
         household_id: householdId,
@@ -1216,6 +1416,9 @@ ${smartTruncate(extrahierterText || dateiname, 2000)}`;
         tags,
         dokument_id,
         herkunft:     "auto_full",
+        summary:      otherSummary,
+        localized_content: localizedContent,
+        source_locale: requestLocale,
       });
     } catch (e) {
       warnings.push(`other (exception): ${(e as Error).message}`);

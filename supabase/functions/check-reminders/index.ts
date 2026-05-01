@@ -18,6 +18,7 @@ type PushMessage = {
 
 type UserProfileReminder = {
   id: string;
+  locale?: string | null;
   einkauf_reminder_aktiv?: boolean | null;
   einkauf_reminder_zeit: string | null;
   einkauf_reminder_letzter_versand: string | null;
@@ -26,6 +27,8 @@ type UserProfileReminder = {
 
 const DATE_THRESHOLDS = [30, 14, 7, 1, 0];
 const BUDGET_LIMIT_THRESHOLDS = [80, 100];
+const SUPPORTED_LOCALES = ["de", "en-GB"] as const;
+type SupportedLocale = typeof SUPPORTED_LOCALES[number];
 
 const unique = (values: string[] = []) => [...new Set(values.filter(Boolean))];
 const isoDate = (date: Date) => date.toISOString().split("T")[0];
@@ -48,6 +51,120 @@ function dateThresholdKey(dateStr: string | null | undefined, today: string): st
 function dateThresholdLabel(key: string): string {
   if (key === "0d") return "heute";
   return `in ${key.replace("d", "")} Tagen`;
+}
+
+function normalizeLocale(locale: string | null | undefined): SupportedLocale {
+  return locale === "en-GB" || locale === "en" ? "en-GB" : "de";
+}
+
+function dateThresholdLabelForLocale(key: string, locale: SupportedLocale): string {
+  if (locale === "en-GB") {
+    if (key === "0d") return "today";
+    if (key === "1d") return "in 1 day";
+    return `in ${key.replace("d", "")} days`;
+  }
+  return dateThresholdLabel(key);
+}
+
+function formatEuro(value: number, locale: SupportedLocale): string {
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value || 0));
+}
+
+function reminderText(locale: SupportedLocale) {
+  if (locale === "en-GB") {
+    return {
+      taskReminder: "Task reminder",
+      taskDueSoon: "Task due soon",
+      taskDueSoonBody: (name: string) => `"${name}" is due soon.`,
+      taskOverdue: "Task overdue",
+      taskOverdueBody: (name: string) => `"${name}" is overdue.`,
+      lowStock: "Stock below minimum",
+      lowStockBody: (name: string, amount: unknown, unit: string, min: unknown) =>
+        `${name}: ${amount} ${unit}`.trim() + ` left (minimum: ${min})`,
+      maintenanceDue: "Maintenance due",
+      guaranteeExpiring: "Guarantee expiring",
+      warrantyExpiring: "Statutory warranty expiring",
+      maintenance: "Maintenance",
+      guarantee: "Guarantee",
+      warranty: "Statutory warranty",
+      deviceFallback: "Device",
+      contractFallback: "Contract",
+      insuranceFallback: "Insurance",
+      projectDeadline: "Project deadline",
+      projectBody: (name: string, date: string) => `"${name}" is due on ${date}.`,
+      cancellationDue: "Check cancellation deadline",
+      contractEnding: "Contract ending",
+      cancellable: "Cancellable",
+      end: "End",
+      insuranceEnding: "Insurance ending",
+      insuranceDue: "Insurance due",
+      dueDate: "Due date",
+      budgetExceeded: "Budget limit exceeded",
+      budgetNear: "Budget limit almost reached",
+      budgetBody: (category: string, spent: number, limit: number) =>
+        `${category}: ${formatEuro(spent, locale)} of ${formatEuro(limit, locale)} used.`,
+      shoppingList: "Shopping list",
+      shoppingMore: (count: number) => ` +${count} more`,
+      shoppingBody: (count: number, preview: string, rest: string) => `${count} open items: ${preview}${rest}`,
+      openSettlements: "Open settlements",
+      cospendBody: (count: number, totalCents: number) =>
+        `${count} open items for more than 14 days - ${formatEuro(totalCents / 100, locale)}`,
+      bookOverdue: "Book overdue",
+      bookReturnDue: "Book return due",
+      bookUnknownBorrower: "unknown",
+      bookBody: (title: string, state: string, borrower: string) =>
+        `"${title}" is ${state} - borrowed by ${borrower}.`,
+    };
+  }
+
+  return {
+    taskReminder: "Aufgaben-Erinnerung",
+    taskDueSoon: "Aufgabe bald faellig",
+    taskDueSoonBody: (name: string) => `"${name}" ist bald faellig.`,
+    taskOverdue: "Aufgabe ueberfaellig",
+    taskOverdueBody: (name: string) => `"${name}" ist ueberfaellig.`,
+    lowStock: "Vorrat unter Mindestmenge",
+    lowStockBody: (name: string, amount: unknown, unit: string, min: unknown) =>
+      `${name}: noch ${amount} ${unit} (Minimum: ${min})`.trim(),
+    maintenanceDue: "Wartung faellig",
+    guaranteeExpiring: "Garantie laeuft ab",
+    warrantyExpiring: "Gewaehrleistung laeuft ab",
+    maintenance: "Wartung",
+    guarantee: "Garantie",
+    warranty: "Gewaehrleistung",
+    deviceFallback: "Geraet",
+    contractFallback: "Vertrag",
+    insuranceFallback: "Versicherung",
+    projectDeadline: "Projekt-Deadline",
+    projectBody: (name: string, date: string) => `"${name}" ist am ${date} faellig.`,
+    cancellationDue: "Kuendigungsfrist beachten",
+    contractEnding: "Vertrag laeuft ab",
+    cancellable: "Kuendbar",
+    end: "Ende",
+    insuranceEnding: "Versicherung laeuft ab",
+    insuranceDue: "Versicherung faellig",
+    dueDate: "Faelligkeit",
+    budgetExceeded: "Budget-Limit ueberschritten",
+    budgetNear: "Budget-Limit bald erreicht",
+    budgetBody: (category: string, spent: number, limit: number) =>
+      `${category}: ${formatEuro(spent, locale)} von ${formatEuro(limit, locale)} verbraucht.`,
+    shoppingList: "Einkaufsliste",
+    shoppingMore: (count: number) => ` +${count} weitere`,
+    shoppingBody: (count: number, preview: string, rest: string) => `${count} Artikel offen: ${preview}${rest}`,
+    openSettlements: "Offene Ausgleiche",
+    cospendBody: (count: number, totalCents: number) =>
+      `${count} offene Positionen seit mehr als 14 Tagen - ${formatEuro(totalCents / 100, locale)}`,
+    bookOverdue: "Buch ueberfaellig",
+    bookReturnDue: "Buch-Rueckgabe faellig",
+    bookUnknownBorrower: "unbekannt",
+    bookBody: (title: string, state: string, borrower: string) =>
+      `"${title}" ist ${state} - ausgeliehen an ${borrower}.`,
+  };
 }
 
 function resolveAufgabeEmpfaenger(
@@ -84,7 +201,7 @@ async function queueReminder(
   target: PushMessage[],
   householdId: string,
   recipientIds: string[],
-  payload: Omit<PushMessage, "user_id">,
+  payload: Omit<PushMessage, "user_id"> | ((recipientUserId: string) => Omit<PushMessage, "user_id">),
   identity: {
     entityType: string;
     entityId: string;
@@ -107,7 +224,8 @@ async function queueReminder(
     });
 
     if (!error) {
-      target.push({ user_id: recipientUserId, ...payload });
+      const resolvedPayload = typeof payload === "function" ? payload(recipientUserId) : payload;
+      target.push({ user_id: recipientUserId, ...resolvedPayload });
       continue;
     }
 
@@ -220,7 +338,7 @@ Deno.serve(async (req: Request) => {
             .lte("deadline", isoDate(addDays(now, 1))),
           supabase
             .from("user_profile")
-            .select("id, einkauf_reminder_aktiv, einkauf_reminder_zeit, einkauf_reminder_letzter_versand, cospend_reminder_letzter_versand")
+            .select("id, locale, einkauf_reminder_aktiv, einkauf_reminder_zeit, einkauf_reminder_letzter_versand, cospend_reminder_letzter_versand")
             .in("id", recipients),
           supabase
             .from("home_einkaufliste")
@@ -276,6 +394,13 @@ Deno.serve(async (req: Request) => {
         ]);
 
         const msgs: PushMessage[] = [];
+        const localeByUser = new Map<string, SupportedLocale>();
+        for (const recipient of recipients) localeByUser.set(recipient, "de");
+        for (const profile of (reminderProfiles ?? []) as UserProfileReminder[]) {
+          localeByUser.set(profile.id, normalizeLocale(profile.locale));
+        }
+        const textsForUser = (userId: string) => reminderText(localeByUser.get(userId) || "de");
+        const localeForUser = (userId: string) => localeByUser.get(userId) || "de";
         const bewohnerUserMap = new Map<string, string>();
         for (const row of bewohnerRows ?? []) {
           if (row?.id && row?.linked_user_id) bewohnerUserMap.set(row.id, row.linked_user_id);
@@ -290,13 +415,16 @@ Deno.serve(async (req: Request) => {
           ) continue;
 
           const empfaenger = resolveAufgabeEmpfaenger(task, bewohnerUserMap, recipients);
-          empfaenger.forEach((userId) => msgs.push({
-            user_id: userId,
-            title: "Aufgaben-Erinnerung",
-            body: task.beschreibung,
-            url: "/home/aufgaben",
-            tag: `aufgabe-${task.id}`,
-          }));
+          empfaenger.forEach((userId) => {
+            const tx = textsForUser(userId);
+            msgs.push({
+              user_id: userId,
+              title: tx.taskReminder,
+              body: task.beschreibung,
+              url: "/home/aufgaben",
+              tag: `aufgabe-${task.id}`,
+            });
+          });
           aufgabeDbUpdates.push(() =>
             supabase.from("todo_aufgaben")
               .update({ letzte_push_erinnerung_am: now.toISOString() })
@@ -315,13 +443,16 @@ Deno.serve(async (req: Request) => {
             if (hasActiveReminder || task.letzte_push_bald_faellig_fuer === faelligDate) continue;
 
             const empfaenger = resolveAufgabeEmpfaenger(task, bewohnerUserMap, recipients);
-            empfaenger.forEach((userId) => msgs.push({
-              user_id: userId,
-              title: "Aufgabe bald faellig",
-              body: `"${task.beschreibung}" ist bald faellig.`,
-              url: "/home/aufgaben",
-              tag: `aufgabe-due-soon-${task.id}`,
-            }));
+            empfaenger.forEach((userId) => {
+              const tx = textsForUser(userId);
+              msgs.push({
+                user_id: userId,
+                title: tx.taskDueSoon,
+                body: tx.taskDueSoonBody(task.beschreibung),
+                url: "/home/aufgaben",
+                tag: `aufgabe-due-soon-${task.id}`,
+              });
+            });
             aufgabeDbUpdates.push(() =>
               supabase.from("todo_aufgaben")
                 .update({
@@ -335,13 +466,16 @@ Deno.serve(async (req: Request) => {
             if (last && now.getTime() - new Date(last).getTime() < 24 * 60 * 60 * 1000) continue;
 
             const empfaenger = resolveAufgabeEmpfaenger(task, bewohnerUserMap, recipients);
-            empfaenger.forEach((userId) => msgs.push({
-              user_id: userId,
-              title: "Aufgabe ueberfaellig",
-              body: `"${task.beschreibung}" ist ueberfaellig.`,
-              url: "/home/aufgaben",
-              tag: `aufgabe-overdue-${task.id}`,
-            }));
+            empfaenger.forEach((userId) => {
+              const tx = textsForUser(userId);
+              msgs.push({
+                user_id: userId,
+                title: tx.taskOverdue,
+                body: tx.taskOverdueBody(task.beschreibung),
+                url: "/home/aufgaben",
+                tag: `aufgabe-overdue-${task.id}`,
+              });
+            });
             aufgabeDbUpdates.push(() =>
               supabase.from("todo_aufgaben")
                 .update({ letzte_push_ueberfaellig_am: now.toISOString() })
@@ -351,11 +485,14 @@ Deno.serve(async (req: Request) => {
         }
 
         for (const row of (inventoryRows ?? []).filter((item: any) => Number(item.menge) <= Number(item.mindest_menge))) {
-          await queueReminder(supabase, msgs, householdId, recipients, {
-            title: "Vorrat unter Mindestmenge",
-            body: `${row.name}: noch ${row.menge} ${row.einheit ?? ""} (Minimum: ${row.mindest_menge})`.trim(),
+          await queueReminder(supabase, msgs, householdId, recipients, (userId) => {
+            const tx = textsForUser(userId);
+            return {
+            title: tx.lowStock,
+            body: tx.lowStockBody(row.name, row.menge, row.einheit ?? "", row.mindest_menge),
             url: "/home/vorraete",
             tag: `vorrat-${row.id}`,
+          };
           }, {
             entityType: "vorraete",
             entityId: String(row.id),
@@ -368,22 +505,27 @@ Deno.serve(async (req: Request) => {
 
         for (const row of deviceRows ?? []) {
           const deviceRecipients = resolveOwnedRecipients(row, recipientSet, recipients);
-          const deviceName = row.name || "Geraet";
+          const deviceName = row.name || null;
           const checks = [
-            { field: "naechste_wartung", type: "maintenance", title: "Wartung faellig", label: "Wartung" },
-            { field: "garantie_bis", type: "guarantee", title: "Garantie laeuft ab", label: "Garantie" },
-            { field: "gewaehrleistung_bis", type: "warranty", title: "Gewaehrleistung laeuft ab", label: "Gewaehrleistung" },
+            { field: "naechste_wartung", type: "maintenance" },
+            { field: "garantie_bis", type: "guarantee" },
+            { field: "gewaehrleistung_bis", type: "warranty" },
           ];
 
           for (const check of checks) {
             const dateValue = row[check.field];
             const thresholdKey = dateThresholdKey(dateValue, today);
             if (!thresholdKey) continue;
-            await queueReminder(supabase, msgs, householdId, deviceRecipients, {
-              title: check.title,
-              body: `${deviceName}: ${check.label} ${dateThresholdLabel(thresholdKey)} (${dateValue}).`,
+            await queueReminder(supabase, msgs, householdId, deviceRecipients, (userId) => {
+              const tx = textsForUser(userId);
+              const label = check.type === "maintenance" ? tx.maintenance : check.type === "guarantee" ? tx.guarantee : tx.warranty;
+              const title = check.type === "maintenance" ? tx.maintenanceDue : check.type === "guarantee" ? tx.guaranteeExpiring : tx.warrantyExpiring;
+              return {
+              title,
+              body: `${deviceName || tx.deviceFallback}: ${label} ${dateThresholdLabelForLocale(thresholdKey, localeForUser(userId))} (${dateValue}).`,
               url: "/home/geraete",
               tag: `geraet-${check.type}-${row.id}-${thresholdKey}`,
+            };
             }, {
               entityType: "home_geraete",
               entityId: String(row.id),
@@ -396,11 +538,14 @@ Deno.serve(async (req: Request) => {
         }
 
         for (const row of projectRows ?? []) {
-          await queueReminder(supabase, msgs, householdId, recipients, {
-            title: "Projekt-Deadline",
-            body: `"${row.name}" ist am ${row.deadline} faellig.`,
+          await queueReminder(supabase, msgs, householdId, recipients, (userId) => {
+            const tx = textsForUser(userId);
+            return {
+            title: tx.projectDeadline,
+            body: tx.projectBody(row.name, row.deadline),
             url: "/home/projekte",
             tag: `projekt-${row.id}-${row.deadline}`,
+          };
           }, {
             entityType: "projekte",
             entityId: String(row.id),
@@ -412,21 +557,26 @@ Deno.serve(async (req: Request) => {
         }
 
         for (const contract of contractRows ?? []) {
-          const name = contract.partner || contract.vertragstitel || "Vertrag";
+          const name = contract.partner || contract.vertragstitel || null;
           const checks = [
-            { field: "kuendigbar_ab", type: "cancellation", title: "Kuendigungsfrist beachten", label: "Kuendbar" },
-            { field: "end_date", type: "contract_end", title: "Vertrag laeuft ab", label: "Ende" },
+            { field: "kuendigbar_ab", type: "cancellation" },
+            { field: "end_date", type: "contract_end" },
           ];
 
           for (const check of checks) {
             const dateValue = contract[check.field];
             const thresholdKey = dateThresholdKey(dateValue, today);
             if (!thresholdKey) continue;
-            await queueReminder(supabase, msgs, householdId, recipients, {
-              title: check.title,
-              body: `${name}: ${check.label} ${dateThresholdLabel(thresholdKey)} (${dateValue}).`,
+            await queueReminder(supabase, msgs, householdId, recipients, (userId) => {
+              const tx = textsForUser(userId);
+              const label = check.type === "cancellation" ? tx.cancellable : tx.end;
+              const title = check.type === "cancellation" ? tx.cancellationDue : tx.contractEnding;
+              return {
+              title,
+              body: `${name || tx.contractFallback}: ${label} ${dateThresholdLabelForLocale(thresholdKey, localeForUser(userId))} (${dateValue}).`,
               url: "/home/vertraege",
               tag: `vertrag-${check.type}-${contract.id}-${thresholdKey}`,
+            };
             }, {
               entityType: "vertraege",
               entityId: String(contract.id),
@@ -439,21 +589,26 @@ Deno.serve(async (req: Request) => {
         }
 
         for (const policy of insuranceRows ?? []) {
-          const name = policy.versicherer || policy.versicherungsart || "Versicherung";
+          const name = policy.versicherer || policy.versicherungsart || null;
           const checks = [
-            { field: "end_date", type: "insurance_end", title: "Versicherung laeuft ab", label: "Ende" },
-            { field: "naechste_faelligkeit", type: "insurance_due", title: "Versicherung faellig", label: "Faelligkeit" },
+            { field: "end_date", type: "insurance_end" },
+            { field: "naechste_faelligkeit", type: "insurance_due" },
           ];
 
           for (const check of checks) {
             const dateValue = policy[check.field];
             const thresholdKey = dateThresholdKey(dateValue, today);
             if (!thresholdKey) continue;
-            await queueReminder(supabase, msgs, householdId, recipients, {
-              title: check.title,
-              body: `${name}: ${check.label} ${dateThresholdLabel(thresholdKey)} (${dateValue}).`,
+            await queueReminder(supabase, msgs, householdId, recipients, (userId) => {
+              const tx = textsForUser(userId);
+              const label = check.type === "insurance_end" ? tx.end : tx.dueDate;
+              const title = check.type === "insurance_end" ? tx.insuranceEnding : tx.insuranceDue;
+              return {
+              title,
+              body: `${name || tx.insuranceFallback}: ${label} ${dateThresholdLabelForLocale(thresholdKey, localeForUser(userId))} (${dateValue}).`,
               url: "/home/versicherungen",
               tag: `versicherung-${check.type}-${policy.id}-${thresholdKey}`,
+            };
             }, {
               entityType: "versicherungs_polizzen",
               entityId: String(policy.id),
@@ -480,11 +635,14 @@ Deno.serve(async (req: Request) => {
           const reached = BUDGET_LIMIT_THRESHOLDS.filter((threshold) => percent >= threshold).pop();
           if (!reached) continue;
 
-          await queueReminder(supabase, msgs, householdId, recipients, {
-            title: reached >= 100 ? "Budget-Limit ueberschritten" : "Budget-Limit bald erreicht",
-            body: `${limit.kategorie}: ${spent.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} von ${limitEuro.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR verbraucht.`,
+          await queueReminder(supabase, msgs, householdId, recipients, (userId) => {
+            const tx = textsForUser(userId);
+            return {
+            title: reached >= 100 ? tx.budgetExceeded : tx.budgetNear,
+            body: tx.budgetBody(limit.kategorie, spent, limitEuro),
             url: "/home/budget",
             tag: `budget-limit-${limit.id}-${currentMonth}-${reached}`,
+          };
           }, {
             entityType: "home_budget_limits",
             entityId: String(limit.id),
@@ -504,12 +662,14 @@ Deno.serve(async (req: Request) => {
           if (Math.abs(currentMinutes - reminderMinutes) > 15 || !openShoppingItems?.length) continue;
 
           const preview = openShoppingItems.slice(0, 3).map((item: any) => item.name).join(", ");
-          const rest = openShoppingItems.length > 3 ? ` +${openShoppingItems.length - 3} weitere` : "";
+          const restCount = openShoppingItems.length - 3;
 
+          const tx = textsForUser(profile.id);
+          const rest = restCount > 0 ? tx.shoppingMore(restCount) : "";
           msgs.push({
             user_id: profile.id,
-            title: "Einkaufsliste",
-            body: `${openShoppingItems.length} Artikel offen: ${preview}${rest}`,
+            title: tx.shoppingList,
+            body: tx.shoppingBody(openShoppingItems.length, preview, rest),
             url: "/home/einkaufliste",
             tag: `einkauf-reminder-${householdId}`,
           });
@@ -541,10 +701,11 @@ Deno.serve(async (req: Request) => {
             const openInfo = cospendByUser.get(profile.id);
             if (!openInfo || openInfo.totalCents <= 0) continue;
 
+            const tx = textsForUser(profile.id);
             msgs.push({
               user_id: profile.id,
-              title: "Offene Ausgleiche",
-              body: `${openInfo.count} offene Positionen seit mehr als 14 Tagen - ${Number(openInfo.totalCents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR`,
+              title: tx.openSettlements,
+              body: tx.cospendBody(openInfo.count, openInfo.totalCents),
               url: "/home/budget?tab=ausgleich",
               tag: `cospend-reminder-${householdId}`,
             });
@@ -560,11 +721,17 @@ Deno.serve(async (req: Request) => {
           if (!thresholdKey) continue;
 
           const empfaenger = resolveOwnedRecipients(book, recipientSet, recipients);
-          await queueReminder(supabase, msgs, householdId, empfaenger, {
-            title: overdue ? "Buch ueberfaellig" : "Buch-Rueckgabe faellig",
-            body: `"${book.titel}" ist ${overdue ? "ueberfaellig" : dateThresholdLabel(thresholdKey)} - ausgeliehen an ${book.verliehen_an_name ?? "unbekannt"}.`,
+          await queueReminder(supabase, msgs, householdId, empfaenger, (userId) => {
+            const tx = textsForUser(userId);
+            const state = overdue
+              ? (localeForUser(userId) === "en-GB" ? "overdue" : "ueberfaellig")
+              : dateThresholdLabelForLocale(thresholdKey, localeForUser(userId));
+            return {
+            title: overdue ? tx.bookOverdue : tx.bookReturnDue,
+            body: tx.bookBody(book.titel, state, book.verliehen_an_name ?? tx.bookUnknownBorrower),
             url: "/home/inventar?tab=buecher",
             tag: `buch-reminder-${book.id}-${thresholdKey}`,
+          };
           }, {
             entityType: "home_buecher",
             entityId: String(book.id),

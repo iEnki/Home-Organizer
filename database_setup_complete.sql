@@ -1,9 +1,9 @@
 -- ============================================================
--- UMZUGSHELFER & HOME ORGANIZER Ã¢â‚¬â€ Komplettes Datenbank-Setup
+-- UMZUGSHELFER & HOME ORGANIZER - Komplettes Datenbank-Setup
 -- Zuletzt aktualisiert: 2026-03-19
 --
--- Einmalig im Supabase SQL Editor ausfÃƒÂ¼hren.
--- Das Skript ist idempotent (kann mehrfach ausgefÃƒÂ¼hrt werden).
+-- Einmalig im Supabase SQL Editor ausführen.
+-- Das Skript ist idempotent (kann mehrfach ausgeführt werden).
 --
 -- ABSCHNITTE:
 --   1. Extensions & Hilfsfunktionen
@@ -14,7 +14,7 @@
 --   6. Tabellen-Erweiterungen (ALTER TABLE)
 --   7. Storage Bucket (Home Fotos)
 --   8. Push-Benachrichtigungen
---   9. Migrationen (fÃƒÂ¼r bestehende Installationen)
+--   9. Migrationen (für bestehende Installationen)
 --  10. Multi-User Haushalt (Haushaltstabellen, RLS, Funktionen)
 --  11. Schema neu laden
 -- ============================================================
@@ -37,7 +37,7 @@ BEGIN
 END;
 $$;
 
--- Alias fÃƒÂ¼r KompatibilitÃƒÂ¤t mit ÃƒÂ¤lteren Trigger-Definitionen
+-- Alias für Kompatibilität mit älteren Trigger-Definitionen
 CREATE OR REPLACE FUNCTION public.handle_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql
 SET search_path = ''
@@ -53,7 +53,7 @@ $$;
 -- 2. KERN-TABELLEN (UMZUGSMODUS)
 -- ============================================================
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ user_profile Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── user_profile ──────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.user_profile (
   id               uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email            text,
@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS public.user_profile (
   ollama_model     text DEFAULT 'llama3.2', -- z.B. llama3.2, mistral, qwen2.5
   password_change_required boolean NOT NULL DEFAULT false,
   mobile_nav_config jsonb NOT NULL DEFAULT '{"home":["aufgaben","inventar","budget"],"umzug":["todos","packliste","budget"]}'::jsonb,
+  locale           text NOT NULL DEFAULT 'de' CONSTRAINT user_profile_locale_supported CHECK (locale IN ('de', 'en-GB')),
   created_at       timestamptz DEFAULT NOW(),
   updated_at       timestamptz DEFAULT NOW()
 );
@@ -97,7 +98,7 @@ CREATE TRIGGER set_user_profile_updated_at
   BEFORE UPDATE ON public.user_profile
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
--- Backfill fÃƒÂ¼r User die vor dem Trigger angelegt wurden
+-- Backfill für User die vor dem Trigger angelegt wurden
 INSERT INTO public.user_profile (id, email, username)
 SELECT u.id, u.email, split_part(u.email, '@', 1)
 FROM auth.users u
@@ -118,7 +119,7 @@ DROP POLICY IF EXISTS user_profile_delete_own ON public.user_profile;
 CREATE POLICY user_profile_delete_own ON public.user_profile FOR DELETE USING ((select auth.uid()) = id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ kontakte Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── kontakte ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.kontakte (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id    uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -145,7 +146,7 @@ CREATE POLICY kontakte_crud_own ON public.kontakte FOR ALL
   USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ budget_posten Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── budget_posten ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.budget_posten (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id         uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -162,7 +163,7 @@ CREATE TABLE IF NOT EXISTS public.budget_posten (
   updated_at      timestamptz DEFAULT NOW()
 );
 
--- Migration: fehlende Spalten nachtrÃƒÂ¤glich ergÃƒÂ¤nzen (fÃƒÂ¼r bestehende Installationen)
+-- Migration: fehlende Spalten nachträglich ergänzen (für bestehende Installationen)
 ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS app_modus       text NOT NULL DEFAULT 'umzug';
 ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS wiederholen     boolean DEFAULT false;
 ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS intervall       text;
@@ -196,7 +197,7 @@ CREATE POLICY budget_posten_crud_own ON public.budget_posten FOR ALL
   USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ budget_teilzahlungen Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── budget_teilzahlungen ──────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.budget_teilzahlungen (
   id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id              uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -223,7 +224,7 @@ CREATE POLICY budget_teilzahlungen_crud_own ON public.budget_teilzahlungen FOR A
   USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ todo_aufgaben Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── todo_aufgaben ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.todo_aufgaben (
   id                       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id                  uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -244,7 +245,7 @@ CREATE TABLE IF NOT EXISTS public.todo_aufgaben (
   updated_at               timestamptz DEFAULT NOW()
 );
 
--- Migration: fehlende Spalten nachtrÃƒÂ¤glich ergÃƒÂ¤nzen (fÃƒÂ¼r bestehende Installationen)
+-- Migration: fehlende Spalten nachträglich ergänzen (für bestehende Installationen)
 ALTER TABLE public.todo_aufgaben ADD COLUMN IF NOT EXISTS app_modus       text NOT NULL DEFAULT 'umzug';
 ALTER TABLE public.todo_aufgaben ADD COLUMN IF NOT EXISTS home_projekt_id uuid;
 
@@ -264,8 +265,8 @@ CREATE POLICY todo_aufgaben_crud_own ON public.todo_aufgaben FOR ALL
   USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ todo_vorlagen Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
--- user_id nullable: NULL = globale Vorlage, gesetzt = persÃƒÂ¶nliche Vorlage
+-- ── todo_vorlagen ─────────────────────────────────────────
+-- user_id nullable: NULL = globale Vorlage, gesetzt = persönliche Vorlage
 CREATE TABLE IF NOT EXISTS public.todo_vorlagen (
   id                              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id                         uuid REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -280,48 +281,48 @@ CREATE TABLE IF NOT EXISTS public.todo_vorlagen (
   created_at                      timestamptz DEFAULT NOW()
 );
 
--- Globale Vorlagen zurÃƒÂ¼cksetzen (persÃƒÂ¶nliche bleiben erhalten)
+-- Globale Vorlagen zurücksetzen (persönliche bleiben erhalten)
 DELETE FROM public.todo_vorlagen WHERE user_id IS NULL;
 
 INSERT INTO public.todo_vorlagen (beschreibung, kategorie, prioritaet, faelligkeitsdatum_offset_tage, standard_anhaenge_text, sortier_reihenfolge) VALUES
-('Mietvertrag alte Wohnung kÃƒÂ¼ndigen (Standard: 3 Monate Frist)', 'VertrÃƒÂ¤ge', 'Hoch', 90, NULL, 10),
+('Mietvertrag alte Wohnung kündigen (Standard: 3 Monate Frist)', 'Verträge', 'Hoch', 90, NULL, 10),
 ('Nachsendeauftrag bei der Post einrichten (ca. 2 Wochen vorher)', 'Organisation', 'Hoch', 14, NULL, 20),
 ('Strom, Gas, Wasser ummelden (ca. 1 Woche vorher)', 'Versorger', 'Hoch', 7, NULL, 30),
-('Internet- und Telefonanschluss ummelden/kÃƒÂ¼ndigen (ca. 4 Wochen vorher)', 'Versorger', 'Hoch', 28, NULL, 40),
-('Termin fÃƒÂ¼r WohnungsÃƒÂ¼bergabe (alte Wohnung) vereinbaren', 'Wohnung', 'Hoch', 21, NULL, 50),
+('Internet- und Telefonanschluss ummelden/kündigen (ca. 4 Wochen vorher)', 'Versorger', 'Hoch', 28, NULL, 40),
+('Termin für Wohnungsübergabe (alte Wohnung) vereinbaren', 'Wohnung', 'Hoch', 21, NULL, 50),
 ('Umzugshelfer organisieren', 'Umzugstag', 'Mittel', 30, NULL, 60),
 ('Umzugskartons besorgen und packen beginnen', 'Umzugstag', 'Mittel', 45, NULL, 70),
-('SperrmÃƒÂ¼ll anmelden (falls benÃƒÂ¶tigt)', 'Ausmisten', 'Mittel', 21, NULL, 80),
-('Umzugsurlaub beim Arbeitgeber einreichen', 'Organisation', 'Hoch', 60, 'Gesetzlicher Anspruch prÃƒÂ¼fen, schriftlich einreichen', 100),
+('Sperrmüll anmelden (falls benötigt)', 'Ausmisten', 'Mittel', 21, NULL, 80),
+('Umzugsurlaub beim Arbeitgeber einreichen', 'Organisation', 'Hoch', 60, 'Gesetzlicher Anspruch prüfen, schriftlich einreichen', 100),
 ('Kindergarten/Schule am neuen Wohnort anmelden', 'Organisation', 'Hoch', 90, 'Unterlagen: Geburtsurkunde, Meldezettel', 110),
-('Haustierbetreuung fÃƒÂ¼r den Umzugstag organisieren', 'Organisation', 'Mittel', 14, 'Freunde fragen oder professionelle Betreuung buchen', 120),
-('AdressÃƒÂ¤nderung bei Banken und Versicherungen bekannt geben', 'Organisation', 'Hoch', 7, 'Online-Portale oder Formulare nutzen', 130),
-('AdressÃƒÂ¤nderung bei Online-Shops und Abonnements aktualisieren', 'Organisation', 'Mittel', 5, 'Wichtige Lieferdienste prÃƒÂ¼fen (Amazon, Zalando etc.)', 140),
-('Termin fÃƒÂ¼r SperrmÃƒÂ¼llabholung vereinbaren (falls benÃƒÂ¶tigt)', 'Ausmisten', 'Mittel', 21, 'Details bei der Gemeinde/Stadt erfragen', 150),
+('Haustierbetreuung für den Umzugstag organisieren', 'Organisation', 'Mittel', 14, 'Freunde fragen oder professionelle Betreuung buchen', 120),
+('Adressänderung bei Banken und Versicherungen bekannt geben', 'Organisation', 'Hoch', 7, 'Online-Portale oder Formulare nutzen', 130),
+('Adressänderung bei Online-Shops und Abonnements aktualisieren', 'Organisation', 'Mittel', 5, 'Wichtige Lieferdienste prüfen (Amazon, Zalando etc.)', 140),
+('Termin für Sperrmüllabholung vereinbaren (falls benötigt)', 'Ausmisten', 'Mittel', 21, 'Details bei der Gemeinde/Stadt erfragen', 150),
 ('Wichtige Dokumente scannen und digital sichern', 'Dokumente', 'Mittel', 30, 'Cloud-Speicher oder externe Festplatte nutzen', 160),
-('SchÃƒÂ¶nheitsreparaturen in alter Wohnung durchfÃƒÂ¼hren (falls vertraglich vereinbart)', 'Wohnung', 'Mittel', 14, 'Malerarbeiten, LÃƒÂ¶cher schlieÃƒÅ¸en etc.', 200),
-('ZÃƒÂ¤hlerstÃƒÂ¤nde (Strom, Gas, Wasser) in alter Wohnung ablesen und protokollieren', 'Wohnung', 'Hoch', 0, 'Protokoll mit Vermieter/Nachmieter, Fotos machen', 210),
-('ÃƒÅ“bergabeprotokoll fÃƒÂ¼r alte Wohnung vorbereiten/prÃƒÂ¼fen', 'Wohnung', 'Hoch', 3, 'MÃƒÂ¤ngelliste, Zustand der RÃƒÂ¤ume', 220),
-('SchlÃƒÂ¼ssel fÃƒÂ¼r neue Wohnung ÃƒÂ¼bernehmen und ÃƒÅ“bergabeprotokoll erstellen', 'Wohnung', 'Hoch', 0, 'Zustand prÃƒÂ¼fen, MÃƒÂ¤ngel dokumentieren, ZÃƒÂ¤hlerstÃƒÂ¤nde neue Wohnung', 230),
+('Schönheitsreparaturen in alter Wohnung durchführen (falls vertraglich vereinbart)', 'Wohnung', 'Mittel', 14, 'Malerarbeiten, Löcher schließen etc.', 200),
+('Zählerstände (Strom, Gas, Wasser) in alter Wohnung ablesen und protokollieren', 'Wohnung', 'Hoch', 0, 'Protokoll mit Vermieter/Nachmieter, Fotos machen', 210),
+('Übergabeprotokoll für alte Wohnung vorbereiten/prüfen', 'Wohnung', 'Hoch', 3, 'Mängelliste, Zustand der Räume', 220),
+('Schlüssel für neue Wohnung übernehmen und Übergabeprotokoll erstellen', 'Wohnung', 'Hoch', 0, 'Zustand prüfen, Mängel dokumentieren, Zählerstände neue Wohnung', 230),
 ('Namensschilder an Klingel und Briefkasten (neue Wohnung) anbringen', 'Wohnung', 'Niedrig', -1, 'Nach Einzug erledigen', 240),
-('Reinigung der neuen Wohnung vor Einzug organisieren/durchfÃƒÂ¼hren', 'Wohnung', 'Mittel', 2, 'Grundreinigung, Fenster putzen', 250),
-('Packmaterial besorgen (Kartons, Klebeband, Polstermaterial)', 'Umzugstag', 'Hoch', 45, 'Auch an Werkzeug, MÃƒÂ¼llsÃƒÂ¤cke denken', 300),
-('Systematisches Packen beginnen (Raum fÃƒÂ¼r Raum)', 'Umzugstag', 'Mittel', 30, 'Kartons beschriften (Inhalt, Zielraum)', 310),
-('Erste-Hilfe-Koffer fÃƒÂ¼r den Umzugstag packen', 'Umzugstag', 'Mittel', 7, 'Pflaster, Desinfektionsmittel, Schmerzmittel', 320),
-('Verpflegung fÃƒÂ¼r Umzugshelfer planen und einkaufen', 'Umzugstag', 'Mittel', 3, 'GetrÃƒÂ¤nke, Snacks, ggf. Mittagessen', 330),
-('Parkverbotszone fÃƒÂ¼r Umzugswagen beantragen (falls nÃƒÂ¶tig)', 'Umzugstag', 'Hoch', 21, 'Bei der zustÃƒÂ¤ndigen BehÃƒÂ¶rde', 340),
-('Transportmittel fÃƒÂ¼r Haustiere und Pflanzen organisieren', 'Umzugstag', 'Mittel', 7, 'Sichere Transportboxen, ggf. spezielles Fahrzeug', 350),
-('Budget fÃƒÂ¼r Umzugskosten erstellen und verfolgen', 'Finanzen', 'Hoch', 60, 'Alle erwarteten Ausgaben auflisten', 400),
-('Kaution fÃƒÂ¼r neue Wohnung ÃƒÂ¼berweisen', 'Finanzen', 'Hoch', 30, 'Zahlungsfrist beachten', 410),
-('DauerauftrÃƒÂ¤ge fÃƒÂ¼r Miete etc. anpassen', 'Finanzen', 'Hoch', 5, 'Alte DauerauftrÃƒÂ¤ge kÃƒÂ¼ndigen, neue einrichten', 420),
-('Wohnsitz ummelden (innerhalb der Frist)', 'BehÃƒÂ¶rde', 'Hoch', -3, 'Nach Einzug, Fristen beachten (oft 3 Tage bis 2 Wochen)', 500),
-('KFZ ummelden (falls anderer Zulassungsbezirk)', 'BehÃƒÂ¶rde', 'Mittel', -7, 'Unterlagen: Fahrzeugpapiere, eVB-Nummer, Ausweis', 510),
-('Neuen Hausarzt/Zahnarzt suchen (falls nÃƒÂ¶tig)', 'Gesundheit', 'Niedrig', -30, 'Nach Einzug, Empfehlungen einholen', 520),
-('VorrÃƒÂ¤te aufbrauchen (KÃƒÂ¼hlschrank, Gefriertruhe)', 'Sonstiges', 'Mittel', 14, 'Reduziert Packaufwand und Lebensmittelverschwendung', 600),
-('Nachbarn ÃƒÂ¼ber Auszug/Einzug informieren', 'Sonstiges', 'Niedrig', 3, 'Gute Geste, ggf. um VerstÃƒÂ¤ndnis fÃƒÂ¼r LÃƒÂ¤rm bitten', 610),
-('Werkzeugkiste fÃƒÂ¼r MÃƒÂ¶belmontage/-demontage vorbereiten', 'Umzugstag', 'Mittel', 7, 'Akkuschrauber, Schraubenzieher, Hammer etc.', 620),
+('Reinigung der neuen Wohnung vor Einzug organisieren/durchführen', 'Wohnung', 'Mittel', 2, 'Grundreinigung, Fenster putzen', 250),
+('Packmaterial besorgen (Kartons, Klebeband, Polstermaterial)', 'Umzugstag', 'Hoch', 45, 'Auch an Werkzeug, Müllsäcke denken', 300),
+('Systematisches Packen beginnen (Raum für Raum)', 'Umzugstag', 'Mittel', 30, 'Kartons beschriften (Inhalt, Zielraum)', 310),
+('Erste-Hilfe-Koffer für den Umzugstag packen', 'Umzugstag', 'Mittel', 7, 'Pflaster, Desinfektionsmittel, Schmerzmittel', 320),
+('Verpflegung für Umzugshelfer planen und einkaufen', 'Umzugstag', 'Mittel', 3, 'Getränke, Snacks, ggf. Mittagessen', 330),
+('Parkverbotszone für Umzugswagen beantragen (falls nötig)', 'Umzugstag', 'Hoch', 21, 'Bei der zuständigen Behörde', 340),
+('Transportmittel für Haustiere und Pflanzen organisieren', 'Umzugstag', 'Mittel', 7, 'Sichere Transportboxen, ggf. spezielles Fahrzeug', 350),
+('Budget für Umzugskosten erstellen und verfolgen', 'Finanzen', 'Hoch', 60, 'Alle erwarteten Ausgaben auflisten', 400),
+('Kaution für neue Wohnung überweisen', 'Finanzen', 'Hoch', 30, 'Zahlungsfrist beachten', 410),
+('Daueraufträge für Miete etc. anpassen', 'Finanzen', 'Hoch', 5, 'Alte Daueraufträge kündigen, neue einrichten', 420),
+('Wohnsitz ummelden (innerhalb der Frist)', 'Behörde', 'Hoch', -3, 'Nach Einzug, Fristen beachten (oft 3 Tage bis 2 Wochen)', 500),
+('KFZ ummelden (falls anderer Zulassungsbezirk)', 'Behörde', 'Mittel', -7, 'Unterlagen: Fahrzeugpapiere, eVB-Nummer, Ausweis', 510),
+('Neuen Hausarzt/Zahnarzt suchen (falls nötig)', 'Gesundheit', 'Niedrig', -30, 'Nach Einzug, Empfehlungen einholen', 520),
+('Vorräte aufbrauchen (Kühlschrank, Gefriertruhe)', 'Sonstiges', 'Mittel', 14, 'Reduziert Packaufwand und Lebensmittelverschwendung', 600),
+('Nachbarn über Auszug/Einzug informieren', 'Sonstiges', 'Niedrig', 3, 'Gute Geste, ggf. um Verständnis für Lärm bitten', 610),
+('Werkzeugkiste für Möbelmontage/-demontage vorbereiten', 'Umzugstag', 'Mittel', 7, 'Akkuschrauber, Schraubenzieher, Hammer etc.', 620),
 ('Wichtige Telefonnummern und Adressen griffbereit halten', 'Organisation', 'Hoch', 1, 'Umzugsfirma, Helfer, neue/alte Vermieter', 630),
-('Kinder wÃƒÂ¤hrend des Umzugs betreuen lassen oder beschÃƒÂ¤ftigen', 'Organisation', 'Hoch', 0, 'Sicherheit und Stressreduktion fÃƒÂ¼r Kinder', 640);
+('Kinder während des Umzugs betreuen lassen oder beschäftigen', 'Organisation', 'Hoch', 0, 'Sicherheit und Stressreduktion für Kinder', 640);
 
 ALTER TABLE public.todo_vorlagen ENABLE ROW LEVEL SECURITY;
 
@@ -338,7 +339,7 @@ CREATE POLICY todo_vorlagen_delete ON public.todo_vorlagen FOR DELETE TO authent
   USING ((select auth.uid()) = user_id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ pack_kisten Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── pack_kisten ───────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.pack_kisten (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id      uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -366,7 +367,7 @@ CREATE POLICY pack_kisten_crud_own ON public.pack_kisten FOR ALL
   USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ pack_gegenstaende Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── pack_gegenstaende ─────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.pack_gegenstaende (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id      uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -382,7 +383,7 @@ CREATE TABLE IF NOT EXISTS public.pack_gegenstaende (
 ALTER TABLE public.pack_gegenstaende
   ADD COLUMN IF NOT EXISTS ausgepakt_am timestamptz;
 
--- Legacy: kisten_id Ã¢â€ â€™ kiste_id migrieren und FK setzen
+-- Legacy: kisten_id → kiste_id migrieren und FK setzen
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
@@ -426,7 +427,7 @@ CREATE POLICY pack_gegenstaende_crud_own ON public.pack_gegenstaende FOR ALL
   USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ dokumente Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── dokumente ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.dokumente (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id          uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -441,10 +442,25 @@ CREATE TABLE IF NOT EXISTS public.dokumente (
 );
 
 ALTER TABLE public.dokumente ADD COLUMN IF NOT EXISTS kategorie text;
+ALTER TABLE public.dokumente ADD COLUMN IF NOT EXISTS app_modus text NOT NULL DEFAULT 'beides';
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'dokumente_app_modus_check'
+      AND conrelid = 'public.dokumente'::regclass
+  ) THEN
+    ALTER TABLE public.dokumente
+      ADD CONSTRAINT dokumente_app_modus_check
+      CHECK (app_modus IN ('umzug', 'home', 'beides'));
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_dokumente_user_id         ON public.dokumente(user_id);
 CREATE INDEX IF NOT EXISTS idx_dokumente_todo_aufgabe_id ON public.dokumente(todo_aufgabe_id);
 CREATE INDEX IF NOT EXISTS idx_dokumente_kategorie       ON public.dokumente(kategorie);
+CREATE INDEX IF NOT EXISTS idx_dokumente_user_app_modus  ON public.dokumente(user_id, app_modus);
 
 DROP TRIGGER IF EXISTS set_dokumente_updated_at ON public.dokumente;
 CREATE TRIGGER set_dokumente_updated_at
@@ -458,7 +474,7 @@ CREATE POLICY dokumente_crud_own ON public.dokumente FOR ALL
   USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ renovierungs_posten Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── renovierungs_posten ───────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.renovierungs_posten (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id           uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -537,288 +553,288 @@ CREATE TABLE IF NOT EXISTS public.materialien (
   erstellt_am  timestamptz DEFAULT NOW()
 );
 
--- Bestehende Daten lÃƒÂ¶schen, um Duplikate zu vermeiden
+-- Bestehende Daten löschen, um Duplikate zu vermeiden
 DELETE FROM public.materialien;
 
 INSERT INTO public.materialien (name, kategorie, einheit, standardpreis) VALUES
-('Dispersionsfarbe weiÃƒÅ¸ (Innen)', 'Maler- & Tapezierbedarf', 'L', 24.99),
+('Dispersionsfarbe weiß (Innen)', 'Maler- & Tapezierbedarf', 'L', 24.99),
 ('Tiefgrund 5 L', 'Maler- & Tapezierbedarf', 'Kanister', 18.00),
-('Malerrolle (18 cm)', 'Maler- & Tapezierbedarf', 'StÃƒÂ¼ck', 3.00),
-('Farbwanne', 'Maler- & Tapezierbedarf', 'StÃƒÂ¼ck', 4.00),
+('Malerrolle (18 cm)', 'Maler- & Tapezierbedarf', 'Stück', 3.00),
+('Farbwanne', 'Maler- & Tapezierbedarf', 'Stück', 4.00),
 ('Malerkreppband (50 m)', 'Maler- & Tapezierbedarf', 'Rolle', 5.00),
-('Schleifpapier (KÃƒÂ¶rnung 120)', 'Maler- & Tapezierbedarf', 'Blatt', 0.50),
-('Pinselset (3 StÃƒÂ¼ck)', 'Maler- & Tapezierbedarf', 'Set', 8.00),
+('Schleifpapier (Körnung 120)', 'Maler- & Tapezierbedarf', 'Blatt', 0.50),
+('Pinselset (3 Stück)', 'Maler- & Tapezierbedarf', 'Set', 8.00),
 ('Spachtelmasse (innen) 5 kg', 'Maler- & Tapezierbedarf', 'Sack', 12.00),
 ('Acryl-Dichtmasse 310 ml', 'Maler- & Tapezierbedarf', 'Kartusche', 4.00),
 ('Feinputz 25 kg', 'Maler- & Tapezierbedarf', 'Sack', 15.00),
 ('Buntlack (Kunstharz, farbig) 0,75 L', 'Maler- & Tapezierbedarf', 'Dose', 15.00),
-('Lackfarbe weiÃƒÅ¸ (Holz/Metall) 1 L', 'Maler- & Tapezierbedarf', 'Dose', 12.00),
-('Fassadenfarbe weiÃƒÅ¸ (AuÃƒÅ¸en) 10 L', 'Maler- & Tapezierbedarf', 'Eimer', 60.00),
-('Tapetenrolle (Vliestapete) 10 mÃ‚Â²', 'Maler- & Tapezierbedarf', 'Rolle', 10.00),
+('Lackfarbe weiß (Holz/Metall) 1 L', 'Maler- & Tapezierbedarf', 'Dose', 12.00),
+('Fassadenfarbe weiß (Außen) 10 L', 'Maler- & Tapezierbedarf', 'Eimer', 60.00),
+('Tapetenrolle (Vliestapete) 10 m²', 'Maler- & Tapezierbedarf', 'Rolle', 10.00),
 ('Tapetenkleister 500 g', 'Maler- & Tapezierbedarf', 'Packung', 5.00),
-('TapezierbÃƒÂ¼rste', 'Maler- & Tapezierbedarf', 'StÃƒÂ¼ck', 7.00),
-('Quast (DeckenbÃƒÂ¼rste)', 'Maler- & Tapezierbedarf', 'StÃƒÂ¼ck', 8.00),
-('Farbkratzer (Schaber)', 'Maler- & Tapezierbedarf', 'StÃƒÂ¼ck', 5.00),
-('Abstreifgitter (fÃƒÂ¼r Farbeimer)', 'Maler- & Tapezierbedarf', 'StÃƒÂ¼ck', 2.00),
-('Teleskop-VerlÃƒÂ¤ngerungsstange', 'Maler- & Tapezierbedarf', 'StÃƒÂ¼ck', 15.00),
+('Tapezierbürste', 'Maler- & Tapezierbedarf', 'Stück', 7.00),
+('Quast (Deckenbürste)', 'Maler- & Tapezierbedarf', 'Stück', 8.00),
+('Farbkratzer (Schaber)', 'Maler- & Tapezierbedarf', 'Stück', 5.00),
+('Abstreifgitter (für Farbeimer)', 'Maler- & Tapezierbedarf', 'Stück', 2.00),
+('Teleskop-Verlängerungsstange', 'Maler- & Tapezierbedarf', 'Stück', 15.00),
 ('Abdeckpapier (Rolle 50 m)', 'Maler- & Tapezierbedarf', 'Rolle', 10.00),
 ('Abdeckfolie mit Klebeband (maskierend)', 'Maler- & Tapezierbedarf', 'Rolle', 5.00),
-('Maleroverall (Einweg)', 'Maler- & Tapezierbedarf', 'StÃƒÂ¼ck', 5.00),
+('Maleroverall (Einweg)', 'Maler- & Tapezierbedarf', 'Stück', 5.00),
 ('Abbeizer (Lackentferner) 1 L', 'Maler- & Tapezierbedarf', 'L', 15.00),
-('Pinselreiniger (LÃƒÂ¶sungsmittel) 1 L', 'Maler- & Tapezierbedarf', 'L', 8.00),
+('Pinselreiniger (Lösungsmittel) 1 L', 'Maler- & Tapezierbedarf', 'L', 8.00),
 ('Holzlasur (farblos) 5 L', 'Maler- & Tapezierbedarf', 'L', 30.00),
-('TapetenlÃƒÂ¶ser 500 ml', 'Maler- & Tapezierbedarf', 'ml', 6.00),
-('Stachelwalze (Tapetenperforierer)', 'Maler- & Tapezierbedarf', 'StÃƒÂ¼ck', 15.00),
-('Nahtroller (Tapeten-Andruckrolle)', 'Maler- & Tapezierbedarf', 'StÃƒÂ¼ck', 6.00),
-('Tapeziertisch (klappbar)', 'Maler- & Tapezierbedarf', 'StÃƒÂ¼ck', 50.00),
+('Tapetenlöser 500 ml', 'Maler- & Tapezierbedarf', 'ml', 6.00),
+('Stachelwalze (Tapetenperforierer)', 'Maler- & Tapezierbedarf', 'Stück', 15.00),
+('Nahtroller (Tapeten-Andruckrolle)', 'Maler- & Tapezierbedarf', 'Stück', 6.00),
+('Tapeziertisch (klappbar)', 'Maler- & Tapezierbedarf', 'Stück', 50.00),
 ('Zement (Portland) 25 kg', 'Maurer & Putz', 'Sack', 5.00),
-('Mauerziegel (Standard)', 'Maurer & Putz', 'StÃƒÂ¼ck', 0.80),
+('Mauerziegel (Standard)', 'Maurer & Putz', 'Stück', 0.80),
 ('Kalkputz (innen) 25 kg', 'Maurer & Putz', 'Sack', 10.00),
-('EstrichmÃƒÂ¶rtel 25 kg', 'Maurer & Putz', 'Sack', 6.00),
-('Beton C25/30 (Transportbeton) 1 mÃ‚Â³', 'Maurer & Putz', 'mÃ‚Â³', 120.00),
-('MauermÃƒÂ¶rtel 25 kg', 'Maurer & Putz', 'Sack', 4.00),
-('Kalksandstein (Format NF)', 'Maurer & Putz', 'StÃƒÂ¼ck', 2.50),
-('WDVS-DÃƒÂ¤mmplatte 1 mÃ‚Â²', 'Maurer & Putz', 'StÃƒÂ¼ck', 20.00),
-('DÃƒÂ¤mmwolle (Mineralwolle) 1 mÃ‚Â²', 'Maurer & Putz', 'mÃ‚Â²', 3.50),
+('Estrichmörtel 25 kg', 'Maurer & Putz', 'Sack', 6.00),
+('Beton C25/30 (Transportbeton) 1 m³', 'Maurer & Putz', 'm³', 120.00),
+('Mauermörtel 25 kg', 'Maurer & Putz', 'Sack', 4.00),
+('Kalksandstein (Format NF)', 'Maurer & Putz', 'Stück', 2.50),
+('WDVS-Dämmplatte 1 m²', 'Maurer & Putz', 'Stück', 20.00),
+('Dämmwolle (Mineralwolle) 1 m²', 'Maurer & Putz', 'm²', 3.50),
 ('Perlit-Leichtbeton 25 kg', 'Maurer & Putz', 'Sack', 8.00),
 ('Bausand (Betonsand) 25 kg', 'Maurer & Putz', 'Sack', 3.00),
 ('Kies (Betonkies) 1 t', 'Maurer & Putz', 't', 30.00),
-('Betonstahl (Bewehrungsstab) 6 m', 'Maurer & Putz', 'StÃƒÂ¼ck', 10.00),
-('Bewehrungsmatte (Stahlgitter)', 'Maurer & Putz', 'StÃƒÂ¼ck', 50.00),
-('Bitumenbahn (Abdichtung) 10 mÃ‚Â²', 'Maurer & Putz', 'Rolle', 30.00),
-('Dachziegel 1 mÃ‚Â²', 'Maurer & Putz', 'mÃ‚Â²', 25.00),
+('Betonstahl (Bewehrungsstab) 6 m', 'Maurer & Putz', 'Stück', 10.00),
+('Bewehrungsmatte (Stahlgitter)', 'Maurer & Putz', 'Stück', 50.00),
+('Bitumenbahn (Abdichtung) 10 m²', 'Maurer & Putz', 'Rolle', 30.00),
+('Dachziegel 1 m²', 'Maurer & Putz', 'm²', 25.00),
 ('Bauschaum (PU-Montageschaum) 750 ml', 'Maurer & Putz', 'Dose', 8.00),
 ('Trockenbeton (Fertigbeton) 40 kg', 'Maurer & Putz', 'Sack', 8.00),
-('Porenbeton-Stein (Ytong) 625 Ãƒâ€” 240 Ãƒâ€” 200 mm', 'Maurer & Putz', 'StÃƒÂ¼ck', 5.00),
-('SchamottmÃƒÂ¶rtel (feuerfest) 5 kg', 'Maurer & Putz', 'Eimer', 10.00),
-('Schamottstein 230 Ãƒâ€” 114 Ãƒâ€” 64 mm', 'Maurer & Putz', 'StÃƒÂ¼ck', 3.00),
-('Betonsturz (Fertigteil) 1,0 m', 'Maurer & Putz', 'StÃƒÂ¼ck', 15.00),
-('Putzprofil (Eckschiene)', 'Maurer & Putz', 'StÃƒÂ¼ck', 3.00),
+('Porenbeton-Stein (Ytong) 625 × 240 × 200 mm', 'Maurer & Putz', 'Stück', 5.00),
+('Schamottmörtel (feuerfest) 5 kg', 'Maurer & Putz', 'Eimer', 10.00),
+('Schamottstein 230 × 114 × 64 mm', 'Maurer & Putz', 'Stück', 3.00),
+('Betonsturz (Fertigteil) 1,0 m', 'Maurer & Putz', 'Stück', 15.00),
+('Putzprofil (Eckschiene)', 'Maurer & Putz', 'Stück', 3.00),
 ('Baugips (Gipspulver) 5 kg', 'Maurer & Putz', 'Sack', 5.00),
-('DichtschlÃƒÂ¤mme (Kellerabdichtung) 5 kg', 'Maurer & Putz', 'Eimer', 20.00),
+('Dichtschlämme (Kellerabdichtung) 5 kg', 'Maurer & Putz', 'Eimer', 20.00),
 ('Dickbeschichtung (KMB) 10 kg', 'Maurer & Putz', 'Eimer', 30.00),
-('StahltrÃƒÂ¤ger (HEA 100) pro lfm', 'Maurer & Putz', 'm', 50.00),
+('Stahlträger (HEA 100) pro lfm', 'Maurer & Putz', 'm', 50.00),
 ('Porenbetonkleber 25 kg', 'Maurer & Putz', 'Sack', 10.00),
-('PerimeterdÃƒÂ¤mmung (XPS-Platte) 1 mÃ‚Â²', 'Maurer & Putz', 'StÃƒÂ¼ck', 15.00),
-('TrittschalldÃƒÂ¤mmung (EPS) 1 mÃ‚Â²', 'Maurer & Putz', 'mÃ‚Â²', 5.00),
-('Fertigparkett (Buche) 1 mÃ‚Â²', 'Holz & Boden', 'mÃ‚Â²', 60.00),
-('Laminat 1 mÃ‚Â²', 'Holz & Boden', 'mÃ‚Â²', 20.00),
-('OSB-Platte 250Ãƒâ€”125 cm', 'Holz & Boden', 'Platte', 12.00),
-('MDF-Platte 122Ãƒâ€”61 cm', 'Holz & Boden', 'Platte', 8.00),
-('Spanplatte 250Ãƒâ€”125 cm', 'Holz & Boden', 'Platte', 10.00),
-('Dachlatte 4 Ãƒâ€” 6 cm (Konstruktionsholz)', 'Holz & Boden', 'StÃƒÂ¼ck', 2.00),
-('Balken, Fichte 10 Ãƒâ€” 10 cm', 'Holz & Boden', 'lfm', 15.00),
+('Perimeterdämmung (XPS-Platte) 1 m²', 'Maurer & Putz', 'Stück', 15.00),
+('Trittschalldämmung (EPS) 1 m²', 'Maurer & Putz', 'm²', 5.00),
+('Fertigparkett (Buche) 1 m²', 'Holz & Boden', 'm²', 60.00),
+('Laminat 1 m²', 'Holz & Boden', 'm²', 20.00),
+('OSB-Platte 250×125 cm', 'Holz & Boden', 'Platte', 12.00),
+('MDF-Platte 122×61 cm', 'Holz & Boden', 'Platte', 8.00),
+('Spanplatte 250×125 cm', 'Holz & Boden', 'Platte', 10.00),
+('Dachlatte 4 × 6 cm (Konstruktionsholz)', 'Holz & Boden', 'Stück', 2.00),
+('Balken, Fichte 10 × 10 cm', 'Holz & Boden', 'lfm', 15.00),
 ('Parkettleim 5 kg', 'Holz & Boden', 'Beutel', 25.00),
-('TrittschalldÃƒÂ¤mm-Unterlage 1 mÃ‚Â²', 'Holz & Boden', 'mÃ‚Â²', 1.50),
-('Sockelleiste Buche 2,4 m', 'Holz & Boden', 'StÃƒÂ¼ck', 3.50),
-('Massivholzdielen (Eiche) 1 mÃ‚Â²', 'Holz & Boden', 'mÃ‚Â²', 80.00),
-('Vinylboden (Designbelag) 1 mÃ‚Â²', 'Holz & Boden', 'mÃ‚Â²', 30.00),
-('Teppichboden (Auslegware) 1 mÃ‚Â²', 'Holz & Boden', 'mÃ‚Â²', 20.00),
-('Bodenfliesen (Keramik) 1 mÃ‚Â²', 'Holz & Boden', 'mÃ‚Â²', 25.00),
-('Wandfliesen (weiÃƒÅ¸) 1 mÃ‚Â²', 'Holz & Boden', 'mÃ‚Â²', 15.00),
+('Trittschalldämm-Unterlage 1 m²', 'Holz & Boden', 'm²', 1.50),
+('Sockelleiste Buche 2,4 m', 'Holz & Boden', 'Stück', 3.50),
+('Massivholzdielen (Eiche) 1 m²', 'Holz & Boden', 'm²', 80.00),
+('Vinylboden (Designbelag) 1 m²', 'Holz & Boden', 'm²', 30.00),
+('Teppichboden (Auslegware) 1 m²', 'Holz & Boden', 'm²', 20.00),
+('Bodenfliesen (Keramik) 1 m²', 'Holz & Boden', 'm²', 25.00),
+('Wandfliesen (weiß) 1 m²', 'Holz & Boden', 'm²', 15.00),
 ('Fliesenkleber 25 kg', 'Holz & Boden', 'Sack', 10.00),
-('FugenmÃƒÂ¶rtel 5 kg', 'Holz & Boden', 'Beutel', 8.00),
+('Fugenmörtel 5 kg', 'Holz & Boden', 'Beutel', 8.00),
 ('Fliesenkreuze (Abstandhalter) 100 Stk', 'Holz & Boden', 'Pack', 3.00),
-('Sockelfliese 30 cm', 'Holz & Boden', 'StÃƒÂ¼ck', 2.00),
-('PVC-Bodenbelag (Rolle) 1 mÃ‚Â²', 'Holz & Boden', 'mÃ‚Â²', 10.00),
-('Natursteinfliese (Granit) 1 mÃ‚Â²', 'Holz & Boden', 'mÃ‚Â²', 60.00),
+('Sockelfliese 30 cm', 'Holz & Boden', 'Stück', 2.00),
+('PVC-Bodenbelag (Rolle) 1 m²', 'Holz & Boden', 'm²', 10.00),
+('Natursteinfliese (Granit) 1 m²', 'Holz & Boden', 'm²', 60.00),
 ('Holzleim (Ponal) 1 kg', 'Holz & Boden', 'Flasche', 10.00),
-('Leimholzplatte (Fichte) 200Ãƒâ€”60Ãƒâ€”2 cm', 'Holz & Boden', 'StÃƒÂ¼ck', 50.00),
+('Leimholzplatte (Fichte) 200×60×2 cm', 'Holz & Boden', 'Stück', 50.00),
 ('Siebdruckplatte (Birkensperrholz) 21 mm', 'Holz & Boden', 'Platte', 70.00),
-('Sperrholzplatte 4 mm 122Ãƒâ€”244 cm', 'Holz & Boden', 'Platte', 15.00),
+('Sperrholzplatte 4 mm 122×244 cm', 'Holz & Boden', 'Platte', 15.00),
 ('Terrassendiele (WPC) pro lfm', 'Holz & Boden', 'm', 5.00),
-('KVH Kantholz 60Ãƒâ€”60 mm', 'Holz & Boden', 'lfm', 5.00),
+('KVH Kantholz 60×60 mm', 'Holz & Boden', 'lfm', 5.00),
 ('Parkettlack (Versiegelung) 1 L', 'Holz & Boden', 'L', 20.00),
-('Korkboden 1 mÃ‚Â²', 'Holz & Boden', 'mÃ‚Â²', 40.00),
-('Teppichfliesen 1 mÃ‚Â²', 'Holz & Boden', 'mÃ‚Â²', 30.00),
-('Spanplattenschrauben 4Ãƒâ€”30 mm', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.05),
-('UniversaldÃƒÂ¼bel 8Ãƒâ€”50 mm', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.10),
-('Holzschrauben 6Ãƒâ€”60 mm', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.08),
-('Blechschrauben 4Ãƒâ€”20 mm', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.07),
-('NageldÃƒÂ¼bel 10Ãƒâ€”100 mm', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.15),
-('Schraubenset 200 Stk (Sortiment)', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'Set', 15.00),
-('Hakenanker 8Ãƒâ€”120 mm', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.45),
-('Rohrschelle (fÃƒÂ¼r SanitÃƒÂ¤r) 1/2Ã¢â‚¬Â³', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.20),
-('DÃƒÂ¼belbox (Sortiment)', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'Packung', 20.00),
-('Holznagel 5Ãƒâ€”50 mm (Stahlstift)', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.03),
-('Betonschraube 7,5Ãƒâ€”80 mm', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.50),
-('Schwerlastanker M10', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 2.00),
-('Gewindestange M8 (1 m)', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 2.00),
-('Sechskantmutter M8', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.05),
-('Unterlegscheibe M8', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.02),
-('Stahlnagel 100 mm', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.05),
-('Stahlnagel (gehÃƒÂ¤rtet) 30 mm', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.10),
-('Maschinenschraube M6Ãƒâ€”40 (mit Mutter)', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.20),
-('HolzdÃƒÂ¼bel 8Ãƒâ€”40 mm (Holzverbinder)', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.05),
-('Kabelbinder 300 mm', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.10),
-('Winkelverbinder (Metallwinkel)', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 1.00),
-('Lochband (Lochstreifen) 1 m', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'm', 2.00),
-('Bindedraht (1 kg Rolle)', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'Rolle', 5.00),
-('Blindnieten 4Ãƒâ€”20 mm (Popnieten)', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.05),
-('Nagelschellen (Kabelclips) 20 Stk', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'Pack', 2.00),
-('Tellerkopfschrauben 6Ãƒâ€”140 mm', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.50),
-('HohlraumdÃƒÂ¼bel M6', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.50),
-('InjektionsmÃƒÂ¶rtel (Vinylester) 300 ml', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'Kartusche', 15.00),
-('Gewindestange M12 (1 m)', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 5.00),
-('Sechskantmutter M12', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.10),
-('Unterlegscheibe M12', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.05),
-('Holzschrauben 8Ãƒâ€”120 mm', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.20),
-('Spanplattenschrauben 4Ãƒâ€”50 mm', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.08),
-('Spanplattenschrauben 5Ãƒâ€”80 mm', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.10),
-('NageldÃƒÂ¼bel 6Ãƒâ€”60 mm', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 0.10),
-('Drahtseil (Stahl) 1 m', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'm', 2.00),
-('Karabinerhaken (Stahl) 8 mm', 'Schrauben, DÃƒÂ¼bel & Befestigung', 'StÃƒÂ¼ck', 2.00),
-('Akku-Bohrschrauber (18 V)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 80.00),
+('Korkboden 1 m²', 'Holz & Boden', 'm²', 40.00),
+('Teppichfliesen 1 m²', 'Holz & Boden', 'm²', 30.00),
+('Spanplattenschrauben 4×30 mm', 'Schrauben, Dübel & Befestigung', 'Stück', 0.05),
+('Universaldübel 8×50 mm', 'Schrauben, Dübel & Befestigung', 'Stück', 0.10),
+('Holzschrauben 6×60 mm', 'Schrauben, Dübel & Befestigung', 'Stück', 0.08),
+('Blechschrauben 4×20 mm', 'Schrauben, Dübel & Befestigung', 'Stück', 0.07),
+('Nageldübel 10×100 mm', 'Schrauben, Dübel & Befestigung', 'Stück', 0.15),
+('Schraubenset 200 Stk (Sortiment)', 'Schrauben, Dübel & Befestigung', 'Set', 15.00),
+('Hakenanker 8×120 mm', 'Schrauben, Dübel & Befestigung', 'Stück', 0.45),
+('Rohrschelle (für Sanitär) 1/2″', 'Schrauben, Dübel & Befestigung', 'Stück', 0.20),
+('Dübelbox (Sortiment)', 'Schrauben, Dübel & Befestigung', 'Packung', 20.00),
+('Holznagel 5×50 mm (Stahlstift)', 'Schrauben, Dübel & Befestigung', 'Stück', 0.03),
+('Betonschraube 7,5×80 mm', 'Schrauben, Dübel & Befestigung', 'Stück', 0.50),
+('Schwerlastanker M10', 'Schrauben, Dübel & Befestigung', 'Stück', 2.00),
+('Gewindestange M8 (1 m)', 'Schrauben, Dübel & Befestigung', 'Stück', 2.00),
+('Sechskantmutter M8', 'Schrauben, Dübel & Befestigung', 'Stück', 0.05),
+('Unterlegscheibe M8', 'Schrauben, Dübel & Befestigung', 'Stück', 0.02),
+('Stahlnagel 100 mm', 'Schrauben, Dübel & Befestigung', 'Stück', 0.05),
+('Stahlnagel (gehärtet) 30 mm', 'Schrauben, Dübel & Befestigung', 'Stück', 0.10),
+('Maschinenschraube M6×40 (mit Mutter)', 'Schrauben, Dübel & Befestigung', 'Stück', 0.20),
+('Holzdübel 8×40 mm (Holzverbinder)', 'Schrauben, Dübel & Befestigung', 'Stück', 0.05),
+('Kabelbinder 300 mm', 'Schrauben, Dübel & Befestigung', 'Stück', 0.10),
+('Winkelverbinder (Metallwinkel)', 'Schrauben, Dübel & Befestigung', 'Stück', 1.00),
+('Lochband (Lochstreifen) 1 m', 'Schrauben, Dübel & Befestigung', 'm', 2.00),
+('Bindedraht (1 kg Rolle)', 'Schrauben, Dübel & Befestigung', 'Rolle', 5.00),
+('Blindnieten 4×20 mm (Popnieten)', 'Schrauben, Dübel & Befestigung', 'Stück', 0.05),
+('Nagelschellen (Kabelclips) 20 Stk', 'Schrauben, Dübel & Befestigung', 'Pack', 2.00),
+('Tellerkopfschrauben 6×140 mm', 'Schrauben, Dübel & Befestigung', 'Stück', 0.50),
+('Hohlraumdübel M6', 'Schrauben, Dübel & Befestigung', 'Stück', 0.50),
+('Injektionsmörtel (Vinylester) 300 ml', 'Schrauben, Dübel & Befestigung', 'Kartusche', 15.00),
+('Gewindestange M12 (1 m)', 'Schrauben, Dübel & Befestigung', 'Stück', 5.00),
+('Sechskantmutter M12', 'Schrauben, Dübel & Befestigung', 'Stück', 0.10),
+('Unterlegscheibe M12', 'Schrauben, Dübel & Befestigung', 'Stück', 0.05),
+('Holzschrauben 8×120 mm', 'Schrauben, Dübel & Befestigung', 'Stück', 0.20),
+('Spanplattenschrauben 4×50 mm', 'Schrauben, Dübel & Befestigung', 'Stück', 0.08),
+('Spanplattenschrauben 5×80 mm', 'Schrauben, Dübel & Befestigung', 'Stück', 0.10),
+('Nageldübel 6×60 mm', 'Schrauben, Dübel & Befestigung', 'Stück', 0.10),
+('Drahtseil (Stahl) 1 m', 'Schrauben, Dübel & Befestigung', 'm', 2.00),
+('Karabinerhaken (Stahl) 8 mm', 'Schrauben, Dübel & Befestigung', 'Stück', 2.00),
+('Akku-Bohrschrauber (18 V)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 80.00),
 ('Bohrerset (10 tlg.)', 'Werkzeuge & Verbrauchsmaterial', 'Set', 15.00),
-('Wasserwaage 60 cm', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 10.00),
-('Cuttermesser', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 3.00),
-('Zollstock 2 m', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 5.00),
+('Wasserwaage 60 cm', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 10.00),
+('Cuttermesser', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 3.00),
+('Zollstock 2 m', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 5.00),
 ('Hand-Schraubendreher-Set', 'Werkzeuge & Verbrauchsmaterial', 'Set', 10.00),
 ('Elektroklebeband (Isolierband) schwarz', 'Werkzeuge & Verbrauchsmaterial', 'Rolle', 2.00),
-('Eimer 10 L (Baueimer)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 4.00),
-('Hammer (Schlosserhammer)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 10.00),
-('HandsÃƒÂ¤ge (Fuchsschwanz)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 12.00),
-('MetallsÃƒÂ¤ge (BÃƒÂ¼gelsÃƒÂ¤ge)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 15.00),
+('Eimer 10 L (Baueimer)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 4.00),
+('Hammer (Schlosserhammer)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 10.00),
+('Handsäge (Fuchsschwanz)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 12.00),
+('Metallsäge (Bügelsäge)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 15.00),
 ('Feilen-Set (Metall/Holz)', 'Werkzeuge & Verbrauchsmaterial', 'Set', 10.00),
-('Kombizange', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 8.00),
-('Seitenschneider', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 7.00),
-('SchraubenschlÃƒÂ¼ssel-Set', 'Werkzeuge & Verbrauchsmaterial', 'Set', 20.00),
-('Ratschen-/SteckschlÃƒÂ¼sselsatz', 'Werkzeuge & Verbrauchsmaterial', 'Set', 30.00),
-('InbusschlÃƒÂ¼ssel-Set', 'Werkzeuge & Verbrauchsmaterial', 'Set', 5.00),
-('StichsÃƒÂ¤ge (elektrisch)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 50.00),
-('HandkreissÃƒÂ¤ge', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 100.00),
-('Winkelschleifer (Flex)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 60.00),
-('Bohrhammer (SDS)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 150.00),
-('Multitool (Oszillationswerkzeug)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 80.00),
-('Exzenterschleifer', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 50.00),
-('Deltaschleifer', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 30.00),
-('HeiÃƒÅ¸luftpistole', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 40.00),
-('Tacker (Handtacker)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 15.00),
-('HeiÃƒÅ¸klebepistole', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 10.00),
-('Kabeltrommel (VerlÃƒÂ¤ngerung) 25 m', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 25.00),
-('Stehleiter (zweiteilig) 2 m', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 50.00),
-('KlappgerÃƒÂ¼st (klein, fahrbar)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 200.00),
-('Schubkarre (Baustellenschubkarre)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 80.00),
-('Maurerkelle (Kelle)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 8.00),
+('Kombizange', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 8.00),
+('Seitenschneider', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 7.00),
+('Schraubenschlüssel-Set', 'Werkzeuge & Verbrauchsmaterial', 'Set', 20.00),
+('Ratschen-/Steckschlüsselsatz', 'Werkzeuge & Verbrauchsmaterial', 'Set', 30.00),
+('Inbusschlüssel-Set', 'Werkzeuge & Verbrauchsmaterial', 'Set', 5.00),
+('Stichsäge (elektrisch)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 50.00),
+('Handkreissäge', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 100.00),
+('Winkelschleifer (Flex)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 60.00),
+('Bohrhammer (SDS)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 150.00),
+('Multitool (Oszillationswerkzeug)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 80.00),
+('Exzenterschleifer', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 50.00),
+('Deltaschleifer', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 30.00),
+('Heißluftpistole', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 40.00),
+('Tacker (Handtacker)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 15.00),
+('Heißklebepistole', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 10.00),
+('Kabeltrommel (Verlängerung) 25 m', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 25.00),
+('Stehleiter (zweiteilig) 2 m', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 50.00),
+('Klappgerüst (klein, fahrbar)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 200.00),
+('Schubkarre (Baustellenschubkarre)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 80.00),
+('Maurerkelle (Kelle)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 8.00),
 ('Bit-Set (Schrauberbits) 20 tlg.', 'Werkzeuge & Verbrauchsmaterial', 'Set', 10.00),
-('MaÃƒÅ¸band (RollbandmaÃƒÅ¸) 5 m', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 8.00),
-('Laser-Entfernungsmesser', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 50.00),
-('Tapeten-DampfablÃƒÂ¶ser (Elektro)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 30.00),
-('Nass-/Trockensauger (Bau-Staubsauger)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 100.00),
-('Laminatschneider (Hebel)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 40.00),
-('Fliesenschneider (manuell)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 50.00),
-('Abbruchhammer (StemmgerÃƒÂ¤t)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 200.00),
-('Rotationslaser (NivelliergerÃƒÂ¤t)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 300.00),
-('BohrstÃƒÂ¤nder (fÃƒÂ¼r Bohrmaschine)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 150.00),
-('TischkreissÃƒÂ¤ge', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 250.00),
-('KettensÃƒÂ¤ge (Elektro)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 100.00),
-('FarbsprÃƒÂ¼hsystem (Elektro)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 100.00),
+('Maßband (Rollbandmaß) 5 m', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 8.00),
+('Laser-Entfernungsmesser', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 50.00),
+('Tapeten-Dampfablöser (Elektro)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 30.00),
+('Nass-/Trockensauger (Bau-Staubsauger)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 100.00),
+('Laminatschneider (Hebel)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 40.00),
+('Fliesenschneider (manuell)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 50.00),
+('Abbruchhammer (Stemmgerät)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 200.00),
+('Rotationslaser (Nivelliergerät)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 300.00),
+('Bohrständer (für Bohrmaschine)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 150.00),
+('Tischkreissäge', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 250.00),
+('Kettensäge (Elektro)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 100.00),
+('Farbsprühsystem (Elektro)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 100.00),
 ('Kernbohrer-Set (Bohrkronen)', 'Werkzeuge & Verbrauchsmaterial', 'Set', 50.00),
-('BaugerÃƒÂ¼st (ModulgerÃƒÂ¼st)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 1000.00),
-('Betonmischer (mobil)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 300.00),
-('RÃƒÂ¼hrgerÃƒÂ¤t (MÃƒÂ¶rtelmischer)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 80.00),
-('Leitungssucher (OrtungsgerÃƒÂ¤t)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 30.00),
-('Druckluft-Kompressor 50 L', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 200.00),
-('Lackierpistole (Druckluft)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 40.00),
-('Werkstattwagen (Werkzeugwagen)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 200.00),
-('SchweiÃƒÅ¸gerÃƒÂ¤t (Elektrode)', 'Werkzeuge & Verbrauchsmaterial', 'StÃƒÂ¼ck', 300.00),
-('WC-Keramik (Stand-WC)', 'SanitÃƒÂ¤r & Installation', 'StÃƒÂ¼ck', 150.00),
-('Waschbecken (Keramik)', 'SanitÃƒÂ¤r & Installation', 'StÃƒÂ¼ck', 80.00),
-('Duscharmatur (Mischbatterie)', 'SanitÃƒÂ¤r & Installation', 'StÃƒÂ¼ck', 100.00),
-('Eckventil 1/2Ã¢â‚¬Â³', 'SanitÃƒÂ¤r & Installation', 'StÃƒÂ¼ck', 5.00),
-('HT-Rohr (Abwasserrohr) DN 110', 'SanitÃƒÂ¤r & Installation', 'm', 3.00),
-('Siphon (Geruchsverschluss)', 'SanitÃƒÂ¤r & Installation', 'StÃƒÂ¼ck', 8.00),
-('Teflon-Dichtband', 'SanitÃƒÂ¤r & Installation', 'Rolle', 1.00),
-('Gummidichtung (O-Ring)', 'SanitÃƒÂ¤r & Installation', 'StÃƒÂ¼ck', 0.50),
-('Silikon-Dichtmasse (SanitÃƒÂ¤r) 310 ml', 'SanitÃƒÂ¤r & Installation', 'Kartusche', 6.00),
-('Montagekleber 290 ml', 'SanitÃƒÂ¤r & Installation', 'Tube', 6.00),
-('Badewanne (Acryl)', 'SanitÃƒÂ¤r & Installation', 'StÃƒÂ¼ck', 300.00),
-('Duschwanne 90Ãƒâ€”90 cm', 'SanitÃƒÂ¤r & Installation', 'StÃƒÂ¼ck', 100.00),
-('Duschkabine (Glas, komplett)', 'SanitÃƒÂ¤r & Installation', 'StÃƒÂ¼ck', 250.00),
-('WC-Sitz (Deckel)', 'SanitÃƒÂ¤r & Installation', 'StÃƒÂ¼ck', 30.00),
-('Waschtischarmatur', 'SanitÃƒÂ¤r & Installation', 'StÃƒÂ¼ck', 60.00),
-('KÃƒÂ¼chenarmatur (Einhebel)', 'SanitÃƒÂ¤r & Installation', 'StÃƒÂ¼ck', 80.00),
-('Brause-Set (Duschkopf + Schlauch)', 'SanitÃƒÂ¤r & Installation', 'Set', 30.00),
-('Waschmaschinenhahn', 'SanitÃƒÂ¤r & Installation', 'StÃƒÂ¼ck', 15.00),
-('HT-Rohr DN 50', 'SanitÃƒÂ¤r & Installation', 'm', 2.00),
-('Kupferrohr 15 mm', 'SanitÃƒÂ¤r & Installation', 'm', 8.00),
-('Pressfitting 15 mm (Kupplung)', 'SanitÃƒÂ¤r & Installation', 'StÃƒÂ¼ck', 5.00),
-('AblaufverlÃƒÂ¤ngerung (Siphonrohr)', 'SanitÃƒÂ¤r & Installation', 'StÃƒÂ¼ck', 5.00),
-('WC-Anschlussset (Flexrohr)', 'SanitÃƒÂ¤r & Installation', 'Set', 15.00),
-('Untertischboiler 5 L (Elektro)', 'SanitÃƒÂ¤r & Installation', 'StÃƒÂ¼ck', 100.00),
-('Durchlauferhitzer 18 kW', 'SanitÃƒÂ¤r & Installation', 'StÃƒÂ¼ck', 250.00),
-('Bodenablauf (Dusche) mit Geruchsstopp', 'SanitÃƒÂ¤r & Installation', 'StÃƒÂ¼ck', 20.00),
-('Ablaufgarnitur (Waschbecken)', 'SanitÃƒÂ¤r & Installation', 'StÃƒÂ¼ck', 10.00),
-('Flexschlauch 3/8Ã¢â‚¬Â³ (Anschluss)', 'SanitÃƒÂ¤r & Installation', 'StÃƒÂ¼ck', 5.00),
-('Aufputz-SpÃƒÂ¼lkasten (WC)', 'SanitÃƒÂ¤r & Installation', 'StÃƒÂ¼ck', 50.00),
-('Hebeanlage (Abwasserpumpe)', 'SanitÃƒÂ¤r & Installation', 'StÃƒÂ¼ck', 300.00),
-('Kupferkabel (Litze) 1,5 mmÃ‚Â², 100 m', 'Elektro & Beleuchtung', 'Rolle', 50.00),
-('Steckdose (Unterputz)', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 3.00),
-('Lichtschalter (Wechselschalter)', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 3.00),
-('FI-Schutzschalter 30 mA', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 30.00),
-('Leitungsschutzschalter 16 A', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 2.00),
-('Deckenleuchte (Fassung+Schirm)', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 25.00),
-('LED-Lampe E27 (GlÃƒÂ¼hbirne)', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 5.00),
-('VerlÃƒÂ¤ngerungskabel 10 m', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 15.00),
-('Kabelverbinder (LÃƒÂ¼sterklemme)', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 0.10),
-('Unterputzdose (GerÃƒÂ¤tedose)', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 2.00),
-('Installationskabel NYM-J 3Ãƒâ€”1,5Ã‚Â² (50 m)', 'Elektro & Beleuchtung', 'Rolle', 25.00),
-('Kabelkanal 20Ãƒâ€”20 mm (2 m)', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 5.00),
-('Abzweigdose (Aufputz)', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 3.00),
+('Baugerüst (Modulgerüst)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 1000.00),
+('Betonmischer (mobil)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 300.00),
+('Rührgerät (Mörtelmischer)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 80.00),
+('Leitungssucher (Ortungsgerät)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 30.00),
+('Druckluft-Kompressor 50 L', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 200.00),
+('Lackierpistole (Druckluft)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 40.00),
+('Werkstattwagen (Werkzeugwagen)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 200.00),
+('Schweißgerät (Elektrode)', 'Werkzeuge & Verbrauchsmaterial', 'Stück', 300.00),
+('WC-Keramik (Stand-WC)', 'Sanitär & Installation', 'Stück', 150.00),
+('Waschbecken (Keramik)', 'Sanitär & Installation', 'Stück', 80.00),
+('Duscharmatur (Mischbatterie)', 'Sanitär & Installation', 'Stück', 100.00),
+('Eckventil 1/2″', 'Sanitär & Installation', 'Stück', 5.00),
+('HT-Rohr (Abwasserrohr) DN 110', 'Sanitär & Installation', 'm', 3.00),
+('Siphon (Geruchsverschluss)', 'Sanitär & Installation', 'Stück', 8.00),
+('Teflon-Dichtband', 'Sanitär & Installation', 'Rolle', 1.00),
+('Gummidichtung (O-Ring)', 'Sanitär & Installation', 'Stück', 0.50),
+('Silikon-Dichtmasse (Sanitär) 310 ml', 'Sanitär & Installation', 'Kartusche', 6.00),
+('Montagekleber 290 ml', 'Sanitär & Installation', 'Tube', 6.00),
+('Badewanne (Acryl)', 'Sanitär & Installation', 'Stück', 300.00),
+('Duschwanne 90×90 cm', 'Sanitär & Installation', 'Stück', 100.00),
+('Duschkabine (Glas, komplett)', 'Sanitär & Installation', 'Stück', 250.00),
+('WC-Sitz (Deckel)', 'Sanitär & Installation', 'Stück', 30.00),
+('Waschtischarmatur', 'Sanitär & Installation', 'Stück', 60.00),
+('Küchenarmatur (Einhebel)', 'Sanitär & Installation', 'Stück', 80.00),
+('Brause-Set (Duschkopf + Schlauch)', 'Sanitär & Installation', 'Set', 30.00),
+('Waschmaschinenhahn', 'Sanitär & Installation', 'Stück', 15.00),
+('HT-Rohr DN 50', 'Sanitär & Installation', 'm', 2.00),
+('Kupferrohr 15 mm', 'Sanitär & Installation', 'm', 8.00),
+('Pressfitting 15 mm (Kupplung)', 'Sanitär & Installation', 'Stück', 5.00),
+('Ablaufverlängerung (Siphonrohr)', 'Sanitär & Installation', 'Stück', 5.00),
+('WC-Anschlussset (Flexrohr)', 'Sanitär & Installation', 'Set', 15.00),
+('Untertischboiler 5 L (Elektro)', 'Sanitär & Installation', 'Stück', 100.00),
+('Durchlauferhitzer 18 kW', 'Sanitär & Installation', 'Stück', 250.00),
+('Bodenablauf (Dusche) mit Geruchsstopp', 'Sanitär & Installation', 'Stück', 20.00),
+('Ablaufgarnitur (Waschbecken)', 'Sanitär & Installation', 'Stück', 10.00),
+('Flexschlauch 3/8″ (Anschluss)', 'Sanitär & Installation', 'Stück', 5.00),
+('Aufputz-Spülkasten (WC)', 'Sanitär & Installation', 'Stück', 50.00),
+('Hebeanlage (Abwasserpumpe)', 'Sanitär & Installation', 'Stück', 300.00),
+('Kupferkabel (Litze) 1,5 mm², 100 m', 'Elektro & Beleuchtung', 'Rolle', 50.00),
+('Steckdose (Unterputz)', 'Elektro & Beleuchtung', 'Stück', 3.00),
+('Lichtschalter (Wechselschalter)', 'Elektro & Beleuchtung', 'Stück', 3.00),
+('FI-Schutzschalter 30 mA', 'Elektro & Beleuchtung', 'Stück', 30.00),
+('Leitungsschutzschalter 16 A', 'Elektro & Beleuchtung', 'Stück', 2.00),
+('Deckenleuchte (Fassung+Schirm)', 'Elektro & Beleuchtung', 'Stück', 25.00),
+('LED-Lampe E27 (Glühbirne)', 'Elektro & Beleuchtung', 'Stück', 5.00),
+('Verlängerungskabel 10 m', 'Elektro & Beleuchtung', 'Stück', 15.00),
+('Kabelverbinder (Lüsterklemme)', 'Elektro & Beleuchtung', 'Stück', 0.10),
+('Unterputzdose (Gerätedose)', 'Elektro & Beleuchtung', 'Stück', 2.00),
+('Installationskabel NYM-J 3×1,5² (50 m)', 'Elektro & Beleuchtung', 'Rolle', 25.00),
+('Kabelkanal 20×20 mm (2 m)', 'Elektro & Beleuchtung', 'Stück', 5.00),
+('Abzweigdose (Aufputz)', 'Elektro & Beleuchtung', 'Stück', 3.00),
 ('Nagelschellen 20 Stk (Kabelschellen)', 'Elektro & Beleuchtung', 'Pack', 2.00),
-('Netzwerkdose CAT6 (LAN)', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 10.00),
-('Netzwerkkabel CAT6 20 m', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 15.00),
-('Koaxialkabel (TV) 10 m', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 10.00),
-('Bewegungsmelder (Innen)', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 20.00),
-('Rauchmelder (Batterie)', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 10.00),
-('TÃƒÂ¼rklingel (Gong)', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 15.00),
-('Multimeter (Digital)', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 20.00),
-('Sicherungskasten (Unterverteilung)', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 50.00),
-('Dimmer-Schalter (Unterputz)', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 15.00),
-('Steckdosenleiste 6-fach', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 10.00),
-('Antennendose (TV/Sat)', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 5.00),
-('LED-Baustrahler (Arbeitslampe)', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 30.00),
-('Leitungssucher (OrtungsgerÃƒÂ¤t)', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 30.00),
-('ÃƒÅ“berspannungsschutz (Zwischenstecker)', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 15.00),
-('Zeitschaltuhr (Steckdose)', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 10.00),
-('SpannungsprÃƒÂ¼fer (PrÃƒÂ¼fschraubendreher)', 'Elektro & Beleuchtung', 'StÃƒÂ¼ck', 5.00),
-('Umzugskarton (Standard)', 'Umzugs- & Verpackungsmaterial', 'StÃƒÂ¼ck', 3.00),
+('Netzwerkdose CAT6 (LAN)', 'Elektro & Beleuchtung', 'Stück', 10.00),
+('Netzwerkkabel CAT6 20 m', 'Elektro & Beleuchtung', 'Stück', 15.00),
+('Koaxialkabel (TV) 10 m', 'Elektro & Beleuchtung', 'Stück', 10.00),
+('Bewegungsmelder (Innen)', 'Elektro & Beleuchtung', 'Stück', 20.00),
+('Rauchmelder (Batterie)', 'Elektro & Beleuchtung', 'Stück', 10.00),
+('Türklingel (Gong)', 'Elektro & Beleuchtung', 'Stück', 15.00),
+('Multimeter (Digital)', 'Elektro & Beleuchtung', 'Stück', 20.00),
+('Sicherungskasten (Unterverteilung)', 'Elektro & Beleuchtung', 'Stück', 50.00),
+('Dimmer-Schalter (Unterputz)', 'Elektro & Beleuchtung', 'Stück', 15.00),
+('Steckdosenleiste 6-fach', 'Elektro & Beleuchtung', 'Stück', 10.00),
+('Antennendose (TV/Sat)', 'Elektro & Beleuchtung', 'Stück', 5.00),
+('LED-Baustrahler (Arbeitslampe)', 'Elektro & Beleuchtung', 'Stück', 30.00),
+('Leitungssucher (Ortungsgerät)', 'Elektro & Beleuchtung', 'Stück', 30.00),
+('Überspannungsschutz (Zwischenstecker)', 'Elektro & Beleuchtung', 'Stück', 15.00),
+('Zeitschaltuhr (Steckdose)', 'Elektro & Beleuchtung', 'Stück', 10.00),
+('Spannungsprüfer (Prüfschraubendreher)', 'Elektro & Beleuchtung', 'Stück', 5.00),
+('Umzugskarton (Standard)', 'Umzugs- & Verpackungsmaterial', 'Stück', 3.00),
 ('Luftpolsterfolie', 'Umzugs- & Verpackungsmaterial', 'm', 3.00),
 ('Packseide (Seidenpapier)', 'Umzugs- & Verpackungsmaterial', 'kg', 3.00),
 ('Klebeband (Packband) 50 m', 'Umzugs- & Verpackungsmaterial', 'Rolle', 5.00),
-('Umzugsdecke (Polsterdecke)', 'Umzugs- & Verpackungsmaterial', 'StÃƒÂ¼ck', 10.00),
-('MÃƒÂ¶belroller (Rollbrett)', 'Umzugs- & Verpackungsmaterial', 'StÃƒÂ¼ck', 15.00),
-('Zurrgurt (Spanngurt)', 'Umzugs- & Verpackungsmaterial', 'StÃƒÂ¼ck', 8.00),
-('Halteverbot-Schild', 'Umzugs- & Verpackungsmaterial', 'StÃƒÂ¼ck', 20.00),
-('Sackkarre', 'Umzugs- & Verpackungsmaterial', 'StÃƒÂ¼ck', 40.00),
-('Werkzeugkoffer (leer)', 'Umzugs- & Verpackungsmaterial', 'StÃƒÂ¼ck', 50.00),
-('Kleiderkarton (mit Stange)', 'Umzugs- & Verpackungsmaterial', 'StÃƒÂ¼ck', 14.00),
-('MatratzenhÃƒÂ¼lle (Schutzfolie)', 'Umzugs- & Verpackungsmaterial', 'StÃƒÂ¼ck', 8.00),
+('Umzugsdecke (Polsterdecke)', 'Umzugs- & Verpackungsmaterial', 'Stück', 10.00),
+('Möbelroller (Rollbrett)', 'Umzugs- & Verpackungsmaterial', 'Stück', 15.00),
+('Zurrgurt (Spanngurt)', 'Umzugs- & Verpackungsmaterial', 'Stück', 8.00),
+('Halteverbot-Schild', 'Umzugs- & Verpackungsmaterial', 'Stück', 20.00),
+('Sackkarre', 'Umzugs- & Verpackungsmaterial', 'Stück', 40.00),
+('Werkzeugkoffer (leer)', 'Umzugs- & Verpackungsmaterial', 'Stück', 50.00),
+('Kleiderkarton (mit Stange)', 'Umzugs- & Verpackungsmaterial', 'Stück', 14.00),
+('Matratzenhülle (Schutzfolie)', 'Umzugs- & Verpackungsmaterial', 'Stück', 8.00),
 ('Stretchfolie (Wickelfolie)', 'Umzugs- & Verpackungsmaterial', 'Rolle', 15.00),
-('MÃƒÂ¶bel-Schutzfolie (SofaÃƒÂ¼berzug)', 'Umzugs- & Verpackungsmaterial', 'StÃƒÂ¼ck', 10.00),
-('MÃƒÂ¶belgleiter (Gleiter-Set) 4 Stk', 'Umzugs- & Verpackungsmaterial', 'Set', 5.00),
-('Tragegurte (MÃƒÂ¶belgurte) 2 Stk', 'Umzugs- & Verpackungsmaterial', 'Set', 20.00),
-('Seil (Polypropylen) 10 m', 'Umzugs- & Verpackungsmaterial', 'StÃƒÂ¼ck', 5.00),
+('Möbel-Schutzfolie (Sofaüberzug)', 'Umzugs- & Verpackungsmaterial', 'Stück', 10.00),
+('Möbelgleiter (Gleiter-Set) 4 Stk', 'Umzugs- & Verpackungsmaterial', 'Set', 5.00),
+('Tragegurte (Möbelgurte) 2 Stk', 'Umzugs- & Verpackungsmaterial', 'Set', 20.00),
+('Seil (Polypropylen) 10 m', 'Umzugs- & Verpackungsmaterial', 'Stück', 5.00),
 ('Kantenschutzecken (Schaum) 8 Stk', 'Umzugs- & Verpackungsmaterial', 'Pack', 5.00),
-('Klappbox (Kunststoffkiste) 60 L', 'Umzugs- & Verpackungsmaterial', 'StÃƒÂ¼ck', 20.00),
-('Treppensackkarre (Treppensteiger)', 'Umzugs- & Verpackungsmaterial', 'StÃƒÂ¼ck', 120.00),
-('MÃƒÂ¼llsÃƒÂ¤cke 120 L (10 Stk)', 'Sonstiges & Verbrauch', 'Packung', 8.00),
+('Klappbox (Kunststoffkiste) 60 L', 'Umzugs- & Verpackungsmaterial', 'Stück', 20.00),
+('Treppensackkarre (Treppensteiger)', 'Umzugs- & Verpackungsmaterial', 'Stück', 120.00),
+('Müllsäcke 120 L (10 Stk)', 'Sonstiges & Verbrauch', 'Packung', 8.00),
 ('Putzlappen (Baumwolle) 10 Stk', 'Sonstiges & Verbrauch', 'Packung', 5.00),
-('SchwammtÃƒÂ¼cher (Reinigung) 5 Stk', 'Sonstiges & Verbrauch', 'Packung', 2.00),
+('Schwammtücher (Reinigung) 5 Stk', 'Sonstiges & Verbrauch', 'Packung', 2.00),
 ('Bodenabdeckfolie (PE) 5 m', 'Sonstiges & Verbrauch', 'Rolle', 10.00),
-('Baustellenradio', 'Sonstiges & Verbrauch', 'StÃƒÂ¼ck', 40.00),
+('Baustellenradio', 'Sonstiges & Verbrauch', 'Stück', 40.00),
 ('Breitklebeband (Gaffa)', 'Sonstiges & Verbrauch', 'Rolle', 4.00),
-('Baustellenlampe (Warnleuchte)', 'Sonstiges & Verbrauch', 'StÃƒÂ¼ck', 30.00),
-('WD-40 Spray (KriechÃƒÂ¶l) 250 ml', 'Sonstiges & Verbrauch', 'Dose', 5.00),
-('Stromgenerator (Benzin)', 'Sonstiges & Verbrauch', 'StÃƒÂ¼ck', 400.00),
+('Baustellenlampe (Warnleuchte)', 'Sonstiges & Verbrauch', 'Stück', 30.00),
+('WD-40 Spray (Kriechöl) 250 ml', 'Sonstiges & Verbrauch', 'Dose', 5.00),
+('Stromgenerator (Benzin)', 'Sonstiges & Verbrauch', 'Stück', 400.00),
 ('Handfeger & Kehrschaufel (Set)', 'Sonstiges & Verbrauch', 'Set', 8.00),
-('Schaufel (Spitzschaufel)', 'Sonstiges & Verbrauch', 'StÃƒÂ¼ck', 15.00),
-('Besen (StraÃƒÅ¸enbesen)', 'Sonstiges & Verbrauch', 'StÃƒÂ¼ck', 15.00),
-('Schuttsack (Bauabfallsack)', 'Sonstiges & Verbrauch', 'StÃƒÂ¼ck', 2.00),
-('SprÃƒÂ¼hkleber 400 ml', 'Sonstiges & Verbrauch', 'Dose', 8.00),
-('Bautrockner (Luftentfeuchter)', 'Sonstiges & Verbrauch', 'StÃƒÂ¼ck', 300.00),
-('Bauventilator (TrocknerlÃƒÂ¼fter)', 'Sonstiges & Verbrauch', 'StÃƒÂ¼ck', 100.00),
-('Big-Bag Abfallsack (1 mÃ‚Â³)', 'Sonstiges & Verbrauch', 'StÃƒÂ¼ck', 30.00),
+('Schaufel (Spitzschaufel)', 'Sonstiges & Verbrauch', 'Stück', 15.00),
+('Besen (Straßenbesen)', 'Sonstiges & Verbrauch', 'Stück', 15.00),
+('Schuttsack (Bauabfallsack)', 'Sonstiges & Verbrauch', 'Stück', 2.00),
+('Sprühkleber 400 ml', 'Sonstiges & Verbrauch', 'Dose', 8.00),
+('Bautrockner (Luftentfeuchter)', 'Sonstiges & Verbrauch', 'Stück', 300.00),
+('Bauventilator (Trocknerlüfter)', 'Sonstiges & Verbrauch', 'Stück', 100.00),
+('Big-Bag Abfallsack (1 m³)', 'Sonstiges & Verbrauch', 'Stück', 30.00),
 ('Markierspray (fluoreszierend) 500 ml', 'Sonstiges & Verbrauch', 'Dose', 10.00),
 ('Feinsteinzeug-Reiniger 5 L', 'Baustellenreiniger & Pflege', 'L', 20.00),
 ('Glasreiniger 1 L', 'Baustellenreiniger & Pflege', 'L', 3.00),
@@ -827,87 +843,87 @@ INSERT INTO public.materialien (name, kategorie, einheit, standardpreis) VALUES
 ('Fugenreiniger (Gel) 500 ml', 'Baustellenreiniger & Pflege', 'ml', 10.00),
 ('Bodenreiniger (Wischpflege)', 'Baustellenreiniger & Pflege', 'L', 5.00),
 ('Handreiniger (Paste) 500 ml', 'Baustellenreiniger & Pflege', 'Dose', 6.00),
-('Mikrofaser-Tuch', 'Baustellenreiniger & Pflege', 'StÃƒÂ¼ck', 1.00),
+('Mikrofaser-Tuch', 'Baustellenreiniger & Pflege', 'Stück', 1.00),
 ('Stahlwolle (Reinigungspad) 200 g', 'Baustellenreiniger & Pflege', 'g', 2.00),
 ('WC-Reiniger 1 L', 'Baustellenreiniger & Pflege', 'L', 3.00),
 ('Zementschleier-Entferner 1 L', 'Baustellenreiniger & Pflege', 'L', 10.00),
 ('Schimmelentferner 500 ml', 'Baustellenreiniger & Pflege', 'ml', 12.00),
-('Parkettpflege-Ãƒâ€“l 1 L', 'Baustellenreiniger & Pflege', 'L', 15.00),
-('Stein-ImprÃƒÂ¤gnierung 1 L', 'Baustellenreiniger & Pflege', 'L', 20.00),
-('Backofenreiniger', 'Baustellenreiniger & Pflege', 'StÃƒÂ¼ck', 5.00),
+('Parkettpflege-Öl 1 L', 'Baustellenreiniger & Pflege', 'L', 15.00),
+('Stein-Imprägnierung 1 L', 'Baustellenreiniger & Pflege', 'L', 20.00),
+('Backofenreiniger', 'Baustellenreiniger & Pflege', 'Stück', 5.00),
 ('Rohrreiniger (chemisch) 1 L', 'Baustellenreiniger & Pflege', 'L', 5.00),
 ('Entkalker 1 L', 'Baustellenreiniger & Pflege', 'L', 4.00),
 ('Teppichreiniger (Shampoo) 1 L', 'Baustellenreiniger & Pflege', 'L', 10.00),
 ('Klebstoffentferner 200 ml', 'Baustellenreiniger & Pflege', 'ml', 8.00),
 ('Grundreiniger (Bauschmutz) 1 L', 'Baustellenreiniger & Pflege', 'L', 10.00),
-('Gipskartonplatte (12,5 mm) 2000Ãƒâ€”1250 mm', 'Trockenbau & DÃƒÂ¤mmung', 'StÃƒÂ¼ck', 10.00),
-('UW-Profil 50 mm (4 m)', 'Trockenbau & DÃƒÂ¤mmung', 'StÃƒÂ¼ck', 5.00),
-('CW-Profil 50 mm (4 m)', 'Trockenbau & DÃƒÂ¤mmung', 'StÃƒÂ¼ck', 6.00),
-('Schnellbauschrauben 25 mm (500 Stk)', 'Trockenbau & DÃƒÂ¤mmung', 'Pack', 15.00),
-('Fugenband (Gipskarton) 25 m', 'Trockenbau & DÃƒÂ¤mmung', 'Rolle', 5.00),
-('Fugenspachtel (Gipskarton) 5 kg', 'Trockenbau & DÃƒÂ¤mmung', 'Beutel', 10.00),
-('Trennwand-DÃƒÂ¤mmung (Mineralwolle) 1 mÃ‚Â²', 'Trockenbau & DÃƒÂ¤mmung', 'mÃ‚Â²', 5.00),
-('Dampfsperrfolie 20 mÃ‚Â²', 'Trockenbau & DÃƒÂ¤mmung', 'Rolle', 20.00),
-('Kantenschutzprofil (Alu) 2,5 m', 'Trockenbau & DÃƒÂ¤mmung', 'StÃƒÂ¼ck', 2.00),
-('DirektabhÃƒÂ¤nger (DeckentrÃƒÂ¤ger)', 'Trockenbau & DÃƒÂ¤mmung', 'StÃƒÂ¼ck', 0.50),
-('InnentÃƒÂ¼r (inkl. Zarge)', 'Fenster & TÃƒÂ¼ren', 'StÃƒÂ¼ck', 300.00),
-('HaustÃƒÂ¼r (wÃƒÂ¤rmegedÃƒÂ¤mmt)', 'Fenster & TÃƒÂ¼ren', 'StÃƒÂ¼ck', 1000.00),
-('Fenster (Kunststoff, 1Ãƒâ€”1 m)', 'Fenster & TÃƒÂ¼ren', 'StÃƒÂ¼ck', 500.00),
-('BalkontÃƒÂ¼r 90Ãƒâ€”200 cm', 'Fenster & TÃƒÂ¼ren', 'StÃƒÂ¼ck', 700.00),
-('TÃƒÂ¼rdrÃƒÂ¼cker-Garnitur (InnentÃƒÂ¼rgriff)', 'Fenster & TÃƒÂ¼ren', 'Set', 25.00),
-('TÃƒÂ¼rzarge (Ersatz) 88Ãƒâ€”200 cm', 'Fenster & TÃƒÂ¼ren', 'StÃƒÂ¼ck', 100.00),
-('Einsteckschloss (ZimmertÃƒÂ¼r)', 'Fenster & TÃƒÂ¼ren', 'StÃƒÂ¼ck', 15.00),
-('SchlieÃƒÅ¸zylinder (Profil, 30/30)', 'Fenster & TÃƒÂ¼ren', 'StÃƒÂ¼ck', 30.00),
-('TÃƒÂ¼rschwelle (ÃƒÅ“bergangsschiene)', 'Fenster & TÃƒÂ¼ren', 'StÃƒÂ¼ck', 20.00),
-('Fensterbank innen (PVC) 1,0 m', 'Fenster & TÃƒÂ¼ren', 'StÃƒÂ¼ck', 20.00),
-('Fensterbank auÃƒÅ¸en (Alu) 1,0 m', 'Fenster & TÃƒÂ¼ren', 'StÃƒÂ¼ck', 40.00),
-('Rollladen (Fensterladen) 1 mÃ‚Â²', 'Fenster & TÃƒÂ¼ren', 'StÃƒÂ¼ck', 150.00),
-('Dachfenster 78Ãƒâ€”98 cm (Schwingfenster)', 'Fenster & TÃƒÂ¼ren', 'StÃƒÂ¼ck', 500.00),
-('TÃƒÂ¼rstopper', 'Fenster & TÃƒÂ¼ren', 'StÃƒÂ¼ck', 5.00),
-('TÃƒÂ¼rschlieÃƒÅ¸er (TÃƒÂ¼rheber)', 'Fenster & TÃƒÂ¼ren', 'StÃƒÂ¼ck', 80.00),
-('HeizkÃƒÂ¶rper (Plattenbau, MittelgrÃƒÂ¶ÃƒÅ¸e)', 'Heizung & Klima', 'StÃƒÂ¼ck', 200.00),
-('Thermostatventil (HeizkÃƒÂ¶rper)', 'Heizung & Klima', 'StÃƒÂ¼ck', 20.00),
-('HeizkÃƒÂ¶rper-Befestigung (Wandhalter-Set)', 'Heizung & Klima', 'Set', 10.00),
-('UmwÃƒÂ¤lzpumpe (Heizung)', 'Heizung & Klima', 'StÃƒÂ¼ck', 150.00),
-('Gas-Brennwerttherme', 'Heizung & Klima', 'StÃƒÂ¼ck', 3000.00),
-('KlimagerÃƒÂ¤t (Split-Anlage)', 'Heizung & Klima', 'StÃƒÂ¼ck', 1000.00),
-('BadheizkÃƒÂ¶rper (HandtuchwÃƒÂ¤rmer)', 'Heizung & Klima', 'StÃƒÂ¼ck', 150.00),
-('FuÃƒÅ¸bodenheizungsrohr 100 m', 'Heizung & Klima', 'Rolle', 100.00),
-('Kaminofen (Holzofen) freistehend', 'Heizung & Klima', 'StÃƒÂ¼ck', 800.00),
-('AusdehnungsgefÃƒÂ¤ÃƒÅ¸ 25 L (Heizung)', 'Heizung & Klima', 'StÃƒÂ¼ck', 100.00),
-('Solarthermie-Paneel (Modul)', 'Heizung & Klima', 'StÃƒÂ¼ck', 1000.00),
-('HeizlÃƒÂ¼fter (Elektro, mobil)', 'Heizung & Klima', 'StÃƒÂ¼ck', 30.00),
-('Schutzhelm (Bauhelm)', 'Arbeitsschutz & Sicherheit', 'StÃƒÂ¼ck', 20.00),
-('Schutzbrille (Klarglas)', 'Arbeitsschutz & Sicherheit', 'StÃƒÂ¼ck', 6.00),
-('Atemschutzmaske (FFP3)', 'Arbeitsschutz & Sicherheit', 'StÃƒÂ¼ck', 7.00),
-('GehÃƒÂ¶rschutz (KapselgehÃƒÂ¶rschutz)', 'Arbeitsschutz & Sicherheit', 'Paar', 10.00),
+('Gipskartonplatte (12,5 mm) 2000×1250 mm', 'Trockenbau & Dämmung', 'Stück', 10.00),
+('UW-Profil 50 mm (4 m)', 'Trockenbau & Dämmung', 'Stück', 5.00),
+('CW-Profil 50 mm (4 m)', 'Trockenbau & Dämmung', 'Stück', 6.00),
+('Schnellbauschrauben 25 mm (500 Stk)', 'Trockenbau & Dämmung', 'Pack', 15.00),
+('Fugenband (Gipskarton) 25 m', 'Trockenbau & Dämmung', 'Rolle', 5.00),
+('Fugenspachtel (Gipskarton) 5 kg', 'Trockenbau & Dämmung', 'Beutel', 10.00),
+('Trennwand-Dämmung (Mineralwolle) 1 m²', 'Trockenbau & Dämmung', 'm²', 5.00),
+('Dampfsperrfolie 20 m²', 'Trockenbau & Dämmung', 'Rolle', 20.00),
+('Kantenschutzprofil (Alu) 2,5 m', 'Trockenbau & Dämmung', 'Stück', 2.00),
+('Direktabhänger (Deckenträger)', 'Trockenbau & Dämmung', 'Stück', 0.50),
+('Innentür (inkl. Zarge)', 'Fenster & Türen', 'Stück', 300.00),
+('Haustür (wärmegedämmt)', 'Fenster & Türen', 'Stück', 1000.00),
+('Fenster (Kunststoff, 1×1 m)', 'Fenster & Türen', 'Stück', 500.00),
+('Balkontür 90×200 cm', 'Fenster & Türen', 'Stück', 700.00),
+('Türdrücker-Garnitur (Innentürgriff)', 'Fenster & Türen', 'Set', 25.00),
+('Türzarge (Ersatz) 88×200 cm', 'Fenster & Türen', 'Stück', 100.00),
+('Einsteckschloss (Zimmertür)', 'Fenster & Türen', 'Stück', 15.00),
+('Schließzylinder (Profil, 30/30)', 'Fenster & Türen', 'Stück', 30.00),
+('Türschwelle (Übergangsschiene)', 'Fenster & Türen', 'Stück', 20.00),
+('Fensterbank innen (PVC) 1,0 m', 'Fenster & Türen', 'Stück', 20.00),
+('Fensterbank außen (Alu) 1,0 m', 'Fenster & Türen', 'Stück', 40.00),
+('Rollladen (Fensterladen) 1 m²', 'Fenster & Türen', 'Stück', 150.00),
+('Dachfenster 78×98 cm (Schwingfenster)', 'Fenster & Türen', 'Stück', 500.00),
+('Türstopper', 'Fenster & Türen', 'Stück', 5.00),
+('Türschließer (Türheber)', 'Fenster & Türen', 'Stück', 80.00),
+('Heizkörper (Plattenbau, Mittelgröße)', 'Heizung & Klima', 'Stück', 200.00),
+('Thermostatventil (Heizkörper)', 'Heizung & Klima', 'Stück', 20.00),
+('Heizkörper-Befestigung (Wandhalter-Set)', 'Heizung & Klima', 'Set', 10.00),
+('Umwälzpumpe (Heizung)', 'Heizung & Klima', 'Stück', 150.00),
+('Gas-Brennwerttherme', 'Heizung & Klima', 'Stück', 3000.00),
+('Klimagerät (Split-Anlage)', 'Heizung & Klima', 'Stück', 1000.00),
+('Badheizkörper (Handtuchwärmer)', 'Heizung & Klima', 'Stück', 150.00),
+('Fußbodenheizungsrohr 100 m', 'Heizung & Klima', 'Rolle', 100.00),
+('Kaminofen (Holzofen) freistehend', 'Heizung & Klima', 'Stück', 800.00),
+('Ausdehnungsgefäß 25 L (Heizung)', 'Heizung & Klima', 'Stück', 100.00),
+('Solarthermie-Paneel (Modul)', 'Heizung & Klima', 'Stück', 1000.00),
+('Heizlüfter (Elektro, mobil)', 'Heizung & Klima', 'Stück', 30.00),
+('Schutzhelm (Bauhelm)', 'Arbeitsschutz & Sicherheit', 'Stück', 20.00),
+('Schutzbrille (Klarglas)', 'Arbeitsschutz & Sicherheit', 'Stück', 6.00),
+('Atemschutzmaske (FFP3)', 'Arbeitsschutz & Sicherheit', 'Stück', 7.00),
+('Gehörschutz (Kapselgehörschutz)', 'Arbeitsschutz & Sicherheit', 'Paar', 10.00),
 ('Arbeitshandschuhe (PVC-beschichtet)', 'Arbeitsschutz & Sicherheit', 'Paar', 4.00),
 ('Sicherheitsschuhe (S3)', 'Arbeitsschutz & Sicherheit', 'Paar', 60.00),
-('Warnweste (hi-vis)', 'Arbeitsschutz & Sicherheit', 'StÃƒÂ¼ck', 5.00),
-('FeuerlÃƒÂ¶scher 6 kg (ABC)', 'Arbeitsschutz & Sicherheit', 'StÃƒÂ¼ck', 50.00),
-('Erste-Hilfe-Kasten (DIN 13164)', 'Arbeitsschutz & Sicherheit', 'StÃƒÂ¼ck', 20.00),
-('Auffanggurt (Sicherheitsgurt)', 'Arbeitsschutz & Sicherheit', 'StÃƒÂ¼ck', 100.00),
+('Warnweste (hi-vis)', 'Arbeitsschutz & Sicherheit', 'Stück', 5.00),
+('Feuerlöscher 6 kg (ABC)', 'Arbeitsschutz & Sicherheit', 'Stück', 50.00),
+('Erste-Hilfe-Kasten (DIN 13164)', 'Arbeitsschutz & Sicherheit', 'Stück', 20.00),
+('Auffanggurt (Sicherheitsgurt)', 'Arbeitsschutz & Sicherheit', 'Stück', 100.00),
 ('Absperrband (Warnband) 50 m', 'Arbeitsschutz & Sicherheit', 'Rolle', 3.00),
-('Gartenzaun-Holzelement 1 m', 'AuÃƒÅ¸enbereich & Garten', 'StÃƒÂ¼ck', 30.00),
-('Maschendrahtzaun 1,5 m (10 m Rolle)', 'AuÃƒÅ¸enbereich & Garten', 'Rolle', 50.00),
-('Zaunpfosten (Metall) 1,5 m', 'AuÃƒÅ¸enbereich & Garten', 'StÃƒÂ¼ck', 20.00),
-('Gartentor (Metall) 100 cm', 'AuÃƒÅ¸enbereich & Garten', 'StÃƒÂ¼ck', 150.00),
-('Terrassenplatte (Beton) 50Ãƒâ€”50 cm', 'AuÃƒÅ¸enbereich & Garten', 'StÃƒÂ¼ck', 5.00),
-('Pflasterstein (Beton) 10Ãƒâ€”20 cm', 'AuÃƒÅ¸enbereich & Garten', 'StÃƒÂ¼ck', 0.50),
-('Randstein (Beetkante) 100 cm', 'AuÃƒÅ¸enbereich & Garten', 'StÃƒÂ¼ck', 10.00),
-('Zierkies 25 kg', 'AuÃƒÅ¸enbereich & Garten', 'Sack', 6.00),
-('Gehwegplatte 30Ãƒâ€”30 cm', 'AuÃƒÅ¸enbereich & Garten', 'StÃƒÂ¼ck', 2.00),
-('Rasengitterstein (Beton) 40Ãƒâ€”40 cm', 'AuÃƒÅ¸enbereich & Garten', 'StÃƒÂ¼ck', 5.00),
-('Regentonne 200 L', 'AuÃƒÅ¸enbereich & Garten', 'StÃƒÂ¼ck', 40.00),
-('Gartenschlauch 20 m', 'AuÃƒÅ¸enbereich & Garten', 'StÃƒÂ¼ck', 25.00),
-('Rasensprenger (Sprinkler)', 'AuÃƒÅ¸enbereich & Garten', 'StÃƒÂ¼ck', 15.00),
-('AuÃƒÅ¸enleuchte (Wandlampe)', 'AuÃƒÅ¸enbereich & Garten', 'StÃƒÂ¼ck', 30.00),
-('Bewegungsmelder (AuÃƒÅ¸en)', 'AuÃƒÅ¸enbereich & Garten', 'StÃƒÂ¼ck', 25.00),
-('AuÃƒÅ¸ensteckdose (Garten) Dual', 'AuÃƒÅ¸enbereich & Garten', 'StÃƒÂ¼ck', 20.00),
-('Teichfolie 4 mÃ‚Â²', 'AuÃƒÅ¸enbereich & Garten', 'mÃ‚Â²', 40.00),
-('Gartenhacke (Handhacke)', 'AuÃƒÅ¸enbereich & Garten', 'StÃƒÂ¼ck', 15.00),
-('Spaten (GÃƒÂ¤rtnerspaten)', 'AuÃƒÅ¸enbereich & Garten', 'StÃƒÂ¼ck', 20.00),
-('Heckenschere (manuell)', 'AuÃƒÅ¸enbereich & Garten', 'StÃƒÂ¼ck', 25.00);
+('Gartenzaun-Holzelement 1 m', 'Außenbereich & Garten', 'Stück', 30.00),
+('Maschendrahtzaun 1,5 m (10 m Rolle)', 'Außenbereich & Garten', 'Rolle', 50.00),
+('Zaunpfosten (Metall) 1,5 m', 'Außenbereich & Garten', 'Stück', 20.00),
+('Gartentor (Metall) 100 cm', 'Außenbereich & Garten', 'Stück', 150.00),
+('Terrassenplatte (Beton) 50×50 cm', 'Außenbereich & Garten', 'Stück', 5.00),
+('Pflasterstein (Beton) 10×20 cm', 'Außenbereich & Garten', 'Stück', 0.50),
+('Randstein (Beetkante) 100 cm', 'Außenbereich & Garten', 'Stück', 10.00),
+('Zierkies 25 kg', 'Außenbereich & Garten', 'Sack', 6.00),
+('Gehwegplatte 30×30 cm', 'Außenbereich & Garten', 'Stück', 2.00),
+('Rasengitterstein (Beton) 40×40 cm', 'Außenbereich & Garten', 'Stück', 5.00),
+('Regentonne 200 L', 'Außenbereich & Garten', 'Stück', 40.00),
+('Gartenschlauch 20 m', 'Außenbereich & Garten', 'Stück', 25.00),
+('Rasensprenger (Sprinkler)', 'Außenbereich & Garten', 'Stück', 15.00),
+('Außenleuchte (Wandlampe)', 'Außenbereich & Garten', 'Stück', 30.00),
+('Bewegungsmelder (Außen)', 'Außenbereich & Garten', 'Stück', 25.00),
+('Außensteckdose (Garten) Dual', 'Außenbereich & Garten', 'Stück', 20.00),
+('Teichfolie 4 m²', 'Außenbereich & Garten', 'm²', 40.00),
+('Gartenhacke (Handhacke)', 'Außenbereich & Garten', 'Stück', 15.00),
+('Spaten (Gärtnerspaten)', 'Außenbereich & Garten', 'Stück', 20.00),
+('Heckenschere (manuell)', 'Außenbereich & Garten', 'Stück', 25.00);
 
 ALTER TABLE public.materialien ENABLE ROW LEVEL SECURITY;
 
@@ -922,7 +938,7 @@ CREATE INDEX IF NOT EXISTS idx_materialien_name      ON public.materialien(name)
 -- 5. HOME ORGANIZER TABELLEN
 -- ============================================================
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ home_projekte (vor todo_aufgaben FK) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── home_projekte (vor todo_aufgaben FK) ──────────────────
 CREATE TABLE IF NOT EXISTS public.home_projekte (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id      uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -954,7 +970,7 @@ CREATE POLICY home_projekte_crud_own ON public.home_projekte FOR ALL
   USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ home_orte Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── home_orte ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.home_orte (
   id                     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id                uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -983,7 +999,7 @@ CREATE POLICY home_orte_crud_own ON public.home_orte FOR ALL
   USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ home_lagerorte Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── home_lagerorte ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.home_lagerorte (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id               uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -1017,7 +1033,7 @@ CREATE POLICY home_lagerorte_crud_own ON public.home_lagerorte FOR ALL
   USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ home_objekte Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── home_objekte ──────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.home_objekte (
   id                          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id                     uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -1061,14 +1077,14 @@ CREATE POLICY home_objekte_crud_own ON public.home_objekte FOR ALL
   USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ home_vorraete Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── home_vorraete ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.home_vorraete (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id       uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   lagerort_id   uuid REFERENCES public.home_lagerorte(id) ON DELETE SET NULL,
   name          text NOT NULL,
   kategorie     text DEFAULT 'Haushalt',
-  einheit       text DEFAULT 'StÃƒÂ¼ck',
+  einheit       text DEFAULT 'Stück',
   bestand       numeric(10,2) DEFAULT 0,
   mindestmenge  numeric(10,2) DEFAULT 1,
   ablaufdatum   date,
@@ -1091,7 +1107,7 @@ CREATE POLICY home_vorraete_crud_own ON public.home_vorraete FOR ALL
   USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ home_einkaufliste Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── home_einkaufliste ─────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.home_einkaufliste (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id     uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -1100,7 +1116,7 @@ CREATE TABLE IF NOT EXISTS public.home_einkaufliste (
   original_text text,
   normalized_name text,
   menge       numeric(10,2) DEFAULT 1,
-  einheit     text DEFAULT 'StÃƒÂ¼ck',
+  einheit     text DEFAULT 'Stück',
   kategorie   text,
   hauptkategorie text,
   unterkategorie text,
@@ -1202,7 +1218,7 @@ CREATE POLICY home_einkaufliste_crud_own ON public.home_einkaufliste FOR ALL
   USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ home_einkauf_korrekturen Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── home_einkauf_korrekturen ──────────────────
 CREATE TABLE IF NOT EXISTS public.home_einkauf_korrekturen (
   id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id            uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -1232,7 +1248,7 @@ CREATE POLICY home_einkauf_korrekturen_crud_own ON public.home_einkauf_korrektur
   USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ home_geraete Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── home_geraete ──────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.home_geraete (
   id                       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id                  uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -1271,7 +1287,7 @@ CREATE POLICY home_geraete_crud_own ON public.home_geraete FOR ALL
   USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ home_wartungen Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── home_wartungen ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.home_wartungen (
   id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id              uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -1302,7 +1318,7 @@ CREATE POLICY home_wartungen_crud_own ON public.home_wartungen FOR ALL
   USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ home_bewohner Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── home_bewohner ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.home_bewohner (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id    uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -1323,7 +1339,7 @@ CREATE POLICY home_bewohner_user_own ON public.home_bewohner FOR ALL
   USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ home_budget_limits Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── home_budget_limits ────────────────────────────────────
 -- home_budget_categories
 CREATE TABLE IF NOT EXISTS public.home_budget_categories (
   id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1482,7 +1498,7 @@ CREATE INDEX IF NOT EXISTS idx_home_budget_limits_user ON public.home_budget_lim
 CREATE INDEX IF NOT EXISTS idx_home_budget_limits_household ON public.home_budget_limits(household_id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ home_sparziele Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── home_sparziele ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.home_sparziele (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id          uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -1491,7 +1507,7 @@ CREATE TABLE IF NOT EXISTS public.home_sparziele (
   aktueller_betrag numeric(10,2) NOT NULL DEFAULT 0,
   zieldatum        date,
   farbe            text DEFAULT '#10B981',
-  emoji            text DEFAULT 'Ã°Å¸Å½Â¯',
+  emoji            text DEFAULT '🎯',
   created_at       timestamptz DEFAULT NOW(),
   updated_at       timestamptz DEFAULT NOW()
 );
@@ -1616,7 +1632,7 @@ ALTER TABLE public.budget_posten
     REFERENCES public.home_finanzkonten(id) ON DELETE SET NULL;
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ home_verlauf Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── home_verlauf ──────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.home_verlauf (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id       uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -1636,7 +1652,7 @@ CREATE INDEX IF NOT EXISTS idx_home_verlauf_user ON public.home_verlauf(user_id)
 CREATE INDEX IF NOT EXISTS idx_home_verlauf_created ON public.home_verlauf(created_at DESC);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ home_wissen Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── home_wissen ───────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.home_wissen (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id    uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -1662,7 +1678,7 @@ CREATE TRIGGER set_home_wissen_updated_at
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ haushaltsaufgaben Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── haushaltsaufgaben ─────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.haushaltsaufgaben (
   id                     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id                uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -1693,7 +1709,7 @@ CREATE POLICY haushaltsaufgaben_crud_own ON public.haushaltsaufgaben FOR ALL
   USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ vorraete (Alias-Tabelle fÃƒÂ¼r check-reminders) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── vorraete (Alias-Tabelle für check-reminders) ──────────
 -- Wird von der check-reminders Edge Function verwendet.
 -- Spiegelt home_vorraete mit konsistenten Spaltennamen.
 CREATE TABLE IF NOT EXISTS public.vorraete (
@@ -1701,7 +1717,7 @@ CREATE TABLE IF NOT EXISTS public.vorraete (
   user_id       uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   name          text NOT NULL,
   kategorie     text DEFAULT 'Haushalt',
-  einheit       text DEFAULT 'StÃƒÂ¼ck',
+  einheit       text DEFAULT 'Stück',
   menge         numeric(10,2) DEFAULT 0,
   mindest_menge numeric(10,2) DEFAULT 1,
   ablaufdatum   date,
@@ -1724,7 +1740,7 @@ CREATE POLICY vorraete_crud_own ON public.vorraete FOR ALL
   USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ projekte (Alias fÃƒÂ¼r check-reminders) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── projekte (Alias für check-reminders) ──────────────────
 CREATE TABLE IF NOT EXISTS public.projekte (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id     uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -1751,7 +1767,7 @@ CREATE POLICY projekte_crud_own ON public.projekte FOR ALL
   USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ geraete (Alias fÃƒÂ¼r check-reminders) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── geraete (Alias für check-reminders) ───────────────────
 CREATE TABLE IF NOT EXISTS public.geraete (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id          uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -1792,7 +1808,7 @@ ALTER TABLE public.budget_posten
 ALTER TABLE public.budget_posten
   ADD COLUMN IF NOT EXISTS bewohner_id     uuid REFERENCES public.home_bewohner(id) ON DELETE SET NULL;
 
--- Check-Constraint fÃƒÂ¼r budget_posten.typ
+-- Check-Constraint für budget_posten.typ
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.check_constraints
@@ -1807,7 +1823,7 @@ END $$;
 ALTER TABLE public.home_objekte
   ADD COLUMN IF NOT EXISTS bewohner_id uuid REFERENCES public.home_bewohner(id) ON DELETE SET NULL;
 
--- user_profile: App-Modus fÃƒÂ¼r gerÃƒÂ¤teÃƒÂ¼bergreifende Synchronisation
+-- user_profile: App-Modus für geräteübergreifende Synchronisation
 ALTER TABLE public.user_profile
   ADD COLUMN IF NOT EXISTS app_modus text DEFAULT 'umzug';
 
@@ -1859,7 +1875,7 @@ CREATE POLICY storage_home_fotos_delete ON storage.objects FOR DELETE
 -- 8. PUSH-BENACHRICHTIGUNGEN
 -- ============================================================
 
--- Speichert Web-Push-Subscriptions pro Nutzer und GerÃƒÂ¤t
+-- Speichert Web-Push-Subscriptions pro Nutzer und Gerät
 CREATE TABLE IF NOT EXISTS public.push_subscriptions (
   id         uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id    uuid        REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -1892,12 +1908,12 @@ $$;
 
 
 -- ============================================================
--- 9. MIGRATIONEN (fÃƒÂ¼r bestehende Installationen)
--- Neue Installationen kÃƒÂ¶nnen diesen Block ignorieren.
+-- 9. MIGRATIONEN (für bestehende Installationen)
+-- Neue Installationen können diesen Block ignorieren.
 -- Er ist idempotent und schadet nicht.
 -- ============================================================
 
--- KI-Provider-Felder hinzufÃƒÂ¼gen (falls noch nicht vorhanden)
+-- KI-Provider-Felder hinzufügen (falls noch nicht vorhanden)
 ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS ki_provider     text DEFAULT 'openai';
 ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS ollama_base_url text;
 ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS ollama_model    text DEFAULT 'llama3.2';
@@ -1919,11 +1935,11 @@ ALTER TABLE public.user_profile
 ALTER TABLE public.user_profile
   ADD COLUMN IF NOT EXISTS tour_state jsonb;
 
--- Migration: persÃƒÂ¶nliche To-Do-Vorlagen (user_id nullable)
+-- Migration: persönliche To-Do-Vorlagen (user_id nullable)
 ALTER TABLE public.todo_vorlagen
   ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE;
 
--- RLS fÃƒÂ¼r todo_vorlagen aktualisieren
+-- RLS für todo_vorlagen aktualisieren
 DROP POLICY IF EXISTS todo_vorlagen_read ON public.todo_vorlagen;
 CREATE POLICY todo_vorlagen_read ON public.todo_vorlagen FOR SELECT TO authenticated
   USING (user_id IS NULL OR (select auth.uid()) = user_id);
@@ -1936,8 +1952,8 @@ DROP POLICY IF EXISTS todo_vorlagen_delete ON public.todo_vorlagen;
 CREATE POLICY todo_vorlagen_delete ON public.todo_vorlagen FOR DELETE TO authenticated
   USING ((select auth.uid()) = user_id);
 
--- Migration: home_vorraete Spalten auf Originalnamen zurÃƒÂ¼cksetzen (menge Ã¢â€ â€™ bestand, mindest_menge Ã¢â€ â€™ mindestmenge)
--- Stellt KompatibilitÃƒÂ¤t mit dem Frontend sicher
+-- Migration: home_vorraete Spalten auf Originalnamen zurücksetzen (menge → bestand, mindest_menge → mindestmenge)
+-- Stellt Kompatibilität mit dem Frontend sicher
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.columns
@@ -1948,7 +1964,7 @@ BEGIN
              WHERE table_schema = 'public' AND table_name = 'home_vorraete' AND column_name = 'mindest_menge') THEN
     ALTER TABLE public.home_vorraete RENAME COLUMN mindest_menge TO mindestmenge;
   END IF;
-  -- Fehlende Spalten ergÃƒÂ¤nzen falls noch nicht vorhanden
+  -- Fehlende Spalten ergänzen falls noch nicht vorhanden
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                  WHERE table_schema = 'public' AND table_name = 'home_vorraete' AND column_name = 'bestand') THEN
     ALTER TABLE public.home_vorraete ADD COLUMN bestand numeric(10,2) DEFAULT 0;
@@ -1976,8 +1992,8 @@ ALTER TABLE public.home_geraete
 -- 10. SCHEMA NEU LADEN
 -- ============================================================
 
--- pg_cron Setup (einmalig manuell ausfÃƒÂ¼hren nach pg_cron-Aktivierung):
--- Database Ã¢â€ â€™ Extensions Ã¢â€ â€™ cron Ã¢â€ â€™ Enable (Schema: pg_catalog)
+-- pg_cron Setup (einmalig manuell ausführen nach pg_cron-Aktivierung):
+-- Database → Extensions → cron → Enable (Schema: pg_catalog)
 --
 -- SELECT cron.schedule(
 --   'check-reminders',
@@ -1994,10 +2010,10 @@ ALTER TABLE public.home_geraete
 --   $$
 -- );
 
--- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+-- ============================================================
 -- Migration: RLS Performance & Security Fixes
--- Kann auch einzeln im Supabase SQL Editor auf bestehenden Instanzen ausgefÃƒÂ¼hrt werden
--- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+-- Kann auch einzeln im Supabase SQL Editor auf bestehenden Instanzen ausgeführt werden
+-- ============================================================
 
 -- Fix 1: Funktionen mit fixem search_path absichern (Security: function_search_path_mutable)
 CREATE OR REPLACE FUNCTION public.set_updated_at()
@@ -2160,16 +2176,16 @@ CREATE POLICY "Eigene Subscriptions verwalten" ON public.push_subscriptions FOR 
 SELECT pg_notify('pgrst', 'reload schema');
 
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ Avatar-Support Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── Avatar-Support ─────────────────────────────────────────────────────────
 ALTER TABLE public.user_profile
   ADD COLUMN IF NOT EXISTS avatar_url text;
 
--- Ãƒâ€“ffentlicher Bucket fÃƒÂ¼r Profilbilder
+-- Öffentlicher Bucket für Profilbilder
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('avatars', 'avatars', TRUE)
 ON CONFLICT (id) DO NOTHING;
 
--- RLS: Nur eigener User darf hochladen / ÃƒÂ¼berschreiben
+-- RLS: Nur eigener User darf hochladen / überschreiben
 DROP POLICY IF EXISTS avatars_upload ON storage.objects;
 CREATE POLICY avatars_upload ON storage.objects FOR INSERT
   WITH CHECK (bucket_id = 'avatars' AND (select auth.uid())::text = (storage.foldername(name))[1]);
@@ -2178,7 +2194,7 @@ DROP POLICY IF EXISTS avatars_update ON storage.objects;
 CREATE POLICY avatars_update ON storage.objects FOR UPDATE
   USING (bucket_id = 'avatars' AND (select auth.uid())::text = (storage.foldername(name))[1]);
 
--- RLS: Ãƒâ€“ffentliches Lesen (fÃƒÂ¼r <img src>)
+-- RLS: Öffentliches Lesen (für <img src>)
 DROP POLICY IF EXISTS avatars_public_read ON storage.objects;
 CREATE POLICY avatars_public_read ON storage.objects FOR SELECT
   USING (bucket_id = 'avatars');
@@ -2186,10 +2202,10 @@ CREATE POLICY avatars_public_read ON storage.objects FOR SELECT
 -- ============================================================
 -- 10. MULTI-USER HAUSHALT
 -- Haushaltstabellen, Helfer-Funktionen, RLS und Datenmigration.
--- Basiert auf haushalt_multiuser_setup.sql (vollstÃƒÂ¤ndig integriert).
+-- Basiert auf haushalt_multiuser_setup.sql (vollständig integriert).
 -- ============================================================
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ Kern-Tabellen Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── Kern-Tabellen ─────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.households (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -2310,14 +2326,15 @@ CREATE TABLE IF NOT EXISTS public.household_invites (
   created_at   timestamptz NOT NULL DEFAULT NOW(),
   expires_at   timestamptz NOT NULL,
   accepted_at  timestamptz,
-  revoked_at   timestamptz
+  revoked_at   timestamptz,
+  locale       text NOT NULL DEFAULT 'de' CONSTRAINT household_invites_locale_supported CHECK (locale IN ('de', 'en-GB'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_household_invites_household ON public.household_invites(household_id);
 CREATE INDEX IF NOT EXISTS idx_household_invites_email    ON public.household_invites(LOWER(email));
 CREATE INDEX IF NOT EXISTS idx_household_invites_active   ON public.household_invites(expires_at, accepted_at, revoked_at);
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ Helfer-Funktionen Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── Helfer-Funktionen ──────────────────────────────────────
 
 CREATE OR REPLACE FUNCTION public.get_current_household_id()
 RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER
@@ -2537,7 +2554,7 @@ BEGIN
     AND hi.expires_at > NOW()
   LIMIT 1;
 
-  IF v_invite.id IS NULL THEN RAISE EXCEPTION 'Einladung ungÃƒÂ¼ltig oder abgelaufen.'; END IF;
+  IF v_invite.id IS NULL THEN RAISE EXCEPTION 'Einladung ungültig oder abgelaufen.'; END IF;
   IF LOWER(v_invite.email) <> v_email THEN
     RAISE EXCEPTION 'Einladung ist an eine andere E-Mail-Adresse gebunden.';
   END IF;
@@ -2572,7 +2589,7 @@ BEGIN
 
   v_household_id := public.get_current_household_id();
   IF v_household_id IS NULL OR NOT public.is_household_admin(v_household_id) THEN
-    RAISE EXCEPTION 'Nur Admin kann die Rolle ÃƒÂ¼bertragen.';
+    RAISE EXCEPTION 'Nur Admin kann die Rolle übertragen.';
   END IF;
   IF p_new_admin_user_id = v_uid THEN
     RAISE EXCEPTION 'Neuer Admin muss ein anderes Mitglied sein.';
@@ -2610,7 +2627,7 @@ BEGIN
   IF v_household_id IS NULL THEN RETURN true; END IF;
 
   IF public.is_household_admin(v_household_id) THEN
-    RAISE EXCEPTION 'Admin kann den Haushalt nicht verlassen. Erst Admin ÃƒÂ¼bertragen oder Haushalt lÃƒÂ¶schen.';
+    RAISE EXCEPTION 'Admin kann den Haushalt nicht verlassen. Erst Admin übertragen oder Haushalt löschen.';
   END IF;
 
   DELETE FROM public.household_members
@@ -2628,7 +2645,7 @@ DECLARE v_household_id uuid;
 BEGIN
   v_household_id := public.get_current_household_id();
   IF v_household_id IS NULL OR NOT public.is_household_admin(v_household_id) THEN
-    RAISE EXCEPTION 'Nur Admin darf den Haushalt lÃƒÂ¶schen.';
+    RAISE EXCEPTION 'Nur Admin darf den Haushalt löschen.';
   END IF;
   DELETE FROM public.households WHERE id = v_household_id;
   RETURN true;
@@ -2646,7 +2663,7 @@ BEGIN
   WHERE user_id = (SELECT auth.uid()) AND role = 'admin';
 
   IF v_household_id IS NULL THEN
-    RAISE EXCEPTION 'Nur Admins kÃƒÂ¶nnen Mitglieder entfernen.';
+    RAISE EXCEPTION 'Nur Admins können Mitglieder entfernen.';
   END IF;
   IF p_user_id = (SELECT auth.uid()) THEN
     RAISE EXCEPTION 'Du kannst dich nicht selbst entfernen.';
@@ -2670,7 +2687,7 @@ DECLARE v_household_id uuid;
 BEGIN
   v_household_id := public.get_current_household_id();
   IF v_household_id IS NULL OR NOT public.is_household_admin(v_household_id) THEN
-    RAISE EXCEPTION 'Nur Admin darf globale Haushaltseinstellungen ÃƒÂ¤ndern.';
+    RAISE EXCEPTION 'Nur Admin darf globale Haushaltseinstellungen ändern.';
   END IF;
 
   INSERT INTO public.household_settings (household_id, app_modus, umzug_deaktiviert, updated_by)
@@ -2699,7 +2716,7 @@ DECLARE v_household_id uuid;
 BEGIN
   v_household_id := public.get_current_household_id();
   IF v_household_id IS NULL OR NOT public.is_household_admin(v_household_id) THEN
-    RAISE EXCEPTION 'Nur Admin darf KI-Einstellungen ÃƒÂ¤ndern.';
+    RAISE EXCEPTION 'Nur Admin darf KI-Einstellungen ändern.';
   END IF;
 
   INSERT INTO public.household_settings (
@@ -2724,7 +2741,7 @@ BEGIN
 END;
 $$;
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ Datenmigration fÃƒÂ¼r bestehende Installationen Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── Datenmigration für bestehende Installationen ──────────
 
 -- Pro bestehendem User Haushalt + Admin-Mitglied sicherstellen
 WITH missing_users AS (
@@ -2746,7 +2763,7 @@ INSERT INTO public.household_members (household_id, user_id, role)
 SELECT ch.id, ch.created_by, 'admin'
 FROM created_households ch;
 
--- Settings fÃƒÂ¼r bestehende Haushalte aus Admin-Profil befÃƒÂ¼llen
+-- Settings für bestehende Haushalte aus Admin-Profil befüllen
 INSERT INTO public.household_settings (
   household_id, app_modus, umzug_deaktiviert,
   ki_provider, openai_api_key, ollama_base_url, ollama_model, updated_by
@@ -3096,7 +3113,7 @@ BEGIN
     ON CONFLICT (household_id, linked_user_id) WHERE linked_user_id IS NOT NULL DO NOTHING;
   END IF;
 END $$;
--- home_budget_limits: Unique-Constraint von user_id Ã¢â€ â€™ household_id
+-- home_budget_limits: Unique-Constraint von user_id → household_id
 DO $$
 BEGIN
   ALTER TABLE public.home_budget_limits
@@ -3194,7 +3211,7 @@ CREATE POLICY household_member_access ON public.home_budget_limits FOR ALL
   USING (public.is_household_member(household_id))
   WITH CHECK (public.is_household_member(household_id));
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ Insert/Update-Helfer fÃƒÂ¼r alte Frontend-Payloads Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── Insert/Update-Helfer für alte Frontend-Payloads ────────
 
 CREATE OR REPLACE FUNCTION public.set_household_scope_defaults()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
@@ -3239,7 +3256,7 @@ BEGIN
   END LOOP;
 END $$;
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ RLS fÃƒÂ¼r Haushalts-Verwaltungstabellen Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── RLS für Haushalts-Verwaltungstabellen ─────────────────
 -- Performance-optimiert: keine doppelten permissiven Policies.
 
 ALTER TABLE public.households       ENABLE ROW LEVEL SECURITY;
@@ -3264,7 +3281,7 @@ CREATE POLICY household_admin_delete_household ON public.households
 
 -- household_members
 -- FIX multiple_permissive_policies:
---   Nur EINE permissive SELECT-Policy Ã¢â€ â€™ household_member_read_members (FOR SELECT)
+--   Nur EINE permissive SELECT-Policy → household_member_read_members (FOR SELECT)
 --   Admin-DML als separate INSERT/UPDATE/DELETE-Policies (kein FOR ALL).
 DROP POLICY IF EXISTS household_member_read_members  ON public.household_members;
 DROP POLICY IF EXISTS household_admin_manage_members ON public.household_members;
@@ -3291,7 +3308,7 @@ CREATE POLICY household_admin_delete_members ON public.household_members
 
 -- household_settings
 -- FIX multiple_permissive_policies:
---   FOR ALL erzeugt doppeltes SELECT Ã¢â€ â€™ aufgeteilt in SELECT + INSERT/UPDATE/DELETE.
+--   FOR ALL erzeugt doppeltes SELECT → aufgeteilt in SELECT + INSERT/UPDATE/DELETE.
 DROP POLICY IF EXISTS household_admin_read_settings    ON public.household_settings;
 DROP POLICY IF EXISTS household_admin_manage_settings  ON public.household_settings;
 DROP POLICY IF EXISTS household_member_read_settings   ON public.household_settings;
@@ -3323,7 +3340,7 @@ CREATE POLICY household_admin_manage_invites ON public.household_invites
   USING (public.is_household_admin(household_id))
   WITH CHECK (public.is_household_admin(household_id));
 
--- Ã¢â€â‚¬Ã¢â€â‚¬ Sync: Admin user_profile Ã¢â€ â€™ household_settings Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+-- ── Sync: Admin user_profile → household_settings ─────────
 
 CREATE OR REPLACE FUNCTION public.sync_user_profile_to_household_settings()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
@@ -3917,6 +3934,27 @@ CREATE POLICY polizzen_household ON public.versicherungs_polizzen FOR ALL
 ALTER TABLE public.home_wissen
   ADD COLUMN IF NOT EXISTS herkunft text DEFAULT 'manuell'
     CHECK (herkunft IN ('manuell','auto_stub','auto_full','auto_low_confidence'));
+
+ALTER TABLE public.home_wissen
+  ADD COLUMN IF NOT EXISTS summary jsonb NOT NULL DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS localized_content jsonb NOT NULL DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS source_locale text NOT NULL DEFAULT 'de';
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'home_wissen_source_locale_check'
+      AND conrelid = 'public.home_wissen'::regclass
+  ) THEN
+    ALTER TABLE public.home_wissen
+      ADD CONSTRAINT home_wissen_source_locale_check
+      CHECK (source_locale IN ('de', 'en-GB'));
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_home_wissen_localized_content_gin
+  ON public.home_wissen USING gin (localized_content);
 
 ALTER TABLE public.dokumente
   ADD COLUMN IF NOT EXISTS datei_hash text;

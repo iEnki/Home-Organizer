@@ -55,6 +55,61 @@ function formatDateDE(iso: string | null | undefined): string | null {
   return `${m[3]}.${m[2]}.${m[1]}`;
 }
 
+type SupportedLocale = "de" | "en-GB";
+
+function normalizeLocale(locale: string | null | undefined): SupportedLocale {
+  return locale === "en-GB" || locale === "en" ? "en-GB" : "de";
+}
+
+function formatDateForLocale(iso: string | null | undefined, locale: SupportedLocale): string {
+  if (!iso) return locale === "en-GB" ? "an unknown date" : "einem unbekannten Datum";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat(locale === "en-GB" ? "en-GB" : "de-AT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatCurrencyForLocale(value: unknown, currency: string | null | undefined, locale: SupportedLocale): string {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return locale === "en-GB" ? "an unknown amount" : "einem unbekannten Betrag";
+  return new Intl.NumberFormat(locale === "en-GB" ? "en-GB" : "de-AT", {
+    style: "currency",
+    currency: currency || "EUR",
+  }).format(amount);
+}
+
+function invoiceContent(summary: Record<string, unknown>, locale: SupportedLocale): string {
+  const merchant = String(summary.merchant || (locale === "en-GB" ? "an unknown merchant" : "einem unbekannten Haendler"));
+  const dateText = formatDateForLocale(summary.date as string | null, locale);
+  const total = formatCurrencyForLocale(summary.amount, summary.currency as string | null, locale);
+  const rawItems = Array.isArray(summary.items) ? summary.items : [];
+  const items = rawItems.slice(0, 3).map((item) => {
+    const row = item as Record<string, unknown>;
+    const name = String(row.name || "").trim();
+    return `${name}${row.amount != null ? ` (${formatCurrencyForLocale(row.amount, summary.currency as string | null, locale)})` : ""}`;
+  }).filter(Boolean);
+  if (items.length > 0) {
+    return locale === "en-GB"
+      ? `On ${dateText}, you bought from ${merchant}: ${items.join(", ")}. Total amount: ${total}.`
+      : `Du hast am ${dateText} bei ${merchant} gekauft: ${items.join(", ")}. Gesamtbetrag: ${total}.`;
+  }
+  return locale === "en-GB"
+    ? `On ${dateText}, you shopped at ${merchant} and spent ${total} in total.`
+    : `Du hast am ${dateText} bei ${merchant} eingekauft und insgesamt ${total} ausgegeben.`;
+}
+
+function localizedInvoiceContent(title: string, summary: Record<string, unknown>) {
+  const deText = invoiceContent(summary, "de");
+  const enText = invoiceContent(summary, "en-GB");
+  return {
+    de: { title, content: deText, headline: deText },
+    "en-GB": { title, content: enText, headline: enText },
+  };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -102,7 +157,7 @@ Deno.serve(async (req: Request) => {
   const householdId: string = membership.household_id;
 
   // ── Input parsen ─────────────────────────────────────────────────────────
-  let body: { dokument_id?: string; analyseergebnis?: Record<string, unknown> };
+  let body: { dokument_id?: string; analyseergebnis?: Record<string, unknown>; locale?: string };
   try {
     body = await req.json();
   } catch {
@@ -110,6 +165,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const { dokument_id, analyseergebnis } = body;
+  const requestLocale = normalizeLocale(body.locale);
 
   if (!dokument_id) {
     return jsonResponse({ error: "dokument_id fehlt." }, 400);
@@ -263,6 +319,21 @@ Deno.serve(async (req: Request) => {
       : `${haendlerAnzeige} – Rechnung`;
 
     const summaryLine = (ergebnis.summary as string) || null;
+    const invoiceSummary = {
+      kind: "invoice",
+      documentClass: "rechnung",
+      documentType: "rechnung",
+      merchant: haendlerAnzeige,
+      date: rechnungsdatum,
+      amount: brutto,
+      currency: waehrung,
+      invoice_number: rechnungsnummer,
+      purchase_type: purchaseType,
+      items: keyItems.map((name) => ({ name })),
+      key_items: keyItems,
+      headline: summaryLine,
+    };
+    const localizedContent = localizedInvoiceContent(titel, invoiceSummary);
     const inhaltZeilen: string[] = [
       ...(summaryLine ? [summaryLine, ""] : []),
       `Händler: ${haendlerAnzeige}`,
@@ -302,6 +373,9 @@ Deno.serve(async (req: Request) => {
           dokument_id,
           rechnung_id: rechnungId,
           herkunft:    "auto_full",
+          summary:     invoiceSummary,
+          localized_content: localizedContent,
+          source_locale: requestLocale,
         })
         .eq("id", vorhandenes.id);
       wissenErr = error;
@@ -320,6 +394,9 @@ Deno.serve(async (req: Request) => {
           dokument_id,
           rechnung_id:  rechnungId,
           herkunft:     "auto_full",
+          summary:      invoiceSummary,
+          localized_content: localizedContent,
+          source_locale: requestLocale,
         })
         .select("id")
         .single();

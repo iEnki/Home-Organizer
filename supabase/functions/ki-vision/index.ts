@@ -18,7 +18,7 @@ const corsHeaders = {
 };
 
 // WICHTIG: Muss identisch mit KI_RECHNUNG_PROMPT_VISION in rechnungAnalyse.js gehalten werden!
-const KI_RECHNUNG_PROMPT_SERVER = `Du bist ein Rechnungs-Analyse-Assistent. Analysiere das Bild dieser Rechnung und gib ausschliesslich ein JSON-Objekt zurueck (kein Markdown, keine Erklaerungen):
+const KI_RECHNUNG_PROMPT_SERVER = `Du bist ein bilingualer Rechnungs-Analyse-Assistent. Analysiere das Bild dieser Rechnung oder dieses Receipts und gib ausschliesslich ein JSON-Objekt zurueck (kein Markdown, keine Erklaerungen):
 
 {
   "haendler": "Name des Haendlers oder null",
@@ -38,6 +38,9 @@ const KI_RECHNUNG_PROMPT_SERVER = `Du bist ein Rechnungs-Analyse-Assistent. Anal
 }
 
 Wichtige Regeln:
+- Das Dokument kann Deutsch oder Englisch sein. Erkenne beide Sprachen gleichwertig.
+- Produktnamen, Haendlernamen, Rechnungsnummern und Artikeltexte originalgetreu aus dem Dokument uebernehmen.
+- Die JSON-Feldnamen bleiben exakt wie im Schema, unabhaengig von der Dokumentsprache.
 - einzelpreis = Preis pro Einheit (NICHT der Zeilengesamtpreis)
   Kraftstoff-Beispiel: menge=33.43, einheit="Liter", einzelpreis=1.439, gesamtpreis=48.11
   Stueckware-Beispiel: menge=2, einheit="Stueck", einzelpreis=4.99, gesamtpreis=9.98
@@ -100,7 +103,7 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  const { mode, file_base64, mime_type, prompt } = payload ?? {};
+  const { mode, file_base64, mime_type, prompt, locale } = payload ?? {};
   if (!file_base64 || !mime_type) {
     return new Response(
       JSON.stringify({ error: "file_base64 und mime_type sind erforderlich." }),
@@ -124,7 +127,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const visionPrompt = prompt?.trim() || KI_RECHNUNG_PROMPT_SERVER;
+    const outputLanguage = locale === "en-GB" || locale === "en" ? "English (United Kingdom)" : "German";
+    const visionPrompt = `${prompt?.trim() || KI_RECHNUNG_PROMPT_SERVER}\n\nZiel-Ausgabesprache fuer natuerliche Texte: ${outputLanguage}. JSON-Feldnamen bleiben unveraendert.`;
     const messages = [{
       role: "user",
       content: [
@@ -172,7 +176,8 @@ Deno.serve(async (req: Request) => {
     const ollamaBase = s.ollama_base_url.replace(/\/$/, "");
     // Vision-Modell bevorzugt; Fallback auf Text-Modell, dann "llava"
     const ollamaModel = s.ollama_vision_model || s.ollama_model || "llava";
-    const ocrPrompt = prompt?.trim() || KI_RECHNUNG_PROMPT_SERVER;
+    const outputLanguage = locale === "en-GB" || locale === "en" ? "English (United Kingdom)" : "German";
+    const ocrPrompt = `${prompt?.trim() || KI_RECHNUNG_PROMPT_SERVER}\n\nZiel-Ausgabesprache fuer natuerliche Texte: ${outputLanguage}. JSON-Feldnamen bleiben unveraendert.`;
 
     const ollamaRes = await fetch(`${ollamaBase}/v1/chat/completions`, {
       method: "POST",
