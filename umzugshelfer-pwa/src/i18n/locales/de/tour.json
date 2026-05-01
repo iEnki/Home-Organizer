@@ -1,0 +1,15 @@
+{
+  "prompt": {
+    "title": "Kurze Tour starten?",
+    "description": "Ich zeige dir die wichtigsten Bereiche des Home Organizers.",
+    "start": "Tour starten",
+    "skip": "Später"
+  },
+  "overlay": {
+    "next": "Weiter",
+    "back": "Zurück",
+    "finish": "Fertig",
+    "skip": "Überspringen",
+    "close": "Tour beenden"
+  }
+}

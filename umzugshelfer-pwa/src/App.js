@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { sanitizeMobileNavFavorites } from "./config/mobileNavConfig";
 import {
   Routes,
@@ -12,6 +13,7 @@ import { supabase, setActiveHouseholdId } from "./supabaseClient";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AppModeProvider, useAppMode } from "./contexts/AppModeContext";
 import { TourProvider, useTourContext } from "./contexts/TourContext";
+import { useLocale } from "./contexts/LocaleContext";
 import { ToastProvider } from "./hooks/useToast";
 import useViewport from "./hooks/useViewport";
 
@@ -73,34 +75,34 @@ import KiAssistentenFeaturePage   from "./components/featurepages/KiAssistentenF
 import QrCodeFeaturePage          from "./components/featurepages/QrCodeFeaturePage";
 
 // ── Route → Seitentitel Mapping ────────────────────────────────────────────────
-const ROUTE_TITLES = {
-  "/dashboard":         "Dashboard",
-  "/kontakte":          "Kontakte",
-  "/budget":            "Budget",
-  "/todos":             "To-Do Listen",
-  "/packliste":         "Packliste",
-  "/materialplaner":    "Materialplaner",
-  "/bedarfsrechner":    "Bedarfsrechner",
-  "/umzugsplaner":      "Umzugsplaner",
-  "/zeitstrahl":        "Zeitstrahl",
-  "/dokumente":         "Dokumente",
-  "/kostenvergleich":   "Kostenvergleich",
-  "/kalender":          "Kalender",
-  "/profil":            "Mein Profil",
-  "/home":              "Home Organizer",
-  "/home/inventar":     "Inventar",
-  "/home/suche":        "Suche",
-  "/home/vorraete":     "Vorräte",
-  "/home/einkaufliste": "Einkaufsliste",
-  "/home/aufgaben":     "Aufgaben",
-  "/home/bewohner":     "Bewohner",
-  "/home/geraete":      "Geräte",
-  "/home/budget":       "Budget",
-  "/home/projekte":     "Projekte",
-  "/home/verlauf":      "Verlauf",
-  "/home/wissen":            "Wissensdatenbank",
-  "/home/rechnung-scannen": "Rechnung scannen",
-  "/home/dokumente":        "Dokumentenarchiv",
+const ROUTE_TITLE_KEYS = {
+  "/dashboard":         "nav:routes.dashboard",
+  "/kontakte":          "nav:routes.contacts",
+  "/budget":            "nav:routes.budget",
+  "/todos":             "nav:routes.todos",
+  "/packliste":         "nav:routes.packingList",
+  "/materialplaner":    "nav:routes.materials",
+  "/bedarfsrechner":    "nav:routes.calculator",
+  "/umzugsplaner":      "nav:routes.movingPlanner",
+  "/zeitstrahl":        "nav:routes.timeline",
+  "/dokumente":         "nav:routes.documents",
+  "/kostenvergleich":   "nav:routes.costComparison",
+  "/kalender":          "nav:routes.calendar",
+  "/profil":            "nav:routes.profile",
+  "/home":              "nav:routes.home",
+  "/home/inventar":     "nav:routes.inventory",
+  "/home/suche":        "nav:routes.search",
+  "/home/vorraete":     "nav:routes.stock",
+  "/home/einkaufliste": "nav:routes.shopping",
+  "/home/aufgaben":     "nav:routes.tasks",
+  "/home/bewohner":     "nav:routes.residents",
+  "/home/geraete":      "nav:routes.devices",
+  "/home/budget":       "nav:routes.budget",
+  "/home/projekte":     "nav:routes.projects",
+  "/home/verlauf":      "nav:routes.history",
+  "/home/wissen":       "nav:routes.knowledge",
+  "/home/rechnung-scannen": "nav:routes.scanInvoice",
+  "/home/dokumente":    "nav:routes.documentArchive",
 };
 
 // ── Modus-bewusster Redirect nach Login ────────────────────────────────────────
@@ -183,7 +185,11 @@ const HomeModusSyncer = ({ session, householdContext }) => {
   // sonst überschreibt der localStorage-Startwert den gespeicherten Modus.
   useEffect(() => {
     if (!userId || !modusGeladen || !isAdmin) return;
-    supabase.rpc("set_household_app_mode", { p_app_modus: appMode, p_umzug_deaktiviert: umzugDeaktiviert });
+    supabase
+      .rpc("set_household_app_mode", { p_app_modus: appMode, p_umzug_deaktiviert: umzugDeaktiviert })
+      .then(({ error }) => {
+        if (error) console.error("[App] set_household_app_mode fehlgeschlagen:", error);
+      });
   }, [appMode, umzugDeaktiviert, userId, modusGeladen, isAdmin]);
 
   return null;
@@ -259,6 +265,7 @@ const AuthenticatedShell = ({
   onPasswordChangeCompleted,
   mobileNavFavorites,
 }) => {
+  const { t } = useTranslation(["common", "nav"]);
   const location = useLocation();
   const navigate = useNavigate();
   const { appMode, toggleMode } = useAppMode();
@@ -303,10 +310,10 @@ const AuthenticatedShell = ({
             supabase.from("home_geraete").select("id, name, hersteller").eq("user_id", userId).ilike("name", `%${q}%`).limit(3),
             supabase.from("todo_aufgaben").select("id, beschreibung, kategorie").eq("user_id", userId).in("app_modus", ["home", "beides"]).ilike("beschreibung", `%${q}%`).limit(3),
           ]);
-          (objRes.data    || []).forEach((o) => ergebnisse.push({ modul: "Inventar", text: o.name,        sub: o.status,      link: "/home/inventar" }));
-          (vorratRes.data || []).forEach((v) => ergebnisse.push({ modul: "Vorrat",   text: v.name,        sub: v.kategorie,   link: "/home/vorraete" }));
-          (geraetRes.data || []).forEach((g) => ergebnisse.push({ modul: "Gerät",    text: g.name,        sub: g.hersteller,  link: "/home/geraete" }));
-          (todoRes.data   || []).forEach((t) => ergebnisse.push({ modul: "Aufgabe",  text: t.beschreibung,sub: t.kategorie,   link: "/home/aufgaben" }));
+          (objRes.data    || []).forEach((o) => ergebnisse.push({ modul: t("nav:searchModules.inventory"), text: o.name,        sub: o.status,      link: "/home/inventar" }));
+          (vorratRes.data || []).forEach((v) => ergebnisse.push({ modul: t("nav:searchModules.stock"),     text: v.name,        sub: v.kategorie,   link: "/home/vorraete" }));
+          (geraetRes.data || []).forEach((g) => ergebnisse.push({ modul: t("nav:searchModules.device"),    text: g.name,        sub: g.hersteller,  link: "/home/geraete" }));
+          (todoRes.data   || []).forEach((row) => ergebnisse.push({ modul: t("nav:searchModules.task"),     text: row.beschreibung,sub: row.kategorie,   link: "/home/aufgaben" }));
         } else {
           const [kontakteRes, todosRes, kistenRes, dokRes, kistenInhaltRes] = await Promise.all([
             supabase.from("kontakte").select("id, name, typ").eq("user_id", userId).ilike("name", `%${q}%`).limit(4),
@@ -315,18 +322,18 @@ const AuthenticatedShell = ({
             supabase.from("dokumente").select("id, dateiname").eq("user_id", userId).ilike("dateiname", `%${q}%`).limit(4),
             supabase.from("packliste_items").select("id, name, pack_kisten(name)").eq("user_id", userId).ilike("name", `%${q}%`).limit(4),
           ]);
-          (kontakteRes.data    || []).forEach((k) => ergebnisse.push({ modul: "Kontakt",       text: k.name,          sub: k.typ,                               link: "/kontakte" }));
-          (todosRes.data       || []).forEach((t) => ergebnisse.push({ modul: "To-Do",          text: t.beschreibung,  sub: t.kategorie,                         link: "/todos" }));
-          (kistenRes.data      || []).forEach((k) => ergebnisse.push({ modul: "Kiste",          text: k.name,          sub: k.raum_neu,                          link: "/packliste" }));
-          (dokRes.data         || []).forEach((d) => ergebnisse.push({ modul: "Dokument",       text: d.dateiname,     sub: null,                                link: "/dokumente" }));
-          (kistenInhaltRes.data|| []).forEach((i) => ergebnisse.push({ modul: "Kisteninhalt",  text: i.name,          sub: i.pack_kisten?.name ?? null,         link: "/packliste" }));
+          (kontakteRes.data    || []).forEach((k) => ergebnisse.push({ modul: t("nav:searchModules.contact"),    text: k.name,          sub: k.typ,                               link: "/kontakte" }));
+          (todosRes.data       || []).forEach((row) => ergebnisse.push({ modul: t("nav:searchModules.todo"),      text: row.beschreibung,  sub: row.kategorie,                         link: "/todos" }));
+          (kistenRes.data      || []).forEach((k) => ergebnisse.push({ modul: t("nav:searchModules.box"),        text: k.name,          sub: k.raum_neu,                          link: "/packliste" }));
+          (dokRes.data         || []).forEach((d) => ergebnisse.push({ modul: t("nav:searchModules.document"),   text: d.dateiname,     sub: null,                                link: "/dokumente" }));
+          (kistenInhaltRes.data|| []).forEach((i) => ergebnisse.push({ modul: t("nav:searchModules.boxContent"), text: i.name,          sub: i.pack_kisten?.name ?? null,         link: "/packliste" }));
         }
         setSuchergebnisse(ergebnisse);
       } catch (_err) {
         // silent fail
       }
     },
-    [userId, appMode]
+    [userId, appMode, t]
   );
 
   const handleSuchInput = (val) => {
@@ -353,7 +360,11 @@ const AuthenticatedShell = ({
     navigate("/");
   };
 
-  const pageTitle = ROUTE_TITLES[location.pathname] ?? "";
+  const titleKey =
+    location.pathname === "/home/vorraete" ? "nav:routes.stock" :
+    location.pathname === "/home/geraete" ? "nav:routes.devices" :
+    ROUTE_TITLE_KEYS[location.pathname] ?? "";
+  const pageTitle = titleKey ? t(titleKey) : "";
 
   return (
     <div className="flex min-h-dvh w-full min-w-0 overflow-x-hidden bg-transparent">
@@ -438,6 +449,8 @@ const AuthenticatedShell = ({
 
 // ── Haupt-App ──────────────────────────────────────────────────────────────────
 function App() {
+  const { t } = useTranslation(["common"]);
+  const { loadProfileLocale } = useLocale();
   const location = useLocation();
   const [session,     setSession]     = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
@@ -516,6 +529,10 @@ function App() {
   }, [session?.user?.id, location.pathname, location.search]);
 
   useEffect(() => {
+    loadProfileLocale(session?.user?.id || null);
+  }, [loadProfileLocale, session?.user?.id]);
+
+  useEffect(() => {
     let cancelled = false;
 
     const loadUserConfig = async () => {
@@ -554,7 +571,7 @@ function App() {
   // ── Lade-Screen ──────────────────────────────────────────────────────────────
   const loadingScreen = (
     <div className="text-center py-20 text-dark-text-main">
-      Authentifizierung wird geladen…
+      {t("app.loadingAuth")}
     </div>
   );
 

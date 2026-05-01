@@ -79,7 +79,7 @@ Antworte NUR mit dem JSON-Objekt.`,
     title: "Packliste bearbeiten",
     summaryLabel: "Packlisten-Aktionen",
     fields:
-      'aktion ("gegenstand_hinzufuegen" oder "raum_zuweisen"), gegenstand, menge, kiste, kategorie (optional), kiste_name (fuer raum_zuweisen), raum (fuer raum_zuweisen)',
+      'aktion ("gegenstand_hinzufügen" oder "raum_zuweisen"), gegenstand, menge, kiste, kategorie (optional), kiste_name (für raum_zuweisen), raum (für raum_zuweisen)',
     schema:
       '{"aktion":"gegenstand_hinzufuegen","gegenstand":"Buecher","menge":3,"kiste":"Kiste 3","kategorie":"Buero"}',
     buildPrompt: (text) => `Extrahiere aus dem folgenden Text alle Packlisten-Aktionen und antworte nur mit einem JSON-Array.
@@ -97,7 +97,7 @@ Text: "${text}"`,
     schema:
       '{"geraet_name":"Waschmaschine","typ":"Filter gewechselt","datum":"2026-04-19","kosten":0}',
     buildPrompt: (text) => `Extrahiere Wartungseintraege aus dem Text als JSON-Objekt {"items":[...]}.
-Felder: geraet_name (Gerätename, Pflicht), typ (Art der Wartung z.B. "Oelwechsel", "Filter gewechselt"), datum (YYYY-MM-DD, default heute), beschreibung, kosten (Zahl), durchgefuehrt_von, naechste_faelligkeit (YYYY-MM-DD), notizen.
+Felder: geraet_name (Gerätename, Pflicht), typ (Art der Wartung z.B. "Ölwechsel", "Filter gewechselt"), datum (YYYY-MM-DD, default heute), beschreibung, kosten (Zahl), durchgefuehrt_von, naechste_faelligkeit (YYYY-MM-DD), notizen.
 Beispiel: {"items":[{"geraet_name":"Waschmaschine","typ":"Filter gewechselt","datum":"2026-04-19","kosten":0}]}
 Text: "${text}"
 Antworte NUR mit dem JSON-Objekt.`,
@@ -145,7 +145,7 @@ PFLICHTFELDER:
 - participants: Array ALLER beteiligten Namen inkl. Zahler (EXAKT aus der Liste oben)
 OPTIONALE FELDER: kategorie, datum (YYYY-MM-DD), budget_scope ("haushalt" default), shares (nur fuer "fixed"/"percent")
 WICHTIG: Verwende fuer payer_member_name und participants NUR Namen aus der Mitgliederliste oben.
-Bei "equal" kein shares-Array noetig. Bei "fixed": shares mit member_name+amount fuer Schuldner. Bei "percent": shares mit member_name+percent fuer ALLE inkl. Zahler, Summe muss 100 ergeben.
+Bei "equal" kein shares-Array nötig. Bei "fixed": shares mit member_name+amount für Schuldner. Bei "percent": shares mit member_name+percent für ALLE inkl. Zahler, Summe muss 100 ergeben.
 Beispiel gleichmaessig: {"items":[{"beschreibung":"Abendessen","betrag":60,"payer_member_name":"Alex","split_mode":"equal","participants":["Alex","Sam"]}]}
 Beispiel fest: {"items":[{"beschreibung":"Einkauf","betrag":45,"payer_member_name":"Sam","split_mode":"fixed","participants":["Alex","Sam"],"shares":[{"member_name":"Alex","amount":20},{"member_name":"Sam","amount":25}]}]}
 Text: "${text}"
@@ -208,11 +208,17 @@ export const parseAssistantJson = (raw, expectedType = "array") => {
   throw new Error("Kein gueltiges JSON in der KI-Antwort gefunden.");
 };
 
-export const summarizeAssistantItems = (domain, items = []) => {
-  const config = ASSISTANT_DOMAIN_CONFIG[domain];
-  if (!config) return `${items.length} Eintraege`;
-  if (items.length === 1) {
-    return `1 ${config.summaryLabel.slice(0, -1) || config.summaryLabel}`;
+export const getAssistantDomainLabel = (domain, t) =>
+  t(`assistant:domains.${domain}`, { defaultValue: domain || "Assistent" });
+
+export const summarizeAssistantItems = (domain, items = [], t) => {
+  if (!t) {
+    const config = ASSISTANT_DOMAIN_CONFIG[domain];
+    if (!config) return `${items.length} Eintraege`;
+    if (items.length === 1) return `1 ${config.summaryLabel.slice(0, -1) || config.summaryLabel}`;
+    return `${items.length} ${config.summaryLabel}`;
   }
-  return `${items.length} ${config.summaryLabel}`;
+  const count = items.length;
+  const label = t(`assistant:summaryLabels.${domain}`, { count, defaultValue: domain });
+  return `${count} ${label}`;
 };

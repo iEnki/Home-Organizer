@@ -30,6 +30,43 @@ export const HOME_BUDGET_CATEGORY_COLORS = Object.fromEntries(
 
 export const DEFAULT_HOME_BUDGET_CATEGORY = DEFAULT_CATEGORY_FALLBACK;
 
+const HOME_BUDGET_CATEGORY_LABELS_EN = new Map(
+  [
+    ["Lebensmittel", "Groceries"],
+    ["Hygieneartikel", "Hygiene products"],
+    ["Reinigungsmittel", "Cleaning products"],
+    ["Haushalt", "Household"],
+    ["Elektronik", "Electronics"],
+    ["Elektronikartikel", "Electronics"],
+    ["Elektronikgeraete", "Electronic devices"],
+    ["Elektronikger?te", "Electronic devices"],
+    ["Elektronikgeräte", "Electronic devices"],
+    ["Reparaturen", "Repairs"],
+    ["Abonnements", "Subscriptions"],
+    ["Versicherungen", "Insurance"],
+    ["Einrichtung", "Furnishings"],
+    ["Moebel & Einrichtung", "Furniture & furnishings"],
+    ["M?bel & Einrichtung", "Furniture & furnishings"],
+    ["Möbel & Einrichtung", "Furniture & furnishings"],
+    ["Tanken", "Fuel"],
+    ["Ruecklagen", "Reserves"],
+    ["R?cklagen", "Reserves"],
+    ["Rücklagen", "Reserves"],
+    ["Medikamente & Gesundheit", "Medication & health"],
+    ["Freizeit", "Leisure"],
+    ["Kleidung", "Clothing"],
+    [DEFAULT_CATEGORY_FALLBACK, "Other"],
+    ["Ohne Kategorie", "Uncategorised"],
+  ].map(([key, label]) => [String(key).trim().toLocaleLowerCase("de-DE"), label]),
+);
+
+export const getHomeBudgetCategoryLabel = (value, locale = "de") => {
+  const raw = normalizeCategoryName(value);
+  if (!raw) return locale === "en-GB" ? "Uncategorised" : "Ohne Kategorie";
+  if (locale !== "en-GB") return raw;
+  return HOME_BUDGET_CATEGORY_LABELS_EN.get(raw.toLocaleLowerCase("de-DE")) || raw;
+};
+
 const normalizeCategoryName = (value) => {
   const normalized = String(value || "").trim();
   return normalized || null;

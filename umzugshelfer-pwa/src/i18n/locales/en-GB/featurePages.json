@@ -1,0 +1,255 @@
+{
+  "common": {
+    "backHome": "Back to the start page",
+    "details": "Features in detail"
+  },
+  "budgetTracker": {
+    "icon": "budget",
+    "title": "Budget tracker: keep your finances under control",
+    "subtitle": "Track moving costs, record income and expenses, assign categories and understand your financial situation at a glance.",
+    "sections": [
+      {
+        "icon": "listPlus",
+        "title": "Fast entry capture",
+        "body": "Add income and expenses quickly, from deposit refunds to rental vans, boxes and renovation materials.",
+        "detail": "Open Budget from the dashboard, add a new entry and enter description, amount, type, category and date. Existing entries can be edited or removed directly from the list."
+      },
+      {
+        "icon": "pie",
+        "title": "Categories and overview",
+        "body": "Assign each entry to a category such as transport, material or deposits to keep your cost structure clear.",
+        "detail": "When creating or editing an entry, choose a predefined category or add a new one. Charts and grouped lists show where most of your money goes."
+      },
+      {
+        "icon": "budget",
+        "title": "Balance and visualisation",
+        "body": "Follow the current balance and use charts to spot trends before your budget gets out of hand.",
+        "detail": "The budget overview shows total income, expenses and balance. Visual breakdowns make it easier to adjust spending early."
+      }
+    ],
+    "ctas": [{ "to": "/budget", "label": "Open my budget tracker" }]
+  },
+  "contacts": {
+    "icon": "contacts",
+    "title": "Contact manager: all important numbers in one place",
+    "subtitle": "Manage moving helpers, tradespeople, companies and authorities in a single contact hub.",
+    "sections": [
+      {
+        "icon": "contacts",
+        "title": "Central contact database",
+        "body": "Store names, phone numbers, email addresses, categories and notes for all relevant contacts.",
+        "detail": "Open Contacts from the dashboard, add a contact and fill in the relevant fields. Existing contacts can be edited or deleted directly."
+      },
+      {
+        "icon": "map",
+        "title": "Address management",
+        "body": "Save addresses for companies, tradespeople, neighbours or anyone else involved in the move.",
+        "detail": "The contact form includes an address field for street, number, postcode and city, so important locations stay easy to find."
+      },
+      {
+        "icon": "phone",
+        "title": "Quick access everywhere",
+        "body": "Find contact details quickly on desktop or mobile instead of searching through notes.",
+        "detail": "Because the app is a PWA, you can use it on your phone or tablet. Search and filters help you find the right person fast."
+      }
+    ],
+    "ctas": [{ "to": "/kontakte", "label": "Manage my contacts" }]
+  },
+  "packingList": {
+    "icon": "package",
+    "title": "Intelligent packing lists: never lose track again",
+    "subtitle": "Organise boxes and items digitally with QR codes, photos, search and AI-assisted item capture.",
+    "sections": [
+      {
+        "icon": "qr",
+        "title": "QR codes for every box",
+        "body": "Generate a unique QR code for each moving box and scan it later to see the contents instantly.",
+        "detail": "In Packing lists, create or edit a box and generate its QR code. Print it, attach it to the box and scan it when you need the contents."
+      },
+      {
+        "icon": "camera",
+        "title": "Photos for boxes and items",
+        "body": "Attach photos of packed boxes or valuable items so you can recognise them without opening everything.",
+        "detail": "Upload or capture photos while editing a box or item. The images appear in the detail view and help with visual identification."
+      },
+      {
+        "icon": "brain",
+        "title": "AI-assisted item capture",
+        "body": "Let the assistant turn text or dictated lists into structured box items with quantities and categories.",
+        "detail": "Open the AI packing assistant, enter a list of items or describe a box, then review the suggested items before adding them."
+      },
+      {
+        "icon": "search",
+        "title": "Searchable lists",
+        "body": "Find boxes and items quickly by name, room or content.",
+        "detail": "Use the search field in the packing list to filter dynamically and locate the exact item or box you need."
+      }
+    ],
+    "ctas": [{ "to": "/packliste", "label": "Open my packing list" }]
+  },
+  "qrCode": {
+    "icon": "qr",
+    "title": "QR code system: easier box management",
+    "subtitle": "Stop guessing what is inside each box. QR codes connect physical boxes to your digital packing list.",
+    "sections": [
+      {
+        "icon": "qr",
+        "title": "Unique codes for each box",
+        "body": "Create one QR code per box, print it and attach it visibly.",
+        "detail": "The QR code feature is part of the packing list. Generate a code from a box detail view and use the print or download option."
+      },
+      {
+        "icon": "smartphone",
+        "title": "Scan with your phone",
+        "body": "Use your phone camera through the app to scan the code on a box.",
+        "detail": "Start the scan function from the packing list or scan button, point the camera at the code and let the app identify the box automatically."
+      },
+      {
+        "icon": "packageSearch",
+        "title": "Instant content view",
+        "body": "After scanning, the app opens the stored box contents, including quantities, descriptions and photos.",
+        "detail": "You no longer need to open every box to find one item. The scan takes you straight to the matching digital box."
+      }
+    ],
+    "ctas": [{ "to": "/packliste", "label": "Open packing list and QR codes" }]
+  },
+  "aiAssistants": {
+    "icon": "brain",
+    "title": "AI assistants: intelligent support for your move",
+    "subtitle": "Use AI to create tasks, packing list entries and structured suggestions faster.",
+    "sections": [
+      {
+        "icon": "listPlus",
+        "title": "Task creation from text",
+        "body": "Describe what needs to be done in natural language and let the assistant extract tasks, categories and priorities.",
+        "detail": "Open the AI assistant in the to-do module, enter notes or free text and review the suggested tasks before adding them."
+      },
+      {
+        "icon": "package",
+        "title": "Smart packing list capture",
+        "body": "Enter items or describe a box and let the assistant structure items, quantities and possible box assignments.",
+        "detail": "The packing assistant can process comma-separated lists, dictated text or full descriptions, then prepare items for review."
+      },
+      {
+        "icon": "zap",
+        "title": "Suggestions while entering data",
+        "body": "The assistants can suggest sensible completions, categories or priorities based on common moving patterns.",
+        "detail": "For example, contract-related text can become contract tasks, while item lists can receive room or category suggestions."
+      }
+    ],
+    "ctas": [
+      { "to": "/todos", "label": "Open to-do lists" },
+      { "to": "/packliste", "label": "Open packing list" }
+    ]
+  },
+  "transport": {
+    "icon": "truck",
+    "title": "Transport planner: estimate space and costs",
+    "subtitle": "Calculate loading volume for furniture and boxes and estimate transport costs for the move.",
+    "sections": [
+      {
+        "icon": "ruler",
+        "title": "Volume calculator",
+        "body": "Enter furniture, boxes and quantities to estimate the total moving volume.",
+        "detail": "The planner turns your inventory into an approximate loading volume and recommends a suitable van or truck size."
+      },
+      {
+        "icon": "budget",
+        "title": "Cost estimation",
+        "body": "Combine distance, vehicle size, rental duration and helper effort to estimate transport costs.",
+        "detail": "Use the estimate as a planning baseline and compare offers before committing to a provider."
+      },
+      {
+        "icon": "package",
+        "title": "Optimisation tips",
+        "body": "Get practical guidance for saving space and loading more efficiently.",
+        "detail": "The planner highlights ideas such as disassembling large furniture, using empty spaces and packing boxes consistently."
+      }
+    ],
+    "ctas": [{ "to": "/transport", "label": "Open transport planner" }]
+  },
+  "renovation": {
+    "icon": "paint",
+    "title": "Renovation planner: plan material and costs",
+    "subtitle": "Plan renovation tasks for old and new flats, including paint, wallpaper, flooring and other materials.",
+    "sections": [
+      {
+        "icon": "ruler",
+        "title": "Material calculators",
+        "body": "Estimate paint, wallpaper, flooring or insulation needs from room dimensions.",
+        "detail": "Choose the renovation type, enter room dimensions and openings, and let the app calculate required quantities."
+      },
+      {
+        "icon": "hammer",
+        "title": "Room and surface management",
+        "body": "Define rooms and surfaces so material needs can be planned per area and for the whole project.",
+        "detail": "Each room can store measurements, planned work, estimated quantities and costs for more accurate preparation."
+      },
+      {
+        "icon": "checklist",
+        "title": "Cost overview and shopping list",
+        "body": "Turn calculated material requirements into a shopping list and cost estimate.",
+        "detail": "After planning all rooms, export required materials and use average prices or your own assumptions for the budget."
+      }
+    ],
+    "ctas": [{ "to": "/renovierung", "label": "Open renovation planner" }]
+  },
+  "timeline": {
+    "icon": "timer",
+    "title": "Timeline: keep the move on schedule",
+    "subtitle": "See tasks, milestones and important dates in chronological order.",
+    "sections": [
+      {
+        "icon": "timer",
+        "title": "Automatic task timeline",
+        "body": "Tasks with due dates appear automatically on a clear timeline.",
+        "detail": "Items from your to-do lists are sorted by date, so you can see what comes next and where deadlines are close."
+      },
+      {
+        "icon": "check",
+        "title": "Milestones and progress",
+        "body": "Track key moving milestones and mark completed steps.",
+        "detail": "Important moments such as signing contracts, handing over keys or registering an address can be tracked alongside tasks."
+      },
+      {
+        "icon": "calendar",
+        "title": "Reminders and future planning",
+        "body": "Use the timeline to prepare upcoming or overdue tasks before they become urgent.",
+        "detail": "The timeline makes critical dates visible and supports future reminder workflows."
+      }
+    ],
+    "ctas": [{ "to": "/umzugsplaner", "label": "Open moving planner" }]
+  },
+  "todoLists": {
+    "icon": "list",
+    "title": "Smart to-do lists: stay on top of every task",
+    "subtitle": "Manage every moving task efficiently, from cancelling contracts to handing over keys.",
+    "sections": [
+      {
+        "icon": "check",
+        "title": "Simple task management",
+        "body": "Create, edit, delete and complete tasks with a few clicks.",
+        "detail": "Open To-do lists from the dashboard, add a task and fill in description, category, priority and optional due date."
+      },
+      {
+        "icon": "filter",
+        "title": "Automatic categorisation and priority",
+        "body": "AI can suggest categories and priorities based on recognised wording in the task description.",
+        "detail": "Contract, utility, packing or authority-related phrases can be mapped to suitable categories and priorities for review."
+      },
+      {
+        "icon": "brain",
+        "title": "Templates and AI assistant",
+        "body": "Use common moving task templates or let the assistant turn notes into structured to-dos.",
+        "detail": "Choose a template or enter free text in the assistant, then review the extracted tasks before saving."
+      },
+      {
+        "icon": "calendar",
+        "title": "Calendar export and reminders",
+        "body": "Export dated tasks to your calendar and use reminders to avoid missing deadlines.",
+        "detail": "Tasks with due dates can be exported as calendar events and connected to reminder workflows."
+      }
+    ],
+    "ctas": [{ "to": "/todos", "label": "Open my to-do lists" }]
+  }
+}

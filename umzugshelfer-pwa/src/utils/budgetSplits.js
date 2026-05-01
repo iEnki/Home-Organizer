@@ -173,7 +173,7 @@ export const buildShares = (splitConfig) => {
  */
 export const validateSplitConfig = (splitConfig) => {
   if (!splitConfig?.aktiv) return null;
-  if (!splitConfig?.payerMemberId) return 'Bitte Zahler waehlen.';
+  if (!splitConfig?.payerMemberId) return 'Bitte Zahler wählen.';
   const mode = splitConfig.splitMode || 'equal';
   if (mode === 'equal') {
     const ids = Array.from(new Set(splitConfig.teilnehmer || []));

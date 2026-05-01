@@ -300,7 +300,7 @@ async function maybeRerankWithKi(results, context) {
       {
         role: "user",
         content: JSON.stringify({
-          task: "Waehle den plausibelsten Kandidaten fuer genau dieses Buch. Wenn kein Kandidat klar passt, markiere review=true.",
+          task: "Wähle den plausibelsten Kandidaten für genau dieses Buch. Wenn kein Kandidat klar passt, markiere review=true.",
           currentBook: context,
           candidates: compactResults,
           responseShape: {

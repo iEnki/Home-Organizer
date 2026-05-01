@@ -1,0 +1,82 @@
+{
+  "app": {
+    "name": "Home Organizer",
+    "moveName": "Moving Planner",
+    "loadingAuth": "Loading authentication..."
+  },
+  "actions": {
+    "save": "Save",
+    "saving": "Saving...",
+    "cancel": "Cancel",
+    "close": "Close",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "apply": "Apply",
+    "create": "Create",
+    "reactivate": "Reactivate",
+    "deactivate": "Deactivate",
+    "filter": "Filter",
+    "reset": "Reset",
+    "done": "Done",
+    "saveFailed": "Saving failed.",
+    "change": "Change",
+    "manage": "Manage",
+    "configure": "Configure",
+    "activate": "Activate",
+    "invite": "Invite",
+    "switch": "Switch",
+    "toggleMenu": "Open/close menu"
+  },
+  "status": {
+    "active": "Active",
+    "inactive": "Inactive",
+    "blocked": "Blocked",
+    "error": "Error",
+    "saved": "Saved",
+    "configured": "Configured",
+    "notConfigured": "Not configured",
+    "notSupported": "Not supported"
+  },
+  "locale": {
+    "title": "Language",
+    "description": "Language for the app UI, push notifications, emails and AI output.",
+    "current": "Current: {{language}}",
+    "de": "German",
+    "en-GB": "English (UK)",
+    "updated": "Language saved.",
+    "updateFailed": "Language could not be saved."
+  },
+  "search": {
+    "placeholder": "Search...",
+    "placeholderWithShortcut": "Search... (Cmd K)",
+    "open": "Open search",
+    "close": "Close search",
+    "minChars": "Enter at least 2 characters.",
+    "noResults": "No results."
+  },
+  "auth": {
+    "noSession": "No valid session available."
+  },
+  "profile": {
+    "userMenu": "User menu",
+    "settings": "Settings / Profile",
+    "logout": "Log out",
+    "household": "Household",
+    "residents": "Residents",
+    "householdAndResidents": "Household & residents",
+    "member": "Member",
+    "admin": "Admin",
+    "appearance": "Appearance",
+    "personal": "Personal",
+    "you": "You"
+  },
+  "theme": {
+    "colorMode": "Colour mode",
+    "light": "Light mode",
+    "dark": "Dark mode"
+  },
+  "notifications": {
+    "title": "Notifications"
+  }
+}

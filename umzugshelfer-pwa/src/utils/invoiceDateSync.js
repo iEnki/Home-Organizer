@@ -92,7 +92,7 @@ async function rewriteKnowledgeTextWithKi({
         {
           role: "system",
           content:
-            "Du aktualisierst automatisch erzeugte Rechnungstexte. Behalte Stil und Fakten bei, korrigiere aber Datumsangaben und datumsabhaengige Formulierungen. Gib nur den finalen Text ohne Markdown zurueck.",
+            "Du aktualisierst automatisch erzeugte Rechnungstexte. Behalte Stil und Fakten bei, korrigiere aber Datumsangaben und datumsabh?ngige Formulierungen. Gib nur den finalen Text ohne Markdown zur?ck.",
         },
         {
           role: "user",
@@ -255,7 +255,7 @@ export async function syncInvoiceDate({ supabase, rechnungId, neuesDatum, userId
 
   const syncMeta = Array.isArray(rpcData) ? rpcData[0] : rpcData;
   if (!syncMeta?.rechnung_id) {
-    throw new Error("Synchronisationsdaten fuer die Rechnung fehlen.");
+    throw new Error("Synchronisationsdaten für die Rechnung fehlen.");
   }
 
   try {

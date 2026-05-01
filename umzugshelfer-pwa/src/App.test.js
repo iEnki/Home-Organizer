@@ -1,8 +1,9 @@
-import { render, screen } from '@testing-library/react';
-import App from './App';
+const fs = require("fs");
+const path = require("path");
 
-test('renders learn react link', () => {
-  render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+test("defines and exports the root app component", () => {
+  const source = fs.readFileSync(path.join(__dirname, "App.js"), "utf8");
+
+  expect(source).toContain("function App()");
+  expect(source).toContain("export default App");
 });

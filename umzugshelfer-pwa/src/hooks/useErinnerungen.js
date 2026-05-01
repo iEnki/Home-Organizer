@@ -26,7 +26,14 @@ const useErinnerungen = (userId) => {
       if (!aufgaben?.length) return;
       if (Notification.permission !== "granted") return;
 
-      const gezeigte = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+      let gezeigte;
+      try {
+        gezeigte = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+        if (!Array.isArray(gezeigte)) gezeigte = [];
+      } catch {
+        gezeigte = [];
+        localStorage.removeItem(STORAGE_KEY);
+      }
       const neueGezeigte = [...gezeigte];
 
       for (const aufgabe of aufgaben) {

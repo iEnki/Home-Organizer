@@ -32,12 +32,14 @@ export function TourProvider({ children, session }) {
   // Lädt tour_state aus DB; migriert localStorage falls noch kein DB-Eintrag vorhanden
   useEffect(() => {
     if (!userId) return;
+    let cancelled = false;
     supabase
       .from("user_profile")
       .select("tour_state")
       .eq("id", userId)
       .single()
       .then(({ data, error }) => {
+        if (cancelled) return;
         if (error) {
           // DB-Fehler: geladen auf true setzen, tourState null lassen → Tour startet nicht
           console.warn("[TourContext] tour_state konnte nicht geladen werden:", error.message);
@@ -73,11 +75,13 @@ export function TourProvider({ children, session }) {
             .from("user_profile")
             .upsert({ id: userId, tour_state: initialState }, { onConflict: "id" })
             .then(({ error }) => {
+              if (cancelled) return;
               if (error) console.warn("[TourContext] Initialer upsert fehlgeschlagen:", error.message);
             });
         }
         setGeladen(true);
       });
+    return () => { cancelled = true; };
   }, [userId]);
 
   // Race-sichere persist-Funktion: arbeitet mit funktionalem Update

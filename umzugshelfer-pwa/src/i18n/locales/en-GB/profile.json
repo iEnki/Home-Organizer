@@ -1,0 +1,233 @@
+{
+  "chips": {
+    "appMode": "Mode",
+    "push": "Push",
+    "ai": "AI",
+    "household": "Household"
+  },
+  "sidebar": {
+    "manageHousehold": "Manage household",
+    "inviteMember": "Invite member",
+    "configureAI": "Configure AI",
+    "pushNotifications": "Push notifications"
+  },
+  "groups": {
+    "personal": "Personal",
+    "household": "Household",
+    "intelligence": "Intelligence & Analysis",
+    "notifications": "Notifications & Security"
+  },
+  "ki": {
+    "openAiConfigured": "OpenAI configured",
+    "ollamaConfigured": "Ollama configured"
+  },
+  "members": {
+    "count_one": "{{count}} member",
+    "count_other": "{{count}} members",
+    "loading": "Loading…"
+  },
+  "panels": {
+    "appearance": "Appearance",
+    "appMode": "App mode",
+    "household": "Household & residents",
+    "invite": "Invite members",
+    "ai": "AI settings",
+    "imageAnalysis": "Image analysis",
+    "push": "Push notifications",
+    "tours": "Interactive guides",
+    "mobileNav": "Mobile navigation",
+    "account": "Account & security"
+  },
+  "cards": {
+    "appearance": {
+      "title": "Appearance",
+      "desc": "Colour mode and visual settings",
+      "descMobile": "Toggle colour mode",
+      "action": "Change"
+    },
+    "appMode": {
+      "title": "App mode",
+      "desc": "Switch between Home Organizer and Moving Planner",
+      "descMobile": "Home Organizer or Moving Planner",
+      "action": "Switch"
+    },
+    "mobileNav": {
+      "title": "Mobile Navigation",
+      "desc": "Customise bottom bar favourites",
+      "action": "Adjust"
+    },
+    "tours": {
+      "title": "Interactive guides",
+      "desc": "Manage page tours and onboarding",
+      "descMobile": "Page tours and onboarding",
+      "action": "Manage"
+    },
+    "household": {
+      "title": "Household & residents",
+      "desc": "Members, roles and household name",
+      "action": "Manage"
+    },
+    "invite": {
+      "title": "Invite members",
+      "desc": "Send invitation link by email",
+      "action": "Invite"
+    },
+    "ai": {
+      "title": "AI settings",
+      "descAdmin": "Configure OpenAI or Ollama",
+      "descMember": "Managed by admin",
+      "action": "Configure"
+    },
+    "imageAnalysis": {
+      "title": "Image analysis",
+      "desc": "Mode for AI-powered invoice recognition",
+      "descMobile": "Mode for invoice recognition",
+      "action": "Change"
+    },
+    "push": {
+      "title": "Push notifications",
+      "desc": "Reminders for tasks, supplies and maintenance",
+      "descMobile": "Reminders for tasks and deadlines",
+      "actionManage": "Manage",
+      "actionActivate": "Activate"
+    },
+    "account": {
+      "title": "Account & security",
+      "desc": "Manage password, email and account",
+      "action": "Manage"
+    }
+  },
+  "mobileTabs": {
+    "general": "General",
+    "household": "Household",
+    "ai": "AI",
+    "security": "Security"
+  },
+  "mobileQuickActions": {
+    "household": "Household",
+    "ai": "AI",
+    "push": "Push",
+    "invite": "Invite",
+    "security": "Security"
+  },
+  "panelContent": {
+    "appMode": {
+      "intro": "Choose which area you primarily use. You can switch at any time.",
+      "movers": "Moving Planner",
+      "moversDesc": "Plan & organise your move",
+      "moversDisabled": "Disabled",
+      "homeOrg": "Home Organizer",
+      "homeOrgDesc": "Manage household & everyday life",
+      "active": "Active",
+      "deactivatedInfo": "Moving Planner is permanently disabled. You will always stay in Home Organizer, even after a restart or on new devices.",
+      "reactivate": "Re-enable Moving Planner",
+      "deactivateInfo": "Move complete? Permanently disable the Moving Planner — it stays saved and can be re-enabled at any time.",
+      "deactivate": "Permanently disable Moving Planner"
+    },
+    "household": {
+      "defaultName": "Your Household",
+      "manageBewohner": "Manage residents",
+      "memberCount": "Household members: {{count}}",
+      "residentCount": "Resident entries: {{count}}",
+      "removeTitle": "Remove member",
+      "editNameTitle": "Edit household name",
+      "profilePicAlt": "Profile picture",
+      "youSuffix": "(You)",
+      "noEmail": "No email",
+      "removeConfirm": "{{name}} will be removed from the household immediately and will lose access.",
+      "removing": "Removing…",
+      "remove": "Remove"
+    },
+    "invite": {
+      "intro": "Invite new people by email. They can join even without an existing account: open the link, register/sign in, and the invitation is accepted automatically.",
+      "creating": "Creating...",
+      "create": "Create invitation",
+      "linkLabel": "Invitation link",
+      "copyLink": "Copy link",
+      "created": "Invitation created.",
+      "copied": "Link copied.",
+      "error": "Failed to create invitation.",
+      "mailSending": "Sending invitation email..."
+    },
+    "ki": {
+      "memberIntro": "The AI configuration is managed by the household admin. You can see the current status here.",
+      "available": "AI available",
+      "yes": "Yes",
+      "providerLabel": "Provider",
+      "imageAnalysisLabel": "Image analysis",
+      "providerSection": "AI provider",
+      "ollamaDesc": "Self-hosted server",
+      "apiKeySection": "OpenAI API key",
+      "ollamaServerSection": "Ollama server",
+      "ollamaUrlHint": "Base URL only, no path — e.g. https://my-server.com or http://localhost:11434",
+      "testBtn": "Test",
+      "connected": "Connected",
+      "notReachable": "Not reachable",
+      "ollamaNote": "Note: In Ollama mode, voice input is processed via the browser's Web Speech API instead of Whisper."
+    },
+    "imageAnalysis": {
+      "intro": "Choose the mode for AI-powered receipt recognition. This setting applies to the entire household.",
+      "chatgptVisionDesc": "GPT-4o analyses the image directly",
+      "ocrRegelnDesc": "Text extraction, no API key required",
+      "ocrOllamaDesc": "OCR text is passed to Ollama",
+      "apiKeySection": "OpenAI API key (image analysis)",
+      "keySet": "Key set:",
+      "deleteKey": "Delete key",
+      "replaceKeyPlaceholder": "Enter new key to replace",
+      "apiKeyNote": "Independent of the AI settings. Only used for receipt analysis.",
+      "ollamaModelSection": "Ollama vision model",
+      "ollamaModelNote": "A separate model for image analysis (must have vision capabilities).",
+      "saveSettings": "Save settings"
+    },
+    "push": {
+      "intro": "Receive notifications even when the app is closed — for tasks, supplies, maintenance, and deadlines.",
+      "iosHint": "On iOS, push notifications must be enabled via Safari and the app must first be added to the Home Screen (Share → Add to Home Screen).",
+      "notSupported": "Push notifications are not supported by this browser.",
+      "active": "Active",
+      "denied": "Denied",
+      "techError": "Technical error",
+      "inactive": "Inactive",
+      "deactivate": "Deactivate",
+      "activate": "Activate",
+      "permissionHint": "Please grant permission in your browser settings.",
+      "shoppingReminder": "Shopping list reminder",
+      "shoppingReminderDesc": "Remind me daily when there are unfinished items in the shopping list",
+      "timeUtc": "Time (UTC):"
+    },
+    "tours": {
+      "statusLabel": "Status:",
+      "loading": "Loading…",
+      "active": "Tours active",
+      "disabled": "Disabled",
+      "undecided": "Not yet decided",
+      "autoTours": "Automatic tours",
+      "on": "On",
+      "off": "Off",
+      "resetAll": "Reset all module tours",
+      "resetDone": "Reset",
+      "autoStartNote": "Automatic start depends on the \"Automatic tours\" setting.",
+      "restartDashboard": "Restart Dashboard tour",
+      "activateAndStart": "Activate tours & start Dashboard tour"
+    },
+    "mobileNav": {
+      "intro": "Customise the {{count}} middle slots of the mobile navigation bar. The first (Home/Dashboard) and last slot (More) are fixed.",
+      "replace": "Replace",
+      "chooseModule": "Choose module:",
+      "resetDefault": "Reset to default",
+      "navUpdated": "Bottom bar updated",
+      "moveUp": "Move up",
+      "moveDown": "Move down"
+    },
+    "account": {
+      "passwordSection": "Password",
+      "sendResetMail": "Send password reset email",
+      "emailSent": "Email has been sent.",
+      "emailSection": "Change email address",
+      "emailConfirmSent": "Confirmation email has been sent.",
+      "emailChangeFailed": "Failed to change email address.",
+      "deleteAccount": "Permanently delete account",
+      "deleteWarning": "All data will be permanently deleted. This action cannot be undone.",
+      "confirmDelete": "Yes, delete account"
+    }
+  }
+}

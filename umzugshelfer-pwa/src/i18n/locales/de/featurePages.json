@@ -1,0 +1,301 @@
+{
+  "common": {
+    "backHome": "Zurück zur Startseite",
+    "details": "Funktionen im Detail"
+  },
+  "budgetTracker": {
+    "icon": "budget",
+    "title": "Budget Tracker: Finanzen fest im Griff",
+    "subtitle": "Behalte deine Umzugskosten im Blick, erfasse Einnahmen und Ausgaben, ordne Kategorien zu und verstehe deine finanzielle Situation auf einen Blick.",
+    "sections": [
+      {
+        "icon": "listPlus",
+        "title": "Schnelle Erfassung von Posten",
+        "body": "Füge Einnahmen und Ausgaben schnell hinzu, von Kautionen bis zu Mietwagen, Kartons und Renovierungsmaterial.",
+        "detail": "Öffne Budget im Dashboard, lege einen neuen Eintrag an und erfasse Beschreibung, Betrag, Typ, Kategorie und Datum. Bestehende Einträge kannst du direkt bearbeiten oder entfernen."
+      },
+      {
+        "icon": "pie",
+        "title": "Kategorien und Überblick",
+        "body": "Ordne jeden Eintrag einer Kategorie wie Transport, Material oder Kaution zu, damit deine Kostenstruktur klar bleibt.",
+        "detail": "Beim Erstellen oder Bearbeiten wählst du eine vorhandene Kategorie oder legst eine neue an. Diagramme und gruppierte Listen zeigen, wofür du am meisten Geld ausgibst."
+      },
+      {
+        "icon": "budget",
+        "title": "Saldo und Visualisierung",
+        "body": "Verfolge den aktuellen Saldo und erkenne Trends, bevor dein Budget aus dem Ruder läuft.",
+        "detail": "Die Budgetübersicht zeigt Einnahmen, Ausgaben und Saldo. Visuelle Auswertungen helfen dir, Ausgaben frühzeitig anzupassen."
+      }
+    ],
+    "ctas": [
+      {
+        "to": "/budget",
+        "label": "Meinen Budget Tracker öffnen"
+      }
+    ]
+  },
+  "contacts": {
+    "icon": "contacts",
+    "title": "Kontakt Manager: alle wichtigen Nummern parat",
+    "subtitle": "Verwalte Umzugshelfer, Handwerker, Unternehmen und Behörden an einem zentralen Ort.",
+    "sections": [
+      {
+        "icon": "contacts",
+        "title": "Zentrale Kontaktdatenbank",
+        "body": "Speichere Namen, Telefonnummern, E-Mail-Adressen, Kategorien und Notizen für alle relevanten Kontakte.",
+        "detail": "Öffne Kontakte im Dashboard, lege einen Kontakt an und fülle die passenden Felder aus. Bestehende Kontakte kannst du direkt bearbeiten oder löschen."
+      },
+      {
+        "icon": "map",
+        "title": "Adressverwaltung",
+        "body": "Speichere Adressen von Unternehmen, Handwerkern, Nachbarn oder anderen Personen rund um den Umzug.",
+        "detail": "Das Kontaktformular enthält ein Adressfeld für Straße, Hausnummer, PLZ und Ort, damit wichtige Orte schnell auffindbar bleiben."
+      },
+      {
+        "icon": "phone",
+        "title": "Schneller Zugriff Überall",
+        "body": "Finde Kontaktdaten schnell auf Desktop oder Smartphone, statt Notizen zu durchsuchen.",
+        "detail": "Da die App eine PWA ist, kannst du sie auf Smartphone oder Tablet verwenden. Suche und Filter helfen dir, die richtige Person schnell zu finden."
+      }
+    ],
+    "ctas": [
+      {
+        "to": "/kontakte",
+        "label": "Meine Kontakte verwalten"
+      }
+    ]
+  },
+  "packingList": {
+    "icon": "package",
+    "title": "Intelligente Packlisten: nie wieder etwas verlieren",
+    "subtitle": "Organisiere Kisten und Gegenstände digital mit QR-Codes, Fotos, Suche und KI-gestützter Erfassung.",
+    "sections": [
+      {
+        "icon": "qr",
+        "title": "QR-Codes für jede Kiste",
+        "body": "Erzeuge für jede Kiste einen eindeutigen QR-Code und scanne ihn später, um den Inhalt sofort zu sehen.",
+        "detail": "In den Packlisten erstellst oder bearbeitest du eine Kiste und generierst ihren QR-Code. Drucke ihn aus, klebe ihn auf die Kiste und scanne ihn bei Bedarf."
+      },
+      {
+        "icon": "camera",
+        "title": "Fotos für Kisten und Gegenstände",
+        "body": "Füge Fotos von gepackten Kisten oder wertvollen Gegenständen hinzu, damit du sie ohne öffnen erkennst.",
+        "detail": "Beim Bearbeiten einer Kiste oder eines Gegenstands kannst du Fotos hochladen oder aufnehmen. Sie erscheinen in der Detailansicht."
+      },
+      {
+        "icon": "brain",
+        "title": "KI-gestützte Inhaltserfassung",
+        "body": "Der Assistent wandelt Text oder diktierte Listen in strukturierte Gegenstände mit Mengen und Kategorien um.",
+        "detail": "Öffne den KI-Packlisten-Assistenten, gib eine Liste ein oder beschreibe eine Kiste und prüfe die Vorschläge vor dem Hinzufügen."
+      },
+      {
+        "icon": "search",
+        "title": "Durchsuchbare Listen",
+        "body": "Finde Kisten und Gegenstände schnell nach Name, Raum oder Inhalt.",
+        "detail": "Nutze das Suchfeld in der Packliste, um dynamisch zu filtern und genau die gesuchte Kiste oder den gesuchten Gegenstand zu finden."
+      }
+    ],
+    "ctas": [
+      {
+        "to": "/packliste",
+        "label": "Zu meiner Packliste"
+      }
+    ]
+  },
+  "qrCode": {
+    "icon": "qr",
+    "title": "QR-Code System: Kisten-Management leicht gemacht",
+    "subtitle": "Kein Raten mehr, was in welcher Kiste ist. QR-Codes verbinden physische Kisten mit deiner digitalen Packliste.",
+    "sections": [
+      {
+        "icon": "qr",
+        "title": "Eindeutige Codes für jede Kiste",
+        "body": "Erzeuge einen QR-Code pro Kiste, drucke ihn aus und bringe ihn sichtbar an.",
+        "detail": "Das QR-Code-System ist Teil der Packliste. Generiere den Code aus der Kistendetailansicht und nutze die Druck- oder Downloadoption."
+      },
+      {
+        "icon": "smartphone",
+        "title": "Scannen mit dem Smartphone",
+        "body": "Nutze deine Smartphone-Kamera Über die App, um den Code auf einer Kiste zu scannen.",
+        "detail": "Starte die Scan-Funktion aus der Packliste, richte die Kamera auf den Code und die App erkennt die Kiste automatisch."
+      },
+      {
+        "icon": "packageSearch",
+        "title": "Sofortige Inhaltsanzeige",
+        "body": "Nach dem Scan Öffnet die App den gespeicherten Kisteninhalt inklusive Mengen, Beschreibungen und Fotos.",
+        "detail": "Du musst nicht jede Kiste öffnen, um einen Gegenstand zu finden. Der Scan führt dich direkt zur passenden digitalen Kiste."
+      }
+    ],
+    "ctas": [
+      {
+        "to": "/packliste",
+        "label": "Zur Packliste und QR-Codes"
+      }
+    ]
+  },
+  "aiAssistants": {
+    "icon": "brain",
+    "title": "KI-Assistenten: intelligente Unterstützung für deinen Umzug",
+    "subtitle": "Nutze KI, um Aufgaben, Packlisteneinträge und strukturierte Vorschläge schneller zu erstellen.",
+    "sections": [
+      {
+        "icon": "listPlus",
+        "title": "Aufgaben aus Text erstellen",
+        "body": "Beschreibe in natürlicher Sprache, was zu tun ist, und lasse Aufgaben, Kategorien und Prioritäten extrahieren.",
+        "detail": "Öffne den KI-Assistenten im To-Do-Modul, gib Notizen oder Fließtext ein und prüfe die vorgeschlagenen Aufgaben vor dem Speichern."
+      },
+      {
+        "icon": "package",
+        "title": "Smarte Packlistenerfassung",
+        "body": "Gib Gegenstände ein oder beschreibe eine Kiste, damit der Assistent Items, Mengen und Kistenzuordnung strukturiert.",
+        "detail": "Der Packlisten-Assistent verarbeitet kommaseparierte Listen, Diktate oder Beschreibungen und bereitet Einträge zur Prüfung vor."
+      },
+      {
+        "icon": "zap",
+        "title": "Vorschläge während der Eingabe",
+        "body": "Die Assistenten können sinnvolle Ergänzungen, Kategorien oder Prioritäten aus typischen Umzugsmustern ableiten.",
+        "detail": "Vertragsbezogene Texte können zu Vertragsaufgaben werden, während Gegenstandslisten Raum- oder Kategorie-Vorschläge erhalten."
+      }
+    ],
+    "ctas": [
+      {
+        "to": "/todos",
+        "label": "Zu den To-Do Listen"
+      },
+      {
+        "to": "/packliste",
+        "label": "Zur Packliste"
+      }
+    ]
+  },
+  "transport": {
+    "icon": "truck",
+    "title": "Transportplaner: Platz und Kosten abschätzen",
+    "subtitle": "Berechne Ladevolumen für Möbel und Kisten und schätze die Transportkosten für den Umzug.",
+    "sections": [
+      {
+        "icon": "ruler",
+        "title": "Volumenrechner",
+        "body": "Erfasse Möbel, Kisten und Mengen, um das gesamte Umzugsvolumen abzuschätzen.",
+        "detail": "Der Planer wandelt dein Inventar in ungefähres Ladevolumen um und empfiehlt eine passende Transportergröße."
+      },
+      {
+        "icon": "budget",
+        "title": "Kostenschätzung",
+        "body": "Kombiniere Distanz, Fahrzeugtyp, Mietdauer und Helferaufwand zu einer Transportkostenschätzung.",
+        "detail": "Nutze die Schätzung als Planungsgrundlage und vergleiche Angebote, bevor du dich für einen Anbieter entscheidest."
+      },
+      {
+        "icon": "package",
+        "title": "Optimierungstipps",
+        "body": "Erhalte praktische Hinweise, um Platz zu sparen und effizienter zu laden.",
+        "detail": "Der Planer macht auf Optionen wie demontierte Möbel, genutzte Hohlräume und einheitlich gepackte Kisten aufmerksam."
+      }
+    ],
+    "ctas": [
+      {
+        "to": "/transport",
+        "label": "Transportplaner öffnen"
+      }
+    ]
+  },
+  "renovation": {
+    "icon": "paint",
+    "title": "Renovierungsplaner: Material und Kosten planen",
+    "subtitle": "Plane Renovierungsarbeiten für alte und neue Wohnung inklusive Farbe, Tapete, Böden und weiteren Materialien.",
+    "sections": [
+      {
+        "icon": "ruler",
+        "title": "Materialrechner",
+        "body": "Schätze Farbe, Tapete, Bodenbelag oder Dämmung aus Raumabmessungen.",
+        "detail": "Wähle die Renovierungsart, erfasse Raumgrößen und Öffnungen und lasse die benötigten Mengen berechnen."
+      },
+      {
+        "icon": "hammer",
+        "title": "Raum- und Flächenverwaltung",
+        "body": "Definiere Räume und Flächen, damit Materialbedarf pro Bereich und für das gesamte Projekt geplant werden kann.",
+        "detail": "Jeder Raum kann Maße, geplante Arbeiten, geschätzte Mengen und Kosten speichern."
+      },
+      {
+        "icon": "checklist",
+        "title": "Kostenübersicht und Einkaufsliste",
+        "body": "Wandle berechnete Materialmengen in eine Einkaufsliste und Kostenschätzung um.",
+        "detail": "Nach der Planung aller Räume kannst du Materialien zusammenfassen und mit Durchschnittspreisen oder eigenen Annahmen budgetieren."
+      }
+    ],
+    "ctas": [
+      {
+        "to": "/renovierung",
+        "label": "Renovierungsplaner öffnen"
+      }
+    ]
+  },
+  "timeline": {
+    "icon": "timer",
+    "title": "Zeitstrahl: den Umzug im Zeitplan halten",
+    "subtitle": "Sieh Aufgaben, Meilensteine und wichtige Termine in chronologischer Reihenfolge.",
+    "sections": [
+      {
+        "icon": "timer",
+        "title": "Automatischer Aufgaben-Zeitstrahl",
+        "body": "Aufgaben mit Fälligkeitsdatum erscheinen automatisch auf einem klaren Zeitstrahl.",
+        "detail": "Einträge aus deinen To-Do-Listen werden nach Datum sortiert, damit du siehst, was als Nächstes ansteht."
+      },
+      {
+        "icon": "check",
+        "title": "Meilensteine und Fortschritt",
+        "body": "Verfolge wichtige Umzugsmeilensteine und markiere erledigte Schritte.",
+        "detail": "Momente wie Vertrag unterschreiben, Schlüsselübergabe oder Ummeldung können neben Aufgaben verfolgt werden."
+      },
+      {
+        "icon": "calendar",
+        "title": "Erinnerungen und Planung",
+        "body": "Nutze den Zeitstrahl, um bevorstehende oder Überfällige Aufgaben rechtzeitig vorzubereiten.",
+        "detail": "Der Zeitstrahl macht kritische Termine sichtbar und unterstützt spätere Erinnerungsabläufe."
+      }
+    ],
+    "ctas": [
+      {
+        "to": "/umzugsplaner",
+        "label": "Umzugsplaner öffnen"
+      }
+    ]
+  },
+  "todoLists": {
+    "icon": "list",
+    "title": "Smarte To-Do Listen: den Überblick behalten",
+    "subtitle": "Verwalte jede Umzugsaufgabe effizient, von Vertragskündigungen bis zur Schlüsselübergabe.",
+    "sections": [
+      {
+        "icon": "check",
+        "title": "Einfache Aufgabenverwaltung",
+        "body": "Erstelle, bearbeite, lösche und erledige Aufgaben mit wenigen Klicks.",
+        "detail": "Öffne To-Do Listen im Dashboard, lege eine Aufgabe an und erfasse Beschreibung, Kategorie, Priorität und optionales Fälligkeitsdatum."
+      },
+      {
+        "icon": "filter",
+        "title": "Automatische Kategorisierung und Priorität",
+        "body": "KI kann Kategorien und Prioritäten aus erkannten Formulierungen in der Aufgabenbeschreibung vorschlagen.",
+        "detail": "Texte zu Verträgen, Versorgern, Packen oder Behörden können passenden Kategorien und Prioritäten zugeordnet werden."
+      },
+      {
+        "icon": "brain",
+        "title": "Vorlagen und KI-Assistent",
+        "body": "Nutze typische Umzugsvorlagen oder lasse den Assistenten aus Notizen strukturierte To-Dos erstellen.",
+        "detail": "Wähle eine Vorlage oder gib Freitext im Assistenten ein, prüfe die extrahierten Aufgaben und speichere sie."
+      },
+      {
+        "icon": "calendar",
+        "title": "Kalenderexport und Erinnerungen",
+        "body": "Exportiere datierte Aufgaben in deinen Kalender und nutze Erinnerungen, um Fristen nicht zu verpassen.",
+        "detail": "Aufgaben mit Fälligkeitsdatum können als Kalendereinträge exportiert und mit Erinnerungsabläufen verbunden werden."
+      }
+    ],
+    "ctas": [
+      {
+        "to": "/todos",
+        "label": "Zu meinen To-Do Listen"
+      }
+    ]
+  }
+}

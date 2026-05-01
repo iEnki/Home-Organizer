@@ -11,14 +11,19 @@ const ASSISTANT_MODEL_TEMPERATURE = 0.2;
 
 const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
 
-const mapAssistantModelError = (error) => {
+const mapAssistantModelError = (error, locale = "de") => {
   if (error instanceof KiProxyError) {
     return error;
   }
-  return new Error(error?.message || "Die KI-Anfrage konnte nicht verarbeitet werden.");
+  return new Error(
+    error?.message ||
+      (locale === "en-GB"
+        ? "The AI request could not be processed."
+        : "Die KI-Anfrage konnte nicht verarbeitet werden."),
+  );
 };
 
-const parseAssistantModelContent = ({ content, expectedType }) => {
+const parseAssistantModelContent = ({ content, expectedType, locale = "de" }) => {
   const cleaned = cleanKiJsonResponse(content, "object");
 
   if (expectedType === "array") {
@@ -31,16 +36,24 @@ const parseAssistantModelContent = ({ content, expectedType }) => {
       const fallback = parseAssistantJson(arrayStr, "array");
       if (Array.isArray(fallback)) return fallback;
     } catch {}
-    throw new Error("Die KI hat kein gueltiges Array geliefert.");
+    throw new Error(
+      locale === "en-GB"
+        ? "The AI did not return a valid array."
+        : "Die KI hat kein gueltiges Array geliefert.",
+    );
   }
 
   return parseAssistantJson(cleaned, "object");
 };
 
-const callAssistantModel = async ({ userId, messages, expectedType = "object" }) => {
+const callAssistantModel = async ({ userId, messages, expectedType = "object", locale = "de" }) => {
   const { client, model, provider } = await getKiClient(userId);
   if (!client || !isKiClientReady({ client, provider })) {
-    throw new Error("KI ist fuer diesen Haushalt nicht konfiguriert.");
+    throw new Error(
+      locale === "en-GB"
+        ? "AI is not configured for this household."
+        : "KI ist fuer diesen Haushalt nicht konfiguriert.",
+    );
   }
 
   let response;
@@ -52,18 +65,22 @@ const callAssistantModel = async ({ userId, messages, expectedType = "object" })
       response_format: { type: "json_object" },
     });
   } catch (error) {
-    throw mapAssistantModelError(error);
+    throw mapAssistantModelError(error, locale);
   }
 
   const content = response?.choices?.[0]?.message?.content || "";
   try {
-    return parseAssistantModelContent({ content, expectedType });
+    return parseAssistantModelContent({ content, expectedType, locale });
   } catch (error) {
     console.error("[assistantAi] JSON parse failed. expectedType:", expectedType, "Raw content:", content);
     throw new Error(
-      expectedType === "array"
-        ? "Die KI-Antwort konnte nicht als JSON-Liste gelesen werden."
-        : "Die KI-Antwort konnte nicht als JSON-Objekt gelesen werden.",
+      locale === "en-GB"
+        ? (expectedType === "array"
+            ? "The AI response could not be read as a JSON list."
+            : "The AI response could not be read as a JSON object.")
+        : (expectedType === "array"
+            ? "Die KI-Antwort konnte nicht als JSON-Liste gelesen werden."
+            : "Die KI-Antwort konnte nicht als JSON-Objekt gelesen werden."),
     );
   }
 };
@@ -205,16 +222,17 @@ const loadSemanticContext = async (userId, householdId) => {
   };
 };
 
-export const answerSemanticHouseholdQuestion = async ({ userId, householdId, question }) => {
+export const answerSemanticHouseholdQuestion = async ({ userId, householdId, question, locale = "de" }) => {
   const { contextText, wissenRefs } = await loadSemanticContext(userId, householdId);
+  const langInstruction = locale === "en-GB" ? "Always respond in English." : "Antworte immer auf Deutsch.";
   const result = await callAssistantModel({
     userId,
     expectedType: "object",
+    locale,
     messages: [
       {
         role: "system",
-        content:
-          'Du bist ein praeziser Haushalts-Assistent. Antworte nur anhand des gelieferten Haushaltskontexts. Wenn Informationen fehlen, sage das klar. Antworte immer als JSON: {"answer":"...","quellen":["W1"]}.',
+        content: `Du bist ein praeziser Haushalts-Assistent. ${langInstruction} Antworte nur anhand des gelieferten Haushaltskontexts. Wenn Informationen fehlen, sage das klar. Antworte immer als JSON: {"answer":"...","quellen":["W1"]}.`,
       },
       {
         role: "user",
@@ -233,18 +251,34 @@ export const answerSemanticHouseholdQuestion = async ({ userId, householdId, que
     }));
 
   return {
-    answer: result?.answer || "Keine Antwort verfuegbar.",
+    answer: result?.answer || (locale === "en-GB" ? "No answer available." : "Keine Antwort verfuegbar."),
     sources,
     payload: isObject(result) ? result : {},
   };
 };
 
-export const classifyAssistantInput = async ({ userId, input, appMode, pathname }) => {
+export const classifyAssistantInput = async ({ userId, input, appMode, pathname, locale = "de" }) => {
   const domainKeys = Object.keys(ASSISTANT_DOMAIN_CONFIG).join(", ");
   const routeKeys = Object.keys(ASSISTANT_ROUTE_MAP).join(", ");
+  const extraKeywords = locale === "en-GB"
+    ? `\nEnglish keyword hints:
+- "add book", "read book", "I own/have a book" -> domain "buecher"
+- "start book scanner", "scan ISBN" -> open_flow, key "buchscanner"
+- "maintenance done", "serviced", "filter changed", "inspection" -> domain "wartungen"
+- "new appliance", "device", "manufacturer", "model", "purchase date" -> domain "geraete"
+- "inventory", "item", "object", "tool" -> domain "inventar"
+- "supplies", "food", "stock" -> domain "vorraete"
+- "cost split", "split", "who paid", "shared expense" -> domain "budget_split"
+- "settlement", "owes", "pay back", "reimburse" -> domain "budget_settlement"
+- "simple budget entry", "expense", "income" -> domain "budget"
+- "task", "todo" (moving) -> domain "todos"; home task -> domain "aufgaben"
+- "where is", "what's missing", "which maintenance", "when did I last" -> semantic_search
+- scan receipt, document analysis -> open_flow`
+    : "";
   return callAssistantModel({
     userId,
     expectedType: "object",
+    locale,
     messages: [
       {
         role: "system",
@@ -268,7 +302,7 @@ Klassifizierungsregeln:
 - Kostenaufteilung, "aufteilen", "split", "wer hat gezahlt/bezahlt", "gemeinsam bezahlt" -> domain "budget_split"
 - Ausgleich, "schuldet", "zurueckzahlen", "erstatten" -> domain "budget_settlement"
 - Einfacher Budget-Eintrag ohne Aufteilung -> domain "budget"
-- Aufgabe, Todo (Umzug) -> domain "todos"; Heimaufgabe/Home-Task -> domain "aufgaben"
+- Aufgabe, Todo (Umzug) -> domain "todos"; Heimaufgabe/Home-Task -> domain "aufgaben"${extraKeywords}
 Antwortformat (exakt dieses JSON-Schema):
 {"intent":"extract_records","domain":"budget","open_flow":null,"reply":"kurze knappe Nutzerantwort","needs_confirmation":true}`,
       },
@@ -290,7 +324,7 @@ const loadBewohnerNamen = async () => {
   }
 };
 
-export const extractAssistantDomainItems = async ({ userId, domain, text }) => {
+export const extractAssistantDomainItems = async ({ userId, domain, text, locale = "de" }) => {
   let contextPrefix = "";
 
   if (domain === "budget_split" || domain === "budget_settlement") {
@@ -313,15 +347,20 @@ export const extractAssistantDomainItems = async ({ userId, domain, text }) => {
     } catch {}
   }
 
+  const langHint = locale === "en-GB"
+    ? "\nNote: The user input may be in English. Extract fields correctly regardless of input language. Always use the exact JSON field names specified."
+    : "";
+
   const prompt = buildDomainExtractionPrompt(domain, text);
   const items = await callAssistantModel({
     userId,
     expectedType: "array",
+    locale,
     messages: [
       {
         role: "system",
         content:
-          'Du bist ein JSON-Extraktor. Antworte ausschliesslich mit einem gueltigen JSON-Objekt im Format {"items":[...]}. Kein Markdown, kein Fliesstext.',
+          `Du bist ein JSON-Extraktor. Antworte ausschliesslich mit einem gueltigen JSON-Objekt im Format {"items":[...]}. Kein Markdown, kein Fliesstext.${langHint}`,
       },
       {
         role: "user",
@@ -331,7 +370,11 @@ export const extractAssistantDomainItems = async ({ userId, domain, text }) => {
   });
 
   if (!Array.isArray(items)) {
-    throw new Error("Die KI hat kein gueltiges Array geliefert.");
+    throw new Error(
+      locale === "en-GB"
+        ? "The AI did not return a valid array."
+        : "Die KI hat kein gueltiges Array geliefert.",
+    );
   }
   return items;
 };

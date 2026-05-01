@@ -1,0 +1,82 @@
+{
+  "app": {
+    "name": "Home Organizer",
+    "moveName": "Umzugsplaner",
+    "loadingAuth": "Authentifizierung wird geladen..."
+  },
+  "actions": {
+    "save": "Speichern",
+    "saving": "Speichern...",
+    "cancel": "Abbrechen",
+    "close": "Schließen",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "add": "Hinzufügen",
+    "apply": "Übernehmen",
+    "create": "Erstellen",
+    "reactivate": "Reaktivieren",
+    "deactivate": "Deaktivieren",
+    "filter": "Filter",
+    "reset": "Zurücksetzen",
+    "done": "Fertig",
+    "saveFailed": "Speichern fehlgeschlagen.",
+    "change": "Ändern",
+    "manage": "Verwalten",
+    "configure": "Konfigurieren",
+    "activate": "Aktivieren",
+    "invite": "Einladen",
+    "switch": "Umschalten",
+    "toggleMenu": "Menü öffnen/schließen"
+  },
+  "status": {
+    "active": "Aktiv",
+    "inactive": "Inaktiv",
+    "blocked": "Blockiert",
+    "error": "Fehler",
+    "saved": "Gespeichert",
+    "configured": "Konfiguriert",
+    "notConfigured": "Nicht konfiguriert",
+    "notSupported": "Nicht unterstützt"
+  },
+  "locale": {
+    "title": "Sprache",
+    "description": "Sprache der App-Oberfläche, Push-Nachrichten, E-Mails und KI-Ausgaben.",
+    "current": "Aktuell: {{language}}",
+    "de": "Deutsch",
+    "en-GB": "Englisch (UK)",
+    "updated": "Sprache gespeichert.",
+    "updateFailed": "Sprache konnte nicht gespeichert werden."
+  },
+  "search": {
+    "placeholder": "Suchen...",
+    "placeholderWithShortcut": "Suchen... (Cmd K)",
+    "open": "Suche öffnen",
+    "close": "Suche schließen",
+    "minChars": "Mindestens 2 Zeichen eingeben.",
+    "noResults": "Keine Treffer."
+  },
+  "auth": {
+    "noSession": "Keine gültige Sitzung vorhanden."
+  },
+  "profile": {
+    "userMenu": "Benutzermenü",
+    "settings": "Einstellungen / Profil",
+    "logout": "Ausloggen",
+    "household": "Haushalt",
+    "residents": "Bewohner",
+    "householdAndResidents": "Haushalt & Bewohner",
+    "member": "Mitglied",
+    "admin": "Admin",
+    "appearance": "Erscheinungsbild",
+    "personal": "Persönlich",
+    "you": "Du"
+  },
+  "theme": {
+    "colorMode": "Farbmodus",
+    "light": "Heller Modus",
+    "dark": "Dunkler Modus"
+  },
+  "notifications": {
+    "title": "Benachrichtigungen"
+  }
+}

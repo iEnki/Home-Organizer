@@ -1,0 +1,15 @@
+{
+  "prompt": {
+    "title": "Start a quick tour?",
+    "description": "I will show you the most important areas of the Home Organizer.",
+    "start": "Start tour",
+    "skip": "Later"
+  },
+  "overlay": {
+    "next": "Next",
+    "back": "Back",
+    "finish": "Done",
+    "skip": "Skip",
+    "close": "End tour"
+  }
+}

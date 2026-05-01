@@ -417,7 +417,12 @@ const getEntryMainCategory = (entry) => {
 const getEntrySubCategory = (entry) =>
   validateSubCategory(entry?.unterkategorie, getEntryMainCategory(entry)) || null;
 
-const buildGroupLabel = (entry) => getEntryMainCategory(entry) || "Ungruppiert";
+const buildGroupLabel = (entry, sortMode = "Kategorie") => {
+  if (sortMode === "Markt") {
+    return getEntrySubCategory(entry) || getEntryMainCategory(entry) || "Ungruppiert";
+  }
+  return getEntryMainCategory(entry) || "Ungruppiert";
+};
 
 export const getSubcategoriesForMainCategory = (mainCategory) =>
   SHOPPING_TAXONOMY[mainCategory] || [];
@@ -531,11 +536,15 @@ export const applyLegacyShoppingFields = (entry) => {
     ? ruleSuggestion?.confidence
     : explicitSubCategory
       ? 0.95
-      : ruleSuggestion?.confidence ?? (legacy.review_noetig ? 0.6 : 0.8);
+      : ruleSuggestion?.confidence ?? (legacy.review_noetig ?? 0.6 : 0.8);
   const confidence = Math.min(
     Math.max(parseNumericValue(entry?.confidence, confidenceFallback), 0),
     0.99
   );
+  const hasTrustedLegacyCategory =
+    legacy.review_noetig === false &&
+    legacy.hauptkategorie === hauptkategorie &&
+    (!legacy.unterkategorie || legacy.unterkategorie === unterkategorie);
 
   return {
     ...entry,
@@ -544,6 +553,8 @@ export const applyLegacyShoppingFields = (entry) => {
     review_noetig:
       typeof entry?.review_noetig === "boolean"
         ? entry.review_noetig && !(confidence >= 0.9 && hauptkategorie !== "Sonstiges")
+        : hasTrustedLegacyCategory
+          ? false
         : confidence < 0.75 || hauptkategorie === "Sonstiges",
     confidence,
     kategorie: hauptkategorie,
@@ -889,8 +900,8 @@ export const sortShoppingEntries = (entries, sortMode) => {
   return [...entries].sort((left, right) => {
     const normalizedLeft = normalizeExistingEntry(left);
     const normalizedRight = normalizeExistingEntry(right);
-    const leftGroup = buildGroupLabel(normalizedLeft);
-    const rightGroup = buildGroupLabel(normalizedRight);
+    const leftGroup = buildGroupLabel(normalizedLeft, sortMode);
+    const rightGroup = buildGroupLabel(normalizedRight, sortMode);
     const leftGroupOrder = getShoppingGroupSortKey(leftGroup, sortMode);
     const rightGroupOrder = getShoppingGroupSortKey(rightGroup, sortMode);
     const leftSubCategory = getEntrySubCategory(normalizedLeft);
@@ -965,7 +976,7 @@ export const buildShoppingGroups = (entries, sortMode = "Markt") => {
   const groupMap = new Map();
   sortShoppingEntries(entries, sortMode).forEach((entry) => {
     const enhancedEntry = normalizeExistingEntry(entry);
-    const label = buildGroupLabel(enhancedEntry);
+    const label = buildGroupLabel(enhancedEntry, sortMode);
     const current = groupMap.get(label) || [];
     current.push(enhancedEntry);
     groupMap.set(label, current);

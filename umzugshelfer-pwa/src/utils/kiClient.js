@@ -5,6 +5,7 @@
  */
 
 import { supabase } from "../supabaseClient";
+import { getSpeechRecognitionLocale } from "./intlFormatters";
 
 const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
 
@@ -97,7 +98,7 @@ const edgeChatClient = {
 };
 
 /**
- * Liefert einen KI-Client, der serverseitig �ber Edge Functions proxied.
+ * Liefert einen KI-Client, der serverseitig ?ber Edge Functions proxied.
  */
 export async function getKiClient(_userId) {
   return {
@@ -118,7 +119,7 @@ export function isKiClientReady({ client }) {
 /**
  * Startet die Web Speech API fuer Spracheingabe.
  */
-export function startSpeechRecognition(onResult, onError) {
+export function startSpeechRecognition(onResult, onError, locale = "de") {
   const SpeechRecognition =
     window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -130,7 +131,7 @@ export function startSpeechRecognition(onResult, onError) {
   }
 
   const recognition = new SpeechRecognition();
-  recognition.lang = "de-DE";
+  recognition.lang = getSpeechRecognitionLocale(locale);
   recognition.continuous = false;
   recognition.interimResults = false;
   recognition.maxAlternatives = 1;

@@ -1,6 +1,7 @@
 import { getKiClient, cleanKiJsonResponse } from "./kiClient";
 import { extractTextFromFile } from "./rechnungAnalyse";
 import { fileToBase64 } from "./imageTools";
+import { buildInvoiceKnowledgeContent, normalizeKnowledgeLocale } from "./localizedKnowledge";
 
 const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
 
@@ -81,13 +82,19 @@ const DOCUMENT_ANALYSIS_RULES = `Wichtige Regeln:
 - Wenn ein Wert unklar ist, gib null oder lasse ihn vorsichtig weg.
 - "highlights" sind fuer eine kleine Visitenkarte gedacht und muessen sofort hilfreich sein.
 - "details" enthalten label/value-Paare fuer die Detailansicht.
-- "warnings" enthalten nur echte Risiken, Fristen oder Dinge, die man leicht uebersehen kann.
+- "warnings" enthalten nur echte Risiken, Fristen oder Dinge, die man leicht übersehen kann.
 - "documentType" ist die Dokumentansicht im Archiv. "category" ist die Wissenskategorie.
 - "confidence" ist 0 bis 1.
 - "requiresReview" ist true, wenn das Dokument unscharf, unvollstaendig oder schwer sicher einzuordnen ist.`;
 
-const buildTextPrompt = (dateiname, text) => `Du analysierst ein Dokument fuer eine Haushalts-Wissensdatenbank.
+const outputLanguageLabel = (locale) =>
+  normalizeKnowledgeLocale(locale) === "en-GB" ? "English (United Kingdom)" : "German";
+
+const buildTextPrompt = (dateiname, text, locale = "de") => `Du analysierst ein Dokument fuer eine Haushalts-Wissensdatenbank.
 Erkenne Dokumentart, Untertyp, Kerndaten, Tags und die wichtigsten Punkte auf einen Blick.
+Das Dokument kann Deutsch oder Englisch sein. Erkenne beide Sprachen gleichwertig.
+Natuerliche Texte in title, headline, highlights, details, warnings und summaryText sollen in ${outputLanguageLabel(locale)} geschrieben werden.
+Eigennamen, Produktnamen, Vertragsnummern, Rechnungsnummern, Datumswerte und Betraege bleiben unveraendert.
 
 Dateiname: ${dateiname || "Unbekannt"}
 
@@ -99,8 +106,11 @@ ${DOCUMENT_ANALYSIS_RULES}
 Dokumenttext:
 ${text}`;
 
-const buildVisionPrompt = (dateiname) => `Du analysierst ein Dokument-Bild fuer eine Haushalts-Wissensdatenbank.
+const buildVisionPrompt = (dateiname, locale = "de") => `Du analysierst ein Dokument-Bild fuer eine Haushalts-Wissensdatenbank.
 Erkenne Dokumentart, Untertyp, Kerndaten, Tags und die wichtigsten Punkte auf einen Blick.
+Das Dokument kann Deutsch oder Englisch sein. Erkenne beide Sprachen gleichwertig.
+Natuerliche Texte in title, headline, highlights, details, warnings und summaryText sollen in ${outputLanguageLabel(locale)} geschrieben werden.
+Eigennamen, Produktnamen, Vertragsnummern, Rechnungsnummern, Datumswerte und Betraege bleiben unveraendert.
 
 Dateiname: ${dateiname || "Unbekannt"}
 
@@ -205,6 +215,19 @@ export const buildKnowledgeSummaryText = (analysis) => {
   return parts.filter(Boolean).join("\n\n").trim();
 };
 
+export const buildLocalizedKnowledgeContent = (analysis, locale = "de", titleOverride = null, contentOverride = null) => {
+  const normalizedLocale = normalizeKnowledgeLocale(locale);
+  const isInvoice = analysis?.documentClass === "rechnung" || analysis?.documentType === "rechnung";
+  const content = isInvoice
+    ? buildInvoiceKnowledgeContent(analysis, normalizedLocale)
+    : (contentOverride || buildKnowledgeSummaryText(analysis));
+  return {
+    title: titleOverride || analysis?.title || "",
+    content,
+    headline: analysis?.headline || content,
+  };
+};
+
 export const normalizeDocumentKnowledgeAnalysis = (raw, dok, source) => {
   const documentClassRaw = normalizeText(raw?.documentClass)?.toLowerCase();
   const documentClass = ALLOWED_DOCUMENT_CLASSES.includes(documentClassRaw)
@@ -240,7 +263,7 @@ export const normalizeDocumentKnowledgeAnalysis = (raw, dok, source) => {
   };
 };
 
-const callVisionAnalysis = async ({ base64, mimeType, session, dateiname }) => {
+const callVisionAnalysis = async ({ base64, mimeType, session, dateiname, locale = "de" }) => {
   if (!SUPABASE_URL) {
     throw new Error("REACT_APP_SUPABASE_URL fehlt.");
   }
@@ -255,7 +278,8 @@ const callVisionAnalysis = async ({ base64, mimeType, session, dateiname }) => {
       mode: "chatgpt_vision",
       file_base64: base64,
       mime_type: mimeType,
-      prompt: buildVisionPrompt(dateiname),
+      prompt: buildVisionPrompt(dateiname, locale),
+      locale,
     }),
   });
 
@@ -266,17 +290,17 @@ const callVisionAnalysis = async ({ base64, mimeType, session, dateiname }) => {
   return parseJsonObject(json?.text || "");
 };
 
-const callTextAnalysis = async ({ text, dateiname, userId }) => {
+const callTextAnalysis = async ({ text, dateiname, userId, locale = "de" }) => {
   const kiClient = await getKiClient(userId);
   const response = await kiClient.client.chat.completions.create({
-    messages: [{ role: "user", content: buildTextPrompt(dateiname, text) }],
+    messages: [{ role: "user", content: buildTextPrompt(dateiname, text, locale) }],
     temperature: 0.1,
   });
   const rawText = response?.choices?.[0]?.message?.content ?? "";
   return parseJsonObject(rawText);
 };
 
-export const analyzeDocumentForKnowledge = async ({ file, dok, session, userId }) => {
+export const analyzeDocumentForKnowledge = async ({ file, dok, session, userId, locale = "de" }) => {
   const mimeType = file?.type || dok?.datei_typ || "";
   const isPdf = mimeType.includes("pdf") || /\.pdf$/i.test(dok?.dateiname || "");
   const isImage = mimeType.startsWith("image/") || /\.(png|jpe?g|webp|gif|bmp|heic|heif)$/i.test(dok?.dateiname || "");
@@ -296,6 +320,7 @@ export const analyzeDocumentForKnowledge = async ({ file, dok, session, userId }
       text: extracted.text,
       dateiname: dok?.dateiname,
       userId,
+      locale,
     });
 
     return {
@@ -313,6 +338,7 @@ export const analyzeDocumentForKnowledge = async ({ file, dok, session, userId }
       mimeType,
       session,
       dateiname: dok?.dateiname,
+      locale,
     });
 
     return {

@@ -70,12 +70,14 @@ const addMonthsClamped = (dateStr, monthsToAdd) => {
 export const calcNaechstesDatum = (datum, intervallStr) => {
   switch (intervallStr) {
     case "Täglich": {
-      const d = new Date(`${datum}T00:00:00`);
+      const [y, m, day] = datum.split("-").map(Number);
+      const d = new Date(y, m - 1, day);
       d.setDate(d.getDate() + 1);
       return getLocalDateString(d);
     }
     case "Wöchentlich": {
-      const d = new Date(`${datum}T00:00:00`);
+      const [y, m, day] = datum.split("-").map(Number);
+      const d = new Date(y, m - 1, day);
       d.setDate(d.getDate() + 7);
       return getLocalDateString(d);
     }

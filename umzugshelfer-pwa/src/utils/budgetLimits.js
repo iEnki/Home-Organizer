@@ -1,16 +1,20 @@
+const toCents = (value) => Math.round(Number(value || 0) * 100);
+
 export const getLimitProgress = ({ verbrauch, limitEuro }) => {
-  const normalizedLimit = Number(limitEuro || 0);
-  if (normalizedLimit <= 0) return 0;
-  return Math.min((Number(verbrauch || 0) / normalizedLimit) * 100, 100);
+  const limitCents = toCents(limitEuro);
+  if (limitCents <= 0) return 0;
+  const verbrauchCents = toCents(verbrauch);
+  return Math.min((verbrauchCents / limitCents) * 100, 100);
 };
 
 export const getLimitStatus = ({ verbrauch, limitEuro }) => {
-  const normalizedLimit = Number(limitEuro || 0);
-  if (normalizedLimit <= 0) return "kein_limit";
-  if (Number(verbrauch || 0) >= normalizedLimit) return "ueberschritten";
+  const limitCents = toCents(limitEuro);
+  if (limitCents <= 0) return "kein_limit";
+  const verbrauchCents = toCents(verbrauch);
+  if (verbrauchCents >= limitCents) return "ueberschritten";
 
-  const progress = getLimitProgress({ verbrauch, limitEuro });
-  if (progress >= 75) return "warnung";
+  // Cents-basierter Vergleich vermeidet Floating-Point-Drift bei genau 75 %.
+  if (verbrauchCents * 100 >= limitCents * 75) return "warnung";
   return "ok";
 };
 
@@ -38,10 +42,10 @@ export const formatLimitMeta = ({ verbrauch, limitEuro, progress, status, fmt })
       hintText: `${remainingPercent.toFixed(0)} % verbleibend`,
     },
     ueberschritten: {
-      label: "Ueberschritten",
+      label: "Überschritten",
       badgeClass: "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400",
       barClass: "bg-red-500",
-      hintText: "Budget ueberschritten!",
+      hintText: "Budget überschritten!",
     },
   };
 

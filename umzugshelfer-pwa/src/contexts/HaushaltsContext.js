@@ -79,7 +79,18 @@ export const HaushaltsProvider = ({ session, children }) => {
       return;
     }
     setLadeStatus("laden");
-    Promise.all([ladeHaushalt(), ladeAusstehendeEinladungen()]);
+    let cancelled = false;
+    (async () => {
+      try {
+        await Promise.all([ladeHaushalt(), ladeAusstehendeEinladungen()]);
+      } catch (err) {
+        if (!cancelled) {
+          console.error("[HaushaltsContext] Laden fehlgeschlagen:", err);
+          setLadeStatus("kein_haushalt");
+        }
+      }
+    })();
+    return () => { cancelled = true; };
   }, [userId, ladeHaushalt, ladeAusstehendeEinladungen]);
 
   // ── Realtime: Mitgliedschaft überwachen ───────────────────────────────────────

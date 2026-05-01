@@ -1,0 +1,233 @@
+{
+  "chips": {
+    "appMode": "App-Modus",
+    "push": "Push",
+    "ai": "KI",
+    "household": "Haushalt"
+  },
+  "sidebar": {
+    "manageHousehold": "Haushalt verwalten",
+    "inviteMember": "Mitglied einladen",
+    "configureAI": "KI konfigurieren",
+    "pushNotifications": "Push-Benachrichtigungen"
+  },
+  "groups": {
+    "personal": "Persönlich",
+    "household": "Haushalt",
+    "intelligence": "Intelligenz & Analyse",
+    "notifications": "Benachrichtigungen & Sicherheit"
+  },
+  "ki": {
+    "openAiConfigured": "OpenAI konfiguriert",
+    "ollamaConfigured": "Ollama konfiguriert"
+  },
+  "members": {
+    "count_one": "{{count}} Mitglied",
+    "count_other": "{{count}} Mitglieder",
+    "loading": "Laden…"
+  },
+  "panels": {
+    "appearance": "Erscheinungsbild",
+    "appMode": "App-Modus",
+    "household": "Haushalt & Bewohner",
+    "invite": "Mitglieder einladen",
+    "ai": "KI-Einstellungen",
+    "imageAnalysis": "Bildanalyse",
+    "push": "Push-Benachrichtigungen",
+    "tours": "Interaktive Anleitungen",
+    "mobileNav": "Mobile Navigation",
+    "account": "Account & Sicherheit"
+  },
+  "cards": {
+    "appearance": {
+      "title": "Erscheinungsbild",
+      "desc": "Farbmodus und visuelle Einstellungen",
+      "descMobile": "Farbmodus umschalten",
+      "action": "Ändern"
+    },
+    "appMode": {
+      "title": "App-Modus",
+      "desc": "Zwischen Home Organizer und Umzugsplaner wechseln",
+      "descMobile": "Home Organizer oder Umzugsplaner",
+      "action": "Umschalten"
+    },
+    "mobileNav": {
+      "title": "Mobile Navigation",
+      "desc": "Bottombar-Favoriten anpassen",
+      "action": "Anpassen"
+    },
+    "tours": {
+      "title": "Interaktive Anleitungen",
+      "desc": "Seitentouren und Onboarding verwalten",
+      "descMobile": "Seitentouren und Onboarding",
+      "action": "Verwalten"
+    },
+    "household": {
+      "title": "Haushalt & Bewohner",
+      "desc": "Mitglieder, Rollen und Haushaltsname",
+      "action": "Verwalten"
+    },
+    "invite": {
+      "title": "Mitglieder einladen",
+      "desc": "Einladungslink per E-Mail versenden",
+      "action": "Einladen"
+    },
+    "ai": {
+      "title": "KI-Einstellungen",
+      "descAdmin": "OpenAI oder Ollama konfigurieren",
+      "descMember": "Vom Admin verwaltet",
+      "action": "Konfigurieren"
+    },
+    "imageAnalysis": {
+      "title": "Bildanalyse",
+      "desc": "Modus für KI-gestützte Rechnungserkennung",
+      "descMobile": "Modus für Rechnungserkennung",
+      "action": "Ändern"
+    },
+    "push": {
+      "title": "Push-Benachrichtigungen",
+      "desc": "Erinnerungen für Aufgaben, Vorräte und Wartungen",
+      "descMobile": "Erinnerungen für Aufgaben und Deadlines",
+      "actionManage": "Verwalten",
+      "actionActivate": "Aktivieren"
+    },
+    "account": {
+      "title": "Account & Sicherheit",
+      "desc": "Passwort, E-Mail und Account verwalten",
+      "action": "Verwalten"
+    }
+  },
+  "mobileTabs": {
+    "general": "Allgemein",
+    "household": "Haushalt",
+    "ai": "KI",
+    "security": "Sicherheit"
+  },
+  "mobileQuickActions": {
+    "household": "Haushalt",
+    "ai": "KI",
+    "push": "Push",
+    "invite": "Einladen",
+    "security": "Sicherheit"
+  },
+  "panelContent": {
+    "appMode": {
+      "intro": "Wähle, welchen Bereich du primär nutzt. Du kannst jederzeit wechseln.",
+      "movers": "Umzugplaner",
+      "moversDesc": "Umzug planen & organisieren",
+      "moversDisabled": "Deaktiviert",
+      "homeOrg": "Home Organizer",
+      "homeOrgDesc": "Haushalt & Alltag verwalten",
+      "active": "Aktiv",
+      "deactivatedInfo": "Umzugsplaner ist dauerhaft deaktiviert. Du bleibst immer im Home Organizer, auch nach einem Neustart oder auf neuen Geräten.",
+      "reactivate": "Umzugsplaner wieder aktivieren",
+      "deactivateInfo": "Umzug abgeschlossen? Den Umzugsplaner dauerhaft deaktivieren – er bleibt gespeichert und kann jederzeit reaktiviert werden.",
+      "deactivate": "Umzugsplaner dauerhaft deaktivieren"
+    },
+    "household": {
+      "defaultName": "Dein Haushalt",
+      "manageBewohner": "Bewohner verwalten",
+      "memberCount": "Haushaltsmitglieder: {{count}}",
+      "residentCount": "Bewohner-Einträge: {{count}}",
+      "removeTitle": "Mitglied entfernen",
+      "editNameTitle": "Haushaltsname bearbeiten",
+      "profilePicAlt": "Profilbild",
+      "youSuffix": "(Du)",
+      "noEmail": "Keine E-Mail",
+      "removeConfirm": "{{name}} wird sofort aus dem Haushalt entfernt und verliert den Zugriff.",
+      "removing": "Wird entfernt…",
+      "remove": "Entfernen"
+    },
+    "invite": {
+      "intro": "Lade neue Personen per E-Mail ein. Sie können auch ohne bestehenden Account beitreten: Link öffnen, registrieren/anmelden und Einladung wird direkt angenommen.",
+      "creating": "Erstelle...",
+      "create": "Einladung erstellen",
+      "linkLabel": "Einladungslink",
+      "copyLink": "Link kopieren",
+      "created": "Einladung erstellt.",
+      "copied": "Link kopiert.",
+      "error": "Fehler beim Erstellen der Einladung.",
+      "mailSending": "Einladungs-Mail wird versendet..."
+    },
+    "ki": {
+      "memberIntro": "Die KI-Konfiguration wird vom Haushalts-Admin verwaltet. Du siehst hier den aktuellen Status.",
+      "available": "KI verfügbar",
+      "yes": "Ja",
+      "providerLabel": "Provider",
+      "imageAnalysisLabel": "Bildanalyse",
+      "providerSection": "KI-Provider",
+      "ollamaDesc": "Eigener Server",
+      "apiKeySection": "OpenAI API-Key",
+      "ollamaServerSection": "Ollama Server",
+      "ollamaUrlHint": "Nur die Basis-URL ohne Pfad, z.B. https://mein-server.de oder http://localhost:11434",
+      "testBtn": "Testen",
+      "connected": "Verbunden",
+      "notReachable": "Nicht erreichbar",
+      "ollamaNote": "Hinweis: Im Ollama-Modus wird die Spracheingabe über die Browser-Spracherkennung (Web Speech API) verarbeitet statt über Whisper."
+    },
+    "imageAnalysis": {
+      "intro": "Wähle den Modus für die KI-gestützte Rechnungserkennung. Diese Einstellung gilt für den gesamten Haushalt.",
+      "chatgptVisionDesc": "GPT-4o analysiert das Bild direkt",
+      "ocrRegelnDesc": "Textextraktion, kein API-Key nötig",
+      "ocrOllamaDesc": "OCR-Text wird an Ollama übergeben",
+      "apiKeySection": "OpenAI API-Key (Bildanalyse)",
+      "keySet": "Key gesetzt:",
+      "deleteKey": "Key löschen",
+      "replaceKeyPlaceholder": "Neuen Key eingeben um zu ersetzen",
+      "apiKeyNote": "Unabhängig von den KI-Einstellungen. Wird nur für die Rechnungsanalyse verwendet.",
+      "ollamaModelSection": "Ollama Vision-Modell",
+      "ollamaModelNote": "Separates Modell für die Bildanalyse (muss Vision-Fähigkeiten haben).",
+      "saveSettings": "Einstellungen speichern"
+    },
+    "push": {
+      "intro": "Erhalte Benachrichtigungen auch wenn die App geschlossen ist – für Aufgaben, Vorräte, Wartungen und Deadlines.",
+      "iosHint": "Auf iOS müssen Push-Nachrichten über Safari aktiviert werden und die App muss zuerst zum Homescreen hinzugefügt werden (Teilen → Zum Home-Bildschirm).",
+      "notSupported": "Push-Benachrichtigungen werden von diesem Browser nicht unterstützt.",
+      "active": "Aktiv",
+      "denied": "Verweigert",
+      "techError": "Technischer Fehler",
+      "inactive": "Inaktiv",
+      "deactivate": "Deaktivieren",
+      "activate": "Aktivieren",
+      "permissionHint": "Bitte erteile die Berechtigung in den Browser-Einstellungen.",
+      "shoppingReminder": "Einkaufsliste-Erinnerung",
+      "shoppingReminderDesc": "Täglich erinnern, wenn unerledigte Einkäufe in der Liste vorhanden sind",
+      "timeUtc": "Uhrzeit (UTC):"
+    },
+    "tours": {
+      "statusLabel": "Status:",
+      "loading": "Lädt…",
+      "active": "Touren aktiv",
+      "disabled": "Deaktiviert",
+      "undecided": "Noch nicht entschieden",
+      "autoTours": "Automatische Touren",
+      "on": "An",
+      "off": "Aus",
+      "resetAll": "Alle Modul-Touren zurücksetzen",
+      "resetDone": "Zurückgesetzt",
+      "autoStartNote": "Automatischer Start hängt von der Einstellung \"Automatische Touren\" ab.",
+      "restartDashboard": "Dashboard-Tour neu starten",
+      "activateAndStart": "Touren aktivieren & Dashboard-Tour starten"
+    },
+    "mobileNav": {
+      "intro": "Passe die {{count}} mittleren Slots der mobilen Navigationsleiste an. Der erste (Home/Dashboard) und letzte Slot (Mehr) sind fest.",
+      "replace": "Ersetzen",
+      "chooseModule": "Modul wählen:",
+      "resetDefault": "Auf Standard zurücksetzen",
+      "navUpdated": "Bottombar aktualisiert",
+      "moveUp": "Nach oben",
+      "moveDown": "Nach unten"
+    },
+    "account": {
+      "passwordSection": "Passwort",
+      "sendResetMail": "Passwort-Reset-Mail senden",
+      "emailSent": "E-Mail wurde gesendet.",
+      "emailSection": "E-Mail-Adresse ändern",
+      "emailConfirmSent": "Bestätigungs-Mail wurde gesendet.",
+      "emailChangeFailed": "Fehler beim Ändern der E-Mail.",
+      "deleteAccount": "Account unwiderruflich löschen",
+      "deleteWarning": "Alle Daten werden dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "confirmDelete": "Ja, Account löschen"
+    }
+  }
+}
