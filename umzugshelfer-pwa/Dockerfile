@@ -11,12 +11,13 @@ COPY package*.json ./
 # CI=true stellt sicher, dass Warnungen nicht als Fehler behandelt werden und Tests nicht interaktiv laufen.
 # Die vorherige komplexe Installationszeile wird durch `npm ci` ersetzt, 
 # was auf Basis der package-lock.json alle Abhängigkeiten (inkl. devDependencies) installiert.
-RUN npm ci
+RUN npm ci --ignore-scripts
 # Oder einfach:
 # RUN npm install
 
 # Kopiere den Rest der Anwendungsdateien
 COPY . .
+RUN npm run postinstall
 
 # Deklariere die Build-Argumente, die von docker-compose übergeben werden
 ARG REACT_APP_SUPABASE_URL
