@@ -23,7 +23,7 @@ import { notifyHouseholdEvent } from "../../utils/pushNotifications";
 
 const KATEGORIEN = ["Haushalt", "Lebensmittel", "Hygiene", "Reinigung", "Technik", "Sonstiges"];
 const EINHEITEN = [
-  "Stueck",
+  "Stück",
   "Packung",
   "Liter",
   "ml",
@@ -34,7 +34,7 @@ const EINHEITEN = [
   "Rolle",
   "Sack",
   "Beutel",
-  "Tuete",
+  "Tüte",
   "Tube",
   "Glas",
   "Becher",
@@ -46,9 +46,9 @@ const EINHEITEN = [
 
 const normalizeUnit = (value) => {
   const raw = String(value || "");
-  if (raw === "Stueck" || (raw.startsWith("St") && raw.endsWith("ck"))) return "Stueck";
-  if (raw === "Tuete" || (raw.startsWith("T") && raw.endsWith("te"))) return "Tuete";
-  return value || "Stueck";
+  if (raw === "Stueck" || raw === "Stück" || (raw.startsWith("St") && raw.endsWith("ck"))) return "Stück";
+  if (raw === "Tuete" || raw === "Tüte" || (raw.startsWith("T") && raw.endsWith("te"))) return "Tüte";
+  return value || "Stück";
 };
 
 const VorratForm = ({ initial, onSpeichern, onAbbrechen }) => {
@@ -178,40 +178,60 @@ const HomeVorraete = ({ session }) => {
 
   useEffect(() => { ladeDaten(); }, [ladeDaten]);
 
+  const buildVorratPayload = (daten, includeUser = false) => ({
+    ...(includeUser ? { user_id: userId } : {}),
+    name: String(daten.name || "").trim(),
+    kategorie: daten.kategorie || "Haushalt",
+    einheit: normalizeUnit(daten.einheit),
+    bestand: Number.isFinite(Number(daten.bestand)) ? Number(daten.bestand) : 0,
+    mindestmenge: Number.isFinite(Number(daten.mindestmenge)) ? Number(daten.mindestmenge) : 1,
+    ablaufdatum: daten.ablaufdatum || null,
+    notizen: daten.notizen?.trim() || null,
+  });
+
   const speichere = async (daten) => {
-    const payload = { ...daten, user_id: userId };
-    if (modal?.id) {
-      await supabase.from("home_vorraete").update(daten).eq("id", modal.id);
-      await notifyHouseholdEvent({
-        userId,
-        table: "home_vorraete",
-        action: "geaendert",
-        recordName: daten.name,
-        recordId: modal.id,
-        url: "/home/vorraete",
-        push: false,
-      });
-    } else {
-      const { data: neuerVorrat } = await supabase
-        .from("home_vorraete")
-        .insert(payload)
-        .select("id, name")
-        .single();
-      await notifyHouseholdEvent({
-        userId,
-        table: "home_vorraete",
-        action: "erstellt",
-        recordName: neuerVorrat?.name || daten.name,
-        recordId: neuerVorrat?.id,
-        url: "/home/vorraete",
-      });
+    try {
+      if (modal?.id) {
+        const payload = buildVorratPayload(daten, false);
+        const { error } = await supabase.from("home_vorraete").update(payload).eq("id", modal.id);
+        if (error) throw error;
+        await notifyHouseholdEvent({
+          userId,
+          table: "home_vorraete",
+          action: "geaendert",
+          recordName: payload.name,
+          recordId: modal.id,
+          url: "/home/vorraete",
+          push: false,
+        });
+      } else {
+        const payload = buildVorratPayload(daten, true);
+        const { data: neuerVorrat, error } = await supabase
+          .from("home_vorraete")
+          .insert(payload)
+          .select("id, name")
+          .single();
+        if (error) throw error;
+        await notifyHouseholdEvent({
+          userId,
+          table: "home_vorraete",
+          action: "erstellt",
+          recordName: neuerVorrat?.name || payload.name,
+          recordId: neuerVorrat?.id,
+          url: "/home/vorraete",
+        });
+      }
+      setModal(null);
+      await ladeDaten();
+      toast.success(t("common:feedback.saved", { defaultValue: "Gespeichert." }));
+    } catch (error) {
+      console.error("Vorrat konnte nicht gespeichert werden", error);
+      setFehler(error?.message || t("home:stockForm.saveError", { defaultValue: "Vorrat konnte nicht gespeichert werden." }));
+      toast.error(t("home:stockForm.saveError", { defaultValue: "Vorrat konnte nicht gespeichert werden." }));
     }
-    setModal(null);
-    ladeDaten();
   };
 
   const loesche = async (id) => {
-    if (!window.confirm(t("home:stockForm.deleteConfirm"))) return;
     const vorrat = vorraete.find((eintrag) => eintrag.id === id);
     await supabase.from("home_vorraete").delete().eq("id", id);
     await notifyHouseholdEvent({

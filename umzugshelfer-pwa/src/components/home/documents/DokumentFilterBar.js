@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Search, Upload, List, LayoutGrid, X } from "lucide-react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { formatMonatLabel } from "../../../utils/dokumentArchiv";
 
 const KATEGORIEN = [
@@ -37,6 +38,7 @@ export default function DokumentFilterBar({
 }) {
   const { t } = useTranslation(["documents","common"]);
   void t;
+  const reduced = useReducedMotion();
 
   const hatAktivenFilter =
     kategorieFilter !== "Alle" ||
@@ -63,7 +65,10 @@ export default function DokumentFilterBar({
   const STATUS_LABEL = { budget: "Im Budget", wissen: "Als Wissen", offen: "Offen (Rechnung)" };
 
   return (
-    <div
+    <motion.div
+      initial={reduced ? false : { opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: "spring", stiffness: 360, damping: 32, delay: 0.08 }}
       className="sticky top-[72px] z-10 -mx-1 min-w-0 overflow-x-hidden px-1 py-1
                  bg-light-bg/90 dark:bg-canvas-1/90 backdrop-blur-sm"
     >
@@ -91,13 +96,14 @@ export default function DokumentFilterBar({
           </div>
 
           <div className="flex w-full min-w-0 items-center justify-between gap-2 sm:w-auto sm:min-w-fit sm:justify-start">
-            <button
+            <motion.button
               data-tour="tour-dokumente-upload"
               onClick={onUpload}
+              whileTap={reduced ? {} : { scale: 0.95 }}
               className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill transition-colors whitespace-nowrap flex-shrink-0"
             >
               <Upload size={13} /> Hochladen
-            </button>
+            </motion.button>
 
             <div className="flex items-center rounded-card-sm border border-light-border dark:border-dark-border overflow-hidden flex-shrink-0">
               <button
@@ -133,9 +139,11 @@ export default function DokumentFilterBar({
               const anzahl = kat === "Alle" ? undefined : (kategorieZaehlung[kat] || 0);
               if (kat !== "Alle" && anzahl === 0) return null;
               return (
-                <button
+                <motion.button
                   key={kat}
                   onClick={() => onKategorie(kat)}
+                  whileTap={reduced ? {} : { scale: 0.93 }}
+                  whileHover={reduced ? {} : { scale: 1.04, transition: { type: "spring", stiffness: 500, damping: 28 } }}
                   className={`flex items-center gap-1 px-2.5 py-1 rounded-pill text-xs font-medium whitespace-nowrap transition-colors border flex-shrink-0 ${
                     aktiv
                       ? "bg-primary-500 text-white border-primary-500"
@@ -148,7 +156,7 @@ export default function DokumentFilterBar({
                       {anzahl}
                     </span>
                   )}
-                </button>
+                </motion.button>
               );
             })}
           </div>
@@ -201,66 +209,115 @@ export default function DokumentFilterBar({
           </select>
         </div>
 
-        {hatAktivenFilter && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-              {anzahlGefiltert} {anzahlGefiltert === 1 ? "Dokument" : "Dokumente"}
-            </span>
-
-            {kategorieFilter !== "Alle" && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary-500/10 text-primary-500 border border-primary-500/20">
-                {kategorieFilter}
-                <button onClick={() => onKategorie("Alle")} className="hover:text-primary-600">
-                  <X size={10} />
-                </button>
-              </span>
-            )}
-
-            {monatFilter !== "alle" && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary-500/10 text-primary-500 border border-primary-500/20">
-                {formatMonatLabel(monatFilter)}
-                <button onClick={() => onMonat("alle")} className="hover:text-primary-600">
-                  <X size={10} />
-                </button>
-              </span>
-            )}
-
-            {jahrFilter !== "alle" && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary-500/10 text-primary-500 border border-primary-500/20">
-                {jahrFilter}
-                <button onClick={() => onJahr("alle")} className="hover:text-primary-600">
-                  <X size={10} />
-                </button>
-              </span>
-            )}
-
-            {sortierung !== "neueste" && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary-500/10 text-primary-500 border border-primary-500/20">
-                {sortierung === "aelteste" ? "Aelteste zuerst" : "Name A-Z"}
-                <button onClick={() => onSortierung("neueste")} className="hover:text-primary-600">
-                  <X size={10} />
-                </button>
-              </span>
-            )}
-
-            {statusFilter !== "alle" && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary-500/10 text-primary-500 border border-primary-500/20">
-                {STATUS_LABEL[statusFilter]}
-                <button onClick={() => onStatus("alle")} className="hover:text-primary-600">
-                  <X size={10} />
-                </button>
-              </span>
-            )}
-
-            <button
-              onClick={resetAlleFilter}
-              className="text-xs text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main underline underline-offset-2"
+        {/* Aktive Filter-Chips — AnimatePresence für sanftes Ein-/Ausblenden */}
+        <AnimatePresence>
+          {hatAktivenFilter && (
+            <motion.div
+              key="filter-chips"
+              initial={reduced ? false : { opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={reduced ? {} : { opacity: 0, height: 0, transition: { duration: 0.18 } }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="overflow-hidden"
             >
-              Alle zurücksetzen
-            </button>
-          </div>
-        )}
+              <div className="flex items-center gap-2 flex-wrap pt-1">
+                <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  {anzahlGefiltert} {anzahlGefiltert === 1 ? "Dokument" : "Dokumente"}
+                </span>
+
+                <AnimatePresence>
+                  {kategorieFilter !== "Alle" && (
+                    <motion.span
+                      key="chip-kat"
+                      initial={reduced ? false : { opacity: 0, scale: 0.88 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={reduced ? {} : { opacity: 0, scale: 0.88 }}
+                      transition={{ type: "spring", stiffness: 420, damping: 28 }}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary-500/10 text-primary-500 border border-primary-500/20"
+                    >
+                      {kategorieFilter}
+                      <button onClick={() => onKategorie("Alle")} className="hover:text-primary-600">
+                        <X size={10} />
+                      </button>
+                    </motion.span>
+                  )}
+
+                  {monatFilter !== "alle" && (
+                    <motion.span
+                      key="chip-monat"
+                      initial={reduced ? false : { opacity: 0, scale: 0.88 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={reduced ? {} : { opacity: 0, scale: 0.88 }}
+                      transition={{ type: "spring", stiffness: 420, damping: 28 }}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary-500/10 text-primary-500 border border-primary-500/20"
+                    >
+                      {formatMonatLabel(monatFilter)}
+                      <button onClick={() => onMonat("alle")} className="hover:text-primary-600">
+                        <X size={10} />
+                      </button>
+                    </motion.span>
+                  )}
+
+                  {jahrFilter !== "alle" && (
+                    <motion.span
+                      key="chip-jahr"
+                      initial={reduced ? false : { opacity: 0, scale: 0.88 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={reduced ? {} : { opacity: 0, scale: 0.88 }}
+                      transition={{ type: "spring", stiffness: 420, damping: 28 }}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary-500/10 text-primary-500 border border-primary-500/20"
+                    >
+                      {jahrFilter}
+                      <button onClick={() => onJahr("alle")} className="hover:text-primary-600">
+                        <X size={10} />
+                      </button>
+                    </motion.span>
+                  )}
+
+                  {sortierung !== "neueste" && (
+                    <motion.span
+                      key="chip-sort"
+                      initial={reduced ? false : { opacity: 0, scale: 0.88 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={reduced ? {} : { opacity: 0, scale: 0.88 }}
+                      transition={{ type: "spring", stiffness: 420, damping: 28 }}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary-500/10 text-primary-500 border border-primary-500/20"
+                    >
+                      {sortierung === "aelteste" ? "Aelteste zuerst" : "Name A-Z"}
+                      <button onClick={() => onSortierung("neueste")} className="hover:text-primary-600">
+                        <X size={10} />
+                      </button>
+                    </motion.span>
+                  )}
+
+                  {statusFilter !== "alle" && (
+                    <motion.span
+                      key="chip-status"
+                      initial={reduced ? false : { opacity: 0, scale: 0.88 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={reduced ? {} : { opacity: 0, scale: 0.88 }}
+                      transition={{ type: "spring", stiffness: 420, damping: 28 }}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary-500/10 text-primary-500 border border-primary-500/20"
+                    >
+                      {STATUS_LABEL[statusFilter]}
+                      <button onClick={() => onStatus("alle")} className="hover:text-primary-600">
+                        <X size={10} />
+                      </button>
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+
+                <button
+                  onClick={resetAlleFilter}
+                  className="text-xs text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main underline underline-offset-2"
+                >
+                  Alle zurücksetzen
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
-    </div>
+    </motion.div>
   );
 }

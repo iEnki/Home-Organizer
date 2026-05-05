@@ -40,6 +40,7 @@ const KATEGORIEN = [
   "Geraete-Info",
   "Kontakte & Dienste",
   "Anleitungen",
+  "Rezepte",
   "Notizen",
   "Sonstiges",
 ];
@@ -53,6 +54,7 @@ const KATEGORIE_FARBEN = {
   "Geraete-Info": "bg-pink-500",
   "Kontakte & Dienste": "bg-indigo-500",
   "Anleitungen": "bg-teal-500",
+  "Rezepte": "bg-emerald-500",
   "Notizen": "bg-yellow-400",
   "Sonstiges": "bg-gray-400",
 };

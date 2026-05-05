@@ -919,21 +919,21 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
           entity_id: rechnungId,
           role: "original",
         },
-        ...(wissenId ?? [{
+        ...(wissenId ? [{
           household_id: householdId,
           dokument_id: dokDatenbankId,
           entity_type: "home_wissen",
           entity_id: wissenId,
           role: "knowledge",
         }] : []),
-        ...(budgetId ?? [{
+        ...(budgetId ? [{
           household_id: householdId,
           dokument_id: dokDatenbankId,
           entity_type: "budget_posten",
           entity_id: budgetId,
           role: "expense",
         }] : []),
-      ];
+      ].filter((row) => row.dokument_id && row.entity_id && row.entity_type);
       const { error: linkErr } = await supabase.from("dokument_links").insert(linkRows);
       if (linkErr) {
         throw new Error(`Dokument-Links konnten nicht gespeichert werden: ${linkErr.message}`);

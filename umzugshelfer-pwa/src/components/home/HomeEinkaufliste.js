@@ -45,6 +45,12 @@ import {
   splitShoppingInput,
 } from "../../utils/einkaufslisteUtils";
 import { notifyHouseholdBatchEvent, notifyHouseholdEvent } from "../../utils/pushNotifications";
+import {
+  hasLocalizedShoppingContent,
+  normalizeContentLocale,
+  resolveLocalizedShoppingEntry,
+  translateShoppingEntriesIfMissing,
+} from "../../utils/localizedRecipeShopping";
 
 const DEFAULT_EDIT_FORM = {
   id: null,
@@ -450,6 +456,7 @@ function EntryPreviewRow({
 const HomeEinkaufliste = ({ session }) => {
   const userId = session?.user?.id;
   const { locale } = useLocale();
+  const activeLocale = normalizeContentLocale(locale);
   const { t, i18n } = useTranslation(["home", "common"]);
   const toast = useToast();
   const { isMobile } = useViewport();
@@ -476,6 +483,9 @@ const HomeEinkaufliste = ({ session }) => {
 
   const [editForm, setEditForm] = useState(DEFAULT_EDIT_FORM);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [stockDecision, setStockDecision] = useState(null);
+  const translationAttemptsRef = useRef(new Set());
+  const stockDecisionResolverRef = useRef(null);
 
   const ladeDaten = useCallback(async () => {
     if (!userId) return;
@@ -503,6 +513,27 @@ const HomeEinkaufliste = ({ session }) => {
     ladeDaten();
   }, [ladeDaten]);
 
+  useEffect(() => {
+    if (!userId || eintraege.length === 0) return;
+    const missingEntries = eintraege.filter((entry) => {
+      const key = `${entry.id}:${activeLocale}`;
+      return !hasLocalizedShoppingContent(entry, activeLocale) && !translationAttemptsRef.current.has(key);
+    });
+
+    if (missingEntries.length === 0) return;
+    missingEntries.forEach((entry) => translationAttemptsRef.current.add(`${entry.id}:${activeLocale}`));
+
+    translateShoppingEntriesIfMissing({ supabase, userId, entries: missingEntries, locale: activeLocale })
+      .then((updatedEntries) => {
+        if (!updatedEntries?.length) return;
+        const updatedById = new Map(updatedEntries.map((entry) => [entry.id, entry]));
+        setEintraege((current) =>
+          normalizeEntries(current.map((item) => updatedById.get(item.id) || item))
+        );
+      })
+      .catch((err) => console.warn("Einkaufslistenuebersetzung fehlgeschlagen", err));
+  }, [activeLocale, eintraege, userId]);
+
   const resetCreateFlow = () => {
     setCreateText("");
     setCreateModalOpen(false);
@@ -513,9 +544,10 @@ const HomeEinkaufliste = ({ session }) => {
 
   const openEditModal = (entry) => {
     const normalizedEntry = applyLegacyShoppingFields(entry);
+    const display = resolveLocalizedShoppingEntry(normalizedEntry, activeLocale);
     setEditForm({
       id: normalizedEntry.id,
-      name: normalizedEntry.name || "",
+      name: display.name || normalizedEntry.name || "",
       menge: normalizedEntry.menge || 1,
       einheit: normalizedEntry.einheit || "Stück",
       hauptkategorie: normalizedEntry.hauptkategorie || "Sonstiges",
@@ -623,6 +655,7 @@ const HomeEinkaufliste = ({ session }) => {
         userId,
         drafts: draftsGefiltert,
         decisions: previewState.decisions,
+        locale: activeLocale,
       });
 
       const neueEintraege = draftsGefiltert.filter(
@@ -691,6 +724,36 @@ const HomeEinkaufliste = ({ session }) => {
       return;
     }
 
+    if (erledigt) {
+      try {
+        const vorratId = await uebernehmeLebensmittelInVorrat(entry);
+        if (vorratId && !entry.vorrat_id) {
+          const { error: linkError } = await supabase
+            .from("home_einkaufliste")
+            .update({ vorrat_id: vorratId })
+            .eq("id", entry.id);
+
+          if (linkError) throw linkError;
+
+          setEintraege((current) =>
+            normalizeEntries(
+              current.map((item) =>
+                item.id === entry.id
+                  ? {
+                      ...item,
+                      vorrat_id: vorratId,
+                    }
+                  : item
+              )
+            )
+          );
+        }
+      } catch (stockError) {
+        console.error("Einkaufsartikel konnte nicht in Vorräte übernommen werden", stockError);
+        toast.error("Artikel wurde abgehakt, aber nicht in die Vorräte übernommen.");
+      }
+    }
+
     await notifyHouseholdEvent({
       userId,
       table: "home_einkaufliste",
@@ -706,7 +769,7 @@ const HomeEinkaufliste = ({ session }) => {
         : `"${entry.name || entry.original_text}" ist wieder offen.`,
     });
 
-    toast.success(erledigt ? "Artikel abgehakt." : "Artikel wieder geoeffnet.");
+    toast.success(erledigt ? "Artikel abgehakt." : "Artikel wieder geöffnet.");
   };
 
   const loesche = async (id) => {
@@ -771,9 +834,21 @@ const HomeEinkaufliste = ({ session }) => {
     setFehler("");
     try {
       const payload = {
-        name: editForm.name.trim(),
-        original_text: editForm.name.trim(),
-        normalized_name: normalizeShoppingName(editForm.name),
+        ...(activeLocale === "de"
+          ? {
+              name: editForm.name.trim(),
+              original_text: editForm.name.trim(),
+              normalized_name: normalizeShoppingName(editForm.name),
+            }
+          : {
+              localized_content: {
+                ...((eintraege.find((entry) => entry.id === editForm.id)?.localized_content) || {}),
+                [activeLocale]: {
+                  name: editForm.name.trim(),
+                  original_text: editForm.name.trim(),
+                },
+              },
+            }),
         menge: Number(editForm.menge) > 0 ? Number(editForm.menge) : 1,
         einheit: normalizeUnit(editForm.einheit) || "Stück",
         hauptkategorie: editForm.hauptkategorie || "Sonstiges",
@@ -788,13 +863,15 @@ const HomeEinkaufliste = ({ session }) => {
         payload,
       });
 
-      try {
-        await saveShoppingCorrection({
-          entry: persistedPayload,
-          userId,
-        });
-      } catch (correctionError) {
-        console.warn("Einkaufskorrektur konnte nicht gespeichert werden", correctionError);
+      if (activeLocale === "de") {
+        try {
+          await saveShoppingCorrection({
+            entry: persistedPayload,
+            userId,
+          });
+        } catch (correctionError) {
+          console.warn("Einkaufskorrektur konnte nicht gespeichert werden", correctionError);
+        }
       }
 
       await notifyHouseholdEvent({
@@ -818,7 +895,109 @@ const HomeEinkaufliste = ({ session }) => {
     }
   };
 
-  const gefilterteEintraege = filterShoppingEntries(eintraege, {
+  const frageVorratUebernahme = ({ vorrat, name, menge, einheit }) =>
+    new Promise((resolve) => {
+      stockDecisionResolverRef.current = resolve;
+      setStockDecision({
+        name: vorrat.name || name,
+        bestand: Number(vorrat.bestand || 0),
+        menge,
+        einheit,
+      });
+    });
+
+  const resolveStockDecision = (decision) => {
+    const resolver = stockDecisionResolverRef.current;
+    stockDecisionResolverRef.current = null;
+    setStockDecision(null);
+    resolver?.(decision);
+  };
+
+  const uebernehmeLebensmittelInVorrat = async (entry) => {
+    if (!userId) return null;
+
+    const normalizedEntry = applyLegacyShoppingFields(entry);
+    if (normalizedEntry.hauptkategorie !== "Lebensmittel") return null;
+
+    const display = resolveLocalizedShoppingEntry(normalizedEntry, activeLocale);
+    const name =
+      normalizeShoppingName(display.name || normalizedEntry.name || normalizedEntry.original_text) ||
+      "Lebensmittel";
+    const einheit = normalizeUnit(normalizedEntry.einheit) || normalizedEntry.einheit || "Stück";
+    const menge = Number(normalizedEntry.menge) > 0 ? Number(normalizedEntry.menge) : 1;
+
+    const updateVorrat = async (vorrat) => {
+      const decision = await frageVorratUebernahme({ vorrat, name, menge, einheit });
+      const nextBestand = decision === "add" ? Number(vorrat.bestand || 0) + menge : menge;
+      const { data, error } = await supabase
+        .from("home_vorraete")
+        .update({
+          bestand: nextBestand,
+          einheit: vorrat.einheit || einheit,
+          kategorie: "Lebensmittel",
+        })
+        .eq("id", vorrat.id)
+        .eq("user_id", userId)
+        .select("id")
+        .single();
+
+      if (error) throw error;
+      return data?.id || vorrat.id;
+    };
+
+    if (normalizedEntry.vorrat_id) {
+      const { data, error } = await supabase
+        .from("home_vorraete")
+        .select("id,name,einheit,bestand,kategorie")
+        .eq("id", normalizedEntry.vorrat_id)
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data) return updateVorrat(data);
+    }
+
+    const { data: existingRows, error: existingError } = await supabase
+      .from("home_vorraete")
+      .select("id,name,einheit,bestand,kategorie")
+      .eq("user_id", userId)
+      .eq("kategorie", "Lebensmittel");
+
+    if (existingError) throw existingError;
+
+    const nameKey = normalizeShoppingName(name).toLowerCase();
+    const unitKey = normalizeUnit(einheit) || einheit;
+    const match = (existingRows || []).find((vorrat) => {
+      const existingNameKey = normalizeShoppingName(vorrat.name).toLowerCase();
+      const existingUnitKey = normalizeUnit(vorrat.einheit) || vorrat.einheit;
+      return existingNameKey === nameKey && existingUnitKey === unitKey;
+    });
+
+    if (match) return updateVorrat(match);
+
+    const { data: created, error: createError } = await supabase
+      .from("home_vorraete")
+      .insert({
+        user_id: userId,
+        name,
+        kategorie: "Lebensmittel",
+        einheit,
+        bestand: menge,
+        mindestmenge: 1,
+        notizen: "Aus Einkaufsliste übernommen.",
+      })
+      .select("id")
+      .single();
+
+    if (createError) throw createError;
+    return created?.id || null;
+  };
+
+  const localizedEintraege = eintraege.map((entry) => {
+    const display = resolveLocalizedShoppingEntry(entry, activeLocale);
+    return { ...entry, display_name: display.name, display_notizen: display.notes };
+  });
+  const gefilterteEintraege = filterShoppingEntries(localizedEintraege, {
     search,
     filter,
   });
@@ -1076,7 +1255,7 @@ const HomeEinkaufliste = ({ session }) => {
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-                              {entry.name}
+                              {resolveLocalizedShoppingEntry(entry, activeLocale).name}
                             </h3>
                             {getShoppingCategoryBadgeLabel(entry) && (
                               <span
@@ -1156,7 +1335,7 @@ const HomeEinkaufliste = ({ session }) => {
                     </button>
                     <div className="flex-1 min-w-0">
                       <h3 className="text-sm line-through text-light-text-main dark:text-dark-text-main">
-                        {entry.name}
+                        {resolveLocalizedShoppingEntry(entry, activeLocale).name}
                       </h3>
                       {getShoppingCategoryBadgeLabel(entry, true) && (
                         <div className="mt-1">
@@ -1324,6 +1503,43 @@ const HomeEinkaufliste = ({ session }) => {
                 </div>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {stockDecision && (
+        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm p-4 pb-safe flex items-center justify-center">
+          <div className="w-full max-w-md rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border shadow-elevation-3 overflow-hidden">
+            <div className="px-4 py-3 border-b border-light-border dark:border-dark-border">
+              <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
+                Vorrat aktualisieren
+              </h2>
+              <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
+                "{stockDecision.name}" ist bereits in den Vorräten vorhanden.
+              </p>
+            </div>
+            <div className="p-4 space-y-3 text-sm text-light-text-main dark:text-dark-text-main">
+              <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-2">
+                Aktueller Bestand: {stockDecision.bestand} {stockDecision.einheit}
+              </div>
+              <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-2">
+                Gekauft: {stockDecision.menge} {stockDecision.einheit}
+              </div>
+            </div>
+            <div className="px-4 py-3 border-t border-light-border dark:border-dark-border flex justify-end gap-2">
+              <button
+                onClick={() => resolveStockDecision("replace")}
+                className="px-4 py-2 rounded-pill text-sm border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:bg-light-hover dark:hover:bg-canvas-3"
+              >
+                Ersetzen
+              </button>
+              <button
+                onClick={() => resolveStockDecision("add")}
+                className="px-4 py-2 rounded-pill text-sm font-medium bg-primary-500 hover:bg-primary-600 text-white"
+              >
+                Addieren
+              </button>
+            </div>
           </div>
         </div>
       )}

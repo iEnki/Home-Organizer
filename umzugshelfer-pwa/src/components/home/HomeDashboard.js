@@ -3,10 +3,13 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
   Home, Package, ShoppingCart, Wrench, CheckSquare,
-  FolderOpen, AlertTriangle, ChevronRight, Loader2, Users,
+  FolderOpen, AlertTriangle, ChevronRight, Users,
   TrendingUp, TrendingDown, Calendar, Clock, FileText,
 } from "lucide-react";
-import { motion, animate, useMotionValue, useTransform } from "framer-motion";
+import {
+  motion, animate, useMotionValue, useTransform,
+  AnimatePresence, useReducedMotion,
+} from "framer-motion";
 import { getActiveHouseholdId, supabase } from "../../supabaseClient";
 import { ensureRecurringBudgetEntries, getMonthBounds, getLocalDateString } from "../../utils/budgetRecurring";
 import { buildOpenPairBalances } from "../../utils/budgetLedger";
@@ -27,30 +30,47 @@ const AnimatedNumber = ({ value }) => {
   return <motion.span>{rounded}</motion.span>;
 };
 
-// ── Animations ──────────────────────────────────────────────────────────────
+// ── Motion-Varianten ─────────────────────────────────────────────────────────
+const sectionVariants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.09, delayChildren: 0.05 } },
+};
+const sectionItemVariants = {
+  hidden: { opacity: 0, y: 24 },
+  show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 280, damping: 28 } },
+};
 const cardVariants = {
   hidden: { opacity: 0, y: 18 },
-  show:   { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] } },
+  show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 320, damping: 30 } },
 };
 const gridVariants = {
   hidden: {},
-  show:   { transition: { staggerChildren: 0.07 } },
+  show: { transition: { staggerChildren: 0.07 } },
 };
 const listVariants = {
   hidden: {},
-  show:   { transition: { staggerChildren: 0.05 } },
+  show: { transition: { staggerChildren: 0.05 } },
 };
 const listItemVariants = {
   hidden: { opacity: 0, y: 8 },
-  show:   { opacity: 1, y: 0, transition: { duration: 0.25 } },
+  show: { opacity: 1, y: 0, transition: { duration: 0.25 } },
 };
 const timelineVariants = {
   hidden: {},
-  show:   { transition: { staggerChildren: 0.04 } },
+  show: { transition: { staggerChildren: 0.04 } },
 };
 const timelineItemVariants = {
   hidden: { opacity: 0, x: -4 },
-  show:   { opacity: 1, x: 0, transition: { duration: 0.2 } },
+  show: { opacity: 1, x: 0, transition: { duration: 0.2 } },
+};
+const warnVariants = {
+  hidden: { opacity: 0, y: -10, scaleY: 0.92 },
+  show: { opacity: 1, y: 0, scaleY: 1, transition: { type: "spring", stiffness: 400, damping: 30 } },
+  exit: { opacity: 0, y: -8, scaleY: 0.95, transition: { duration: 0.18 } },
+};
+const headerVariants = {
+  hidden: { opacity: 0, y: -12 },
+  show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 350, damping: 26, delay: 0.05 } },
 };
 
 // ── Hilfsfunktionen ──────────────────────────────────────────────────────────
@@ -67,7 +87,7 @@ const relativeZeit = (isoStr, t) => {
 
 const tagesBis = (datumStr) => {
   if (!datumStr) return null;
-  const diff = new Date(datumStr).setHours(0,0,0,0) - new Date().setHours(0,0,0,0);
+  const diff = new Date(datumStr).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0);
   return Math.ceil(diff / 86400000);
 };
 
@@ -77,6 +97,34 @@ const monatLabel = () =>
 const fmt = (n) =>
   Number(n).toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
+const getGreeting = () => {
+  const h = new Date().getHours();
+  if (h < 12) return "Guten Morgen";
+  if (h < 18) return "Guten Tag";
+  return "Guten Abend";
+};
+
+const heuteLang = () =>
+  new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" });
+
+const tagesFarbe = (datum) => {
+  const days = tagesBis(datum);
+  if (days === null) return "text-light-text-secondary dark:text-dark-text-secondary";
+  if (days < 0 || days === 0) return "text-red-500";
+  if (days <= 7) return "text-amber-500";
+  return "text-green-500";
+};
+
+// ── Projekt-Ampelfarbe ────────────────────────────────────────────────────────
+const projektAmpelFarbe = (p) => {
+  const days = tagesBis(p.zieldatum);
+  if (days === null) return "bg-gray-400";
+  if (days < 0) return "bg-red-500";
+  if (days <= 14) return "bg-amber-500";
+  return "bg-green-500";
+};
+
+// ── Icon / Farb-Mappings ──────────────────────────────────────────────────────
 const MODUL_ICON = {
   home_objekte: "📦", budget_posten: "💶", home_geraete: "🔧",
   home_einkaufliste: "🛒", home_projekte: "📋", home_vorraete: "🥫",
@@ -85,7 +133,35 @@ const MODUL_ICON = {
   dokumente: "📄",
 };
 
-// ── Animated progress bar ────────────────────────────────────────────────────
+const TIMELINE_DOT_COLOR = {
+  wartung: "bg-orange-400",
+  ablauf:  "bg-amber-400",
+  aufgabe: "bg-primary-500",
+  projekt: "bg-purple-500",
+};
+
+const MODUL_COLOR = {
+  home_objekte:      "bg-blue-500/15 text-blue-400",
+  budget_posten:     "bg-emerald-500/15 text-emerald-400",
+  rechnungen:        "bg-emerald-500/15 text-emerald-400",
+  home_geraete:      "bg-orange-500/15 text-orange-400",
+  home_einkaufliste: "bg-amber-500/15 text-amber-400",
+  home_projekte:     "bg-purple-500/15 text-purple-400",
+  home_vorraete:     "bg-teal-500/15 text-teal-400",
+  todo_aufgaben:     "bg-green-500/15 text-green-400",
+  home_wissen:       "bg-indigo-500/15 text-indigo-400",
+  home_bewohner:     "bg-sky-500/15 text-sky-400",
+  dokumente:         "bg-slate-500/15 text-slate-400",
+};
+
+const SCHNELLZUGRIFF_ITEMS = [
+  { labelKey: "search",    pfad: "/home/suche",     icon: "🔍", color: "bg-sky-500/15 text-sky-400"         },
+  { labelKey: "documents", pfad: "/home/dokumente", icon: "📂", color: "bg-slate-500/15 text-slate-400"     },
+  { labelKey: "budget",    pfad: "/home/budget",    icon: "💶", color: "bg-emerald-500/15 text-emerald-400" },
+  { labelKey: "projects",  pfad: "/home/projekte",  icon: "📋", color: "bg-purple-500/15 text-purple-400"   },
+];
+
+// ── Animated progress bar ─────────────────────────────────────────────────────
 const AnimBar = ({ ratio, color = "bg-primary-500" }) => (
   <div className="h-2 w-full bg-light-border dark:bg-dark-border rounded-full overflow-hidden">
     <motion.div
@@ -95,6 +171,42 @@ const AnimBar = ({ ratio, color = "bg-primary-500" }) => (
       transition={{ duration: 0.6, ease: "easeOut" }}
       style={{ transformOrigin: "left" }}
     />
+  </div>
+);
+
+// ── Skeleton-Komponenten ──────────────────────────────────────────────────────
+const SkeletonPulse = ({ className = "" }) => (
+  <div className={`bg-light-surface-2 dark:bg-canvas-3 animate-pulse rounded ${className}`} />
+);
+
+const SkeletonCard = () => (
+  <div className="p-4 rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border">
+    <SkeletonPulse className="w-9 h-9 rounded-card-sm mb-3" />
+    <SkeletonPulse className="h-7 w-12 rounded mb-1.5" />
+    <SkeletonPulse className="h-2.5 w-16 rounded mb-1" />
+    <SkeletonPulse className="h-2.5 w-20 rounded" />
+  </div>
+);
+
+const SkeletonWidget = ({ className = "" }) => (
+  <div className={`p-4 rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border ${className}`}>
+    <div className="flex items-center gap-2 mb-4">
+      <SkeletonPulse className="w-5 h-5 rounded-full" />
+      <SkeletonPulse className="h-4 w-32 rounded" />
+    </div>
+    <SkeletonPulse className="h-8 w-24 rounded mb-2" />
+    <SkeletonPulse className="h-2.5 w-full rounded mb-1.5" />
+    <SkeletonPulse className="h-2.5 w-3/4 rounded" />
+  </div>
+);
+
+const SectionHeader = ({ icon: Icon, label, iconClass = "text-primary-500" }) => (
+  <div className="flex items-center gap-2 mb-3">
+    {Icon && <Icon size={14} className={`${iconClass} flex-shrink-0`} />}
+    <span className="text-[11px] font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-widest whitespace-nowrap">
+      {label}
+    </span>
+    <div className="flex-1 h-px bg-light-border dark:bg-dark-border" />
   </div>
 );
 
@@ -387,20 +499,55 @@ const HomeDashboard = ({ session }) => {
   ];
 
   const farbKlassen = {
-    blue: "bg-blue-500/10 text-blue-500",
-    green: "bg-green-500/10 text-green-500",
-    red: "bg-red-500/10 text-red-500",
-    amber: "bg-amber-500/10 text-amber-500",
-    teal: "bg-teal-500/10 text-teal-500",
+    blue:   "bg-blue-500/10 text-blue-500",
+    green:  "bg-green-500/10 text-green-500",
+    red:    "bg-red-500/10 text-red-500",
+    amber:  "bg-amber-500/10 text-amber-500",
+    teal:   "bg-teal-500/10 text-teal-500",
     orange: "bg-orange-500/10 text-orange-500",
     purple: "bg-purple-500/10 text-purple-500",
     indigo: "bg-indigo-500/10 text-indigo-500",
   };
 
+  // ── Reduced Motion ────────────────────────────────────────────────────────────
+  const reduced = useReducedMotion();
+
+  // ── Skeleton Loading State ────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 size={32} className="animate-spin text-light-text-secondary dark:text-dark-text-secondary" />
+      <div className="max-w-5xl mx-auto px-4 py-6 space-y-6 animate-fade-in">
+        {/* Header skeleton */}
+        <div className="flex items-center gap-3">
+          <SkeletonPulse className="w-11 h-11 rounded-card-sm flex-shrink-0" />
+          <div className="space-y-2">
+            <SkeletonPulse className="h-6 w-36 rounded" />
+            <SkeletonPulse className="h-3 w-52 rounded" />
+          </div>
+        </div>
+        {/* Kacheln-Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+        {/* Row A */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <SkeletonWidget />
+          <SkeletonWidget />
+          <SkeletonWidget />
+        </div>
+        {/* Row B */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <SkeletonWidget />
+          <div className="p-4 rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border space-y-3">
+            <SkeletonPulse className="h-4 w-36 rounded mb-4" />
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <SkeletonPulse className="w-3.5 h-3.5 rounded-full flex-shrink-0" />
+                <SkeletonPulse className="h-3 flex-1 rounded" />
+                <SkeletonPulse className="h-3 w-10 rounded flex-shrink-0" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -411,471 +558,626 @@ const HomeDashboard = ({ session }) => {
   const gesamtOffeneSchulden =
     offenePairBalances.reduce((sum, row) => sum + Number(row.open_amount_cents || 0), 0) / 100;
 
-  // ── Timeline Helpers ──
-  const TIMELINE_ICON = { wartung: "🔧", ablauf: "⚠️", aufgabe: "✅", projekt: "📋" };
-  const tagesLabel = (datum) => {
-    const days = tagesBis(datum);
-    if (days === null) return "";
-    if (days < 0) return t("home:dashboard.timeline.overdue", { days: Math.abs(days) });
-    if (days === 0) return t("home:dashboard.timeline.today");
-    return t("home:dashboard.timeline.inDays", { days });
-  };
-  const tagesFarbe = (datum) => {
-    const t = tagesBis(datum);
-    if (t === null) return "text-light-text-secondary dark:text-dark-text-secondary";
-    if (t < 0 || t === 0) return "text-red-500";
-    if (t <= 7) return "text-amber-500";
-    return "text-green-500";
-  };
 
-  // ── Projekt Ampel ──
-  const projektAmpel = (p) => {
-    const t = tagesBis(p.zieldatum);
-    if (t === null) return "bg-gray-400";
-    if (t < 0) return "bg-red-500";
-    if (t <= 14) return "bg-amber-500";
-    return "bg-green-500";
-  };
+  // ── Budget Mini-Bar ──
+  const budgetTotal = budgetMonat.ausgabenHaushalt + budgetMonat.ausgabenPrivat;
+  const hhRatio = budgetTotal > 0 ? budgetMonat.ausgabenHaushalt / budgetTotal : 0;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+    <motion.div
+      className="max-w-5xl mx-auto px-4 py-6 space-y-6"
+      variants={reduced ? {} : sectionVariants}
+      initial="hidden"
+      animate="show"
+    >
 
-      {/* Header */}
-      <div data-tour="tour-dashboard-willkommen" className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-primary-500/10 flex items-center justify-center">
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
+      <motion.div
+        data-tour="tour-dashboard-willkommen"
+        variants={reduced ? {} : headerVariants}
+        className="flex items-center gap-3"
+      >
+        <div className="w-11 h-11 rounded-card-sm bg-primary-500/15 flex items-center justify-center
+                        shadow-glow-primary ring-1 ring-primary-500/20 flex-shrink-0">
           <Home size={22} className="text-primary-500" />
         </div>
-        <div>
-          <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">
-            {t("home:dashboard.title")}
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold leading-tight
+                         bg-gradient-to-r from-light-text-main to-primary-600
+                         dark:from-dark-text-main dark:to-primary-400
+                         bg-clip-text text-transparent">
+            {getGreeting()}
           </h1>
-          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-            {t("home:dashboard.subtitle")}
+          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5 truncate">
+            {heuteLang()} · {t("home:dashboard.subtitle")}
           </p>
         </div>
-      </div>
-
-      {/* Warnungs-Banner */}
-      {(stats.vorraeteRot > 0 || stats.geraeteWartungFaellig > 0 || stats.aufgabenHeute > 0) && (
-        <motion.div
-          initial={{ opacity: 0, y: -6 }}
-          animate={{ opacity: 1, y: 0, x: [0, -4, 4, -3, 3, -1, 1, 0] }}
-          transition={{ duration: 0.5, x: { delay: 0.3, duration: 0.45 } }}
-          className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-start gap-2"
-        >
-          <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-amber-700 dark:text-amber-400 flex flex-wrap gap-x-3">
-            {stats.vorraeteRot > 0 && <span>{t("home:dashboard.warnStock", { count: stats.vorraeteRot })}</span>}
-            {stats.geraeteWartungFaellig > 0 && <span>{t("home:dashboard.warnDevice", { count: stats.geraeteWartungFaellig })}</span>}
-            {stats.aufgabenHeute > 0 && <span>{t("home:dashboard.warnTask", { count: stats.aufgabenHeute })}</span>}
-          </div>
-        </motion.div>
-      )}
-
-      {/* Status-Kacheln */}
-      <motion.div
-        data-tour="tour-dashboard-status"
-        variants={gridVariants}
-        initial="hidden"
-        animate="show"
-        className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3"
-      >
-        {kacheln.map((k) => {
-          const Icon = k.icon;
-          return (
-            <motion.button
-              key={k.pfad}
-              data-tour={k.tourId || undefined}
-              variants={cardVariants}
-              whileHover={{ scale: 1.03, transition: { duration: 0.15 } }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => navigate(k.pfad)}
-              animate={k.warnung ? {
-                boxShadow: [
-                  "0 0 0px rgba(239,68,68,0)",
-                  "0 0 10px rgba(239,68,68,0.35)",
-                  "0 0 0px rgba(239,68,68,0)",
-                ],
-              } : {}}
-              transition={k.warnung ? { repeat: Infinity, duration: 2.4, ease: "easeInOut" } : {}}
-              className="relative p-4 rounded-xl bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border hover:border-primary-500/50 transition-colors duration-200 text-left group"
-            >
-              {k.warnung && (
-                <motion.span
-                  className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-red-500"
-                  animate={{ scale: [1, 1.5, 1], opacity: [1, 0.6, 1] }}
-                  transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
-                />
-              )}
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${farbKlassen[k.farbe]}`}>
-                <Icon size={18} />
-              </div>
-              <div className="text-2xl font-bold text-light-text-main dark:text-dark-text-main">
-                <AnimatedNumber value={k.wert} />
-              </div>
-              <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                {k.einheit}
-              </div>
-              <div className="text-xs font-medium text-light-text-main dark:text-dark-text-main mt-1">
-                {k.titel}
-              </div>
-              {k.unter && (
-                <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5 leading-tight">
-                  {k.unter}
-                </div>
-              )}
-              <ChevronRight size={14} className="absolute bottom-3 right-3 text-light-text-secondary dark:text-dark-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
-            </motion.button>
-          );
-        })}
       </motion.div>
 
-      {/* Row A: Budget & Vorräte-Ampel */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* ── Warnungs-Banner (AnimatePresence) ───────────────────────────────── */}
+      <AnimatePresence>
+        {(stats.vorraeteRot > 0 || stats.geraeteWartungFaellig > 0 || stats.aufgabenHeute > 0) && (
+          <motion.div
+            key="warn-banner"
+            variants={reduced ? {} : warnVariants}
+            initial="hidden"
+            animate="show"
+            exit="exit"
+            className="relative overflow-hidden rounded-card-sm origin-top"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-amber-500/25 to-orange-500/20
+                            border border-amber-500/35 rounded-card-sm" />
+            <div className="relative p-3 flex items-start gap-2.5">
+              <AlertTriangle size={15} className="text-amber-400 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-amber-700 dark:text-amber-300 flex flex-wrap gap-x-3 gap-y-0.5">
+                {stats.vorraeteRot > 0 && (
+                  <span>{t("home:dashboard.warnStock", { count: stats.vorraeteRot })}</span>
+                )}
+                {stats.geraeteWartungFaellig > 0 && (
+                  <span>{t("home:dashboard.warnDevice", { count: stats.geraeteWartungFaellig })}</span>
+                )}
+                {stats.aufgabenHeute > 0 && (
+                  <span>{t("home:dashboard.warnTask", { count: stats.aufgabenHeute })}</span>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-        {/* Budget-Widget */}
-        <motion.button
-          data-tour="tour-dashboard-budget"
-          variants={cardVariants}
+      {/* ── Status-Kacheln ──────────────────────────────────────────────────── */}
+      <motion.section variants={reduced ? {} : sectionItemVariants}>
+        <motion.div
+          data-tour="tour-dashboard-status"
+          variants={gridVariants}
           initial="hidden"
           animate="show"
-          whileHover={{ scale: 1.01 }}
-          whileTap={{ scale: 0.99 }}
-          onClick={() => navigate("/home/budget")}
-          className="p-4 rounded-xl bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border hover:border-primary-500/50 transition-colors text-left group"
+          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3"
         >
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-base">💶</span>
-              <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-                {t("home:dashboard.budgetTitle", { month: monatLabel() })}
-              </span>
-            </div>
-            <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
-          </div>
+          {kacheln.map((k) => {
+            const Icon = k.icon;
+            return (
+              <motion.button
+                key={k.pfad}
+                data-tour={k.tourId || undefined}
+                variants={cardVariants}
+                whileHover={reduced ? {} : {
+                  scale: 1.03,
+                  transition: { type: "spring", stiffness: 400, damping: 25 },
+                }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => navigate(k.pfad)}
+                animate={k.warnung ? {
+                  boxShadow: [
+                    "0 0 0px rgba(239,68,68,0)",
+                    "0 0 14px rgba(239,68,68,0.4)",
+                    "0 0 0px rgba(239,68,68,0)",
+                  ],
+                } : {}}
+                transition={k.warnung ? { repeat: Infinity, duration: 2.4, ease: "easeInOut" } : {}}
+                className="relative p-4 rounded-card cursor-pointer
+                           bg-light-card dark:bg-canvas-2
+                           border border-light-border dark:border-dark-border
+                           shadow-elevation-2
+                           hover:border-primary-500/40 hover:shadow-glow-primary
+                           transition-[border-color,box-shadow] duration-200
+                           text-left group"
+              >
+                {k.warnung && (
+                  <motion.span
+                    className="absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full bg-red-500"
+                    animate={{ scale: [1, 1.5, 1], opacity: [1, 0.6, 1] }}
+                    transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
+                  />
+                )}
+                <div className={`w-9 h-9 rounded-card-sm flex items-center justify-center mb-3
+                                 transition-all duration-200
+                                 group-hover:ring-2 group-hover:ring-primary-500/30
+                                 ${farbKlassen[k.farbe]}`}>
+                  <Icon size={18} />
+                </div>
+                <div className="text-2xl font-bold text-light-text-main dark:text-dark-text-main">
+                  <AnimatedNumber value={k.wert} />
+                </div>
+                <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  {k.einheit}
+                </div>
+                <div className="text-xs font-medium text-light-text-main dark:text-dark-text-main mt-1">
+                  {k.titel}
+                </div>
+                {k.unter && (
+                  <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5 leading-tight">
+                    {k.unter}
+                  </div>
+                )}
+                <ChevronRight
+                  size={14}
+                  className="absolute bottom-3 right-3 text-light-text-secondary dark:text-dark-text-secondary
+                             opacity-0 group-hover:opacity-100 transition-opacity"
+                />
+              </motion.button>
+            );
+          })}
+        </motion.div>
+      </motion.section>
 
-          {budgetMonat.ausgabenHaushalt === 0 && budgetMonat.ausgabenPrivat === 0 && budgetMonat.buchungen === 0 ? (
-            <>
-              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-                {t("home:dashboard.noBudgetEntries")}
-              </p>
-              {budgetMonat.kommendeNichtMonatlich.length > 0 && (
-                <p className="text-xs text-amber-400 flex items-center gap-1 mt-2">
-                  <AlertTriangle size={11} />
-                  {t("home:dashboard.irregularPayments", { count: budgetMonat.kommendeNichtMonatlich.length, amount: fmt(budgetMonat.kommendeNichtMonatlich.reduce((s, p) => s + Math.abs(Number(p.betrag)), 0)) })}
-                </p>
-              )}
-            </>
-          ) : (
-            <div className="space-y-1.5">
-              <div className="flex items-end justify-between">
-                <span className="text-2xl font-bold text-light-text-main dark:text-dark-text-main tabular-nums">
-                  {fmt(budgetMonat.ausgabenHaushalt)} €
-                </span>
-                <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">
-                  {t("home:dashboard.bookings", { count: budgetMonat.buchungen })}
+      {/* ── Row A: Budget · Ausgleich · Vorräte-Ampel ───────────────────────── */}
+      <motion.section variants={reduced ? {} : sectionItemVariants}>
+        <SectionHeader icon={TrendingUp} label={t("home:dashboard.sectionBudget") || "Budget & Vorräte"} />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+          {/* Budget-Widget */}
+          <motion.button
+            data-tour="tour-dashboard-budget"
+            variants={cardVariants}
+            whileHover={reduced ? {} : { scale: 1.01, transition: { type: "spring", stiffness: 400, damping: 25 } }}
+            whileTap={{ scale: 0.99 }}
+            onClick={() => navigate("/home/budget")}
+            className="p-4 rounded-card cursor-pointer
+                       bg-light-card dark:bg-canvas-2
+                       border border-light-border dark:border-dark-border shadow-elevation-2
+                       hover:border-primary-500/40 hover:shadow-glow-primary
+                       transition-[border-color,box-shadow] duration-200 text-left group"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-base">💶</span>
+                <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
+                  {t("home:dashboard.budgetTitle", { month: monatLabel() })}
                 </span>
               </div>
-              <p className="text-xs text-red-400 flex items-center gap-1">
-                <TrendingDown size={11} /> {t("home:dashboard.householdThisMonth")}
-              </p>
-              {budgetMonat.ausgabenPrivat > 0 && (
-                <p className="text-xs text-amber-400">
-                  + {fmt(budgetMonat.ausgabenPrivat)} € privat
+              <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary
+                                                 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+
+            {budgetMonat.ausgabenHaushalt === 0 && budgetMonat.ausgabenPrivat === 0 && budgetMonat.buchungen === 0 ? (
+              <>
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+                  {t("home:dashboard.noBudgetEntries")}
                 </p>
-              )}
-              {budgetMonat.vormonatAusgaben > 0 && (() => {
-                const delta = budgetMonat.ausgabenHaushalt - budgetMonat.vormonatAusgaben;
-                const pct = Math.round(Math.abs(delta) / budgetMonat.vormonatAusgaben * 100);
-                const hoeher = delta > 0;
-                return (
-                  <p className={`text-xs flex items-center gap-1 ${hoeher ? "text-red-400" : "text-green-500"}`}>
-                    {hoeher ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-                    {hoeher ? "+" : "−"}{pct}% zum Vormonat ({fmt(budgetMonat.vormonatAusgaben)} €)
+                {budgetMonat.kommendeNichtMonatlich.length > 0 && (
+                  <p className="text-xs text-amber-400 flex items-center gap-1 mt-2">
+                    <AlertTriangle size={11} />
+                    {t("home:dashboard.irregularPayments", {
+                      count: budgetMonat.kommendeNichtMonatlich.length,
+                      amount: fmt(budgetMonat.kommendeNichtMonatlich.reduce((s, p) => s + Math.abs(Number(p.betrag)), 0)),
+                    })}
                   </p>
-                );
-              })()}
-              {budgetMonat.kommendeNichtMonatlich.length > 0 && (
-                <p className="text-xs text-amber-400 flex items-center gap-1">
-                  <AlertTriangle size={11} />
-                  {t("home:dashboard.irregularPayments", { count: budgetMonat.kommendeNichtMonatlich.length, amount: fmt(budgetMonat.kommendeNichtMonatlich.reduce((s, p) => s + Math.abs(Number(p.betrag)), 0)) })}
+                )}
+              </>
+            ) : (
+              <div className="space-y-1.5">
+                <div className="flex items-end justify-between">
+                  <span className="text-2xl font-bold text-light-text-main dark:text-dark-text-main tabular-nums">
+                    {fmt(budgetMonat.ausgabenHaushalt)} €
+                  </span>
+                  <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">
+                    {t("home:dashboard.bookings", { count: budgetMonat.buchungen })}
+                  </span>
+                </div>
+                <p className="text-xs text-red-400 flex items-center gap-1">
+                  <TrendingDown size={11} /> {t("home:dashboard.householdThisMonth")}
                 </p>
+                {budgetMonat.ausgabenPrivat > 0 && (
+                  <p className="text-xs text-amber-400">
+                    + {fmt(budgetMonat.ausgabenPrivat)} € privat
+                  </p>
+                )}
+                {budgetMonat.vormonatAusgaben > 0 && (() => {
+                  const delta = budgetMonat.ausgabenHaushalt - budgetMonat.vormonatAusgaben;
+                  const pct = Math.round(Math.abs(delta) / budgetMonat.vormonatAusgaben * 100);
+                  const hoeher = delta > 0;
+                  return (
+                    <p className={`text-xs flex items-center gap-1 ${hoeher ? "text-red-400" : "text-green-500"}`}>
+                      {hoeher ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+                      {hoeher ? "+" : "−"}{pct}% zum Vormonat ({fmt(budgetMonat.vormonatAusgaben)} €)
+                    </p>
+                  );
+                })()}
+                {budgetMonat.kommendeNichtMonatlich.length > 0 && (
+                  <p className="text-xs text-amber-400 flex items-center gap-1">
+                    <AlertTriangle size={11} />
+                    {t("home:dashboard.irregularPayments", {
+                      count: budgetMonat.kommendeNichtMonatlich.length,
+                      amount: fmt(budgetMonat.kommendeNichtMonatlich.reduce((s, p) => s + Math.abs(Number(p.betrag)), 0)),
+                    })}
+                  </p>
+                )}
+
+                {/* Mini-Spending-Bar: Haushalt vs. Privat */}
+                {budgetTotal > 0 && (
+                  <div className="mt-2 pt-2 border-t border-light-border dark:border-dark-border">
+                    <div className="flex items-center gap-3 text-[10px] text-light-text-secondary dark:text-dark-text-secondary mb-1.5">
+                      <span className="flex items-center gap-1">
+                        <span className="inline-block w-2 h-2 rounded-full bg-primary-500" />
+                        Haushalt
+                      </span>
+                      {budgetMonat.ausgabenPrivat > 0 && (
+                        <span className="flex items-center gap-1">
+                          <span className="inline-block w-2 h-2 rounded-full bg-secondary-500" />
+                          Privat
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative h-1.5 w-full rounded-full overflow-hidden bg-secondary-500/20 dark:bg-canvas-3">
+                      <motion.div
+                        className="absolute left-0 top-0 bottom-0 bg-primary-500 rounded-full"
+                        initial={{ scaleX: 0 }}
+                        animate={{ scaleX: hhRatio }}
+                        transition={{ duration: 0.7, ease: "easeOut", delay: 0.15 }}
+                        style={{ transformOrigin: "left", width: "100%" }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </motion.button>
+
+          {/* Ausgleich-Widget */}
+          <motion.button
+            variants={cardVariants}
+            whileHover={reduced ? {} : { scale: 1.01, transition: { type: "spring", stiffness: 400, damping: 25 } }}
+            whileTap={{ scale: 0.99 }}
+            onClick={() => navigate("/home/budget?tab=ausgleich")}
+            className="p-4 rounded-card cursor-pointer
+                       bg-light-card dark:bg-canvas-2
+                       border border-light-border dark:border-dark-border shadow-elevation-2
+                       hover:border-primary-500/40 hover:shadow-glow-primary
+                       transition-[border-color,box-shadow] duration-200 text-left group"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-base">↔</span>
+                <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
+                  {t("home:dashboard.settlementTitle")}
+                </span>
+              </div>
+              {offeneSaldoCount === 0 ? (
+                <span className="text-[10px] px-2 py-0.5 rounded-pill font-semibold
+                                 bg-green-500/15 text-green-400 border border-green-500/30">
+                  ✓ Ausgeglichen
+                </span>
+              ) : (
+                <span className="text-[10px] px-2 py-0.5 rounded-pill font-semibold
+                                 bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                  {offeneSaldoCount} offen
+                </span>
               )}
             </div>
-          )}
-        </motion.button>
-
-        {/* Vorräte-Ampel-Widget */}
-        <motion.button
-          variants={cardVariants}
-          initial="hidden"
-          animate="show"
-          whileHover={{ scale: 1.01 }}
-          whileTap={{ scale: 0.99 }}
-          onClick={() => navigate("/home/budget?tab=ausgleich")}
-          className="p-4 rounded-xl bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border hover:border-primary-500/50 transition-colors text-left group"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-base">↔</span>
-              <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-                {t("home:dashboard.settlementTitle")}
-              </span>
-            </div>
-            <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
-          </div>
-          <div className="space-y-1.5">
-            <div className="text-2xl font-bold text-light-text-main dark:text-dark-text-main tabular-nums">
-              {formatGermanCurrency(gesamtOffeneSchulden)} €
-            </div>
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-              {t("home:dashboard.openDebtTotal")}
-            </p>
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-              {t("home:dashboard.openPositions", { count: offeneSaldoCount })}
-            </p>
-          </div>
-        </motion.button>
-
-        <motion.button
-          variants={cardVariants}
-          initial="hidden"
-          animate="show"
-          whileHover={{ scale: 1.01 }}
-          whileTap={{ scale: 0.99 }}
-          onClick={() => navigate("/home/vorraete")}
-          className="p-4 rounded-xl bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border hover:border-primary-500/50 transition-colors text-left group"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-base">🛒</span>
-              <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-                {t("home:dashboard.stockTitle", { count: stats.vorraeteGesamt })}
-              </span>
-            </div>
-            <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
-          </div>
-
-          {stats.vorraeteGesamt === 0 ? (
-            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-              {t("home:dashboard.noStock")}
-            </p>
-          ) : (
             <div className="space-y-1.5">
-              {[
-                { count: vorraeteAmpel.rot,   farbe: "bg-red-500",   label: t("home:dashboard.ampel.restock"),    delay: 0,   alert: vorraeteAmpel.rot > 0 },
-                { count: vorraeteAmpel.gelb,  farbe: "bg-amber-500", label: t("home:dashboard.ampel.low"),        delay: 0.1, alert: false },
-                { count: vorraeteAmpel.gruen, farbe: "bg-green-500", label: t("home:dashboard.ampel.sufficient"), delay: 0.2, alert: false },
-              ].map(({ count, farbe, label, delay, alert }) => (
-                <motion.div
-                  key={label}
-                  className="flex items-center gap-3 rounded-lg px-2 py-0.5 -mx-2"
-                  animate={alert ? {
-                    backgroundColor: ["rgba(239,68,68,0)", "rgba(239,68,68,0.08)", "rgba(239,68,68,0)"],
-                  } : {}}
-                  transition={alert ? { repeat: Infinity, duration: 2.2, ease: "easeInOut" } : {}}
-                >
+              <div className="text-2xl font-bold text-light-text-main dark:text-dark-text-main tabular-nums">
+                {formatGermanCurrency(gesamtOffeneSchulden)} €
+              </div>
+              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                {t("home:dashboard.openDebtTotal")}
+              </p>
+              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                {t("home:dashboard.openPositions", { count: offeneSaldoCount })}
+              </p>
+            </div>
+          </motion.button>
+
+          {/* Vorräte-Ampel-Widget */}
+          <motion.button
+            variants={cardVariants}
+            whileHover={reduced ? {} : { scale: 1.01, transition: { type: "spring", stiffness: 400, damping: 25 } }}
+            whileTap={{ scale: 0.99 }}
+            onClick={() => navigate("/home/vorraete")}
+            className="p-4 rounded-card cursor-pointer
+                       bg-light-card dark:bg-canvas-2
+                       border border-light-border dark:border-dark-border shadow-elevation-2
+                       hover:border-primary-500/40 hover:shadow-glow-primary
+                       transition-[border-color,box-shadow] duration-200 text-left group"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🛒</span>
+                <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
+                  {t("home:dashboard.stockTitle", { count: stats.vorraeteGesamt })}
+                </span>
+              </div>
+              <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary
+                                                 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+
+            {stats.vorraeteGesamt === 0 ? (
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+                {t("home:dashboard.noStock")}
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {[
+                  { count: vorraeteAmpel.rot,   farbe: "bg-red-500",   label: t("home:dashboard.ampel.restock"),    delay: 0,   alert: vorraeteAmpel.rot > 0 },
+                  { count: vorraeteAmpel.gelb,  farbe: "bg-amber-500", label: t("home:dashboard.ampel.low"),        delay: 0.1, alert: false },
+                  { count: vorraeteAmpel.gruen, farbe: "bg-green-500", label: t("home:dashboard.ampel.sufficient"), delay: 0.2, alert: false },
+                ].map(({ count, farbe, label, delay, alert }) => (
                   <motion.div
-                    className={`w-3 h-3 rounded-full flex-shrink-0 ${farbe}`}
-                    initial={{ scale: 0 }}
-                    animate={alert
-                      ? { scale: [1, 1.45, 1], opacity: [1, 0.65, 1] }
-                      : { scale: 1 }}
-                    transition={alert
-                      ? { repeat: Infinity, duration: 1.6, ease: "easeInOut", delay }
-                      : { delay, type: "spring", stiffness: 300, damping: 20 }}
-                  />
-                  <span className="text-xl font-bold text-light-text-main dark:text-dark-text-main w-8 text-right">
-                    <AnimatedNumber value={count} />
-                  </span>
-                  <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-                    {label}
-                  </span>
-                </motion.div>
-              ))}
+                    key={label}
+                    className="flex items-center gap-3 rounded-card-sm px-2 py-1 -mx-2"
+                    animate={alert ? {
+                      backgroundColor: ["rgba(239,68,68,0)", "rgba(239,68,68,0.1)", "rgba(239,68,68,0)"],
+                    } : {}}
+                    transition={alert ? { repeat: Infinity, duration: 2.2, ease: "easeInOut" } : {}}
+                  >
+                    <motion.div
+                      className={`w-4 h-4 rounded-full flex-shrink-0 ${farbe}`}
+                      initial={{ scale: 0 }}
+                      animate={alert
+                        ? { scale: [1, 1.4, 1], opacity: [1, 0.65, 1] }
+                        : { scale: 1 }}
+                      transition={alert
+                        ? { repeat: Infinity, duration: 1.6, ease: "easeInOut", delay }
+                        : { delay, type: "spring", stiffness: 300, damping: 20 }}
+                    />
+                    <span className="text-xl font-bold text-light-text-main dark:text-dark-text-main w-8 text-right tabular-nums">
+                      <AnimatedNumber value={count} />
+                    </span>
+                    <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+                      {label}
+                    </span>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </motion.button>
+        </div>
+      </motion.section>
+
+      {/* ── Row B: Projekte · Nächste Ereignisse ────────────────────────────── */}
+      <motion.section variants={reduced ? {} : sectionItemVariants}>
+        <SectionHeader icon={Calendar} label={t("home:dashboard.sectionProjects") || "Projekte & Termine"} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+          {/* Projekte-Widget */}
+          <motion.button
+            variants={cardVariants}
+            whileHover={reduced ? {} : { scale: 1.01, transition: { type: "spring", stiffness: 400, damping: 25 } }}
+            whileTap={{ scale: 0.99 }}
+            onClick={() => navigate("/home/projekte")}
+            className="p-4 rounded-card cursor-pointer
+                       bg-light-card dark:bg-canvas-2
+                       border border-light-border dark:border-dark-border shadow-elevation-2
+                       hover:border-primary-500/40 hover:shadow-glow-primary
+                       transition-[border-color,box-shadow] duration-200 text-left group"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-base">📋</span>
+                <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
+                  {t("home:dashboard.activeProjectsTitle", { count: stats.projekteAktiv })}
+                </span>
+              </div>
+              <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary
+                                                 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
-          )}
-        </motion.button>
-      </div>
 
-      {/* Row B: Projekte & Nächste Ereignisse */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-        {/* Projekte-Widget */}
-        <motion.button
-          variants={cardVariants}
-          initial="hidden"
-          animate="show"
-          whileHover={{ scale: 1.01 }}
-          whileTap={{ scale: 0.99 }}
-          onClick={() => navigate("/home/projekte")}
-          className="p-4 rounded-xl bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border hover:border-primary-500/50 transition-colors text-left group"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-base">📋</span>
-              <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-                {t("home:dashboard.activeProjectsTitle", { count: stats.projekteAktiv })}
-              </span>
-            </div>
-            <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
-          </div>
-
-          {aktiveProjekte.length === 0 ? (
-            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-              {t("home:dashboard.noProjects")}
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {aktiveProjekte.map(p => (
-                <div key={p.id}>
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${projektAmpel(p)}`} />
-                      <span className="text-xs font-medium text-light-text-main dark:text-dark-text-main truncate">
-                        {p.name}
+            {aktiveProjekte.length === 0 ? (
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+                {t("home:dashboard.noProjects")}
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {aktiveProjekte.map(p => (
+                  <div key={p.id}>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${projektAmpelFarbe(p)}`} />
+                        <span className="text-xs font-medium text-light-text-main dark:text-dark-text-main truncate">
+                          {p.name}
+                        </span>
+                      </div>
+                      <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary ml-2 flex-shrink-0 tabular-nums">
+                        {p.progress}%
                       </span>
                     </div>
-                    <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary ml-2 flex-shrink-0">
-                      {p.progress}%
-                    </span>
+                    <AnimBar ratio={p.progress / 100} color="bg-purple-500" />
+                    <div className="flex items-center gap-2 mt-0.5 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                      {p.todoGesamt > 0 && <span>✅ {p.todoErledigt}/{p.todoGesamt}</span>}
+                      {p.zieldatum && (
+                        <span>{t("home:dashboard.projectDue", { date: new Date(p.zieldatum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) })}</span>
+                      )}
+                    </div>
                   </div>
-                  <AnimBar ratio={p.progress / 100} color="bg-purple-500" />
-                  <div className="flex items-center gap-2 mt-0.5 text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                    {p.todoGesamt > 0 && <span>✅ {p.todoErledigt}/{p.todoGesamt}</span>}
-                    {p.zieldatum && (
-                      <span>{t("home:dashboard.projectDue", { date: new Date(p.zieldatum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) })}</span>
-                    )}
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
+            )}
+          </motion.button>
+
+          {/* Nächste Ereignisse — vertikale Timeline */}
+          <motion.div
+            variants={cardVariants}
+            className="p-4 rounded-card bg-light-card dark:bg-canvas-2
+                       border border-light-border dark:border-dark-border shadow-elevation-2"
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <Calendar size={15} className="text-primary-500" />
+              <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
+                {t("home:dashboard.next30Days")}
+              </span>
             </div>
-          )}
-        </motion.button>
 
-        {/* Nächste Ereignisse */}
-        <motion.div
-          variants={cardVariants}
-          initial="hidden"
-          animate="show"
-          className="p-4 rounded-xl bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border"
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <Calendar size={16} className="text-primary-500" />
-            <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-              {t("home:dashboard.next30Days")}
-            </span>
-          </div>
+            {timeline.length === 0 ? (
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+                {t("home:dashboard.noEvents")}
+              </p>
+            ) : (
+              <motion.div
+                variants={timelineVariants}
+                initial="hidden"
+                animate="show"
+                className="relative space-y-3 pl-1"
+              >
+                {/* Vertikale Verbindungslinie */}
+                <div className="absolute left-[6px] top-2 bottom-2
+                                w-0.5 bg-light-border dark:bg-dark-border" />
 
-          {timeline.length === 0 ? (
-            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-              {t("home:dashboard.noEvents")}
-            </p>
-          ) : (
-            <motion.div variants={timelineVariants} initial="hidden" animate="show" className="space-y-2">
-              {timeline.map((e, i) => {
-                const tage = tagesBis(e.datum);
-                const isOverdue = tage !== null && tage < 0;
-                const isUrgent  = tage !== null && tage >= 0 && tage <= 1;
+                {timeline.map((e, i) => {
+                  const tage = tagesBis(e.datum);
+                  const isOverdue = tage !== null && tage < 0;
+                  const isUrgent  = tage !== null && tage >= 0 && tage <= 1;
+                  const isHodie   = tage === 0;
+                  const dotColor  = TIMELINE_DOT_COLOR[e.typ] || "bg-canvas-4";
+
+                  return (
+                    <motion.div
+                      key={i}
+                      variants={timelineItemVariants}
+                      animate={isOverdue
+                        ? { x: [0, -3, 3, -2, 2, 0], backgroundColor: ["rgba(239,68,68,0)", "rgba(239,68,68,0.1)", "rgba(239,68,68,0)"] }
+                        : isUrgent
+                        ? { backgroundColor: ["rgba(245,158,11,0)", "rgba(245,158,11,0.08)", "rgba(245,158,11,0)"] }
+                        : {}}
+                      transition={isOverdue
+                        ? { x: { delay: 0.6 + i * 0.1, duration: 0.4 }, backgroundColor: { delay: 0.6 + i * 0.1, repeat: Infinity, duration: 2.5 } }
+                        : isUrgent
+                        ? { backgroundColor: { repeat: Infinity, duration: 2.5, delay: i * 0.1 } }
+                        : {}}
+                      className="flex items-start gap-3 rounded-card-sm -mx-1 px-1 py-0.5"
+                    >
+                      {/* Farbiger Dot auf der Linie */}
+                      <motion.div
+                        className={`w-3.5 h-3.5 rounded-full flex-shrink-0 mt-0.5 z-10
+                                    ring-2 ring-light-card dark:ring-canvas-2 ${dotColor}`}
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 + i * 0.05 }}
+                      />
+
+                      {/* Titel */}
+                      <span className="text-xs text-light-text-main dark:text-dark-text-main flex-1 truncate leading-5 min-w-0">
+                        {e.titel}
+                      </span>
+
+                      {/* Rechts: Urgency-Badge + Datum-Pill */}
+                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                        {isHodie && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-pill
+                                           bg-red-500/15 text-red-400 border border-red-500/30">
+                            heute
+                          </span>
+                        )}
+                        {isOverdue && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-pill
+                                           bg-red-500/15 text-red-400 border border-red-500/30">
+                            überfällig
+                          </span>
+                        )}
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-pill font-medium
+                                          bg-light-surface-2 dark:bg-canvas-3
+                                          border border-light-border dark:border-dark-border
+                                          ${tagesFarbe(e.datum)}`}>
+                          {new Date(e.datum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
+                        </span>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </motion.div>
+            )}
+          </motion.div>
+        </div>
+      </motion.section>
+
+      {/* ── Aktivitäts-Feed ──────────────────────────────────────────────────── */}
+      {verlauf.length > 0 && (
+        <motion.section variants={reduced ? {} : sectionItemVariants}>
+          <motion.div
+            variants={cardVariants}
+            className="p-4 rounded-card bg-light-card dark:bg-canvas-2
+                       border border-light-border dark:border-dark-border shadow-elevation-2"
+          >
+            <SectionHeader icon={Clock} label={t("home:dashboard.recentActivity")} />
+            <motion.div
+              variants={listVariants}
+              initial="hidden"
+              animate="show"
+              className="relative space-y-2.5"
+            >
+              {/* Vertikale Verbindungslinie */}
+              <div className="absolute left-[13px] top-3.5 bottom-0
+                              w-0.5 bg-light-border dark:bg-dark-border" />
+
+              {verlauf.map((v, i) => {
+                const meta = getVerlaufTableMeta(v.tabelle);
+                const emoji = MODUL_ICON[v.tabelle] || meta.emoji || "📝";
+                const colorClass = MODUL_COLOR[v.tabelle] || "bg-canvas-3 text-dark-text-secondary";
+
                 return (
-                  <motion.div
-                    key={i}
-                    variants={timelineItemVariants}
-                    animate={isOverdue
-                      ? { x: [0, -3, 3, -2, 2, 0], backgroundColor: ["rgba(239,68,68,0)", "rgba(239,68,68,0.1)", "rgba(239,68,68,0)"] }
-                      : isUrgent
-                      ? { backgroundColor: ["rgba(245,158,11,0)", "rgba(245,158,11,0.08)", "rgba(245,158,11,0)"] }
-                      : {}}
-                    transition={isOverdue
-                      ? { x: { delay: 0.6 + i * 0.1, duration: 0.4 }, backgroundColor: { delay: 0.6 + i * 0.1, repeat: Infinity, duration: 2.5 } }
-                      : isUrgent
-                      ? { backgroundColor: { repeat: Infinity, duration: 2.5, delay: i * 0.1 } }
-                      : {}}
-                    className="flex items-center gap-2.5 rounded px-1 -mx-1"
-                  >
-                    <span className="text-sm flex-shrink-0">{TIMELINE_ICON[e.typ] || "📌"}</span>
-                    <span className="text-xs text-light-text-main dark:text-dark-text-main flex-1 truncate">
-                      {e.titel}
-                    </span>
-                    <span className={`text-xs font-medium flex-shrink-0 ${tagesFarbe(e.datum)}`}>
-                      {tagesLabel(e.datum)}
+                  <motion.div key={i} variants={listItemVariants} className="flex items-center gap-3 relative">
+                    {/* Farbiger Icon-Kreis */}
+                    <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center
+                                     text-sm z-10 ring-2 ring-light-card dark:ring-canvas-2 ${colorClass}`}>
+                      {emoji}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <span className="block text-xs text-light-text-main dark:text-dark-text-main truncate">
+                        {getVerlaufDisplayText(v)}
+                      </span>
+                      <span className="block text-[11px] text-light-text-secondary dark:text-dark-text-secondary truncate">
+                        {meta.label}
+                      </span>
+                    </div>
+
+                    {/* Zeitstempel als Pill-Badge */}
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-pill flex-shrink-0
+                                     bg-light-surface-2 dark:bg-canvas-3
+                                     border border-light-border dark:border-dark-border
+                                     text-light-text-secondary dark:text-dark-text-secondary">
+                      {relativeZeit(v.created_at, t)}
                     </span>
                   </motion.div>
                 );
               })}
             </motion.div>
-          )}
-        </motion.div>
-      </div>
-
-      {/* Aktivitäts-Feed */}
-      {verlauf.length > 0 && (
-        <motion.div
-          variants={cardVariants}
-          initial="hidden"
-          animate="show"
-          className="p-4 rounded-xl bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border"
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <Clock size={16} className="text-primary-500" />
-            <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-              {t("home:dashboard.recentActivity")}
-            </span>
-          </div>
-          <motion.div variants={listVariants} initial="hidden" animate="show" className="space-y-2">
-            {verlauf.map((v, i) => (
-              <motion.div key={i} variants={listItemVariants} className="flex items-center gap-2.5">
-                <span className="text-sm flex-shrink-0">
-                  {MODUL_ICON[v.tabelle] || getVerlaufTableMeta(v.tabelle).emoji || "📝"}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <span className="block text-xs text-light-text-main dark:text-dark-text-main truncate">
-                    {getVerlaufDisplayText(v)}
-                  </span>
-                  <span className="block text-[11px] text-light-text-secondary dark:text-dark-text-secondary truncate">
-                    {getVerlaufTableMeta(v.tabelle).label}
-                  </span>
-                </div>
-                <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary flex-shrink-0">
-                  {relativeZeit(v.created_at, t)}
-                </span>
-              </motion.div>
-            ))}
           </motion.div>
-        </motion.div>
+        </motion.section>
       )}
 
-      {/* Schnellzugriff */}
-      <div>
-        <h2 className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider mb-3">
-          {t("home:dashboard.quickAccess")}
-        </h2>
+      {/* ── Schnellzugriff ───────────────────────────────────────────────────── */}
+      <motion.section variants={reduced ? {} : sectionItemVariants}>
+        <SectionHeader label={t("home:dashboard.quickAccess")} />
         <motion.div
           variants={gridVariants}
           initial="hidden"
           animate="show"
           className="grid grid-cols-2 sm:grid-cols-4 gap-3"
         >
-          {[
-            { labelKey: "search",    pfad: "/home/suche",      icon: "🔍" },
-            { labelKey: "documents", pfad: "/home/dokumente",  icon: "📂" },
-            { labelKey: "budget",    pfad: "/home/budget",     icon: "💶" },
-            { labelKey: "projects",  pfad: "/home/projekte",   icon: "📋" },
-          ].map((item) => (
+          {SCHNELLZUGRIFF_ITEMS.map((item) => (
             <motion.button
               key={item.pfad}
               variants={cardVariants}
-              whileHover={{ scale: 1.03, transition: { duration: 0.15 } }}
+              whileHover={reduced ? {} : {
+                scale: 1.03,
+                transition: { type: "spring", stiffness: 400, damping: 25 },
+              }}
               whileTap={{ scale: 0.97 }}
               onClick={() => navigate(item.pfad)}
-              className="flex items-center gap-2 p-3 rounded-lg bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors text-sm text-light-text-main dark:text-dark-text-main"
+              className="flex items-center gap-3 p-3 rounded-card-sm cursor-pointer
+                         bg-light-card dark:bg-canvas-2
+                         border border-light-border dark:border-dark-border shadow-elevation-1
+                         hover:border-primary-500/40 hover:bg-light-hover dark:hover:bg-canvas-3
+                         transition-colors duration-200 text-left group"
             >
-              <span>{item.icon}</span>
-              {t(`home:dashboard.quickLabels.${item.labelKey}`)}
+              {/* Icon-Container mit Farbe */}
+              <div className={`w-9 h-9 rounded-card-sm flex items-center justify-center
+                               text-xl flex-shrink-0 ${item.color}`}>
+                {item.icon}
+              </div>
+              <span className="text-sm text-light-text-main dark:text-dark-text-main flex-1 min-w-0 truncate">
+                {t(`home:dashboard.quickLabels.${item.labelKey}`)}
+              </span>
+              <ChevronRight
+                size={14}
+                className="text-light-text-secondary dark:text-dark-text-secondary
+                           opacity-0 group-hover:opacity-100 flex-shrink-0
+                           transition-opacity duration-150"
+              />
             </motion.button>
           ))}
         </motion.div>
-      </div>
+      </motion.section>
 
       {tourAktiv && (
         <TourOverlay
@@ -885,7 +1187,7 @@ const HomeDashboard = ({ session }) => {
           onBeenden={tourBeenden}
         />
       )}
-    </div>
+    </motion.div>
   );
 };
 

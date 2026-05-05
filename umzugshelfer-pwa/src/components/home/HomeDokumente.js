@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   FileText, FolderOpen, Upload, Download, Trash2, BookOpen,
   X, Plus, CheckCircle, File, Loader2, AlertTriangle, Pencil, ZoomIn, ZoomOut,
@@ -100,9 +101,17 @@ const effektiveKategorie = (dok) => {
   return extrahiereKategorieHinweis(dok.beschreibung);
 };
 
+// ── Motion-Varianten ─────────────────────────────────────────────────────────
+const sectionVariants   = { hidden: {}, show: { transition: { staggerChildren: 0.09, delayChildren: 0.05 } } };
+const cardVariants      = { hidden: { opacity: 0, y: 18 }, show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 320, damping: 30 } } };
+const warnVariants      = { hidden: { opacity: 0, y: -10, scaleY: 0.92 }, show: { opacity: 1, y: 0, scaleY: 1, transition: { type: "spring", stiffness: 400, damping: 30 } }, exit: { opacity: 0, y: -8, scaleY: 0.95, transition: { duration: 0.18 } } };
+const modalOverlayVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { duration: 0.18 } }, exit: { opacity: 0, transition: { duration: 0.15 } } };
+const modalDialogVariants  = { hidden: { opacity: 0, scale: 0.95, y: 16 }, show: { opacity: 1, scale: 1, y: 0, transition: { type: "spring", stiffness: 380, damping: 32 } }, exit: { opacity: 0, scale: 0.96, y: 10, transition: { duration: 0.16 } } };
+
 // ── Upload-Modal ──────────────────────────────────────────────────────────────
 const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
   const { t } = useTranslation(["documents", "common"]);
+  const reduced = useReducedMotion();
   const [datei, setDatei] = useState(null);
   const [beschreibung, setBeschreibung] = useState("");
   const [kategorie, setKategorie] = useState("Sonstiges");
@@ -163,8 +172,17 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
   };
 
   return (
-    <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
-      <div className="mobile-modal-dialog w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 flex min-h-0 flex-col">
+    <motion.div
+      variants={reduced ? {} : modalOverlayVariants}
+      initial="hidden" animate="show" exit="exit"
+      className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onSchliessen}
+    >
+      <motion.div
+        variants={reduced ? {} : modalDialogVariants}
+        className="mobile-modal-dialog w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 flex min-h-0 flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
 
         {/* Header — immer sichtbar */}
         <div className="shrink-0 flex items-center justify-between px-5 pt-5 pb-4 border-b border-light-border dark:border-dark-border">
@@ -265,8 +283,8 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
             {uploading ? t("documents:uploadModal.uploading") : t("documents:uploadModal.upload")}
           </button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };
 
@@ -274,6 +292,7 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
 // eslint-disable-next-line no-unused-vars
 const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
   const { t } = useTranslation(["home", "common"]);
+  const reduced = useReducedMotion();
   const katHinweis = effektiveKategorie(dok);
   const [titel, setTitel] = useState(dok.dateiname.replace(/\.[^.]+$/, ""));
   const [inhalt, setInhalt] = useState(
@@ -307,8 +326,17 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
   };
 
   return (
-    <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
-      <div className="mobile-modal-dialog w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4 overflow-y-auto">
+    <motion.div
+      variants={reduced ? {} : modalOverlayVariants}
+      initial="hidden" animate="show" exit="exit"
+      className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onSchliessen}
+    >
+      <motion.div
+        variants={reduced ? {} : modalDialogVariants}
+        className="mobile-modal-dialog w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4 overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
             <BookOpen size={16} className="text-amber-500" /> {t("home:dokumente.wissensModal.title")}
@@ -372,13 +400,14 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
             {t("common:actions.save")}
           </button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };
 
 const BudgetZuordnungModal = ({ dok, initial, onSchliessen, onSpeichern, speichern }) => {
   const { t } = useTranslation(["home", "common"]);
+  const reduced = useReducedMotion();
   const [beschreibung, setBeschreibung] = useState(initial?.beschreibung || "");
   const [betrag, setBetrag] = useState(initial?.betrag || "");
   const [datum, setDatum] = useState(initial?.datum || new Date().toISOString().split("T")[0]);
@@ -396,8 +425,17 @@ const BudgetZuordnungModal = ({ dok, initial, onSchliessen, onSpeichern, speiche
   };
 
   return (
-    <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
-      <div className="mobile-modal-dialog w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4 overflow-y-auto">
+    <motion.div
+      variants={reduced ? {} : modalOverlayVariants}
+      initial="hidden" animate="show" exit="exit"
+      className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onSchliessen}
+    >
+      <motion.div
+        variants={reduced ? {} : modalDialogVariants}
+        className="mobile-modal-dialog w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4 overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
             <Plus size={16} className="text-primary-500" /> {t("home:dokumente.budgetModal.title")}
@@ -476,14 +514,15 @@ const BudgetZuordnungModal = ({ dok, initial, onSchliessen, onSpeichern, speiche
             {t("common:actions.save")}
           </button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };
 
 // ── Bearbeiten-Modal ──────────────────────────────────────────────────────────
 const BearbeitenModal = ({ dok, userId, onSchliessen, onGespeichert }) => {
   const { t } = useTranslation(["home", "common"]);
+  const reduced = useReducedMotion();
   const [dateiname, setDateiname] = useState(dok.dateiname || "");
   const [beschreibung, setBeschreibung] = useState(
     dok.beschreibung?.replace(/\s*\[[^\]]+\]$/, "") || ""
@@ -531,8 +570,17 @@ const BearbeitenModal = ({ dok, userId, onSchliessen, onGespeichert }) => {
   };
 
   return (
-    <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
-      <div className="mobile-modal-dialog w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 flex min-h-0 flex-col">
+    <motion.div
+      variants={reduced ? {} : modalOverlayVariants}
+      initial="hidden" animate="show" exit="exit"
+      className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onSchliessen}
+    >
+      <motion.div
+        variants={reduced ? {} : modalDialogVariants}
+        className="mobile-modal-dialog w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 flex min-h-0 flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
 
         {/* Header */}
         <div className="shrink-0 flex items-center justify-between px-5 pt-5 pb-4 border-b border-light-border dark:border-dark-border">
@@ -623,8 +671,8 @@ const BearbeitenModal = ({ dok, userId, onSchliessen, onGespeichert }) => {
             {t("common:actions.save")}
           </button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };
 
@@ -661,14 +709,14 @@ const DokumentKarte = ({
   return (
     <div
       data-dokument-id={dok.id}
-      className={`p-4 rounded-card bg-light-card dark:bg-canvas-2 border transition-colors ${
+      className={`p-4 rounded-card bg-light-card dark:bg-canvas-2 border shadow-elevation-2 transition-[border-color,box-shadow] duration-200 ${
         highlighted
-          ? "border-primary-500 ring-2 ring-primary-500/30"
-          : "border-light-border dark:border-dark-border hover:border-primary-500/30"
+          ? "border-primary-500 ring-2 ring-primary-500/30 shadow-glow-primary"
+          : "border-light-border dark:border-dark-border hover:border-primary-500/40 hover:shadow-glow-primary"
       }`}
     >
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-lg bg-light-border dark:bg-canvas-3 flex items-center justify-center flex-shrink-0">
+        <div className="w-10 h-10 rounded-card-sm bg-light-border dark:bg-canvas-3 flex items-center justify-center flex-shrink-0">
           {dateiIcon()}
         </div>
         <div className="flex-1 min-w-0">
@@ -797,47 +845,52 @@ const DokumentKarte = ({
 
       <div className="mt-3 pt-3 border-t border-light-border dark:border-dark-border flex flex-wrap items-center gap-2">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-          <button
+          <motion.button
             onClick={() => onDownload(dok.storage_pfad, dok.dateiname)}
             disabled={laedtDownload}
+            whileTap={{ scale: 0.92 }}
             className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors disabled:opacity-50"
           >
             <Download size={12} /> Herunterladen
-          </button>
-          <button
+          </motion.button>
+          <motion.button
             onClick={() => onWissen(dok)}
+            whileTap={{ scale: 0.92 }}
             className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors"
           >
             <BookOpen size={12} /> Als Wissen
-          </button>
+          </motion.button>
           {istRechnungKategorie(dok) && (
             dok.im_budget ? (
               <span className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-green-500/10 text-green-600 dark:text-green-400">
                 <CheckCircle size={12} /> Im Budget
               </span>
             ) : (
-              <button
+              <motion.button
                 onClick={() => onZumBudget(dok)}
+                whileTap={{ scale: 0.92 }}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors"
               >
                 <Plus size={12} /> Zum Budget hinzufügen
-              </button>
+              </motion.button>
             )
           )}
         </div>
         <div className="ml-auto flex items-center gap-1.5 shrink-0">
-          <button
+          <motion.button
             onClick={() => onBearbeiten(dok)}
+            whileTap={{ scale: 0.88 }}
             className="flex items-center px-2.5 py-1.5 text-xs rounded-card-sm bg-light-hover dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main transition-colors"
           >
             <Pencil size={12} />
-          </button>
-          <button
+          </motion.button>
+          <motion.button
             onClick={() => onLoeschen(dok.id, dok.storage_pfad, dok.dateiname)}
+            whileTap={{ scale: 0.88 }}
             className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm text-red-500 hover:bg-red-500/10 transition-colors"
           >
             <Trash2 size={12} />
-          </button>
+          </motion.button>
         </div>
       </div>
     </div>
@@ -846,6 +899,7 @@ const DokumentKarte = ({
 
 // ── Vorschau-Modal ─────────────────────────────────────────────────────────────
 const VorschauModal = ({ dok, vorschauUrl, loadPreviewUrl, onSchliessen }) => {
+  const reduced = useReducedMotion();
   const [url, setUrl] = useState(vorschauUrl || null);
   const [laedt, setLaedt] = useState(!vorschauUrl);
 
@@ -869,8 +923,14 @@ const VorschauModal = ({ dok, vorschauUrl, loadPreviewUrl, onSchliessen }) => {
   const istPdf  = istPdfDatei(dok);
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onSchliessen}>
-      <div
+    <motion.div
+      variants={reduced ? {} : modalOverlayVariants}
+      initial="hidden" animate="show" exit="exit"
+      className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      onClick={onSchliessen}
+    >
+      <motion.div
+        variants={reduced ? {} : modalDialogVariants}
         className="relative w-full max-w-3xl bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
@@ -918,8 +978,8 @@ const VorschauModal = ({ dok, vorschauUrl, loadPreviewUrl, onSchliessen }) => {
             </a>
           )}
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };
 
@@ -928,6 +988,7 @@ const HomeDokumente = ({ session }) => {
   const userId = session?.user?.id;
   const location = useLocation();
   const navigate = useNavigate();
+  const reduced = useReducedMotion();
   const { active: tourAktiv, schritt, setSchritt, beenden: tourBeenden } = useTour("dokumente");
 
   const [dokumente, setDokumente] = useState([]);
@@ -1319,27 +1380,47 @@ const HomeDokumente = ({ session }) => {
     <div className="w-full min-w-0 max-w-5xl mx-auto px-4 lg:px-6 py-4 space-y-4 overflow-x-hidden">
 
       {/* Header */}
-      <div data-tour="tour-dokumente-header" className="flex items-center gap-2">
+      <motion.div
+        data-tour="tour-dokumente-header"
+        className="flex items-center gap-2"
+        initial={reduced ? false : { opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: "spring", stiffness: 350, damping: 26, delay: 0.05 }}
+      >
         <FolderOpen size={22} className="text-primary-500" />
         <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">
           Dokumentenarchiv
         </h1>
-      </div>
+      </motion.div>
 
       {/* Wissen-Erfolg */}
-      {wissenErfolgreich && (
-        <div className="p-3 rounded-card bg-green-500/10 border border-green-500/30 flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
-          <CheckCircle size={14} /> Wissenseintrag gespeichert.
-        </div>
-      )}
+      <AnimatePresence>
+        {wissenErfolgreich && (
+          <motion.div
+            key="wissen-erfolg"
+            variants={reduced ? {} : warnVariants}
+            initial="hidden" animate="show" exit="exit"
+            className="p-3 rounded-card bg-green-500/10 border border-green-500/30 flex items-center gap-2 text-sm text-green-600 dark:text-green-400 origin-top"
+          >
+            <CheckCircle size={14} /> Wissenseintrag gespeichert.
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Fehler */}
-      {fehler && (
-        <div className="p-3 rounded-card bg-red-500/10 border border-red-500/30 flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
-          <AlertTriangle size={14} /> {fehler}
-          <button onClick={() => setFehler(null)} className="ml-auto"><X size={14} /></button>
-        </div>
-      )}
+      <AnimatePresence>
+        {fehler && (
+          <motion.div
+            key="fehler-banner"
+            variants={reduced ? {} : warnVariants}
+            initial="hidden" animate="show" exit="exit"
+            className="p-3 rounded-card bg-red-500/10 border border-red-500/30 flex items-center gap-2 text-sm text-red-600 dark:text-red-400 origin-top"
+          >
+            <AlertTriangle size={14} /> {fehler}
+            <button onClick={() => setFehler(null)} className="ml-auto"><X size={14} /></button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* FilterBar */}
       <DokumentFilterBar
@@ -1366,9 +1447,51 @@ const HomeDokumente = ({ session }) => {
 
       {/* Hauptinhalt */}
       {loading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 size={28} className="animate-spin text-light-text-secondary dark:text-dark-text-secondary" />
-        </div>
+        viewMode === "karten" ? (
+          /* Karten-Skeleton */
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fade-in">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="p-4 rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border shadow-elevation-1">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-card-sm bg-light-surface-2 dark:bg-canvas-3 animate-pulse flex-shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3.5 bg-light-surface-2 dark:bg-canvas-3 animate-pulse rounded w-3/4" />
+                    <div className="h-2.5 bg-light-surface-2 dark:bg-canvas-3 animate-pulse rounded w-1/2" />
+                    <div className="flex gap-2">
+                      <div className="h-4 w-16 bg-light-surface-2 dark:bg-canvas-3 animate-pulse rounded-pill" />
+                      <div className="h-4 w-10 bg-light-surface-2 dark:bg-canvas-3 animate-pulse rounded" />
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 pt-3 border-t border-light-border dark:border-dark-border flex gap-2">
+                  <div className="h-6 w-24 bg-light-surface-2 dark:bg-canvas-3 animate-pulse rounded-card-sm" />
+                  <div className="h-6 w-20 bg-light-surface-2 dark:bg-canvas-3 animate-pulse rounded-card-sm" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          /* Listen-Skeleton */
+          <div className="space-y-3 animate-fade-in">
+            {Array.from({ length: 3 }).map((_, g) => (
+              <div key={g}>
+                <div className="h-3 w-24 bg-light-surface-2 dark:bg-canvas-3 animate-pulse rounded mb-2" />
+                <div className="bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border divide-y divide-light-border dark:divide-dark-border">
+                  {Array.from({ length: 3 }).map((_, r) => (
+                    <div key={r} className="flex items-center gap-3 px-3 py-2.5">
+                      <div className="w-8 h-8 rounded-card-sm bg-light-surface-2 dark:bg-canvas-3 animate-pulse flex-shrink-0" />
+                      <div className="flex-1 space-y-1.5">
+                        <div className="h-3 bg-light-surface-2 dark:bg-canvas-3 animate-pulse rounded w-2/3" />
+                        <div className="h-2.5 bg-light-surface-2 dark:bg-canvas-3 animate-pulse rounded w-1/2" />
+                      </div>
+                      <div className="h-4 w-12 bg-light-surface-2 dark:bg-canvas-3 animate-pulse rounded hidden sm:block" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
       ) : sichtbareDokumente.length === 0 ? (
         <div data-tour="tour-dokumente-liste" className="text-center py-16 text-light-text-secondary dark:text-dark-text-secondary">
           <FolderOpen size={40} className="mx-auto mb-3 opacity-20" />
@@ -1398,74 +1521,95 @@ const HomeDokumente = ({ session }) => {
           />
         </div>
       ) : (
-        <div data-tour="tour-dokumente-liste" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <motion.div
+          data-tour="tour-dokumente-liste"
+          className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+          variants={reduced ? {} : sectionVariants}
+          initial="hidden"
+          animate="show"
+        >
           {sichtbareDokumente.map((dok) => (
-            <DokumentKarte
-              key={dok.id}
-              dok={dok}
-              vorschauUrl={vorschauUrls[dok.id]}
-              onLoadVorschau={() => loadPreviewUrl(dok)}
-              onDownload={handleDownload}
-              onLoeschen={handleLoeschen}
-              onWissen={setWissenModalDok}
-              onZumBudget={oeffneBudgetModal}
-              onBearbeiten={setBearbeitenModalDok}
-              laedtDownload={laedtDownload}
-              highlighted={highlightedDokumentId === dok.id}
-            />
+            <motion.div key={dok.id} variants={reduced ? {} : cardVariants}>
+              <DokumentKarte
+                dok={dok}
+                vorschauUrl={vorschauUrls[dok.id]}
+                onLoadVorschau={() => loadPreviewUrl(dok)}
+                onDownload={handleDownload}
+                onLoeschen={handleLoeschen}
+                onWissen={setWissenModalDok}
+                onZumBudget={oeffneBudgetModal}
+                onBearbeiten={setBearbeitenModalDok}
+                laedtDownload={laedtDownload}
+                highlighted={highlightedDokumentId === dok.id}
+              />
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
 
       {/* Vorschau-Modal */}
-      {vorschauModal && (
-        <VorschauModal
-          dok={vorschauModal}
-          vorschauUrl={vorschauUrls[vorschauModal.id]}
-          loadPreviewUrl={loadPreviewUrl}
-          onSchliessen={() => setVorschauModal(null)}
-        />
-      )}
+      <AnimatePresence>
+        {vorschauModal && (
+          <VorschauModal
+            key="vorschau-modal"
+            dok={vorschauModal}
+            vorschauUrl={vorschauUrls[vorschauModal.id]}
+            loadPreviewUrl={loadPreviewUrl}
+            onSchliessen={() => setVorschauModal(null)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Modals */}
-      {uploadModalOffen && (
-        <UploadModal
-          userId={userId}
-          onSchliessen={() => setUploadModalOffen(false)}
-          onErfolgreich={() => { setUploadModalOffen(false); ladeDaten(); }}
-        />
-      )}
-      {wissenModalDok && (
-        <DokumentWissenAnalyseModal
-          dok={wissenModalDok}
-          userId={userId}
-          session={session}
-          onSchliessen={() => setWissenModalDok(null)}
-          onErfolgreich={handleWissensErfolg}
-        />
-      )}
-      {budgetModalDok && (
-        <BudgetZuordnungModal
-          dok={budgetModalDok}
-          initial={budgetModalInitial}
-          speichern={budgetSpeichern}
-          onSchliessen={() => {
-            if (budgetSpeichern) return;
-            setBudgetModalDok(null);
-            setBudgetModalInitial(null);
-          }}
-          onSpeichern={handleZumBudgetSpeichern}
-        />
-      )}
-
-      {bearbeitenModalDok && (
-        <BearbeitenModal
-          dok={bearbeitenModalDok}
-          userId={userId}
-          onSchliessen={() => setBearbeitenModalDok(null)}
-          onGespeichert={handleBearbeitenGespeichert}
-        />
-      )}
+      <AnimatePresence>
+        {uploadModalOffen && (
+          <UploadModal
+            key="upload-modal"
+            userId={userId}
+            onSchliessen={() => setUploadModalOffen(false)}
+            onErfolgreich={() => { setUploadModalOffen(false); ladeDaten(); }}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {wissenModalDok && (
+          <DokumentWissenAnalyseModal
+            key="wissen-modal"
+            dok={wissenModalDok}
+            userId={userId}
+            session={session}
+            onSchliessen={() => setWissenModalDok(null)}
+            onErfolgreich={handleWissensErfolg}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {budgetModalDok && (
+          <BudgetZuordnungModal
+            key="budget-modal"
+            dok={budgetModalDok}
+            initial={budgetModalInitial}
+            speichern={budgetSpeichern}
+            onSchliessen={() => {
+              if (budgetSpeichern) return;
+              setBudgetModalDok(null);
+              setBudgetModalInitial(null);
+            }}
+            onSpeichern={handleZumBudgetSpeichern}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {bearbeitenModalDok && (
+          <BearbeitenModal
+            key="bearbeiten-modal"
+            dok={bearbeitenModalDok}
+            userId={userId}
+            onSchliessen={() => setBearbeitenModalDok(null)}
+            onGespeichert={handleBearbeitenGespeichert}
+          />
+        )}
+      </AnimatePresence>
       {/* Tour */}
       {tourAktiv && TOUR_STEPS.dokumente && (
         <TourOverlay

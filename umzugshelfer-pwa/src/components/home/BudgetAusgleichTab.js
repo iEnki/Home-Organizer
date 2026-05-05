@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeftRight, Info, RefreshCw, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Info, RefreshCw, Trash2 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { getBewohnerDisplayName } from "../../utils/budgetAccounts";
 import { centsToEuro, buildOpenPairBalances, buildOpenSaldoMap, buildSettlementSuggestions } from "../../utils/budgetLedger";
@@ -101,7 +101,7 @@ export default function BudgetAusgleichTab({
   const [monthCloseLoading, setMonthCloseLoading] = useState(false);
   const [expandedSuggestions, setExpandedSuggestions] = useState({});
 
-  const [filterMonat, setFilterMonat] = useState("");
+  const [filterMonat, setFilterMonat] = useState(currentMonthValue);
   const [filterMemberId, setFilterMemberId] = useState("");
 
   const { t, i18n } = useTranslation(["budget", "common"]);
@@ -321,6 +321,17 @@ export default function BudgetAusgleichTab({
       ...current,
       [suggestionKey]: !current[suggestionKey],
     }));
+  }, []);
+
+  const navigateHistoryMonth = useCallback((delta) => {
+    setFilterMonat((current) => {
+      const [year, month] = current.split("-").map(Number);
+      let newMonth = month + delta;
+      let newYear = year;
+      if (newMonth > 12) { newMonth = 1; newYear++; }
+      if (newMonth < 1) { newMonth = 12; newYear--; }
+      return `${newYear}-${String(newMonth).padStart(2, "0")}`;
+    });
   }, []);
 
   const saveSettlement = useCallback(async ({
@@ -560,68 +571,76 @@ export default function BudgetAusgleichTab({
         </div>
       )}
 
-      <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 p-4">
-        <div className="flex flex-wrap gap-3 items-end">
-          <div>
-            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:settlementTab.filterMonth")}</label>
-            <input type="month" value={filterMonat} onChange={(event) => setFilterMonat(event.target.value)} className={INPUT_CLS} />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:settlementTab.filterResident")}</label>
-            <select value={filterMemberId} onChange={(event) => setFilterMemberId(event.target.value)} className={INPUT_CLS}>
-              <option value="">{t("budget:settlementTab.filterAll")}</option>
-              {bewohner.map((eintrag) => (
-                <option key={eintrag.id} value={eintrag.id}>
-                  {eintrag.emoji} {getBewohnerDisplayName(eintrag)}
-                </option>
-              ))}
-            </select>
-          </div>
-          {(filterMonat || filterMemberId) && (
-            <button onClick={() => { setFilterMonat(""); setFilterMemberId(""); }} className="text-sm text-primary-500 hover:underline pb-2">
-              {t("budget:settlementTab.filterReset")}
-            </button>
-          )}
+      {/* ── Offene Salden ── */}
+      <section>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="h-3.5 w-0.5 rounded-full bg-primary-500" />
+          <p className="text-[11px] uppercase tracking-widest text-light-text-secondary dark:text-dark-text-secondary font-medium">
+            {t("budget:settlementTab.openBalances")}
+          </p>
         </div>
-      </div>
+        {ledgerLoading ? (
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary animate-fade-in">
+            {t("budget:settlementTab.ledgerLoading")}
+          </p>
+        ) : saldoRows.length === 0 ? (
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary animate-fade-in">
+            {t("budget:settlementTab.noOpenSplits")}
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {saldoRows.map((row, i) => {
+              const positive = row.saldo >= 0;
+              return (
+                <div
+                  key={row.id}
+                  className={`relative overflow-hidden rounded-card border p-4 animate-fade-in ${
+                    positive
+                      ? "border-primary-500/30 bg-primary-500/5 dark:bg-primary-500/8"
+                      : "border-red-500/30 bg-red-500/5 dark:bg-red-500/8"
+                  }`}
+                  style={{ animationDelay: `${i * 60}ms`, animationFillMode: "both" }}
+                >
+                  {/* Ambient glow blob */}
+                  <div
+                    className={`pointer-events-none absolute -right-4 -top-4 h-16 w-16 rounded-full blur-xl ${
+                      positive ? "bg-primary-500/20" : "bg-red-500/20"
+                    }`}
+                  />
+                  <div className="relative">
+                    <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">
+                      {row.emoji} {getBewohnerDisplayName(row)}
+                    </p>
+                    <p
+                      className={`mt-1 text-lg font-bold tabular-nums ${
+                        positive ? "text-primary-500" : "text-red-400 dark:text-red-400"
+                      }`}
+                    >
+                      {row.saldo > 0 ? "+" : row.saldo < 0 ? "−" : ""}
+                      {currency(Math.abs(row.saldo))}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
-      <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2">
+      {/* ── Ausgleichs-Vorschläge ── */}
+      <section className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 overflow-hidden shadow-elevation-1 dark:shadow-elevation-1">
         <div className="flex items-center justify-between gap-3 p-4 border-b border-light-border dark:border-dark-border">
           <div>
-            <p className="text-xs uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.openBalancesSubtitle")}</p>
-            <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.openBalances")}</h3>
-          </div>
-          <ArrowLeftRight size={18} className="text-primary-500" />
-        </div>
-        <div className="p-4 space-y-3">
-          {ledgerLoading ? (
-            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.ledgerLoading")}</p>
-          ) : saldoRows.length === 0 ? (
-            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.noOpenSplits")}</p>
-          ) : (
-            saldoRows.map((row) => (
-              <div key={row.id} className="flex items-center justify-between gap-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-2">
-                <span className="text-sm text-light-text-main dark:text-dark-text-main">
-                  {row.emoji} {getBewohnerDisplayName(row)}
-                </span>
-                <span className={`text-sm font-semibold tabular-nums ${saldoAmountClass(row.saldo)}`}>
-                  {row.saldo > 0 ? "+" : row.saldo < 0 ? "−" : ""}
-                  {currency(Math.abs(row.saldo))}
-                </span>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2">
-        <div className="flex items-center justify-between gap-3 p-4 border-b border-light-border dark:border-dark-border">
-          <div>
-            <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.suggestions")}</h3>
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.suggestionsSubtitle")}</p>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="h-3.5 w-0.5 rounded-full bg-primary-500" />
+              <p className="text-[11px] uppercase tracking-widest text-light-text-secondary dark:text-dark-text-secondary font-medium">
+                {t("budget:settlementTab.suggestionsSubtitle")}
+              </p>
+            </div>
+            <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.suggestions")}</h3>
           </div>
           {suggestions.length > 1 && (
-            <button onClick={handleApplyAllSuggestions} disabled={saving || migrationBlocked} className="px-3 py-1.5 rounded-card-sm bg-primary-500 text-white text-sm disabled:opacity-60">
+            <button onClick={handleApplyAllSuggestions} disabled={saving || migrationBlocked} className="rounded-pill bg-primary-500 px-3 py-1.5 text-sm text-white disabled:opacity-60 hover:bg-primary-600 transition-colors">
               {t("budget:settlementTab.applyAll")}
             </button>
           )}
@@ -744,11 +763,13 @@ export default function BudgetAusgleichTab({
             </>
           )}
         </div>
-      </div>
+      </section>
 
-      <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2">
-        <div className="p-4 border-b border-light-border dark:border-dark-border">
-          <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.record")}</h3>
+      {/* ── Ausgleich erfassen ── */}
+      <section className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 overflow-hidden shadow-elevation-1 dark:shadow-elevation-1">
+        <div className="flex items-center gap-3 p-4 border-b border-light-border dark:border-dark-border">
+          <div className="h-3.5 w-0.5 rounded-full bg-primary-500" />
+          <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.record")}</h3>
         </div>
         <div className="p-4 space-y-3">
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -799,21 +820,25 @@ export default function BudgetAusgleichTab({
             </div>
           )}
 
-          <button onClick={handleSave} disabled={saving || migrationBlocked} className="px-4 py-2 rounded-card-sm bg-primary-500 text-white text-sm disabled:opacity-60">
+          <button onClick={handleSave} disabled={saving || migrationBlocked} className="rounded-pill bg-primary-500 px-4 py-2 text-sm text-white disabled:opacity-60 hover:bg-primary-600 transition-colors">
             {t("budget:settlementTab.save")}
           </button>
         </div>
-      </div>
+      </section>
 
-      <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2">
+      {/* ── Monatsabschluss ── */}
+      <section className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 overflow-hidden shadow-elevation-1 dark:shadow-elevation-1">
         <div className="flex items-center justify-between gap-3 p-4 border-b border-light-border dark:border-dark-border">
           <div>
-            <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.monthlyClose")}</h3>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="h-3.5 w-0.5 rounded-full bg-primary-500" />
+              <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.monthlyClose")}</h3>
+            </div>
             <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.monthlyCloseSubtitle")}</p>
           </div>
           <div className="flex items-center gap-2">
             <input type="month" value={abschlussMonat} onChange={(event) => setAbschlussMonat(event.target.value)} className={INPUT_CLS} />
-            <button onClick={handleCloseMonth} disabled={closingMonth || migrationBlocked} className="px-3 py-1.5 rounded-card-sm bg-primary-500 text-white text-sm disabled:opacity-60">
+            <button onClick={handleCloseMonth} disabled={closingMonth || migrationBlocked} className="rounded-pill bg-primary-500 px-3 py-1.5 text-sm text-white disabled:opacity-60 hover:bg-primary-600 transition-colors">
               {selectedMonthIsStale || !monthClose ? t("budget:settlementTab.recalculate") : t("budget:settlementTab.updateBtn")}
             </button>
           </div>
@@ -865,37 +890,91 @@ export default function BudgetAusgleichTab({
             </>
           )}
         </div>
-      </div>
+      </section>
 
-      <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2">
-        <div className="p-4 border-b border-light-border dark:border-dark-border">
-          <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.history")}</h3>
+      {/* ── Verlauf ── */}
+      <section className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 overflow-hidden shadow-elevation-1 dark:shadow-elevation-1">
+        <div className="flex flex-wrap items-center justify-between gap-2 p-4 border-b border-light-border dark:border-dark-border">
+          <div className="flex items-center gap-2">
+            <div className="h-3.5 w-0.5 rounded-full bg-primary-500" />
+            <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.history")}</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Monatsnavigation */}
+            <div className="flex items-center gap-0.5 rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1">
+              <button
+                onClick={() => navigateHistoryMonth(-1)}
+                className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 transition-colors"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <span className="min-w-[90px] text-center text-xs font-medium text-light-text-main dark:text-dark-text-main">
+                {new Date(`${filterMonat}-02`).toLocaleDateString("de-AT", { month: "short", year: "numeric" })}
+              </span>
+              <button
+                onClick={() => navigateHistoryMonth(1)}
+                disabled={filterMonat >= currentMonthValue()}
+                className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 disabled:opacity-40 transition-colors"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+            {/* Bewohner-Filter */}
+            {bewohner.length > 1 && (
+              <select
+                value={filterMemberId}
+                onChange={(event) => setFilterMemberId(event.target.value)}
+                className="text-xs rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main px-2 py-1.5 focus:outline-none focus:border-primary-500"
+              >
+                <option value="">{t("budget:settlementTab.filterAll")}</option>
+                {bewohner.map((eintrag) => (
+                  <option key={eintrag.id} value={eintrag.id}>
+                    {eintrag.emoji} {getBewohnerDisplayName(eintrag)}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
         </div>
-        <div className="p-4 space-y-3">
+        <div className="p-4 space-y-2">
           {!historyRows.length ? (
-            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.emptyHistory")}</p>
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary animate-fade-in">
+              {t("budget:settlementTab.emptyHistory")}
+            </p>
           ) : (
-            historyRows.map((row) => (
-              <div key={row.id} className="flex items-center justify-between gap-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-3">
+            historyRows.map((row, i) => (
+              <div
+                key={row.id}
+                className="flex items-center justify-between gap-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-3 animate-slide-in-up"
+                style={{ animationDelay: `${i * 40}ms`, animationFillMode: "both" }}
+              >
                 <div className="min-w-0">
                   <p className="text-sm text-light-text-main dark:text-dark-text-main">
-                    {bewohnerById[row.from_member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[row.from_member_id] || { name: t("budget:settlementTab.unknown") })} → {bewohnerById[row.to_member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[row.to_member_id] || { name: t("budget:settlementTab.unknown") })}
+                    {bewohnerById[row.from_member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[row.from_member_id] || { name: t("budget:settlementTab.unknown") })}
+                    {" → "}
+                    {bewohnerById[row.to_member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[row.to_member_id] || { name: t("budget:settlementTab.unknown") })}
                   </p>
                   <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
                     {row.date} {row.note ? `· ${translateNote(row.note)}` : ""}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-base font-semibold tabular-nums text-emerald-400 dark:text-emerald-300">{currency(Number(row.amount || 0))}</span>
-                  <button onClick={() => handleDeleteSettlement(row.id)} disabled={deletingId === row.id || migrationBlocked} className="p-2 rounded-full text-red-500 hover:bg-red-500/10 disabled:opacity-60">
-                    {deletingId === row.id ? <RefreshCw size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                  <span className="text-base font-semibold tabular-nums text-primary-500">
+                    {currency(Number(row.amount || 0))}
+                  </span>
+                  <button
+                    onClick={() => handleDeleteSettlement(row.id)}
+                    disabled={deletingId === row.id || migrationBlocked}
+                    className="rounded-full p-2 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500 hover:bg-red-500/10 disabled:opacity-60 transition-colors"
+                  >
+                    {deletingId === row.id ? <RefreshCw size={15} className="animate-spin" /> : <Trash2 size={15} />}
                   </button>
                 </div>
               </div>
             ))
           )}
         </div>
-      </div>
+      </section>
     </div>
   );
 }

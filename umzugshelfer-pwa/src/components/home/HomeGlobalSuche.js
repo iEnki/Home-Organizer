@@ -13,10 +13,12 @@ import {
   ShoppingCart,
   Sparkles,
   Wrench,
+  ChefHat,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
 import { answerSemanticHouseholdQuestion } from "../../utils/assistantAi";
+import { resolveLocalizedRecipe } from "../../utils/localizedRecipeShopping";
 import DokumentVorschauModal from "./DokumentVorschauModal";
 import TourOverlay from "./tour/TourOverlay";
 import { TOUR_STEPS } from "./tour/tourSteps";
@@ -29,7 +31,33 @@ const QUELLEN = [
   { key: "aufgaben", labelKey: "search.sources.tasks", icon: CheckSquare, farbe: "text-purple-500", pfad: "/home/aufgaben" },
   { key: "dokumente", labelKey: "search.sources.documents", icon: FileText, farbe: "text-indigo-500", pfad: "/home/dokumente" },
   { key: "buecher", labelKey: "search.sources.books", icon: BookOpen, farbe: "text-teal-500", pfad: "/home/inventar?tab=buecher" },
+  { key: "rezepte", labelKey: "search.sources.recipes", icon: ChefHat, farbe: "text-emerald-500", pfad: "/home/kochbuch" },
 ];
+
+const recipeMatchesQuery = (recipe, query) => {
+  const normalizedQuery = String(query || "").trim().toLowerCase();
+  if (!normalizedQuery) return false;
+  const localizedDe = resolveLocalizedRecipe(recipe, "de");
+  const localizedEn = resolveLocalizedRecipe(recipe, "en-GB");
+  const haystack = [
+    recipe.titel,
+    recipe.beschreibung,
+    ...(recipe.tags || []),
+    localizedDe.title,
+    localizedDe.description,
+    ...(localizedDe.instructions || []),
+    ...(localizedDe.tags || []),
+    localizedEn.title,
+    localizedEn.description,
+    ...(localizedEn.instructions || []),
+    ...(localizedEn.tags || []),
+    recipe.quelle_plattform,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(normalizedQuery);
+};
 
 const Schnellsuche = ({ session }) => {
   const { t } = useTranslation(["home"]);
@@ -56,6 +84,7 @@ const Schnellsuche = ({ session }) => {
           aufgabenRes,
           dokumenteRes,
           buecherRes,
+          rezepteRes,
         ] = await Promise.all([
           supabase
             .from("home_objekte")
@@ -98,6 +127,12 @@ const Schnellsuche = ({ session }) => {
             .or(`titel.ilike.%${q}%,autor_anzeige.ilike.%${q}%,isbn_13.ilike.%${q}%`)
             .neq("status", "entsorgt")
             .limit(5),
+          supabase
+            .from("home_rezepte")
+            .select("id, titel, beschreibung, quelle_plattform, tags, localized_content")
+            .eq("user_id", userId)
+            .order("updated_at", { ascending: false })
+            .limit(100),
         ]);
 
         setErgebnisse({
@@ -107,6 +142,7 @@ const Schnellsuche = ({ session }) => {
           aufgaben: aufgabenRes.data || [],
           dokumente: dokumenteRes.data || [],
           buecher: buecherRes.data || [],
+          rezepte: (rezepteRes.data || []).filter((recipe) => recipeMatchesQuery(recipe, q)).slice(0, 5),
         });
       } finally {
         setLoading(false);

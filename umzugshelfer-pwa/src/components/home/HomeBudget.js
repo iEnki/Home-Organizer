@@ -94,9 +94,7 @@ import BudgetInvoicePositionsModal from "./budget/BudgetInvoicePositionsModal";
 import BudgetCategoryManagerModal from "./budget/BudgetCategoryManagerModal";
 import BudgetKpiStrip from "./budget/BudgetKpiStrip";
 import BudgetStatsHeader from "./budget/BudgetStatsHeader";
-import BudgetStatsKpiStrip from "./budget/BudgetStatsKpiStrip";
-import BudgetStatsCharts from "./budget/BudgetStatsCharts";
-import BudgetCashflowList from "./budget/BudgetCashflowList";
+import BudgetStatsView from "./budget/BudgetStatsView";
 import BudgetLimitsList from "./budget/BudgetLimitsList";
 import BudgetAccountKpiStrip from "./budget/BudgetAccountKpiStrip";
 import BudgetAccountsSummaryCard from "./budget/BudgetAccountsSummaryCard";
@@ -2453,8 +2451,8 @@ const HomeBudget = ({ session }) => {
           setKontoFilter,
           setScopeFilter,
           setZeitraum,
-          setSelJahr,
-          setSelMonat,
+          setSelJahr: () => setSelJahr(today.getFullYear()),
+          setSelMonat: () => setSelMonat(today.getMonth()),
           setSortierung,
           setGruppierung,
           setNurWiederkehrend,
@@ -2488,8 +2486,8 @@ const HomeBudget = ({ session }) => {
           setKontoFilter,
           setScopeFilter,
           setZeitraum,
-          setSelJahr,
-          setSelMonat,
+          setSelJahr: () => setSelJahr(today.getFullYear()),
+          setSelMonat: () => setSelMonat(today.getMonth()),
           setSortierung,
           setGruppierung,
           setNurWiederkehrend,
@@ -3000,21 +2998,33 @@ const HomeBudget = ({ session }) => {
       )}
 
       {/* Tab Navigation */}
-      <div data-tour="tour-budget-tabs" className="flex gap-1 bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-1">
-        {TABS.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => wechselTab(tab.id)}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-card-sm text-xs font-medium transition-colors ${
-              aktiverTab === tab.id
-                ? "bg-primary-500 text-white"
-                : "text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
-            }`}
-          >
-            <tab.icon size={13} />
-            <span className="hidden sm:inline">{t(`budget:${tab.labelKey}`)}</span>
-          </button>
-        ))}
+      <div data-tour="tour-budget-tabs" className="relative flex border-b border-light-border dark:border-dark-border">
+        {TABS.map((tab, i) => {
+          const isActive = aktiverTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => wechselTab(tab.id)}
+              className={`flex flex-1 items-center justify-center gap-1.5 px-2 py-3 text-xs font-medium transition-colors duration-200 ${
+                isActive
+                  ? "text-primary-500"
+                  : "text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
+              }`}
+            >
+              <tab.icon size={13} />
+              <span className="hidden sm:inline">{t(`budget:${tab.labelKey}`)}</span>
+            </button>
+          );
+        })}
+        {/* Sliding underline indicator */}
+        <div
+          className="absolute bottom-0 h-0.5 rounded-full bg-primary-500 transition-all duration-300 ease-out"
+          style={{
+            width: `${100 / TABS.length}%`,
+            left: `${(TABS.findIndex((tab) => tab.id === aktiverTab) / TABS.length) * 100}%`,
+            boxShadow: "0 0 8px rgba(16,185,129,0.5)",
+          }}
+        />
       </div>
 
       {/* ════════════ TAB: ÜBERSICHT ════════════ */}
@@ -3322,24 +3332,16 @@ const HomeBudget = ({ session }) => {
             onNext={() => (statistikModus === "jahr" ? setSelJahr((jahr) => jahr + 1) : navigiereMonat(1))}
           />
 
-          <BudgetStatsKpiStrip
-            modus={statistikModus}
-            yearStats={statsYearView}
-            monthStats={statsMonthView}
-          />
-
-          <BudgetStatsCharts
+          <BudgetStatsView
             modus={statistikModus}
             yearStats={statsYearView}
             monthStats={statsMonthView}
             selJahr={selJahr}
+            selMonat={selMonat}
             monatLabel={`${MONATE[selMonat]} ${selJahr}`}
-          />
-
-          <BudgetCashflowList
-            items={cashflowView.items}
-            total={cashflowView.total}
-            count={cashflowView.count}
+            cashflowItems={cashflowView.items}
+            cashflowTotal={cashflowView.total}
+            cashflowCount={cashflowView.count}
           />
         </div>
       )}

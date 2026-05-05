@@ -1,7 +1,13 @@
 import React, { useState } from "react";
 import { FolderOpen, ChevronDown } from "lucide-react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { formatMonatLabel } from "../../../utils/dokumentArchiv";
 import DokumentZeile from "./DokumentZeile";
+
+const listVariants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.05 } },
+};
 
 export default function DokumentArchivListe({
   gruppiertNachMonat,
@@ -16,6 +22,7 @@ export default function DokumentArchivListe({
 }) {
   const { map, reihenfolge } = gruppiertNachMonat;
   const [collapsed, setCollapsed] = useState(() => new Set());
+  const reduced = useReducedMotion();
 
   const toggleCollapse = (key) =>
     setCollapsed((prev) => {
@@ -45,12 +52,13 @@ export default function DokumentArchivListe({
               onClick={() => toggleCollapse(key)}
               className="w-full flex items-center gap-2 px-1 pb-1.5 text-left group"
             >
-              <ChevronDown
-                size={13}
-                className={`transition-transform duration-150 text-light-text-secondary dark:text-dark-text-secondary flex-shrink-0 ${
-                  istZugeklappt ? "-rotate-90" : ""
-                }`}
-              />
+              <motion.span
+                animate={{ rotate: istZugeklappt ? -90 : 0 }}
+                transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 360, damping: 28 }}
+                style={{ display: "flex", flexShrink: 0 }}
+              >
+                <ChevronDown size={13} className="text-light-text-secondary dark:text-dark-text-secondary" />
+              </motion.span>
               <span className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide group-hover:text-primary-500 transition-colors">
                 {formatMonatLabel(key)}
               </span>
@@ -59,25 +67,41 @@ export default function DokumentArchivListe({
               </span>
             </button>
 
-            {/* Dokumentzeilen — nur wenn nicht zugeklappt */}
-            {!istZugeklappt && (
-              <div className="bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border divide-y divide-light-border dark:divide-dark-border overflow-visible">
-                {doks.map((dok) => (
-                  <DokumentZeile
-                    key={dok.id}
-                    dok={dok}
-                    vorschauUrl={vorschauUrls[dok.id]}
-                    onLoadVorschau={() => loadPreviewUrl(dok)}
-                    onVorschau={onVorschau}
-                    onBearbeiten={onBearbeiten}
-                    onLoeschen={onLoeschen}
-                    onWissen={onWissen}
-                    onBudget={onBudget}
-                    isHighlighted={highlightedDokumentId === dok.id}
-                  />
-                ))}
-              </div>
-            )}
+            {/* Dokumentzeilen — AnimatePresence für Höhen-Übergang */}
+            <AnimatePresence initial={false}>
+              {!istZugeklappt && (
+                <motion.div
+                  key={`sec-${key}`}
+                  initial={reduced ? false : { opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={reduced ? {} : { opacity: 0, height: 0, transition: { duration: 0.2 } }}
+                  transition={{ duration: 0.25, ease: "easeOut" }}
+                  className="overflow-hidden"
+                >
+                  <motion.div
+                    variants={reduced ? {} : listVariants}
+                    initial="hidden"
+                    animate="show"
+                    className="bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border divide-y divide-light-border dark:divide-dark-border overflow-visible"
+                  >
+                    {doks.map((dok) => (
+                      <DokumentZeile
+                        key={dok.id}
+                        dok={dok}
+                        vorschauUrl={vorschauUrls[dok.id]}
+                        onLoadVorschau={() => loadPreviewUrl(dok)}
+                        onVorschau={onVorschau}
+                        onBearbeiten={onBearbeiten}
+                        onLoeschen={onLoeschen}
+                        onWissen={onWissen}
+                        onBudget={onBudget}
+                        isHighlighted={highlightedDokumentId === dok.id}
+                      />
+                    ))}
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         );
       })}

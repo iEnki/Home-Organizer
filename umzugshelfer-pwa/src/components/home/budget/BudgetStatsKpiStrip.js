@@ -1,6 +1,8 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { TrendingDown, LayoutGrid, Tag } from "lucide-react";
 import { getHomeBudgetCategoryLabel } from "../../../utils/homeBudgetCategories";
+import { useCountUp } from "../../../hooks/useCountUp";
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("de-AT", {
@@ -10,41 +12,117 @@ const formatCurrency = (value) =>
     maximumFractionDigits: 2,
   }).format(Number(value || 0));
 
-export default function BudgetStatsKpiStrip({
-  modus,
-  yearStats,
-  monthStats,
-}) {
+function KpiCard({ label, value, icon: Icon, accentFrom, accentTo, subValue, delay = 0 }) {
+  return (
+    <div
+      className="relative overflow-hidden rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border shadow-elevation-1 dark:shadow-elevation-2 p-4 group hover:shadow-elevation-2 dark:hover:shadow-glow-primary transition-shadow duration-300 animate-fade-in"
+      style={{ animationDelay: `${delay}ms`, animationFillMode: "both" }}
+    >
+      <div
+        className="absolute inset-x-0 top-0 h-[2px]"
+        style={{ background: `linear-gradient(90deg, ${accentFrom}, ${accentTo})` }}
+      />
+      <div
+        className="mb-3 flex h-9 w-9 items-center justify-center rounded-card-sm transition-colors duration-200"
+        style={{ background: `${accentFrom}18` }}
+      >
+        <Icon size={17} style={{ color: accentFrom }} />
+      </div>
+      <p className="text-xl font-bold tabular-nums text-light-text-main dark:text-dark-text-main leading-tight truncate">
+        {value}
+      </p>
+      {subValue && (
+        <p className="mt-0.5 text-xs tabular-nums text-light-text-secondary dark:text-dark-text-secondary truncate">
+          {subValue}
+        </p>
+      )}
+      <p className="mt-0.5 text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+        {label}
+      </p>
+    </div>
+  );
+}
+
+function AnimatedCurrencyCard({ label, icon, amount, accentFrom, accentTo, delay }) {
+  const animated = useCountUp(Math.abs(Number(amount || 0)), 700);
+  return (
+    <KpiCard
+      label={label}
+      value={formatCurrency(animated)}
+      icon={icon}
+      accentFrom={accentFrom}
+      accentTo={accentTo}
+      delay={delay}
+    />
+  );
+}
+
+export default function BudgetStatsKpiStrip({ modus, yearStats, monthStats }) {
   const { t, i18n } = useTranslation(["budget"]);
-  const metrics = modus === "jahr"
-    ? [
-        { id: "totalYear", label: t("budget:statistics.totalYear"), value: formatCurrency(yearStats.total), accent: "text-red-500" },
-        { id: "activeCategories", label: t("budget:statistics.activeCategories", { defaultValue: "Active categories" }), value: yearStats.aktiveKategorien, accent: "text-light-text-main dark:text-dark-text-main" },
-        { id: "averageMonth", label: t("budget:statistics.averageMonth"), value: formatCurrency(yearStats.durchschnittProMonat), accent: "text-primary-500" },
-      ]
-    : [
-        { id: "totalMonth", label: t("budget:statistics.totalMonth"), value: formatCurrency(monthStats.total), accent: "text-red-500" },
-        { id: "activeCategories", label: t("budget:statistics.activeCategories", { defaultValue: "Active categories" }), value: monthStats.aktiveKategorien, accent: "text-light-text-main dark:text-dark-text-main" },
-        { id: "largestCategory", label: t("budget:statistics.largestCategory"), value: getHomeBudgetCategoryLabel(monthStats.groessteKategorie?.name, i18n.language) || "-", accent: "text-primary-500" },
-      ];
+
+  if (modus === "jahr") {
+    return (
+      <div className="grid grid-cols-3 gap-3">
+        <AnimatedCurrencyCard
+          label={t("budget:statistics.totalYear")}
+          icon={TrendingDown}
+          amount={yearStats.total}
+          accentFrom="#FB7185"
+          accentTo="#F97316"
+          delay={0}
+        />
+        <KpiCard
+          label={t("budget:statistics.activeCategories", { defaultValue: "Kategorien" })}
+          value={yearStats.aktiveKategorien}
+          icon={LayoutGrid}
+          accentFrom="#06B6D4"
+          accentTo="#8B5CF6"
+          delay={80}
+        />
+        <AnimatedCurrencyCard
+          label={t("budget:statistics.averageMonth")}
+          icon={Tag}
+          amount={yearStats.durchschnittProMonat}
+          accentFrom="#10B981"
+          accentTo="#06B6D4"
+          delay={160}
+        />
+      </div>
+    );
+  }
+
+  const grossteKat = monthStats.groessteKategorie;
+  const grossteLabel = grossteKat
+    ? getHomeBudgetCategoryLabel(grossteKat.name, i18n.language) || "-"
+    : "-";
 
   return (
-    <section className="grid grid-cols-1 gap-px overflow-hidden rounded-card border border-light-border dark:border-dark-border bg-light-border dark:bg-dark-border sm:grid-cols-3">
-      {metrics.map((metric) => (
-        <div key={metric.id} className="bg-light-card dark:bg-canvas-2 px-3 py-3">
-          <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-            {metric.label}
-          </p>
-          <p className={`mt-1 text-sm font-semibold tabular-nums ${metric.accent}`}>
-            {metric.value}
-          </p>
-          {modus === "monat" && metric.id === "largestCategory" && monthStats.groessteKategorie?.summe ? (
-            <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary tabular-nums">
-              {formatCurrency(monthStats.groessteKategorie.summe)}
-            </p>
-          ) : null}
-        </div>
-      ))}
-    </section>
+    <div className="grid grid-cols-3 gap-3">
+      <AnimatedCurrencyCard
+        label={t("budget:statistics.totalMonth")}
+        icon={TrendingDown}
+        amount={monthStats.total}
+        accentFrom="#FB7185"
+        accentTo="#F97316"
+        delay={0}
+      />
+      <KpiCard
+        label={t("budget:statistics.activeCategories", { defaultValue: "Kategorien" })}
+        value={monthStats.aktiveKategorien}
+        icon={LayoutGrid}
+        accentFrom="#06B6D4"
+        accentTo="#8B5CF6"
+        delay={80}
+      />
+      <KpiCard
+        label={t("budget:statistics.largestCategory")}
+        value={grossteLabel}
+        icon={Tag}
+        accentFrom="#10B981"
+        accentTo="#06B6D4"
+        subValue={grossteKat?.summe ? formatCurrency(grossteKat.summe) : null}
+        delay={160}
+      />
+    </div>
   );
 }

@@ -42,19 +42,37 @@ const CHART_OPTS_BASE = {
 };
 
 const SCALE_OPTS = {
-  grid: { color: "rgba(75,85,99,0.3)" },
+  grid: { color: "rgba(75,85,99,0.2)" },
   ticks: { color: "rgba(156,163,175,1)", font: { size: 10 } },
 };
 
-const CARD_CLS =
-  "rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 p-4 space-y-3";
-
 const EmptyState = ({ text }) => (
-  <div className="py-12 text-center text-light-text-secondary dark:text-dark-text-secondary">
-    <BarChart2 size={36} className="mx-auto mb-3 opacity-30" />
-    <p className="text-sm">{text}</p>
+  <div className="flex flex-col items-center py-16 text-center animate-fade-in">
+    <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-light-bg dark:bg-canvas-3">
+      <BarChart2 size={22} className="text-light-text-secondary dark:text-dark-text-secondary opacity-50" />
+    </div>
+    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{text}</p>
   </div>
 );
+
+function ChartCard({ title, children, delay = 0 }) {
+  return (
+    <section
+      className="relative overflow-hidden rounded-card border border-light-border dark:border-dark-border bg-light-card/80 dark:bg-canvas-2/80 backdrop-blur-sm shadow-elevation-1 dark:shadow-elevation-2 p-4 space-y-3 animate-fade-in"
+      style={{ animationDelay: `${delay}ms`, animationFillMode: "both" }}
+    >
+      {/* Ambient glow blob */}
+      <div className="pointer-events-none absolute -right-6 -top-6 h-28 w-28 rounded-full bg-primary-500/5 blur-2xl" />
+      <div className="flex items-center gap-2">
+        <div className="h-3.5 w-0.5 rounded-full bg-primary-500" />
+        <p className="text-[11px] uppercase tracking-widest text-light-text-secondary dark:text-dark-text-secondary font-medium">
+          {title}
+        </p>
+      </div>
+      {children}
+    </section>
+  );
+}
 
 export default function BudgetStatsCharts({
   modus,
@@ -79,10 +97,7 @@ export default function BudgetStatsCharts({
 
   return modus === "jahr" ? (
     <div className="space-y-3">
-      <section className={CARD_CLS}>
-        <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-          {t("budget:statistics.expensesByCategory")}
-        </p>
+      <ChartCard title={t("budget:statistics.expensesByCategory")} delay={0}>
         <div className="h-44 sm:h-56">
           <Doughnut
             data={localizeCategoryData(yearStats.doughnutData)}
@@ -99,12 +114,9 @@ export default function BudgetStatsCharts({
             }}
           />
         </div>
-      </section>
+      </ChartCard>
 
-      <section className={CARD_CLS}>
-        <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-          {t("budget:statistics.expensesByMonth", { year: selJahr })}
-        </p>
+      <ChartCard title={t("budget:statistics.expensesByMonth", { year: selJahr })} delay={60}>
         <div className="h-44 sm:h-56">
           <Bar
             data={yearStats.barData}
@@ -114,26 +126,23 @@ export default function BudgetStatsCharts({
                 x: SCALE_OPTS,
                 y: {
                   ...SCALE_OPTS,
-                  ticks: { ...SCALE_OPTS.ticks, callback: (value) => `${value} EUR` },
+                  ticks: { ...SCALE_OPTS.ticks, callback: (value) => `${value} €` },
                 },
               },
               plugins: {
                 ...CHART_OPTS_BASE.plugins,
                 tooltip: {
                   callbacks: {
-                    label: (ctx) => `${t("budget:expense")}: ${Number(ctx.raw).toFixed(2)} EUR`,
+                    label: (ctx) => `${t("budget:expense")}: ${Number(ctx.raw).toFixed(2)} €`,
                   },
                 },
               },
             }}
           />
         </div>
-      </section>
+      </ChartCard>
 
-      <section className={CARD_CLS}>
-        <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-          {t("budget:statistics.cumulativeExpenses", { year: selJahr })}
-        </p>
+      <ChartCard title={t("budget:statistics.cumulativeExpenses", { year: selJahr })} delay={120}>
         <div className="h-40 sm:h-52">
           <Line
             data={yearStats.lineData}
@@ -143,27 +152,24 @@ export default function BudgetStatsCharts({
                 x: SCALE_OPTS,
                 y: {
                   ...SCALE_OPTS,
-                  ticks: { ...SCALE_OPTS.ticks, callback: (value) => `${value} EUR` },
+                  ticks: { ...SCALE_OPTS.ticks, callback: (value) => `${value} €` },
                 },
               },
               plugins: {
                 ...CHART_OPTS_BASE.plugins,
                 tooltip: {
                   callbacks: {
-                    label: (ctx) => `${t("budget:statistics.cumulative", { defaultValue: "Cumulative" })}: ${Number(ctx.raw).toFixed(2)} EUR`,
+                    label: (ctx) => `${t("budget:statistics.cumulative", { defaultValue: "Kumulativ" })}: ${Number(ctx.raw).toFixed(2)} €`,
                   },
                 },
               },
             }}
           />
         </div>
-      </section>
+      </ChartCard>
 
       {yearStats.accountTotals?.length > 0 && (
-        <section className={CARD_CLS}>
-          <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-            {t("budget:statistics.expensesByAccount")}
-          </p>
+        <ChartCard title={t("budget:statistics.expensesByAccount")} delay={180}>
           <div className="h-44 sm:h-56">
             <Doughnut
               data={yearStats.accountDoughnutData}
@@ -173,22 +179,19 @@ export default function BudgetStatsCharts({
                   ...CHART_OPTS_BASE.plugins,
                   tooltip: {
                     callbacks: {
-                      label: (ctx) => `${ctx.label}: ${Number(ctx.raw).toFixed(2)} EUR`,
+                      label: (ctx) => `${ctx.label}: ${Number(ctx.raw).toFixed(2)} €`,
                     },
                   },
                 },
               }}
             />
           </div>
-        </section>
+        </ChartCard>
       )}
     </div>
   ) : (
     <div className="space-y-3">
-      <section className={CARD_CLS}>
-        <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-          {t("budget:statistics.categoryDistribution")}
-        </p>
+      <ChartCard title={t("budget:statistics.categoryDistribution")} delay={0}>
         <div className="h-44 sm:h-56">
           <Doughnut
             data={localizeCategoryData(monthStats.doughnutData)}
@@ -198,19 +201,16 @@ export default function BudgetStatsCharts({
                 ...CHART_OPTS_BASE.plugins,
                 tooltip: {
                   callbacks: {
-                    label: (ctx) => `${ctx.label}: ${Number(ctx.raw).toFixed(2)} EUR`,
+                    label: (ctx) => `${ctx.label}: ${Number(ctx.raw).toFixed(2)} €`,
                   },
                 },
               },
             }}
           />
         </div>
-      </section>
+      </ChartCard>
 
-      <section className={CARD_CLS}>
-        <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-          {t("budget:statistics.expensesPerCategory")}
-        </p>
+      <ChartCard title={t("budget:statistics.expensesPerCategory")} delay={60}>
         <div style={{ height: `${Math.max(monthStats.categoryTotals.length * 36, 100)}px` }}>
           <Bar
             data={localizeCategoryData(monthStats.barData)}
@@ -220,7 +220,7 @@ export default function BudgetStatsCharts({
               scales: {
                 x: {
                   ...SCALE_OPTS,
-                  ticks: { ...SCALE_OPTS.ticks, callback: (value) => `${value} EUR` },
+                  ticks: { ...SCALE_OPTS.ticks, callback: (value) => `${value} €` },
                 },
                 y: SCALE_OPTS,
               },
@@ -229,20 +229,17 @@ export default function BudgetStatsCharts({
                 legend: { display: false },
                 tooltip: {
                   callbacks: {
-                    label: (ctx) => `${Number(ctx.raw).toFixed(2)} EUR`,
+                    label: (ctx) => `${Number(ctx.raw).toFixed(2)} €`,
                   },
                 },
               },
             }}
           />
         </div>
-      </section>
+      </ChartCard>
 
       {monthStats.accountTotals?.length > 0 && (
-        <section className={CARD_CLS}>
-          <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-            {t("budget:statistics.expensesByAccount")}
-          </p>
+        <ChartCard title={t("budget:statistics.expensesByAccount")} delay={120}>
           <div style={{ height: `${Math.max(monthStats.accountTotals.length * 36, 100)}px` }}>
             <Bar
               data={monthStats.accountBarData}
@@ -252,7 +249,7 @@ export default function BudgetStatsCharts({
                 scales: {
                   x: {
                     ...SCALE_OPTS,
-                    ticks: { ...SCALE_OPTS.ticks, callback: (value) => `${value} EUR` },
+                    ticks: { ...SCALE_OPTS.ticks, callback: (value) => `${value} €` },
                   },
                   y: SCALE_OPTS,
                 },
@@ -261,14 +258,14 @@ export default function BudgetStatsCharts({
                   legend: { display: false },
                   tooltip: {
                     callbacks: {
-                      label: (ctx) => `${Number(ctx.raw).toFixed(2)} EUR`,
+                      label: (ctx) => `${Number(ctx.raw).toFixed(2)} €`,
                     },
                   },
                 },
               }}
             />
           </div>
-        </section>
+        </ChartCard>
       )}
     </div>
   );
