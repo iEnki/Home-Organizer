@@ -24,6 +24,7 @@
     "projects": "Projekte",
     "history": "Verlauf",
     "knowledge": "Wissensdatenbank",
+    "cookbook": "Kochbuch",
     "scanInvoice": "Rechnung scannen",
     "documentArchive": "Dokumentenarchiv"
   },
@@ -50,6 +51,7 @@
     "residents": "Bewohner",
     "search": "Suche",
     "knowledge": "Wissen",
+    "cookbook": "Kochbuch",
     "history": "Verlauf",
     "profile": "Profil"
   },
@@ -77,6 +79,7 @@
     "todo": "To-Do",
     "box": "Kiste",
     "document": "Dokument",
+    "recipe": "Rezept",
     "boxContent": "Kisteninhalt"
   }
 }

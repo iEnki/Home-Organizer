@@ -2,7 +2,7 @@ import {
   Home, CheckSquare, Package, DollarSign, ShoppingCart, Wrench,
   Users, FolderOpen, Search, BookOpen, History, ScanLine, FileText,
   LayoutDashboard, ListChecks, Archive, Paintbrush, Calculator,
-  CalendarClock, CalendarDays, UserCircle2, Menu,
+  CalendarClock, CalendarDays, UserCircle2, Menu, ChefHat,
 } from "lucide-react";
 
 export { Menu };
@@ -24,6 +24,7 @@ export const MOBILE_NAV_REGISTRY = {
     { key: "bewohner", labelKey: "nav:items.residents", label: "Bewohner", path: "/home/bewohner", icon: Users, favoriteEligible: true },
     { key: "suche", labelKey: "nav:items.search", label: "Suche", path: "/home/suche", icon: Search, favoriteEligible: true },
     { key: "wissen", labelKey: "nav:items.knowledge", label: "Wissen", path: "/home/wissen", icon: BookOpen, favoriteEligible: true },
+    { key: "kochbuch", labelKey: "nav:items.cookbook", label: "Kochbuch", path: "/home/kochbuch", icon: ChefHat, favoriteEligible: true },
     { key: "verlauf", labelKey: "nav:items.history", label: "Verlauf", path: "/home/verlauf", icon: History, favoriteEligible: true },
     { key: "kalender", labelKey: "nav:items.calendar", label: "Kalender", path: "/kalender", icon: CalendarDays, favoriteEligible: true },
     { key: "profil", labelKey: "nav:items.profile", label: "Profil", path: "/profil", icon: UserCircle2, favoriteEligible: true },

@@ -95,6 +95,12 @@
       "title": "Account & Sicherheit",
       "desc": "Passwort, E-Mail und Account verwalten",
       "action": "Verwalten"
+    },
+    "kochbuch": {
+      "title": "Kochbuch-Importe",
+      "statusVideo": "{{count}}/Tag Video",
+      "desc": "Tageslimits fuer Rezept- und Videoimporte",
+      "action": "Limits setzen"
     }
   },
   "mobileTabs": {
@@ -228,6 +234,24 @@
       "deleteAccount": "Account unwiderruflich löschen",
       "deleteWarning": "Alle Daten werden dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.",
       "confirmDelete": "Ja, Account löschen"
+    },
+    "kochbuch": {
+      "intro": "Tageslimits gelten pro Haushalt und schuetzen vor unbeabsichtigten Kosten durch Video-Downloads, Transkription und KI-Auswertung. Fehlgeschlagene Imports zaehlen nicht mit.",
+      "aiProviderSection": "KI-Anbieter für Kochbuch",
+      "aiProviderGlobal": "Globale Einstellung",
+      "aiProviderGlobalDesc": "Nutzt den allgemeinen Anbieter",
+      "aiProviderOpenaiDesc": "OpenAI fuer Analyse",
+      "aiProviderOllamaDesc": "Ollama fuer Analyse",
+      "openaiModel": "OpenAI-Modell fuer Kochbuch",
+      "ollamaUrl": "Ollama-URL für Kochbuch",
+      "ollamaModel": "Ollama-Modell fuer Kochbuch",
+      "ollamaUrlHint": "Diese URL wird in der bestehenden Ollama-Konfiguration gespeichert und vom Kochbuch serverseitig genutzt.",
+      "ollamaThinking": "Thinking fuer Ollama aktivieren",
+      "ollamaThinkingHint": "Kann die Qualitaet bei Reasoning-Modellen verbessern, ist aber langsamer und erhoeht das Timeout-Risiko.",
+      "saveAiProvider": "KI-Anbieter speichern",
+      "webLimit": "Web-Rezepte pro Tag",
+      "videoLimit": "Video-Rezepte pro Tag",
+      "saveLimits": "Limits speichern"
     }
   }
 }

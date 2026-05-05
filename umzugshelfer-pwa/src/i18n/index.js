@@ -13,6 +13,7 @@ import deHome from "./locales/de/home.json";
 import deBudget from "./locales/de/budget.json";
 import deDocuments from "./locales/de/documents.json";
 import deBooks from "./locales/de/books.json";
+import deRecipes from "./locales/de/recipes.json";
 import deAssistant from "./locales/de/assistant.json";
 import deTour from "./locales/de/tour.json";
 import deFeaturePages from "./locales/de/featurePages.json";
@@ -28,6 +29,7 @@ import enHome from "./locales/en-GB/home.json";
 import enBudget from "./locales/en-GB/budget.json";
 import enDocuments from "./locales/en-GB/documents.json";
 import enBooks from "./locales/en-GB/books.json";
+import enRecipes from "./locales/en-GB/recipes.json";
 import enAssistant from "./locales/en-GB/assistant.json";
 import enTour from "./locales/en-GB/tour.json";
 import enFeaturePages from "./locales/en-GB/featurePages.json";
@@ -63,6 +65,7 @@ const resources = {
     budget: deBudget,
     documents: deDocuments,
     books: deBooks,
+    recipes: deRecipes,
     assistant: deAssistant,
     tour: deTour,
     featurePages: deFeaturePages,
@@ -80,6 +83,7 @@ const resources = {
     budget: enBudget,
     documents: enDocuments,
     books: enBooks,
+    recipes: enRecipes,
     assistant: enAssistant,
     tour: enTour,
     featurePages: enFeaturePages,
@@ -99,6 +103,7 @@ export const I18N_NAMESPACES = [
   "budget",
   "documents",
   "books",
+  "recipes",
   "assistant",
   "tour",
   "featurePages",

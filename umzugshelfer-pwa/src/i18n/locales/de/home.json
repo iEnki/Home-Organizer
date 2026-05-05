@@ -356,7 +356,8 @@
       "devices": "Geräte",
       "tasks": "Aufgaben",
       "documents": "Dokumente",
-      "books": "Bücher"
+      "books": "Bücher",
+      "recipes": "Rezepte"
     },
     "examples": {
       "whereCable": "Wo ist das HDMI-Kabel?",
@@ -436,6 +437,7 @@
       "Geraete-Info": "Geräte-Info",
       "Kontakte & Dienste": "Kontakte & Dienste",
       "Anleitungen": "Anleitungen",
+      "Rezepte": "Rezepte",
       "Notizen": "Notizen",
       "Sonstiges": "Sonstiges"
     }

@@ -95,6 +95,12 @@
       "title": "Account & security",
       "desc": "Manage password, email and account",
       "action": "Manage"
+    },
+    "kochbuch": {
+      "title": "Cookbook imports",
+      "statusVideo": "{{count}}/day video",
+      "desc": "Daily limits for recipe and video imports",
+      "action": "Set limits"
     }
   },
   "mobileTabs": {
@@ -228,6 +234,24 @@
       "deleteAccount": "Permanently delete account",
       "deleteWarning": "All data will be permanently deleted. This action cannot be undone.",
       "confirmDelete": "Yes, delete account"
+    },
+    "kochbuch": {
+      "intro": "Daily limits apply per household and protect against accidental costs from video downloads, transcription, and AI analysis. Failed imports do not count.",
+      "aiProviderSection": "AI provider for cookbook",
+      "aiProviderGlobal": "Global setting",
+      "aiProviderGlobalDesc": "Uses the general provider",
+      "aiProviderOpenaiDesc": "OpenAI for analysis",
+      "aiProviderOllamaDesc": "Ollama for analysis",
+      "openaiModel": "OpenAI model for cookbook",
+      "ollamaUrl": "Ollama URL for cookbook",
+      "ollamaModel": "Ollama model for cookbook",
+      "ollamaUrlHint": "This URL is saved in the existing Ollama configuration and used server-side by the cookbook.",
+      "ollamaThinking": "Enable thinking for Ollama",
+      "ollamaThinkingHint": "Can improve quality with reasoning models, but is slower and increases timeout risk.",
+      "saveAiProvider": "Save AI provider",
+      "webLimit": "Web recipes per day",
+      "videoLimit": "Video recipes per day",
+      "saveLimits": "Save limits"
     }
   }
 }

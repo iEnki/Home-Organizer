@@ -123,6 +123,24 @@ const UNIT_ALIASES = {
   karton: "Karton",
   paar: "Paar",
   satz: "Satz",
+  prise: "Prise",
+  prisen: "Prise",
+  pinch: "Prise",
+  paeckchen: "Päckchen",
+  packchen: "Päckchen",
+  päckchen: "Päckchen",
+  packet: "Päckchen",
+  packerl: "Päckchen",
+  teeloeffel: "Teelöffel",
+  teeloffel: "Teelöffel",
+  teelöffel: "Teelöffel",
+  tsp: "Teelöffel",
+  tl: "Teelöffel",
+  essloeffel: "Esslöffel",
+  essloffel: "Esslöffel",
+  esslöffel: "Esslöffel",
+  tbsp: "Esslöffel",
+  el: "Esslöffel",
 };
 
 const NAME_ALIASES = {
@@ -201,7 +219,8 @@ const KEYWORD_RULES = [
   {
     hauptkategorie: "Lebensmittel",
     unterkategorie: "Tiefkühl",
-    keywords: ["tiefkuehl", "tiefkühl", "pizza", "pommes", "eis"],
+    keywords: ["tiefkuehl", "tiefkuhl", "tiefkühl", "tk", "frozen", "pizza", "pommes"],
+    exactKeywords: ["eis"],
     confidence: 0.91,
   },
   {
@@ -225,7 +244,7 @@ const KEYWORD_RULES = [
   {
     hauptkategorie: "Lebensmittel",
     unterkategorie: "Gewürze & Saucen",
-    keywords: ["bruehe", "brühe", "senf", "ketchup", "mayonnaise", "sauce", "gewuerz", "gewürz", "essig", "oel", "öl"],
+    keywords: ["bruehe", "brühe", "senf", "ketchup", "mayonnaise", "sauce", "gewuerz", "gewürz", "essig", "oel", "öl", "speiseoel", "speiseöl", "pflanzenoel", "pflanzenöl", "sonnenblumenoel", "sonnenblumenöl", "rapsoel", "rapsöl", "olivenoel", "olivenöl"],
     confidence: 0.93,
   },
   {
@@ -451,12 +470,23 @@ export const parseShoppingText = (value) => {
   let menge = 1;
   let einheit = null;
 
+  const wordQuantityMatch = working.match(/^(ein|eine|one|two|three)\s+([a-zA-ZäöüÄÖÜ]+)\s+(.+)$/i);
+  if (wordQuantityMatch) {
+    const amountMap = { ein: 1, eine: 1, one: 1, two: 2, three: 3 };
+    const unit = normalizeUnit(wordQuantityMatch[2]);
+    if (unit) {
+      menge = amountMap[wordQuantityMatch[1].toLowerCase()] || 1;
+      einheit = unit;
+      working = wordQuantityMatch[3].trim();
+    }
+  }
+
   const suffixCompactMatch = working.match(/^(.*?)(\d+(?:[.,]\d+)?)\s*([a-zA-ZäöüÄÖÜ]+)$/);
   const suffixMatch = working.match(/^(.*?)\s+(\d+(?:[.,]\d+)?)\s*([a-zA-ZäöüÄÖÜ]+)$/);
   const prefixMatch = working.match(/^(\d+(?:[.,]\d+)?)\s*([a-zA-ZäöüÄÖÜ]+)?\s+(.+)$/);
   const matches = [suffixMatch, suffixCompactMatch, prefixMatch].filter(Boolean);
 
-  if (matches.length > 0) {
+  if (!einheit && matches.length > 0) {
     const match = matches[0];
     if (match === prefixMatch) {
       menge = parseNumericValue(match[1], 1);
@@ -563,10 +593,17 @@ export const applyLegacyShoppingFields = (entry) => {
 
 const classifyByRules = (normalizedName) => {
   const key = toKey(normalizedName);
+  const tokens = key.split(/\s+/).filter(Boolean);
   let bestMatch = null;
 
   KEYWORD_RULES.forEach((rule) => {
-    const hits = rule.keywords.filter((keyword) => key.includes(keyword)).length;
+    const hits =
+      rule.keywords.filter((keyword) => {
+        const normalizedKeyword = toKey(keyword);
+        if (normalizedKeyword.length <= 2) return tokens.includes(normalizedKeyword);
+        return key.includes(normalizedKeyword);
+      }).length +
+      (rule.exactKeywords || []).filter((keyword) => tokens.includes(toKey(keyword))).length;
     if (hits === 0) return;
 
     const score = rule.confidence + Math.min(hits - 1, 2) * 0.01;
@@ -739,8 +776,8 @@ export const createShoppingDraft = ({
       name: normalizeShoppingName(
         correction.bevorzugter_name || correction.normalized_name || normalizedName
       ),
-      menge: parseNumericValue(item.menge ?? parsed.menge, 1),
-      einheit: normalizeUnit(item.einheit || correction.standard_einheit || parsed.einheit) || "Stück",
+      menge: item.no_amount ? null : parseNumericValue(item.menge ?? parsed.menge, 1),
+      einheit: item.no_amount ? null : (normalizeUnit(item.einheit || correction.standard_einheit || parsed.einheit) || "Stück"),
       hauptkategorie: correction.hauptkategorie || "Sonstiges",
       unterkategorie: validateSubCategory(
         correction.unterkategorie,
@@ -790,8 +827,8 @@ export const createShoppingDraft = ({
     original_text: item.original_text || parsed.original_text || normalizedName,
     normalized_name: normalizedName,
     name: normalizedName,
-    menge: parseNumericValue(item.menge ?? parsed.menge, 1),
-    einheit: normalizeUnit(item.einheit || parsed.einheit) || "Stück",
+    menge: item.no_amount ? null : parseNumericValue(item.menge ?? parsed.menge, 1),
+    einheit: item.no_amount ? null : (normalizeUnit(item.einheit || parsed.einheit) || "Stück"),
     hauptkategorie,
     unterkategorie,
     kategorie: hauptkategorie,
@@ -942,6 +979,8 @@ export const filterShoppingEntries = (entries, { search = "", filter = "Alle" } 
       toKey(
         [
           enhancedEntry.name,
+          enhancedEntry.display_name,
+          enhancedEntry.display_notizen,
           enhancedEntry.normalized_name,
           enhancedEntry.hauptkategorie,
           enhancedEntry.unterkategorie,
@@ -993,6 +1032,7 @@ export const buildShoppingGroups = (entries, sortMode = "Markt") => {
 };
 
 export const getShoppingEntrySubtitle = (entry) => {
+  if (!entry?.einheit || entry.menge == null || Number(entry.menge) <= 0) return "";
   return `${formatQuantity(parseNumericValue(entry.menge, 1))} ${entry.einheit || "Stück"}`;
 };
 
@@ -1133,7 +1173,9 @@ export const prepareShoppingBatch = async ({
   };
 };
 
-const buildInsertPayload = ({ draft, userId }) => ({
+const normalizeLocalizedLocale = (locale) => (locale === "en" || locale === "en-GB" ? "en-GB" : "de");
+
+const buildInsertPayload = ({ draft, userId, locale = "de" }) => ({
   user_id: userId,
   vorrat_id: draft.vorrat_id || null,
   name: draft.name,
@@ -1148,6 +1190,13 @@ const buildInsertPayload = ({ draft, userId }) => ({
   review_noetig: draft.review_noetig,
   quelle: draft.quelle || "manuell",
   notizen: draft.notizen || null,
+  localized_content: {
+    [normalizeLocalizedLocale(locale)]: {
+      name: draft.name,
+      notes: draft.notizen || "",
+      original_text: draft.original_text || draft.name,
+    },
+  },
   erledigt: false,
 });
 
@@ -1155,6 +1204,7 @@ export const applyShoppingBatch = async ({
   userId,
   drafts,
   decisions = {},
+  locale = "de",
 }) => {
   const inserts = [];
   const mergeUpdates = new Map();
@@ -1187,7 +1237,7 @@ export const applyShoppingBatch = async ({
       return;
     }
 
-    inserts.push(buildInsertPayload({ draft, userId }));
+    inserts.push(buildInsertPayload({ draft, userId, locale }));
   });
 
   const updatePromises = Array.from(mergeUpdates.values()).map((entry) =>
