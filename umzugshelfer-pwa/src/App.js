@@ -17,6 +17,9 @@ import { useLocale } from "./contexts/LocaleContext";
 import { ToastProvider } from "./hooks/useToast";
 import useViewport from "./hooks/useViewport";
 
+// ── UI Primitives ──────────────────────────────────────────────────────────────
+import BeamsBackground from "./components/ui/BeamsBackground";
+
 // ── Layout ─────────────────────────────────────────────────────────────────────
 import Sidebar from "./components/layout/Sidebar";
 import Topbar  from "./components/layout/Topbar";
@@ -42,6 +45,7 @@ import TourPromptModal      from "./components/home/tour/TourPromptModal";
 import HomeVerlauf          from "./components/home/HomeVerlauf";
 import HomeWissen           from "./components/home/HomeWissen";
 import HomeDokumente        from "./components/home/HomeDokumente";
+import HomeKochbuch         from "./components/home/HomeKochbuch";
 
 // ── Umzugsplaner Komponenten ───────────────────────────────────────────────────
 import Dashboard            from "./components/Dashboard";
@@ -101,6 +105,7 @@ const ROUTE_TITLE_KEYS = {
   "/home/projekte":     "nav:routes.projects",
   "/home/verlauf":      "nav:routes.history",
   "/home/wissen":       "nav:routes.knowledge",
+  "/home/kochbuch":     "nav:routes.cookbook",
   "/home/rechnung-scannen": "nav:routes.scanInvoice",
   "/home/dokumente":    "nav:routes.documentArchive",
 };
@@ -304,14 +309,16 @@ const AuthenticatedShell = ({
       try {
         const ergebnisse = [];
         if (appMode === "home") {
-          const [objRes, vorratRes, geraetRes, todoRes] = await Promise.all([
+          const [objRes, vorratRes, rezeptRes, geraetRes, todoRes] = await Promise.all([
             supabase.from("home_objekte").select("id, name, status").eq("user_id", userId).ilike("name", `%${q}%`).limit(3),
             supabase.from("home_vorraete").select("id, name, kategorie").eq("user_id", userId).ilike("name", `%${q}%`).limit(3),
+            supabase.from("home_rezepte").select("id, titel, quelle_plattform").eq("user_id", userId).ilike("titel", `%${q}%`).limit(3),
             supabase.from("home_geraete").select("id, name, hersteller").eq("user_id", userId).ilike("name", `%${q}%`).limit(3),
             supabase.from("todo_aufgaben").select("id, beschreibung, kategorie").eq("user_id", userId).in("app_modus", ["home", "beides"]).ilike("beschreibung", `%${q}%`).limit(3),
           ]);
           (objRes.data    || []).forEach((o) => ergebnisse.push({ modul: t("nav:searchModules.inventory"), text: o.name,        sub: o.status,      link: "/home/inventar" }));
           (vorratRes.data || []).forEach((v) => ergebnisse.push({ modul: t("nav:searchModules.stock"),     text: v.name,        sub: v.kategorie,   link: "/home/vorraete" }));
+          (rezeptRes.data || []).forEach((r) => ergebnisse.push({ modul: t("nav:searchModules.recipe"), text: r.titel, sub: r.quelle_plattform, link: "/home/kochbuch" }));
           (geraetRes.data || []).forEach((g) => ergebnisse.push({ modul: t("nav:searchModules.device"),    text: g.name,        sub: g.hersteller,  link: "/home/geraete" }));
           (todoRes.data   || []).forEach((row) => ergebnisse.push({ modul: t("nav:searchModules.task"),     text: row.beschreibung,sub: row.kategorie,   link: "/home/aufgaben" }));
         } else {
@@ -378,7 +385,7 @@ const AuthenticatedShell = ({
       />
 
       {/* Haupt-Content-Spalte — auf Desktop um Sidebar versetzt */}
-      <div className="flex w-full min-w-0 flex-col flex-1 min-h-dvh min-h-0 lg:ml-20">
+      <div className="flex w-full min-w-0 flex-col flex-1 min-h-dvh min-h-0 lg:ml-[52px]">
         <Topbar
           pageTitle={pageTitle}
           session={session}
@@ -600,6 +607,8 @@ function App() {
   return (
     <ToastProvider>
     <ThemeProvider>
+      {/* Animierter Canvas-Hintergrund — liegt hinter allen Inhalten (z-index: 0) */}
+      <BeamsBackground intensity="subtle" />
       <AppModeProvider>
         <HomeModusSyncer session={session} householdContext={householdContext} />
         <TourProvider session={session}>
@@ -662,6 +671,8 @@ function App() {
               <Route path="/home/projekte"     element={<HomeProjekte session={session} />} />
               <Route path="/home/verlauf"      element={<HomeVerlauf session={session} />} />
               <Route path="/home/wissen"            element={<HomeWissen session={session} />} />
+              <Route path="/home/kochbuch"          element={<HomeKochbuch session={session} />} />
+              <Route path="/home/kochbuch/:rezeptId" element={<HomeKochbuch session={session} />} />
               <Route path="/home/rechnung-scannen" element={<HomeRechnungScannen session={session} />} />
               <Route path="/home/dokumente"        element={<HomeDokumente session={session} />} />
 

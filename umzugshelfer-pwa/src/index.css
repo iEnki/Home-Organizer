@@ -11,15 +11,16 @@
   --mobile-nav-height: 0px;
   --mobile-bottom-offset: 0px;
   --app-background-overlay: linear-gradient(
-    rgba(247, 250, 252, 0.34),
-    rgba(247, 250, 252, 0.34)
+    rgba(247, 250, 252, 0.18),
+    rgba(247, 250, 252, 0.18)
   );
 }
 
 html.dark {
+  /* Leicht reduziert damit die BeamsBackground-Animation hindurchscheint */
   --app-background-overlay: linear-gradient(
-    rgba(2, 6, 8, 0.46),
-    rgba(2, 6, 8, 0.46)
+    rgba(2, 6, 8, 0.32),
+    rgba(2, 6, 8, 0.32)
   );
 }
 
