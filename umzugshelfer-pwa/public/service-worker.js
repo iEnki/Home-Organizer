@@ -1,7 +1,7 @@
 self.addEventListener("push", (event) => {
   const data = event.data?.json() ?? {};
 
-  const title = data.title ?? "Umzugsplaner";
+  const title = data.title ?? "Home Organizer";
   const options = {
     body: data.body ?? "",
     icon: data.icon ?? "/logo192.png",
