@@ -15,9 +15,17 @@ Demo login: `demo@demo.com` / `Demo1234`
 The app combines two working modes in one installable PWA:
 
 - **Moving Planner** for packing lists, QR-coded boxes, tasks, appointments, budgets, renovation planning and moving calculators.
-- **Home Organizer** for inventory, documents, invoices, contracts, insurance, supplies, devices, tasks, projects, household members, budgets, books and knowledge management.
+- **Home Organizer** for inventory, documents, invoices, contracts, insurance, supplies, shopping lists, cookbook recipes, devices, tasks, projects, household members, budgets, books and knowledge management.
 
-Recent versions add bilingual UI support for German and English (UK), localized PWA manifests, a global AI assistant, improved push reminders, invoice and document intelligence, household-level settings and many Home Organizer modules.
+Recent versions add bilingual UI support for German and English (UK), localized PWA manifests, a global AI assistant, improved push reminders, invoice and document intelligence, a cookbook with web/video recipe import, recipe-aware shopping lists and stock handover, household-level settings and many Home Organizer modules.
+
+## Highlights
+
+- AI-assisted cookbook for manual recipes, web pages and video sources.
+- Local parser service for metadata, subtitles, audio extraction and transcription; temporary media files are cleaned up automatically.
+- Saved recipes and shopping-list entries are translated on demand and cached per locale.
+- Recipe ingredients can be transferred to the shopping list; completed grocery items can be added to supplies.
+- Global Home Organizer search includes cookbook recipes.
 
 ## Tech Stack
 

@@ -18,9 +18,10 @@ type ResponseFormat =
   | { type: "json_object" }
   | { type: string; [key: string]: unknown };
 
-function injectJsonInstruction(messages: ChatMessage[]): ChatMessage[] {
-  const instruction =
-    "Antworte AUSSCHLIESSLICH mit gueltigem JSON. Kein Erklaerungstext, kein Markdown, keine Code-Bloecke.";
+function injectJsonInstruction(messages: ChatMessage[], disableThinking = true): ChatMessage[] {
+  const instruction = disableThinking
+    ? "Antworte AUSSCHLIESSLICH mit gueltigem JSON. Kein Erklaerungstext, kein Markdown, keine Code-Bloecke. Nutze keine Thinking- oder Reasoning-Ausgabe."
+    : "Antworte AUSSCHLIESSLICH mit gueltigem JSON. Kein Erklaerungstext, kein Markdown, keine Code-Bloecke.";
   const idx = messages.findIndex((m) => m.role === "system");
   if (idx !== -1 && typeof messages[idx].content === "string") {
     const patched = [...messages];
@@ -28,6 +29,11 @@ function injectJsonInstruction(messages: ChatMessage[]): ChatMessage[] {
     return patched;
   }
   return [{ role: "system", content: instruction }, ...messages];
+}
+
+function isOllamaThinkingControlError(message: unknown) {
+  const text = String(message || "").toLowerCase();
+  return text.includes("think") || text.includes("reasoning_effort") || text.includes("reasoning effort");
 }
 
 const parseJson = async (req: Request) => {
@@ -98,9 +104,10 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  const payload = await parseJson(req);
+const payload = await parseJson(req);
   const messages = (payload?.messages ?? []) as ChatMessage[];
   const requestedModel = typeof payload?.model === "string" ? payload.model : undefined;
+  const context = typeof payload?.context === "string" ? payload.context : undefined;
   const temperature = typeof payload?.temperature === "number" ? payload.temperature : 0.2;
   const responseFormat =
     payload?.response_format && typeof payload.response_format === "object"
@@ -149,7 +156,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: settings, error: settingsError } = await supabaseAdmin
     .from("household_settings")
-    .select("ki_provider, openai_api_key, ollama_base_url, ollama_model")
+    .select("ki_provider, openai_api_key, ollama_base_url, ollama_model, kochbuch_ai_model, kochbuch_ki_provider, kochbuch_openai_model, kochbuch_ollama_model, kochbuch_ollama_thinking_enabled")
     .eq("household_id", membership.household_id)
     .maybeSingle();
 
@@ -172,28 +179,62 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  const provider = settings.ki_provider || "openai";
+  const cookbookProvider = settings.kochbuch_ki_provider || "global";
+  const provider =
+    context === "kochbuch" && cookbookProvider !== "global"
+      ? cookbookProvider
+      : settings.ki_provider || "openai";
 
   try {
-    if (provider === "ollama" && settings.ollama_base_url) {
+    if (provider === "ollama") {
+      if (!settings.ollama_base_url) {
+        return errorResponse({
+          httpStatus: 409,
+          code: "KI_NOT_CONFIGURED",
+          message: context === "kochbuch"
+            ? "Ollama ist für das Kochbuch nicht konfiguriert."
+            : "Ollama ist im Haushalt nicht konfiguriert.",
+          provider: "ollama",
+          status: 409,
+          retryable: false,
+        });
+      }
       const base = settings.ollama_base_url.replace(/\/$/, "");
       // Wichtig: Bei Ollama niemals blind das vom Client angeforderte Modell nutzen.
       // Der Frontend-Default ist oft "gpt-4o" und fuehrt sonst zu "model not found".
-      const ollamaModel = (settings.ollama_model || "llama3.2").trim();
+      const ollamaModel = (
+        context === "kochbuch"
+          ? settings.kochbuch_ollama_model || settings.ollama_model || "llama3.2"
+          : settings.ollama_model || "llama3.2"
+      ).trim();
+      const disableOllamaThinking =
+        context === "kochbuch" ? !Boolean(settings.kochbuch_ollama_thinking_enabled) : true;
       const ollamaMessages =
-        responseFormat?.type === "json_object" ? injectJsonInstruction(messages) : messages;
-      const ollamaRes = await fetch(`${base}/v1/chat/completions`, {
+        responseFormat?.type === "json_object" ? injectJsonInstruction(messages, disableOllamaThinking) : messages;
+      let ollamaBody: Record<string, unknown> = {
+        model: ollamaModel,
+        messages: ollamaMessages,
+        temperature,
+        ...(disableOllamaThinking ? { think: false, reasoning_effort: false } : {}),
+        ...(responseFormat?.type === "json_object" ? { format: "json" } : {}),
+      };
+      let ollamaRes = await fetch(`${base}/v1/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: ollamaModel,
-          messages: ollamaMessages,
-          temperature,
-          ...(responseFormat?.type === "json_object" ? { format: "json" } : {}),
-        }),
+        body: JSON.stringify(ollamaBody),
       });
 
-      const ollamaJson = await ollamaRes.json().catch(() => ({}));
+      let ollamaJson = await ollamaRes.json().catch(() => ({}));
+      if (!ollamaRes.ok && disableOllamaThinking && isOllamaThinkingControlError(ollamaJson?.error?.message || ollamaJson?.error)) {
+        const { think, reasoning_effort, ...bodyWithoutThinkingControls } = ollamaBody;
+        ollamaBody = bodyWithoutThinkingControls;
+        ollamaRes = await fetch(`${base}/v1/chat/completions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(ollamaBody),
+        });
+        ollamaJson = await ollamaRes.json().catch(() => ({}));
+      }
       if (!ollamaRes.ok) {
         return errorResponse({
           httpStatus: 502,
@@ -222,7 +263,10 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const openaiModel = requestedModel || "gpt-4o";
+    const openaiModel =
+      context === "kochbuch"
+        ? settings.kochbuch_openai_model || settings.kochbuch_ai_model || "gpt-4o-mini"
+        : requestedModel || "gpt-4o";
     const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {

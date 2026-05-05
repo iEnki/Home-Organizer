@@ -39,6 +39,8 @@ It is installable as a PWA, works on desktop and mobile devices and can be fully
 - Invoice analysis with line items, date synchronization and budget assignment
 - Document archive with AI analysis, knowledge entries, contracts and insurance records
 - Book library with ISBN lookup, cover lookup and duplicate detection
+- Cookbook with manual recipes, web import, video import, local transcription, translation and shopping-list handover
+- Shopping list with AI classification, multilingual entries and transfer of completed grocery items into supplies
 - Guided tours and onboarding for Home Organizer modules
 - Household-level settings, invitations and multi-household support
 
@@ -60,13 +62,15 @@ It is installable as a PWA, works on desktop and mobile devices and can be fully
 - Dashboard with quick access and household overview
 - Inventory with locations, QR codes, photos and search
 - Supplies with minimum quantities, categories and shopping list integration
+- Shopping list with batch capture, AI categorisation, recipe ingredients, translation cache and stock handover when groceries are checked off
+- Cookbook with recipe cards, review workflow, web/video import, quantity/macro/cost analysis, multilingual recipes and ingredient handover
 - Device management with maintenance planning
 - Residents, household tasks, projects and activity history
 - Finance manager with accounts, budgets, limits, goals, splits and statistics
 - Invoices, documents, contracts and insurance records
 - Knowledge base with manual and document-based entries
 - Book library with search, import, covers and duplicate checks
-- Global search across modules
+- Global search across modules, including cookbook recipes
 - Step-by-step tours per module
 
 ### Cross-Cutting

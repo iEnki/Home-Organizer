@@ -1,0 +1,10 @@
+flask==3.0.3
+gunicorn==22.0.0
+requests==2.32.3
+beautifulsoup4==4.12.3
+lxml==4.9.4
+extruct==0.16.0
+w3lib==2.2.1
+tldextract==5.1.2
+yt-dlp
+faster-whisper==1.1.1

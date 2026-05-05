@@ -40,6 +40,8 @@ Sie ist als PWA installierbar, läuft auf Desktop und Mobilgeräten und kann vol
 - Dokumentenarchiv mit KI-Analyse, Wissenseinträgen, Verträgen und Versicherungen
 - Bücherverwaltung mit ISBN-/Cover-Suche und Duplikaterkennung
 - Geführte Touren und Onboarding für Home-Organizer-Module
+- Kochbuch mit manuellem Rezept, Web-Import, Video-Import, lokaler Transkription, Übersetzung und Einkaufsliste
+- Einkaufsliste mit KI-Klassifizierung, mehrsprachigen Einträgen und Übernahme erledigter Lebensmittel in die Vorräte
 - Haushaltsweite Einstellungen, Einladungen und Multi-Haushalt-Unterstützung
 
 ## Funktionen
@@ -60,13 +62,15 @@ Sie ist als PWA installierbar, läuft auf Desktop und Mobilgeräten und kann vol
 - Dashboard mit Schnellzugriff und Haushaltsübersicht
 - Inventar mit Standorten, QR-Codes, Fotos und Suche
 - Vorräte mit Mindestmengen, Kategorien und Einkaufslisten-Anbindung
+- Einkaufsliste mit Batch-Erfassung, KI-Kategorisierung, Rezeptzutaten, Übersetzungscache und Vorratsübernahme beim Abhaken
+- Kochbuch mit Rezeptkarten, Review-Workflow, Web-/Video-Import, Mengen-/Makro-/Kostenanalyse, mehrsprachigen Rezepten und Zutatenübernahme
 - Geräteverwaltung mit Wartungsplanung
 - Bewohner, Haushaltsaufgaben, Projekte und Verlauf
 - Finanzmanager mit Konten, Budgets, Limits, Zielen, Splits und Statistiken
 - Rechnungen, Dokumente, Verträge und Versicherungen
 - Wissensdatenbank mit manuellen und dokumentbasierten Einträgen
 - Bücherregal mit Suche, Import, Covern und Duplikatprüfung
-- Globale Suche über Module hinweg
+- Globale Suche über Module hinweg, inklusive Kochbuch-Rezepten
 - Schritt-für-Schritt-Touren pro Modul
 
 ### Übergreifend

@@ -295,6 +295,8 @@ services:
     depends_on:
       analytics:
         condition: service_healthy
+      recipe-source-parser:
+        condition: service_started
     environment:
       JWT_SECRET: ${JWT_SECRET}
       SUPABASE_URL: http://kong:8000
@@ -313,6 +315,8 @@ services:
       INVITE_BRAND_NAME: ${INVITE_BRAND_NAME}
       APP_URL: ${SITE_URL}
       SITE_URL: ${SITE_URL}
+      RECIPE_PARSER_URL: ${RECIPE_PARSER_URL:-http://recipe-source-parser:8090}
+      RECIPE_PARSER_INTERNAL_TOKEN: ${RECIPE_PARSER_INTERNAL_TOKEN}
       # Zeitzone für korrekte Lokalzeit in Edge Functions (getHours/getMinutes)
       TZ: Europe/Vienna
     command: ["start", "--main-service", "/home/deno/functions/main"]
@@ -462,14 +466,41 @@ services:
       - ollama-data:/root/.ollama
     environment:
       OLLAMA_ORIGINS: "*"
-    # GPU-Unterstützung (Nvidia) — auskommentieren falls keine GPU vorhanden:
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+    # GPU-Unterstützung (Nvidia). Erfordert NVIDIA Container Toolkit auf dem Host.
+    gpus: all
+
+  # ============================================================
+  # Kochbuch Parser/Transkriptions-Service
+  # Lokaler Whisper-Default mit Auto-Erkennung:
+  # CUDA/float16 wenn verfuegbar, sonst CPU/int8.
+  # ============================================================
+  recipe-source-parser:
+    build:
+      context: ./services/recipe-source-parser
+      dockerfile: Dockerfile
+    container_name: recipe-source-parser
+    restart: unless-stopped
+    environment:
+      PORT: 8090
+      RECIPE_PARSER_INTERNAL_TOKEN: ${RECIPE_PARSER_INTERNAL_TOKEN}
+      SUPABASE_URL: http://kong:8000
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      WHISPER_DEVICE: ${WHISPER_DEVICE:-auto}
+      WHISPER_MODEL: ${WHISPER_MODEL:-small}
+      WHISPER_CPU_COMPUTE_TYPE: ${WHISPER_CPU_COMPUTE_TYPE:-int8}
+      WHISPER_GPU_COMPUTE_TYPE: ${WHISPER_GPU_COMPUTE_TYPE:-float16}
+      WHISPER_CPP_FALLBACK_ENABLED: ${WHISPER_CPP_FALLBACK_ENABLED:-true}
+      WHISPER_MODEL_DIR: /models/whisper
+    ports:
+      - "127.0.0.1:${RECIPE_PARSER_PORT:-8090}:8090"
+    volumes:
+      - recipe-parser-tmp:/tmp/recipe-parser
+      - recipe-whisper-models:/models/whisper
+    depends_on:
+      kong:
+        condition: service_started
+    # Wenn die LXC/Host-Umgebung NVIDIA Runtime bereitstellt, nutzt
+    # faster-whisper automatisch CUDA. Ohne CUDA faellt der Service auf CPU zurueck.
 
   # ============================================================
   # Umzughelfer React-App
@@ -496,3 +527,5 @@ volumes:
   db-config:
   deno-cache:
   ollama-data:
+  recipe-parser-tmp:
+  recipe-whisper-models:

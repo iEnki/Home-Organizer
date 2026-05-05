@@ -22,6 +22,8 @@ const ENV_KEYS = [
   "INVITE_BRAND_NAME",
   "APP_URL",
   "SITE_URL",
+  "RECIPE_PARSER_URL",
+  "RECIPE_PARSER_INTERNAL_TOKEN",
 ];
 
 Deno.serve(async (req: Request) => {

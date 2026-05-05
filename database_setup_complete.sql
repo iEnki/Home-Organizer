@@ -64,6 +64,10 @@ CREATE TABLE IF NOT EXISTS public.user_profile (
   ki_provider      text DEFAULT 'openai',   -- 'openai' | 'ollama'
   ollama_base_url  text,                    -- z.B. http://192.168.1.100:11434
   ollama_model     text DEFAULT 'llama3.2', -- z.B. llama3.2, mistral, qwen2.5
+  kochbuch_ki_provider text NOT NULL DEFAULT 'global',
+  kochbuch_openai_model text,
+  kochbuch_ollama_model text,
+  kochbuch_ollama_thinking_enabled boolean NOT NULL DEFAULT false,
   password_change_required boolean NOT NULL DEFAULT false,
   mobile_nav_config jsonb NOT NULL DEFAULT '{"home":["aufgaben","inventar","budget"],"umzug":["todos","packliste","budget"]}'::jsonb,
   locale           text NOT NULL DEFAULT 'de' CONSTRAINT user_profile_locale_supported CHECK (locale IN ('de', 'en-GB')),
@@ -1138,6 +1142,7 @@ ALTER TABLE public.home_einkaufliste ADD COLUMN IF NOT EXISTS unterkategorie tex
 ALTER TABLE public.home_einkaufliste ADD COLUMN IF NOT EXISTS confidence numeric(4,3);
 ALTER TABLE public.home_einkaufliste ADD COLUMN IF NOT EXISTS review_noetig boolean NOT NULL DEFAULT false;
 ALTER TABLE public.home_einkaufliste ADD COLUMN IF NOT EXISTS quelle text NOT NULL DEFAULT 'manuell';
+ALTER TABLE public.home_einkaufliste ADD COLUMN IF NOT EXISTS localized_content jsonb NOT NULL DEFAULT '{}'::jsonb;
 
 DO $$
 BEGIN
@@ -1205,6 +1210,7 @@ CREATE INDEX IF NOT EXISTS idx_home_einkaufliste_erledigt ON public.home_einkauf
 CREATE INDEX IF NOT EXISTS idx_home_einkaufliste_normalized_name ON public.home_einkaufliste(normalized_name);
 CREATE INDEX IF NOT EXISTS idx_home_einkaufliste_hauptkategorie ON public.home_einkaufliste(hauptkategorie);
 CREATE INDEX IF NOT EXISTS idx_home_einkaufliste_review_noetig ON public.home_einkaufliste(review_noetig);
+CREATE INDEX IF NOT EXISTS idx_home_einkaufliste_localized_content ON public.home_einkaufliste USING gin(localized_content);
 
 DROP TRIGGER IF EXISTS set_home_einkaufliste_updated_at ON public.home_einkaufliste;
 CREATE TRIGGER set_home_einkaufliste_updated_at
@@ -1917,6 +1923,10 @@ $$;
 ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS ki_provider     text DEFAULT 'openai';
 ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS ollama_base_url text;
 ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS ollama_model    text DEFAULT 'llama3.2';
+ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS kochbuch_ki_provider text NOT NULL DEFAULT 'global';
+ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS kochbuch_openai_model text;
+ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS kochbuch_ollama_model text;
+ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS kochbuch_ollama_thinking_enabled boolean NOT NULL DEFAULT false;
 ALTER TABLE public.user_profile ADD COLUMN IF NOT EXISTS password_change_required boolean NOT NULL DEFAULT false;
 
 -- Mobile Navigation-Konfiguration (robuste 4-Schritte-Sequenz)
@@ -2304,6 +2314,10 @@ CREATE TABLE IF NOT EXISTS public.household_settings (
   openai_api_key                text,
   ollama_base_url               text,
   ollama_model                  text DEFAULT 'llama3.2',
+  kochbuch_ki_provider          text NOT NULL DEFAULT 'global',
+  kochbuch_openai_model         text,
+  kochbuch_ollama_model         text,
+  kochbuch_ollama_thinking_enabled boolean NOT NULL DEFAULT false,
   einkauf_reminder_default_zeit text,
   bildanalyse_modus             text DEFAULT 'chatgpt_vision',
   llamacloud_api_key            text,
@@ -3402,6 +3416,11 @@ CREATE TRIGGER sync_user_profile_to_household_settings_trigger
 ALTER TABLE public.household_settings
   ADD COLUMN IF NOT EXISTS bildanalyse_modus text DEFAULT 'chatgpt_vision';
 ALTER TABLE public.household_settings
+  ADD COLUMN IF NOT EXISTS kochbuch_ki_provider text NOT NULL DEFAULT 'global',
+  ADD COLUMN IF NOT EXISTS kochbuch_openai_model text,
+  ADD COLUMN IF NOT EXISTS kochbuch_ollama_model text,
+  ADD COLUMN IF NOT EXISTS kochbuch_ollama_thinking_enabled boolean NOT NULL DEFAULT false;
+ALTER TABLE public.household_settings
   ADD COLUMN IF NOT EXISTS llamacloud_api_key text;
 ALTER TABLE public.household_settings
   ADD COLUMN IF NOT EXISTS llamacloud_key_set boolean
@@ -4396,6 +4415,405 @@ CREATE INDEX IF NOT EXISTS idx_home_geraete_gewaehrleistung_bis
 
 CREATE INDEX IF NOT EXISTS idx_versicherungs_polizzen_naechste_faelligkeit
   ON public.versicherungs_polizzen (household_id, naechste_faelligkeit);
+
+-- ============================================================
+-- 16. HOME ORGANIZER KOCHBUCH / RECIPE IMPORT
+-- Spiegel von scripts/migration_2026_05_02_home_kochbuch.sql fuer frische Installationen.
+-- ============================================================
+-- Home Organizer Kochbuch: Rezepte, Zutaten, Importjobs und Settings
+-- Idempotent fuer bestehende Self-Hosted Installationen.
+
+CREATE TABLE IF NOT EXISTS public.home_rezepte (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id uuid NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+
+  titel text NOT NULL,
+  beschreibung text,
+  quelle_url text,
+  quelle_plattform text,
+  quelle_titel text,
+  quelle_uploader text,
+  thumbnail_url text,
+  video_dauer_sekunden integer,
+
+  import_typ text NOT NULL DEFAULT 'manuell',
+  analyse_modus text NOT NULL DEFAULT 'web',
+
+  sprache text DEFAULT 'de',
+  original_sprache text,
+  original_sprache_label text,
+  original_sprache_confidence numeric(4,3),
+  ziel_locale text DEFAULT 'de',
+  wurde_uebersetzt boolean NOT NULL DEFAULT false,
+  localized_content jsonb NOT NULL DEFAULT '{}'::jsonb,
+
+  standort text DEFAULT 'Wien, Österreich',
+  confidence numeric(4,3),
+  gruppe text,
+
+  portionen integer DEFAULT 4,
+  vorbereitungszeit_minuten integer,
+  kochzeit_minuten integer,
+  gesamtzeit_minuten integer,
+
+  kosten_min numeric(10,2),
+  kosten_max numeric(10,2),
+  waehrung text DEFAULT 'EUR',
+
+  kalorien_gesamt numeric(10,2),
+  protein_gesamt_g numeric(10,2),
+  kohlenhydrate_gesamt_g numeric(10,2),
+  fett_gesamt_g numeric(10,2),
+  kalorien_pro_portion numeric(10,2),
+  protein_pro_portion_g numeric(10,2),
+  kohlenhydrate_pro_portion_g numeric(10,2),
+  fett_pro_portion_g numeric(10,2),
+
+  anleitung jsonb NOT NULL DEFAULT '[]'::jsonb,
+  equipment jsonb NOT NULL DEFAULT '[]'::jsonb,
+  ersatzoptionen jsonb NOT NULL DEFAULT '{}'::jsonb,
+  notizen text,
+  tags text[] DEFAULT '{}',
+
+  favorisiert boolean NOT NULL DEFAULT false,
+  status text NOT NULL DEFAULT 'review',
+
+  raw_import_result jsonb NOT NULL DEFAULT '{}'::jsonb,
+  warnings jsonb NOT NULL DEFAULT '[]'::jsonb,
+  wissen_id uuid,
+
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.home_rezepte
+  DROP CONSTRAINT IF EXISTS home_rezepte_import_typ_check,
+  ADD CONSTRAINT home_rezepte_import_typ_check
+    CHECK (import_typ IN ('video', 'manuell', 'ki', 'web'));
+
+ALTER TABLE public.home_rezepte
+  DROP CONSTRAINT IF EXISTS home_rezepte_analyse_modus_check,
+  ADD CONSTRAINT home_rezepte_analyse_modus_check
+    CHECK (analyse_modus IN ('web', 'metadata', 'transcript', 'combined'));
+
+ALTER TABLE public.home_rezepte
+  DROP CONSTRAINT IF EXISTS home_rezepte_status_check,
+  ADD CONSTRAINT home_rezepte_status_check
+    CHECK (status IN ('review', 'gespeichert', 'archiviert', 'fehler'));
+
+CREATE TABLE IF NOT EXISTS public.home_rezept_zutaten (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  rezept_id uuid NOT NULL REFERENCES public.home_rezepte(id) ON DELETE CASCADE,
+  household_id uuid NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+
+  name text NOT NULL,
+  normalized_name text,
+  kategorie text DEFAULT 'Lebensmittel',
+  menge numeric(10,2),
+  einheit text,
+  menge_text text,
+  original_text text,
+  geschaetzt boolean NOT NULL DEFAULT false,
+  confidence numeric(4,3),
+
+  kosten_min numeric(10,2),
+  kosten_max numeric(10,2),
+  waehrung text DEFAULT 'EUR',
+  kalorien numeric(10,2),
+  protein_g numeric(10,2),
+  kohlenhydrate_g numeric(10,2),
+  fett_g numeric(10,2),
+
+  matched_vorrat_id uuid REFERENCES public.home_vorraete(id) ON DELETE SET NULL,
+  einkauf_noetig boolean NOT NULL DEFAULT false,
+  einkaufsliste_id uuid REFERENCES public.home_einkaufliste(id) ON DELETE SET NULL,
+
+  sortierung integer DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.home_rezept_import_jobs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id uuid NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+
+  quelle_url text NOT NULL,
+  quelle_plattform text,
+  standort text DEFAULT 'Wien, Österreich',
+  sprache text DEFAULT 'de',
+  original_sprache text,
+  ziel_locale text DEFAULT 'de',
+  wurde_uebersetzt boolean NOT NULL DEFAULT false,
+  analyse_modus text NOT NULL DEFAULT 'combined',
+
+  status text NOT NULL DEFAULT 'queued',
+  progress integer NOT NULL DEFAULT 0,
+  progress_message text,
+  error_message text,
+
+  result_rezept_id uuid REFERENCES public.home_rezepte(id) ON DELETE SET NULL,
+  transcription_engine text,
+  transcription_model text,
+  transcription_device text,
+  transcription_compute_type text,
+  transcription_fallback_used boolean NOT NULL DEFAULT false,
+  transcription_warnings jsonb NOT NULL DEFAULT '[]'::jsonb,
+
+  raw_web_extract jsonb,
+  raw_metadata jsonb,
+  raw_transcript text,
+  raw_ai_result jsonb,
+
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  finished_at timestamptz
+);
+
+ALTER TABLE public.home_rezept_import_jobs
+  DROP CONSTRAINT IF EXISTS home_rezept_import_jobs_analyse_modus_check,
+  ADD CONSTRAINT home_rezept_import_jobs_analyse_modus_check
+    CHECK (analyse_modus IN ('web', 'metadata', 'transcript', 'combined'));
+
+ALTER TABLE public.home_rezept_import_jobs
+  DROP CONSTRAINT IF EXISTS home_rezept_import_jobs_status_check,
+  ADD CONSTRAINT home_rezept_import_jobs_status_check
+    CHECK (status IN (
+      'queued', 'web_extract', 'metadata', 'download', 'audio_extract',
+      'transcribe', 'fallback_transcribe', 'ai_extract',
+      'needs_openai_fallback_confirmation', 'review', 'done', 'failed'
+    ));
+
+ALTER TABLE public.home_wissen
+  ADD COLUMN IF NOT EXISTS rezept_id uuid REFERENCES public.home_rezepte(id) ON DELETE SET NULL;
+
+ALTER TABLE public.home_rezepte
+  ADD COLUMN IF NOT EXISTS gruppe text;
+
+ALTER TABLE public.home_einkaufliste
+  ADD COLUMN IF NOT EXISTS localized_content jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+ALTER TABLE public.household_settings
+  ADD COLUMN IF NOT EXISTS kochbuch_enabled boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS kochbuch_video_import_enabled boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS kochbuch_daily_web_import_limit integer NOT NULL DEFAULT 20,
+  ADD COLUMN IF NOT EXISTS kochbuch_daily_video_import_limit integer NOT NULL DEFAULT 5,
+  ADD COLUMN IF NOT EXISTS kochbuch_default_location text DEFAULT 'Wien, Österreich',
+  ADD COLUMN IF NOT EXISTS kochbuch_default_analyse_modus text NOT NULL DEFAULT 'combined',
+  ADD COLUMN IF NOT EXISTS kochbuch_extract_costs boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS kochbuch_extract_macros boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS kochbuch_use_moderation boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS kochbuch_ai_model text NOT NULL DEFAULT 'gpt-4o-mini',
+  ADD COLUMN IF NOT EXISTS kochbuch_ki_provider text NOT NULL DEFAULT 'global',
+  ADD COLUMN IF NOT EXISTS kochbuch_openai_model text,
+  ADD COLUMN IF NOT EXISTS kochbuch_ollama_model text,
+  ADD COLUMN IF NOT EXISTS kochbuch_ollama_thinking_enabled boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS kochbuch_auto_translate boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS kochbuch_supported_target_locales text[] NOT NULL DEFAULT ARRAY['de','en-GB'],
+  ADD COLUMN IF NOT EXISTS kochbuch_transcription_provider text NOT NULL DEFAULT 'local_auto_fallback_openai',
+  ADD COLUMN IF NOT EXISTS kochbuch_local_whisper_model text NOT NULL DEFAULT 'small',
+  ADD COLUMN IF NOT EXISTS kochbuch_whisper_device text NOT NULL DEFAULT 'auto',
+  ADD COLUMN IF NOT EXISTS kochbuch_whisper_cpu_compute_type text NOT NULL DEFAULT 'int8',
+  ADD COLUMN IF NOT EXISTS kochbuch_whisper_gpu_compute_type text NOT NULL DEFAULT 'float16',
+  ADD COLUMN IF NOT EXISTS kochbuch_whisper_cpp_fallback_enabled boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS kochbuch_openai_transcription_fallback_enabled boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS kochbuch_openai_transcription_model text NOT NULL DEFAULT 'gpt-4o-mini-transcribe',
+  ADD COLUMN IF NOT EXISTS kochbuch_max_video_minutes integer NOT NULL DEFAULT 30;
+
+ALTER TABLE public.household_settings
+  DROP CONSTRAINT IF EXISTS household_settings_kochbuch_default_analyse_modus_check,
+  ADD CONSTRAINT household_settings_kochbuch_default_analyse_modus_check
+    CHECK (kochbuch_default_analyse_modus IN ('web', 'metadata', 'transcript', 'combined'));
+
+ALTER TABLE public.household_settings
+  DROP CONSTRAINT IF EXISTS household_settings_kochbuch_ki_provider_check,
+  ADD CONSTRAINT household_settings_kochbuch_ki_provider_check
+    CHECK (kochbuch_ki_provider IN ('global', 'openai', 'ollama'));
+
+ALTER TABLE public.user_profile
+  ADD COLUMN IF NOT EXISTS kochbuch_ki_provider text NOT NULL DEFAULT 'global',
+  ADD COLUMN IF NOT EXISTS kochbuch_openai_model text,
+  ADD COLUMN IF NOT EXISTS kochbuch_ollama_model text,
+  ADD COLUMN IF NOT EXISTS kochbuch_ollama_thinking_enabled boolean NOT NULL DEFAULT false;
+
+ALTER TABLE public.user_profile
+  DROP CONSTRAINT IF EXISTS user_profile_kochbuch_ki_provider_check,
+  ADD CONSTRAINT user_profile_kochbuch_ki_provider_check
+    CHECK (kochbuch_ki_provider IN ('global', 'openai', 'ollama'));
+
+DROP FUNCTION IF EXISTS public.set_household_kochbuch_limits(integer, integer);
+CREATE OR REPLACE FUNCTION public.set_household_kochbuch_limits(
+  p_daily_web_import_limit integer,
+  p_daily_video_import_limit integer
+)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_household_id uuid;
+BEGIN
+  SELECT household_id INTO v_household_id
+  FROM public.household_members
+  WHERE user_id = auth.uid() AND role = 'admin'
+  LIMIT 1;
+
+  IF v_household_id IS NULL THEN
+    RAISE EXCEPTION 'Nur Admin darf Kochbuch-Einstellungen aendern.';
+  END IF;
+
+  INSERT INTO public.household_settings (
+    household_id,
+    kochbuch_daily_web_import_limit,
+    kochbuch_daily_video_import_limit
+  )
+  VALUES (
+    v_household_id,
+    GREATEST(0, LEAST(1000, COALESCE(p_daily_web_import_limit, 20))),
+    GREATEST(0, LEAST(1000, COALESCE(p_daily_video_import_limit, 5)))
+  )
+  ON CONFLICT (household_id) DO UPDATE
+  SET kochbuch_daily_web_import_limit = EXCLUDED.kochbuch_daily_web_import_limit,
+      kochbuch_daily_video_import_limit = EXCLUDED.kochbuch_daily_video_import_limit,
+      updated_at = NOW();
+END;
+$$;
+
+DROP FUNCTION IF EXISTS public.set_household_kochbuch_ai_settings(text, text, text);
+DROP FUNCTION IF EXISTS public.set_household_kochbuch_ai_settings(text, text, text, text, text);
+DROP FUNCTION IF EXISTS public.set_household_kochbuch_ai_settings(text, text, text, text, text, boolean);
+CREATE OR REPLACE FUNCTION public.set_household_kochbuch_ai_settings(
+  p_kochbuch_ki_provider text,
+  p_kochbuch_openai_model text,
+  p_kochbuch_ollama_model text,
+  p_ollama_base_url text DEFAULT NULL,
+  p_ollama_model text DEFAULT NULL,
+  p_kochbuch_ollama_thinking_enabled boolean DEFAULT false
+)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_household_id uuid;
+BEGIN
+  SELECT household_id INTO v_household_id
+  FROM public.household_members
+  WHERE user_id = auth.uid() AND role = 'admin'
+  LIMIT 1;
+
+  IF v_household_id IS NULL THEN
+    RAISE EXCEPTION 'Nur Admin darf Kochbuch-Einstellungen ändern.';
+  END IF;
+
+  INSERT INTO public.household_settings (
+    household_id,
+    kochbuch_ki_provider,
+    kochbuch_openai_model,
+    kochbuch_ollama_model,
+    kochbuch_ollama_thinking_enabled,
+    ollama_base_url,
+    ollama_model,
+    updated_by
+  )
+  VALUES (
+    v_household_id,
+    COALESCE(NULLIF(BTRIM(p_kochbuch_ki_provider), ''), 'global'),
+    NULLIF(BTRIM(p_kochbuch_openai_model), ''),
+    NULLIF(BTRIM(p_kochbuch_ollama_model), ''),
+    COALESCE(p_kochbuch_ollama_thinking_enabled, false),
+    NULLIF(BTRIM(p_ollama_base_url), ''),
+    COALESCE(NULLIF(BTRIM(p_ollama_model), ''), NULLIF(BTRIM(p_kochbuch_ollama_model), ''), 'llama3.2'),
+    auth.uid()
+  )
+  ON CONFLICT (household_id) DO UPDATE
+  SET kochbuch_ki_provider = EXCLUDED.kochbuch_ki_provider,
+      kochbuch_openai_model = EXCLUDED.kochbuch_openai_model,
+      kochbuch_ollama_model = EXCLUDED.kochbuch_ollama_model,
+      kochbuch_ollama_thinking_enabled = EXCLUDED.kochbuch_ollama_thinking_enabled,
+      ollama_base_url = COALESCE(EXCLUDED.ollama_base_url, public.household_settings.ollama_base_url),
+      ollama_model = COALESCE(EXCLUDED.ollama_model, public.household_settings.ollama_model),
+      updated_by = auth.uid(),
+      updated_at = NOW();
+
+  RETURN true;
+END;
+$$;
+
+ALTER TABLE public.home_einkaufliste
+  DROP CONSTRAINT IF EXISTS home_einkaufliste_quelle_check,
+  ADD CONSTRAINT home_einkaufliste_quelle_check
+    CHECK (quelle IN ('manuell','ki','vorrat','kochbuch'));
+
+CREATE INDEX IF NOT EXISTS idx_home_rezepte_household_id ON public.home_rezepte(household_id);
+CREATE INDEX IF NOT EXISTS idx_home_rezepte_user_id ON public.home_rezepte(user_id);
+CREATE INDEX IF NOT EXISTS idx_home_rezepte_status ON public.home_rezepte(status);
+CREATE INDEX IF NOT EXISTS idx_home_rezepte_quelle_plattform ON public.home_rezepte(quelle_plattform);
+CREATE INDEX IF NOT EXISTS idx_home_rezepte_created_at ON public.home_rezepte(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_home_rezepte_tags ON public.home_rezepte USING gin(tags);
+CREATE INDEX IF NOT EXISTS idx_home_rezepte_gruppe ON public.home_rezepte(gruppe);
+CREATE INDEX IF NOT EXISTS idx_home_rezept_zutaten_rezept_id ON public.home_rezept_zutaten(rezept_id);
+CREATE INDEX IF NOT EXISTS idx_home_rezept_zutaten_household_id ON public.home_rezept_zutaten(household_id);
+CREATE INDEX IF NOT EXISTS idx_home_rezept_zutaten_normalized_name ON public.home_rezept_zutaten(normalized_name);
+CREATE INDEX IF NOT EXISTS idx_home_rezept_import_jobs_household_id ON public.home_rezept_import_jobs(household_id);
+CREATE INDEX IF NOT EXISTS idx_home_rezept_import_jobs_status ON public.home_rezept_import_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_home_rezept_import_jobs_created_at ON public.home_rezept_import_jobs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_home_wissen_rezept_id ON public.home_wissen(rezept_id);
+CREATE INDEX IF NOT EXISTS idx_home_einkaufliste_localized_content ON public.home_einkaufliste USING gin(localized_content);
+
+DROP TRIGGER IF EXISTS set_home_rezepte_updated_at ON public.home_rezepte;
+CREATE TRIGGER set_home_rezepte_updated_at
+  BEFORE UPDATE ON public.home_rezepte
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+DROP TRIGGER IF EXISTS set_home_rezept_import_jobs_updated_at ON public.home_rezept_import_jobs;
+CREATE TRIGGER set_home_rezept_import_jobs_updated_at
+  BEFORE UPDATE ON public.home_rezept_import_jobs
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+ALTER TABLE public.home_rezepte ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.home_rezept_zutaten ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.home_rezept_import_jobs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS home_rezepte_household_select ON public.home_rezepte;
+CREATE POLICY home_rezepte_household_select ON public.home_rezepte
+  FOR SELECT USING (public.is_household_member(household_id));
+DROP POLICY IF EXISTS home_rezepte_household_insert ON public.home_rezepte;
+CREATE POLICY home_rezepte_household_insert ON public.home_rezepte
+  FOR INSERT WITH CHECK (public.is_household_member(household_id));
+DROP POLICY IF EXISTS home_rezepte_household_update ON public.home_rezepte;
+CREATE POLICY home_rezepte_household_update ON public.home_rezepte
+  FOR UPDATE USING (public.is_household_member(household_id))
+  WITH CHECK (public.is_household_member(household_id));
+DROP POLICY IF EXISTS home_rezepte_household_delete ON public.home_rezepte;
+CREATE POLICY home_rezepte_household_delete ON public.home_rezepte
+  FOR DELETE USING (public.is_household_member(household_id));
+
+DROP POLICY IF EXISTS home_rezept_zutaten_household_select ON public.home_rezept_zutaten;
+CREATE POLICY home_rezept_zutaten_household_select ON public.home_rezept_zutaten
+  FOR SELECT USING (public.is_household_member(household_id));
+DROP POLICY IF EXISTS home_rezept_zutaten_household_insert ON public.home_rezept_zutaten;
+CREATE POLICY home_rezept_zutaten_household_insert ON public.home_rezept_zutaten
+  FOR INSERT WITH CHECK (public.is_household_member(household_id));
+DROP POLICY IF EXISTS home_rezept_zutaten_household_update ON public.home_rezept_zutaten;
+CREATE POLICY home_rezept_zutaten_household_update ON public.home_rezept_zutaten
+  FOR UPDATE USING (public.is_household_member(household_id))
+  WITH CHECK (public.is_household_member(household_id));
+DROP POLICY IF EXISTS home_rezept_zutaten_household_delete ON public.home_rezept_zutaten;
+CREATE POLICY home_rezept_zutaten_household_delete ON public.home_rezept_zutaten
+  FOR DELETE USING (public.is_household_member(household_id));
+
+DROP POLICY IF EXISTS home_rezept_import_jobs_household_select ON public.home_rezept_import_jobs;
+CREATE POLICY home_rezept_import_jobs_household_select ON public.home_rezept_import_jobs
+  FOR SELECT USING (public.is_household_member(household_id));
+DROP POLICY IF EXISTS home_rezept_import_jobs_household_insert ON public.home_rezept_import_jobs;
+CREATE POLICY home_rezept_import_jobs_household_insert ON public.home_rezept_import_jobs
+  FOR INSERT WITH CHECK (public.is_household_member(household_id));
+DROP POLICY IF EXISTS home_rezept_import_jobs_household_update ON public.home_rezept_import_jobs;
+CREATE POLICY home_rezept_import_jobs_household_update ON public.home_rezept_import_jobs
+  FOR UPDATE USING (public.is_household_member(household_id))
+  WITH CHECK (public.is_household_member(household_id));
+DROP POLICY IF EXISTS home_rezept_import_jobs_household_delete ON public.home_rezept_import_jobs;
+CREATE POLICY home_rezept_import_jobs_household_delete ON public.home_rezept_import_jobs
+  FOR DELETE USING (public.is_household_member(household_id));
 
 SELECT pg_notify('pgrst', 'reload schema');
 
