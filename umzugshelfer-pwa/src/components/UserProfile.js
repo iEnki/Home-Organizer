@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   Eye, EyeOff, Save, Truck, Home, CheckCircle, AlertCircle,
   RotateCcw, Bell, BellOff, BellRing, Cpu, Wifi, WifiOff,
   ChevronRight, Camera, Pencil, Check, X, KeyRound, Shield, Layers, Sun, Copy, UserPlus,
-  Users, Crown, Smartphone, Building2,
+  Users, Crown, Smartphone, Building2, BookOpen,
 } from "lucide-react";
 import {
   MOBILE_NAV_REGISTRY, DEFAULT_MOBILE_FAVORITES,
@@ -25,32 +26,47 @@ import BottomSheet from "./ui/BottomSheet";
 function StatusBadge({ label, farbe }) {
   const cls = {
     emerald: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
-    gray:    "bg-light-border dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary border-light-border dark:border-dark-border",
+    gray:    "bg-light-border/60 dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary border-light-border dark:border-dark-border",
     red:     "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20",
-    primary: "bg-primary-500/10 text-primary-500 border-primary-500/20",
+    primary: "bg-primary-500/10 text-primary-600 dark:text-primary-400 border-primary-500/20",
     amber:   "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
-  }[farbe] ?? "bg-light-border dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary border-light-border dark:border-dark-border";
+  }[farbe] ?? "bg-light-border/60 dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary border-light-border dark:border-dark-border";
   return (
-    <span className={`inline-block text-[11px] px-2 py-0.5 rounded-pill font-medium border ${cls}`}>
+    <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-pill font-medium border ${cls}`}>
       {label}
     </span>
   );
 }
 
 // ── Modul-Karte ─────────────────────────────────────────────────────────────
-function ModulKarte({ icon, titel, status, statusFarbe, beschreibung, aktionLabel, onAktion, disabled }) {
+const iconBgMap = {
+  emerald: "bg-emerald-500/15 text-emerald-500",
+  gray:    "bg-light-border dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary",
+  red:     "bg-red-500/15 text-red-500",
+  primary: "bg-primary-500/15 text-primary-500",
+  amber:   "bg-amber-500/15 text-amber-500",
+  secondary: "bg-secondary-500/15 text-secondary-500",
+};
+
+function ModulKarte({ icon, titel, status, statusFarbe, beschreibung, aktionLabel, onAktion, disabled, iconFarbe }) {
+  const reduced = useReducedMotion();
+  const iconCls = iconBgMap[iconFarbe ?? "secondary"] ?? iconBgMap.secondary;
   return (
-    <button
+    <motion.button
       onClick={disabled ? undefined : onAktion}
       disabled={disabled}
-      className={`w-full text-left bg-light-card-bg dark:bg-canvas-2 rounded-card-sm border
+      whileHover={reduced || disabled ? {} : { y: -3, transition: { type: "spring", stiffness: 400, damping: 25 } }}
+      whileTap={reduced || disabled ? {} : { scale: 0.97 }}
+      className={`w-full text-left bg-light-card dark:bg-canvas-2 rounded-card border
                   border-light-border dark:border-dark-border p-4 flex flex-col gap-3
-                  transition-colors disabled:opacity-50
-                  ${disabled ? "cursor-default" : "hover:border-primary-500/30 cursor-pointer"}`}
+                  shadow-elevation-2 transition-[border-color,box-shadow] disabled:opacity-50
+                  ${disabled ? "cursor-default" : "hover:border-primary-500/40 hover:shadow-glow-primary cursor-pointer"}`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2.5">
-          <span className="text-secondary-500 shrink-0">{icon}</span>
+          <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-card-sm ${iconCls}`}>
+            {icon}
+          </div>
           <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main leading-tight">
             {titel}
           </span>
@@ -67,16 +83,19 @@ function ModulKarte({ icon, titel, status, statusFarbe, beschreibung, aktionLabe
           {aktionLabel} <ChevronRight size={12} />
         </span>
       )}
-    </button>
+    </motion.button>
   );
 }
 
 // ── Abschnitt-Label ──────────────────────────────────────────────────────────
 function GruppenLabel({ children }) {
   return (
-    <p className="text-[11px] font-semibold uppercase tracking-widest text-light-text-secondary dark:text-dark-text-secondary px-1 mb-2">
-      {children}
-    </p>
+    <div className="mb-3 flex items-center gap-3 px-1">
+      <p className="whitespace-nowrap text-[11px] font-semibold uppercase tracking-widest text-light-text-secondary dark:text-dark-text-secondary">
+        {children}
+      </p>
+      <div className="h-px flex-1 bg-light-border dark:bg-dark-border" />
+    </div>
   );
 }
 
@@ -92,6 +111,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     deaktiviereUmzug, aktiviereUmzug,
   } = useAppMode();
   const { isDesktop } = useViewport();
+  const reduced = useReducedMotion();
 
   const userId   = session?.user?.id;
   const email    = session?.user?.email || "";
@@ -153,6 +173,16 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
   const [bildanalyseStatus,       setBildanalyseStatus]       = useState(null);
   const [ollamaVisionModel,       setOllamaVisionModel]       = useState("");
 
+  // Kochbuch-Importe
+  const [kochbuchWebLimit,   setKochbuchWebLimit]   = useState(20);
+  const [kochbuchVideoLimit, setKochbuchVideoLimit] = useState(5);
+  const [kochbuchStatus,     setKochbuchStatus]     = useState(null);
+  const [kochbuchKiProvider, setKochbuchKiProvider] = useState("global");
+  const [kochbuchOpenaiModel, setKochbuchOpenaiModel] = useState("");
+  const [kochbuchOllamaModel, setKochbuchOllamaModel] = useState("");
+  const [kochbuchOllamaThinkingEnabled, setKochbuchOllamaThinkingEnabled] = useState(false);
+  const [kochbuchKiStatus, setKochbuchKiStatus] = useState(null);
+
   // Push
   const {
     isSupported:  pushUnterstuetzt,
@@ -212,7 +242,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     if (!userId) return;
     supabase
       .from("user_profile")
-      .select("openai_api_key, ki_provider, ollama_base_url, ollama_model, einkauf_reminder_aktiv, einkauf_reminder_zeit, umzug_deaktiviert, avatar_url, username")
+      .select("openai_api_key, ki_provider, ollama_base_url, ollama_model, kochbuch_ki_provider, kochbuch_openai_model, kochbuch_ollama_model, kochbuch_ollama_thinking_enabled, einkauf_reminder_aktiv, einkauf_reminder_zeit, umzug_deaktiviert, avatar_url, username")
       .eq("id", userId)
       .single()
       .then(({ data }) => {
@@ -220,6 +250,10 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         if (data?.ki_provider)              setKiProvider(data.ki_provider);
         if (data?.ollama_base_url)          setOllamaUrl(data.ollama_base_url);
         if (data?.ollama_model)             setOllamaModel(data.ollama_model);
+        if (data?.kochbuch_ki_provider)     setKochbuchKiProvider(data.kochbuch_ki_provider);
+        if (data?.kochbuch_openai_model)    setKochbuchOpenaiModel(data.kochbuch_openai_model);
+        if (data?.kochbuch_ollama_model)    setKochbuchOllamaModel(data.kochbuch_ollama_model);
+        if (data?.kochbuch_ollama_thinking_enabled !== undefined) setKochbuchOllamaThinkingEnabled(!!data.kochbuch_ollama_thinking_enabled);
         if (data?.einkauf_reminder_aktiv !== undefined) setEinkaufReminderAktiv(!!data.einkauf_reminder_aktiv);
         if (data?.einkauf_reminder_zeit)    setEinkaufReminderZeit(data.einkauf_reminder_zeit);
         if (data?.umzug_deaktiviert !== undefined) setUmzugDeaktiviertLokal(!!data.umzug_deaktiviert);
@@ -234,13 +268,19 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     if (!userId || !isHouseholdAdmin || !householdContext?.household_id) return;
     supabase
       .from("household_settings")
-      .select("bildanalyse_modus, bildanalyse_openai_key_set, ollama_vision_model")
+      .select("bildanalyse_modus, bildanalyse_openai_key_set, ollama_vision_model, kochbuch_daily_web_import_limit, kochbuch_daily_video_import_limit, kochbuch_ki_provider, kochbuch_openai_model, kochbuch_ollama_model, kochbuch_ollama_thinking_enabled")
       .eq("household_id", householdContext.household_id)
       .maybeSingle()
       .then(({ data }) => {
         if (data?.bildanalyse_modus) setBildanalyseModus(data.bildanalyse_modus);
         if (data?.bildanalyse_openai_key_set !== undefined) setBildanalyseOpenaiKeySet(!!data.bildanalyse_openai_key_set);
         if (data?.ollama_vision_model) setOllamaVisionModel(data.ollama_vision_model);
+        if (data?.kochbuch_daily_web_import_limit !== undefined) setKochbuchWebLimit(data.kochbuch_daily_web_import_limit);
+        if (data?.kochbuch_daily_video_import_limit !== undefined) setKochbuchVideoLimit(data.kochbuch_daily_video_import_limit);
+        if (data?.kochbuch_ki_provider) setKochbuchKiProvider(data.kochbuch_ki_provider);
+        if (data?.kochbuch_openai_model) setKochbuchOpenaiModel(data.kochbuch_openai_model);
+        if (data?.kochbuch_ollama_model) setKochbuchOllamaModel(data.kochbuch_ollama_model);
+        if (data?.kochbuch_ollama_thinking_enabled !== undefined) setKochbuchOllamaThinkingEnabled(!!data.kochbuch_ollama_thinking_enabled);
       });
   }, [userId, isHouseholdAdmin, householdContext?.household_id]);
 
@@ -430,6 +470,57 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     }
     setBildanalyseStatus(error ? "fehler" : "ok");
     setTimeout(() => setBildanalyseStatus(null), 3000);
+  };
+
+  const handleKochbuchLimitsSpeichern = async () => {
+    if (!householdContext?.household_id) return;
+    setKochbuchStatus(null);
+    const webLimit = Math.max(0, Math.min(1000, Number.parseInt(String(kochbuchWebLimit), 10) || 0));
+    const videoLimit = Math.max(0, Math.min(1000, Number.parseInt(String(kochbuchVideoLimit), 10) || 0));
+    const { error } = await supabase.rpc("set_household_kochbuch_limits", {
+      p_daily_web_import_limit: webLimit,
+      p_daily_video_import_limit: videoLimit,
+    });
+    if (!error) {
+      setKochbuchWebLimit(webLimit);
+      setKochbuchVideoLimit(videoLimit);
+    }
+    setKochbuchStatus(error ? "fehler" : "ok");
+    setTimeout(() => setKochbuchStatus(null), 3000);
+  };
+
+  const handleKochbuchKiSpeichern = async () => {
+    setKochbuchKiStatus(null);
+    const patch = {
+      kochbuch_ki_provider: kochbuchKiProvider,
+      kochbuch_openai_model: kochbuchOpenaiModel.trim() || null,
+      kochbuch_ollama_model: kochbuchOllamaModel.trim() || null,
+      kochbuch_ollama_thinking_enabled: !!kochbuchOllamaThinkingEnabled,
+      ...(kochbuchKiProvider === "ollama"
+        ? {
+            ollama_base_url: ollamaUrl.trim() || null,
+            ollama_model: (kochbuchOllamaModel.trim() || ollamaModel.trim() || "llama3.2"),
+          }
+        : {}),
+    };
+    const { error: profileError } = await supabase
+      .from("user_profile")
+      .update(patch)
+      .eq("id", userId);
+    let rpcError = null;
+    if (!profileError && isHouseholdAdmin) {
+      const { error } = await supabase.rpc("set_household_kochbuch_ai_settings", {
+        p_kochbuch_ki_provider: kochbuchKiProvider,
+        p_kochbuch_openai_model: kochbuchOpenaiModel.trim() || null,
+        p_kochbuch_ollama_model: kochbuchOllamaModel.trim() || null,
+        p_ollama_base_url: kochbuchKiProvider === "ollama" ? (ollamaUrl.trim() || null) : null,
+        p_ollama_model: kochbuchKiProvider === "ollama" ? (kochbuchOllamaModel.trim() || ollamaModel.trim() || "llama3.2") : null,
+        p_kochbuch_ollama_thinking_enabled: !!kochbuchOllamaThinkingEnabled,
+      });
+      rpcError = error;
+    }
+    setKochbuchKiStatus(profileError || rpcError ? "fehler" : "ok");
+    setTimeout(() => setKochbuchKiStatus(null), 3000);
   };
 
   const handleMitgliedEntfernen = async () => {
@@ -1065,16 +1156,24 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
             {kiProvider === "openai" && (
               <div className="space-y-2">
                 <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.ki.apiKeySection")}</p>
-                <div className="flex gap-2">
+                <form
+                  className="flex gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    handleApiKeySpeichern();
+                  }}
+                >
                   <div className="relative flex-1">
                     <input
                       type={apiKeyVisible ? "text" : "password"}
                       value={apiKey}
                       onChange={(e) => setApiKey(e.target.value)}
                       placeholder="sk-..."
+                      autoComplete="new-password"
                       className={`${inputCls} pr-10`}
                     />
                     <button
+                      type="button"
                       onClick={() => setApiKeyVisible(!apiKeyVisible)}
                       className="absolute right-2.5 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 transition-colors"
                     >
@@ -1082,7 +1181,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                     </button>
                   </div>
                   <button
-                    onClick={handleApiKeySpeichern}
+                    type="submit"
                     className="flex items-center gap-1.5 px-4 py-2.5 rounded-pill text-sm font-medium
                                bg-primary-500 hover:bg-primary-600 text-white transition-colors shrink-0"
                   >
@@ -1090,7 +1189,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                       : speichernStatus === "fehler" ? <><AlertCircle size={15} /> {t("common:status.error")}</>
                       : <><Save size={15} /> {t("common:actions.save")}</>}
                   </button>
-                </div>
+                </form>
               </div>
             )}
 
@@ -1219,19 +1318,26 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                     </button>
                   </div>
                 )}
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  value={bildanalyseOpenaiKey}
-                  onChange={(e) => setBildanalyseOpenaiKey(e.target.value)}
-                  placeholder={bildanalyseOpenaiKeySet ? t("profile:panelContent.imageAnalysis.replaceKeyPlaceholder") : "sk-..."}
-                  className={`w-full px-3 py-2.5 rounded-card-sm border text-sm
-                              bg-light-surface-1 dark:bg-canvas-2
-                              border-light-border dark:border-dark-border
-                              text-light-text-main dark:text-dark-text-main
-                              placeholder-light-text-secondary dark:placeholder-dark-text-secondary
-                              focus:outline-none focus:border-secondary-500 transition-colors`}
-                />
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    handleBildanalyseSpeichern();
+                  }}
+                >
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    value={bildanalyseOpenaiKey}
+                    onChange={(e) => setBildanalyseOpenaiKey(e.target.value)}
+                    placeholder={bildanalyseOpenaiKeySet ? t("profile:panelContent.imageAnalysis.replaceKeyPlaceholder") : "sk-..."}
+                    className={`w-full px-3 py-2.5 rounded-card-sm border text-sm
+                                bg-light-surface-1 dark:bg-canvas-2
+                                border-light-border dark:border-dark-border
+                                text-light-text-main dark:text-dark-text-main
+                                placeholder-light-text-secondary dark:placeholder-dark-text-secondary
+                                focus:outline-none focus:border-secondary-500 transition-colors`}
+                  />
+                </form>
                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
                   {t("profile:panelContent.imageAnalysis.apiKeyNote")}
                 </p>
@@ -1268,6 +1374,150 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
             </button>
           </>
         )}
+      </div>
+    );
+
+    if (key === "kochbuch") return (
+      <div className="space-y-4">
+        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+          {t("profile:panelContent.kochbuch.intro")}
+        </p>
+        <div className="space-y-3 p-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-surface-1 dark:bg-canvas-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">
+              {t("profile:panelContent.kochbuch.aiProviderSection")}
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {[
+                { id: "global", label: t("profile:panelContent.kochbuch.aiProviderGlobal"), desc: t("profile:panelContent.kochbuch.aiProviderGlobalDesc") },
+                { id: "openai", label: "OpenAI", desc: t("profile:panelContent.kochbuch.aiProviderOpenaiDesc") },
+                { id: "ollama", label: "Ollama", desc: t("profile:panelContent.kochbuch.aiProviderOllamaDesc") },
+              ].map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setKochbuchKiProvider(p.id)}
+                  className={`flex flex-col items-center p-3 rounded-card-sm border-2 text-sm text-center transition-all
+                              ${kochbuchKiProvider === p.id
+                                ? "border-secondary-500 bg-secondary-500/10 text-secondary-500"
+                                : "border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:border-secondary-500/40"
+                              }`}
+                >
+                  <span className="font-semibold">{p.label}</span>
+                  <span className="text-xs opacity-70 mt-0.5">{p.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          {kochbuchKiProvider === "openai" && (
+            <label className="space-y-1.5 block">
+              <span className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+                {t("profile:panelContent.kochbuch.openaiModel")}
+              </span>
+              <input
+                type="text"
+                value={kochbuchOpenaiModel}
+                onChange={(e) => setKochbuchOpenaiModel(e.target.value)}
+                placeholder="gpt-4o-mini"
+                className={inputCls}
+              />
+            </label>
+          )}
+          {kochbuchKiProvider === "ollama" && (
+            <div className="space-y-3">
+              <label className="space-y-1.5 block">
+                <span className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+                  {t("profile:panelContent.kochbuch.ollamaUrl")}
+                </span>
+                <input
+                  type="url"
+                  value={ollamaUrl}
+                  onChange={(e) => setOllamaUrl(e.target.value)}
+                  placeholder="http://192.168.1.100:11434"
+                  className={inputCls}
+                />
+                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  {t("profile:panelContent.kochbuch.ollamaUrlHint")}
+                </p>
+              </label>
+              <label className="space-y-1.5 block">
+                <span className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+                  {t("profile:panelContent.kochbuch.ollamaModel")}
+                </span>
+                <input
+                  type="text"
+                  value={kochbuchOllamaModel}
+                  onChange={(e) => setKochbuchOllamaModel(e.target.value)}
+                  placeholder={ollamaModel || "llama3.2"}
+                  className={inputCls}
+                />
+              </label>
+              <label className="flex items-start gap-3 p-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-surface-2 dark:bg-canvas-2">
+                <input
+                  type="checkbox"
+                  checked={kochbuchOllamaThinkingEnabled}
+                  onChange={(e) => setKochbuchOllamaThinkingEnabled(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-light-border dark:border-dark-border text-secondary-500 focus:ring-secondary-500"
+                />
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-light-text-main dark:text-dark-text-main">
+                    {t("profile:panelContent.kochbuch.ollamaThinking")}
+                  </span>
+                  <span className="block text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                    {t("profile:panelContent.kochbuch.ollamaThinkingHint")}
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
+          <button
+            onClick={handleKochbuchKiSpeichern}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-pill text-sm font-medium
+                       bg-primary-500 hover:bg-primary-600 text-white transition-colors"
+          >
+            {kochbuchKiStatus === "ok" ? <><CheckCircle size={15} /> {t("common:status.saved")}</>
+              : kochbuchKiStatus === "fehler" ? <><AlertCircle size={15} /> {t("common:status.error")}</>
+              : <><Save size={15} /> {t("profile:panelContent.kochbuch.saveAiProvider")}</>}
+          </button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+              {t("profile:panelContent.kochbuch.webLimit")}
+            </span>
+            <input
+              type="number"
+              min="0"
+              max="1000"
+              step="1"
+              value={kochbuchWebLimit}
+              onChange={(e) => setKochbuchWebLimit(e.target.value)}
+              className={inputCls}
+            />
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+              {t("profile:panelContent.kochbuch.videoLimit")}
+            </span>
+            <input
+              type="number"
+              min="0"
+              max="1000"
+              step="1"
+              value={kochbuchVideoLimit}
+              onChange={(e) => setKochbuchVideoLimit(e.target.value)}
+              className={inputCls}
+            />
+          </label>
+        </div>
+        <button
+          onClick={handleKochbuchLimitsSpeichern}
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-pill text-sm font-medium
+                     bg-secondary-500 hover:bg-secondary-600 text-white transition-colors"
+        >
+          {kochbuchStatus === "ok" ? <><CheckCircle size={15} /> {t("common:status.saved")}</>
+            : kochbuchStatus === "fehler" ? <><AlertCircle size={15} /> {t("common:status.error")}</>
+            : <><Save size={15} /> {t("profile:panelContent.kochbuch.saveLimits")}</>}
+        </button>
       </div>
     );
 
@@ -1645,26 +1895,30 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
 
   // ── Avatar-Block (wiederverwendet in Desktop + Mobile) ────────────────────
   const AvatarBlock = ({ gross = false }) => (
-    <label className="relative cursor-pointer shrink-0">
+    <motion.label
+      className="relative cursor-pointer shrink-0"
+      whileHover={reduced ? {} : { scale: 1.05, transition: { type: "spring", stiffness: 400, damping: 25 } }}
+      whileTap={reduced ? {} : { scale: 0.97 }}
+    >
       <input type="file" className="hidden" accept="image/*" onChange={handleAvatarHochladen} />
       {avatarUrl ? (
         <img
           src={avatarUrl}
           alt={t("profile:panelContent.household.profilePicAlt")}
-          className={`${gross ? "w-20 h-20" : "w-14 h-14"} rounded-full object-cover shadow-glow-primary`}
+          className={`${gross ? "w-20 h-20" : "w-14 h-14"} rounded-full object-cover ring-2 ring-primary-500/40 shadow-glow-primary`}
         />
       ) : (
-        <div className={`${gross ? "w-20 h-20 text-2xl" : "w-14 h-14 text-xl"} rounded-full bg-primary-500 flex items-center justify-center text-white font-bold shadow-glow-primary`}>
+        <div className={`${gross ? "w-20 h-20 text-2xl" : "w-14 h-14 text-xl"} rounded-full bg-gradient-to-br from-primary-500 to-secondary-500 flex items-center justify-center text-white font-bold shadow-glow-primary ring-2 ring-primary-500/30`}>
           {initiale}
         </div>
       )}
-      <div className="absolute bottom-0 right-0 w-5 h-5 bg-primary-500 rounded-full flex items-center justify-center">
+      <div className={`absolute bottom-0 right-0 ${gross ? "w-6 h-6" : "w-5 h-5"} bg-primary-500 rounded-full flex items-center justify-center shadow-elevation-2 ring-2 ring-light-card dark:ring-canvas-2`}>
         {avatarLadend
           ? <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-          : <Camera size={11} className="text-white" />
+          : <Camera size={gross ? 12 : 10} className="text-white" />
         }
       </div>
-    </label>
+    </motion.label>
   );
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -1700,11 +1954,24 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
       )}
 
       {/* Desktop-Modal */}
+      <AnimatePresence>
       {aktivesPanel && isDesktop && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-light-card-bg dark:bg-canvas-2 rounded-card w-full max-w-lg
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18 }}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
+        >
+          <motion.div
+            initial={reduced ? false : { opacity: 0, scale: 0.95, y: 18 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={reduced ? {} : { opacity: 0, scale: 0.96, y: 10, transition: { duration: 0.16 } }}
+            transition={{ type: "spring", stiffness: 380, damping: 32 }}
+            className="bg-light-card dark:bg-canvas-2 rounded-card w-full max-w-lg
                           flex flex-col border border-light-border dark:border-dark-border
-                          max-h-[90vh] overflow-hidden shadow-elevation-4">
+                          max-h-[90vh] overflow-hidden shadow-elevation-3"
+          >
             <div className="shrink-0 border-b border-light-border dark:border-dark-border px-4 py-3 flex items-center justify-between">
               <h2 className="font-semibold text-light-text-main dark:text-dark-text-main">
                 {panelTitel[aktivesPanel]}
@@ -1721,9 +1988,10 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
             <div className="flex-1 min-h-0 overflow-y-auto p-4">
               {renderPanelInhalt(aktivesPanel)}
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* Mobile Bottom Sheet */}
       <BottomSheet
@@ -1738,13 +2006,21 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
       <div className="hidden lg:grid lg:grid-cols-[320px_1fr] lg:gap-6">
 
         {/* Linke Spalte: Profilkarte */}
-        <div className="space-y-4">
-          <div className="bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-5 space-y-4">
+        <motion.div
+          initial={reduced ? false : { opacity: 0, x: -16 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ type: "spring", stiffness: 300, damping: 28, delay: 0.05 }}
+          className="space-y-4"
+        >
+          <div className="overflow-hidden rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 shadow-elevation-2">
+
+            {/* Gradient top strip */}
+            <div className="h-20 bg-gradient-to-br from-primary-500/20 via-secondary-500/10 to-transparent" />
 
             {/* Avatar + Name + E-Mail */}
-            <div className="flex items-start gap-4">
+            <div className="-mt-10 flex items-end gap-4 px-5 pb-4">
               <AvatarBlock gross />
-              <div className="flex-1 min-w-0 pt-1">
+              <div className="flex-1 min-w-0 pb-1">
                 {nameBearbeiten ? (
                   <div className="flex items-center gap-2">
                     <input
@@ -1761,13 +2037,15 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                     <button onClick={handleNameSpeichern} className="p-1.5 rounded-card-sm bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors">
                       <Check size={15} />
                     </button>
-                    <button onClick={() => { setNameBearbeiten(false); setDisplayName(nameRaw); }} className="p-1.5 rounded-card-sm bg-light-surface-1 dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-border dark:hover:bg-dark-border transition-colors">
+                    <button onClick={() => { setNameBearbeiten(false); setDisplayName(nameRaw); }} className="p-1.5 rounded-card-sm bg-light-surface-1 dark:bg-canvas-3 text-light-text-secondary hover:bg-light-border dark:hover:bg-dark-border transition-colors">
                       <X size={15} />
                     </button>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <h2 className="text-base font-bold text-light-text-main dark:text-dark-text-main truncate">{displayName}</h2>
+                    <h2 className="text-base font-bold truncate bg-gradient-to-r from-primary-500 to-secondary-500 bg-clip-text text-transparent">
+                      {displayName}
+                    </h2>
                     <button onClick={() => setNameBearbeiten(true)} className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 transition-colors shrink-0">
                       <Pencil size={13} />
                     </button>
@@ -1775,88 +2053,69 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 )}
                 {nameSpeichernStatus === "ok" && <p className="text-[11px] text-accent-success mt-0.5">Gespeichert</p>}
                 {nameSpeichernStatus === "fehler" && <p className="text-[11px] text-accent-danger mt-0.5">Fehler beim Speichern</p>}
-                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-0.5 truncate">{email}</p>
-                <StatusBadge label={isHouseholdAdmin ? "Admin" : "Mitglied"} farbe={isHouseholdAdmin ? "primary" : "gray"} />
+                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">{email}</p>
               </div>
+              <StatusBadge label={isHouseholdAdmin ? "Admin" : "Mitglied"} farbe={isHouseholdAdmin ? "primary" : "gray"} />
             </div>
 
             {/* Status-Chips */}
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-surface-1 dark:bg-canvas-3 px-3 py-2">
-                <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary mb-0.5">{t("profile:chips.appMode")}</p>
-                <StatusBadge label={modusStatus.label} farbe={modusStatus.farbe} />
-              </div>
-              <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-surface-1 dark:bg-canvas-3 px-3 py-2">
-                <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary mb-0.5">{t("profile:chips.push")}</p>
-                <StatusBadge label={pushStatus.label} farbe={pushStatus.farbe} />
-              </div>
-              <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-surface-1 dark:bg-canvas-3 px-3 py-2">
-                <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary mb-0.5">{t("profile:chips.ai")}</p>
-                <StatusBadge label={kiStatus.label} farbe={kiStatus.farbe} />
-              </div>
-              <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-surface-1 dark:bg-canvas-3 px-3 py-2">
-                <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary mb-0.5">{t("profile:chips.household")}</p>
-                <StatusBadge label={mitgliederLabel} farbe="primary" />
-              </div>
+            <div className="grid grid-cols-2 gap-px border-t border-light-border dark:border-dark-border bg-light-border dark:bg-dark-border">
+              {[
+                { label: t("profile:chips.appMode"), badge: modusStatus, icon: <Layers size={11} /> },
+                { label: t("profile:chips.push"),    badge: pushStatus,   icon: <Bell size={11} /> },
+                { label: t("profile:chips.ai"),      badge: kiStatus,     icon: <Cpu size={11} /> },
+                { label: t("profile:chips.household"), badge: { label: mitgliederLabel, farbe: "primary" }, icon: <Users size={11} /> },
+              ].map(({ label, badge, icon }) => (
+                <div key={label} className="bg-light-card dark:bg-canvas-2 px-3 py-2.5">
+                  <p className="flex items-center gap-1 text-[10px] text-light-text-secondary dark:text-dark-text-secondary mb-1">
+                    {icon} {label}
+                  </p>
+                  <StatusBadge label={badge.label} farbe={badge.farbe} />
+                </div>
+              ))}
             </div>
+          </div>
 
             {/* Quick Actions */}
             <div className="space-y-1.5 pt-1 border-t border-light-border dark:border-dark-border">
-              <button
-                onClick={() => setAktivesPanel("haushalt")}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-card-sm
-                           border border-light-border dark:border-dark-border
-                           text-light-text-main dark:text-dark-text-main
-                           hover:border-primary-500/30 hover:bg-primary-500/5 transition-colors text-sm"
-              >
-                <Building2 size={15} className="text-secondary-500 shrink-0" />
-                <span className="flex-1 text-left">{t("profile:sidebar.manageHousehold")}</span>
-                <ChevronRight size={13} className="text-light-text-secondary dark:text-dark-text-secondary" />
-              </button>
-              {isHouseholdAdmin && (
+              {[
+                { key: "haushalt", icon: <Building2 size={14} />, label: t("profile:sidebar.manageHousehold"),    farbe: "secondary", show: true },
+                { key: "einladen", icon: <UserPlus size={14} />,  label: t("profile:sidebar.inviteMember"),       farbe: "emerald",   show: isHouseholdAdmin },
+                { key: "ki",       icon: <Cpu size={14} />,       label: t("profile:sidebar.configureAI"),        farbe: "primary",   show: true },
+                { key: "push",     icon: <Bell size={14} />,      label: t("profile:sidebar.pushNotifications"),  farbe: "amber",     show: true },
+              ].filter((a) => a.show).map((a) => (
                 <button
-                  onClick={() => setAktivesPanel("einladen")}
+                  key={a.key}
+                  onClick={() => setAktivesPanel(a.key)}
                   className="w-full flex items-center gap-2.5 px-3 py-2 rounded-card-sm
                              border border-light-border dark:border-dark-border
                              text-light-text-main dark:text-dark-text-main
                              hover:border-primary-500/30 hover:bg-primary-500/5 transition-colors text-sm"
                 >
-                  <UserPlus size={15} className="text-secondary-500 shrink-0" />
-                  <span className="flex-1 text-left">{t("profile:sidebar.inviteMember")}</span>
+                  <div className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-[8px] ${iconBgMap[a.farbe] ?? iconBgMap.secondary}`}>
+                    {a.icon}
+                  </div>
+                  <span className="flex-1 text-left">{a.label}</span>
                   <ChevronRight size={13} className="text-light-text-secondary dark:text-dark-text-secondary" />
                 </button>
-              )}
-              <button
-                onClick={() => setAktivesPanel("ki")}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-card-sm
-                           border border-light-border dark:border-dark-border
-                           text-light-text-main dark:text-dark-text-main
-                           hover:border-primary-500/30 hover:bg-primary-500/5 transition-colors text-sm"
-              >
-                <Cpu size={15} className="text-secondary-500 shrink-0" />
-                <span className="flex-1 text-left">{t("profile:sidebar.configureAI")}</span>
-                <ChevronRight size={13} className="text-light-text-secondary dark:text-dark-text-secondary" />
-              </button>
-              <button
-                onClick={() => setAktivesPanel("push")}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-card-sm
-                           border border-light-border dark:border-dark-border
-                           text-light-text-main dark:text-dark-text-main
-                           hover:border-primary-500/30 hover:bg-primary-500/5 transition-colors text-sm"
-              >
-                <Bell size={15} className="text-secondary-500 shrink-0" />
-                <span className="flex-1 text-left">{t("profile:sidebar.pushNotifications")}</span>
-                <ChevronRight size={13} className="text-light-text-secondary dark:text-dark-text-secondary" />
-              </button>
+              ))}
             </div>
-          </div>
-        </div>
+        </motion.div>
 
         {/* Rechte Hauptfläche: Modul-Grid */}
-        <div className="space-y-6">
+        <motion.div
+          initial={reduced ? false : { opacity: 0, x: 16 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ type: "spring", stiffness: 300, damping: 28, delay: 0.1 }}
+          className="space-y-6"
+        >
 
           {/* Gruppe: Persönlich */}
-          <div>
+          <motion.div
+            initial={reduced ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 28, delay: 0.15 }}
+          >
             <GruppenLabel>{t("profile:groups.personal")}</GruppenLabel>
             <div className="grid grid-cols-2 gap-3">
               <ModulKarte
@@ -1867,6 +2126,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 beschreibung={t("profile:cards.appearance.desc")}
                 aktionLabel={t("profile:cards.appearance.action")}
                 onAktion={() => setAktivesPanel("erscheinungsbild")}
+                iconFarbe="amber"
               />
               {isHouseholdAdmin && (
                 <ModulKarte
@@ -1877,6 +2137,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                   beschreibung={t("profile:cards.appMode.desc")}
                   aktionLabel={t("profile:cards.appMode.action")}
                   onAktion={() => setAktivesPanel("app-modus")}
+                  iconFarbe="primary"
                 />
               )}
               <ModulKarte
@@ -1885,6 +2146,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 beschreibung={t("profile:cards.mobileNav.desc")}
                 aktionLabel={t("profile:cards.mobileNav.action")}
                 onAktion={() => setAktivesPanel("mobile-nav")}
+                iconFarbe="secondary"
               />
               <ModulKarte
                 icon={<RotateCcw size={16} />}
@@ -1894,12 +2156,17 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 beschreibung={t("profile:cards.tours.desc")}
                 aktionLabel={t("profile:cards.tours.action")}
                 onAktion={() => setAktivesPanel("touren")}
+                iconFarbe="emerald"
               />
             </div>
-          </div>
+          </motion.div>
 
           {/* Gruppe: Haushalt */}
-          <div>
+          <motion.div
+            initial={reduced ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 28, delay: 0.22 }}
+          >
             <GruppenLabel>{t("profile:groups.household")}</GruppenLabel>
             <div className="grid grid-cols-2 gap-3">
               <ModulKarte
@@ -1910,6 +2177,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 beschreibung={t("profile:cards.household.desc")}
                 aktionLabel={t("profile:cards.household.action")}
                 onAktion={() => setAktivesPanel("haushalt")}
+                iconFarbe="secondary"
               />
               {isHouseholdAdmin && (
                 <ModulKarte
@@ -1918,13 +2186,18 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                   beschreibung={t("profile:cards.invite.desc")}
                   aktionLabel={t("profile:cards.invite.action")}
                   onAktion={() => setAktivesPanel("einladen")}
+                  iconFarbe="emerald"
                 />
               )}
             </div>
-          </div>
+          </motion.div>
 
           {/* Gruppe: Intelligenz & Analyse */}
-          <div>
+          <motion.div
+            initial={reduced ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 28, delay: 0.29 }}
+          >
             <GruppenLabel>{t("profile:groups.intelligence")}</GruppenLabel>
             <div className="grid grid-cols-2 gap-3">
               <ModulKarte
@@ -1935,6 +2208,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 beschreibung={isHouseholdAdmin ? t("profile:cards.ai.descAdmin") : t("profile:cards.ai.descMember")}
                 aktionLabel={t("profile:cards.ai.action")}
                 onAktion={() => setAktivesPanel("ki")}
+                iconFarbe="primary"
               />
               {isHouseholdAdmin && (
                 <ModulKarte
@@ -1945,13 +2219,30 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                   beschreibung={t("profile:cards.imageAnalysis.desc")}
                   aktionLabel={t("profile:cards.imageAnalysis.action")}
                   onAktion={() => setAktivesPanel("bildanalyse")}
+                  iconFarbe="secondary"
+                />
+              )}
+              {isHouseholdAdmin && (
+                <ModulKarte
+                  icon={<BookOpen size={16} />}
+                  titel={t("profile:cards.kochbuch.title")}
+                  status={t("profile:cards.kochbuch.statusVideo", { count: kochbuchVideoLimit })}
+                  statusFarbe="amber"
+                  beschreibung={t("profile:cards.kochbuch.desc")}
+                  aktionLabel={t("profile:cards.kochbuch.action")}
+                  onAktion={() => setAktivesPanel("kochbuch")}
+                  iconFarbe="amber"
                 />
               )}
             </div>
-          </div>
+          </motion.div>
 
           {/* Gruppe: Benachrichtigungen & Sicherheit */}
-          <div>
+          <motion.div
+            initial={reduced ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 28, delay: 0.36 }}
+          >
             <GruppenLabel>{t("profile:groups.notifications")}</GruppenLabel>
             <div className="grid grid-cols-2 gap-3">
               <ModulKarte
@@ -1962,6 +2253,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 beschreibung={t("profile:cards.push.desc")}
                 aktionLabel={pushAktiv ? t("profile:cards.push.actionManage") : t("profile:cards.push.actionActivate")}
                 onAktion={() => setAktivesPanel("push")}
+                iconFarbe="primary"
               />
               <ModulKarte
                 icon={<Shield size={16} />}
@@ -1969,21 +2261,23 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 beschreibung={t("profile:cards.account.desc")}
                 aktionLabel={t("profile:cards.account.action")}
                 onAktion={() => setAktivesPanel("account")}
+                iconFarbe="red"
               />
             </div>
-          </div>
+          </motion.div>
 
-        </div>
+        </motion.div>
       </div>
 
       {/* ── Mobile Layout ────────────────────────────────────────────────────── */}
       <div className="lg:hidden space-y-4">
 
         {/* Profilkopf */}
-        <div className="bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-4">
-          <div className="flex items-center gap-3">
+        <div className="overflow-hidden rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 shadow-elevation-2">
+          <div className="h-14 bg-gradient-to-br from-primary-500/20 via-secondary-500/10 to-transparent" />
+          <div className="-mt-7 flex items-end gap-3 px-4 pb-4">
             <AvatarBlock />
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 pb-0.5">
               {nameBearbeiten ? (
                 <div className="flex items-center gap-2">
                   <input
@@ -2000,53 +2294,59 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                   <button onClick={handleNameSpeichern} className="p-1.5 rounded-card-sm bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors">
                     <Check size={15} />
                   </button>
-                  <button onClick={() => { setNameBearbeiten(false); setDisplayName(nameRaw); }} className="p-1.5 rounded-card-sm bg-light-surface-1 dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-border dark:hover:bg-dark-border transition-colors">
+                  <button onClick={() => { setNameBearbeiten(false); setDisplayName(nameRaw); }} className="p-1.5 rounded-card-sm text-light-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors">
                     <X size={15} />
                   </button>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <h2 className="text-base font-bold text-light-text-main dark:text-dark-text-main truncate">{displayName}</h2>
+                  <h2 className="text-sm font-bold truncate bg-gradient-to-r from-primary-500 to-secondary-500 bg-clip-text text-transparent">
+                    {displayName}
+                  </h2>
                   <button onClick={() => setNameBearbeiten(true)} className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 transition-colors shrink-0">
-                    <Pencil size={13} />
+                    <Pencil size={12} />
                   </button>
                 </div>
               )}
-              {nameSpeichernStatus === "ok" && <p className="text-[11px] text-accent-success mt-0.5">Gespeichert</p>}
-              {nameSpeichernStatus === "fehler" && <p className="text-[11px] text-accent-danger mt-0.5">Fehler</p>}
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate mt-0.5">{email}</p>
+              {nameSpeichernStatus === "ok" && <p className="text-[11px] text-accent-success">Gespeichert</p>}
+              {nameSpeichernStatus === "fehler" && <p className="text-[11px] text-accent-danger">Fehler</p>}
+              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">{email}</p>
             </div>
+            <StatusBadge label={isHouseholdAdmin ? "Admin" : "Mitglied"} farbe={isHouseholdAdmin ? "primary" : "gray"} />
           </div>
 
           {/* Status-Chips Mobile */}
-          <div className="flex flex-wrap gap-1.5 mt-3">
-            <StatusBadge label={isHouseholdAdmin ? "Admin" : "Mitglied"} farbe="primary" />
+          <div className="flex flex-wrap gap-1.5 border-t border-light-border dark:border-dark-border px-4 py-2.5">
             <StatusBadge label={modusStatus.label} farbe={modusStatus.farbe} />
             <StatusBadge label={pushStatus.label} farbe={pushStatus.farbe} />
             <StatusBadge label={kiStatus.label} farbe={kiStatus.farbe} />
+            <StatusBadge label={mitgliederLabel} farbe="primary" />
           </div>
         </div>
 
         {/* Quick-Actions Strip */}
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
           {[
-            { key: "haushalt", icon: <Building2 size={16} />, label: t("profile:mobileQuickActions.household") },
-            { key: "ki",       icon: <Cpu size={16} />,       label: t("profile:mobileQuickActions.ai") },
-            { key: "push",     icon: <Bell size={16} />,      label: t("profile:mobileQuickActions.push") },
-            ...(isHouseholdAdmin ? [{ key: "einladen", icon: <UserPlus size={16} />, label: t("profile:mobileQuickActions.invite") }] : []),
-            { key: "account",  icon: <Shield size={16} />,    label: t("profile:mobileQuickActions.security") },
+            { key: "haushalt", icon: <Building2 size={15} />, label: t("profile:mobileQuickActions.household"), farbe: "secondary" },
+            { key: "ki",       icon: <Cpu size={15} />,       label: t("profile:mobileQuickActions.ai"),       farbe: "primary" },
+            { key: "push",     icon: <Bell size={15} />,      label: t("profile:mobileQuickActions.push"),     farbe: "amber" },
+            ...(isHouseholdAdmin ? [{ key: "einladen", icon: <UserPlus size={15} />, label: t("profile:mobileQuickActions.invite"), farbe: "emerald" }] : []),
+            { key: "account",  icon: <Shield size={15} />,    label: t("profile:mobileQuickActions.security"), farbe: "red" },
           ].map((a) => (
-            <button
+            <motion.button
               key={a.key}
               onClick={() => setAktivesPanel(a.key)}
+              whileTap={reduced ? {} : { scale: 0.95 }}
               className="flex flex-col items-center gap-1.5 px-4 py-3 rounded-card-sm shrink-0
-                         bg-light-card-bg dark:bg-canvas-2 border border-light-border dark:border-dark-border
+                         bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border
                          text-light-text-secondary dark:text-dark-text-secondary
-                         hover:border-primary-500/30 hover:text-primary-500 transition-colors"
+                         hover:border-primary-500/30 hover:text-primary-500 transition-colors shadow-elevation-2"
             >
-              {a.icon}
+              <div className={`flex h-8 w-8 items-center justify-center rounded-card-sm ${iconBgMap[a.farbe] ?? iconBgMap.secondary}`}>
+                {a.icon}
+              </div>
               <span className="text-[11px] font-medium whitespace-nowrap">{a.label}</span>
-            </button>
+            </motion.button>
           ))}
         </div>
 
@@ -2083,6 +2383,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               beschreibung={t("profile:cards.appearance.descMobile")}
               aktionLabel={t("profile:cards.appearance.action")}
               onAktion={() => setAktivesPanel("erscheinungsbild")}
+              iconFarbe="amber"
             />
             {isHouseholdAdmin && (
               <ModulKarte
@@ -2093,6 +2394,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 beschreibung={t("profile:cards.appMode.descMobile")}
                 aktionLabel={t("profile:cards.appMode.action")}
                 onAktion={() => setAktivesPanel("app-modus")}
+                iconFarbe="primary"
               />
             )}
             <ModulKarte
@@ -2101,6 +2403,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               beschreibung={t("profile:cards.mobileNav.desc")}
               aktionLabel={t("profile:cards.mobileNav.action")}
               onAktion={() => setAktivesPanel("mobile-nav")}
+              iconFarbe="secondary"
             />
             <ModulKarte
               icon={<RotateCcw size={16} />}
@@ -2110,6 +2413,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               beschreibung={t("profile:cards.tours.descMobile")}
               aktionLabel={t("profile:cards.tours.action")}
               onAktion={() => setAktivesPanel("touren")}
+              iconFarbe="emerald"
             />
           </>}
 
@@ -2122,6 +2426,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               beschreibung={t("profile:cards.household.desc")}
               aktionLabel={t("profile:cards.household.action")}
               onAktion={() => setAktivesPanel("haushalt")}
+              iconFarbe="secondary"
             />
             {isHouseholdAdmin && (
               <ModulKarte
@@ -2130,6 +2435,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 beschreibung={t("profile:cards.invite.desc")}
                 aktionLabel={t("profile:cards.invite.action")}
                 onAktion={() => setAktivesPanel("einladen")}
+                iconFarbe="emerald"
               />
             )}
           </>}
@@ -2143,6 +2449,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               beschreibung={isHouseholdAdmin ? t("profile:cards.ai.descAdmin") : t("profile:cards.ai.descMember")}
               aktionLabel={t("profile:cards.ai.action")}
               onAktion={() => setAktivesPanel("ki")}
+              iconFarbe="primary"
             />
             {isHouseholdAdmin && (
               <ModulKarte
@@ -2153,6 +2460,19 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 beschreibung={t("profile:cards.imageAnalysis.descMobile")}
                 aktionLabel={t("profile:cards.imageAnalysis.action")}
                 onAktion={() => setAktivesPanel("bildanalyse")}
+                iconFarbe="secondary"
+              />
+            )}
+            {isHouseholdAdmin && (
+              <ModulKarte
+                icon={<BookOpen size={16} />}
+                titel={t("profile:cards.kochbuch.title")}
+                status={t("profile:cards.kochbuch.statusVideo", { count: kochbuchVideoLimit })}
+                statusFarbe="amber"
+                beschreibung={t("profile:cards.kochbuch.desc")}
+                aktionLabel={t("profile:cards.kochbuch.action")}
+                onAktion={() => setAktivesPanel("kochbuch")}
+                iconFarbe="amber"
               />
             )}
           </>}
@@ -2166,6 +2486,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               beschreibung={t("profile:cards.push.descMobile")}
               aktionLabel={pushAktiv ? t("profile:cards.push.actionManage") : t("profile:cards.push.actionActivate")}
               onAktion={() => setAktivesPanel("push")}
+              iconFarbe="primary"
             />
             <ModulKarte
               icon={<Shield size={16} />}
@@ -2173,6 +2494,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               beschreibung={t("profile:cards.account.desc")}
               aktionLabel={t("profile:cards.account.action")}
               onAktion={() => setAktivesPanel("account")}
+              iconFarbe="red"
             />
           </>}
         </div>

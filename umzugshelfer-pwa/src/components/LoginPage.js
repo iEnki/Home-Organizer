@@ -6,6 +6,7 @@ import { useTheme } from "../contexts/ThemeContext";
 import { useLocale } from "../contexts/LocaleContext";
 import {
   BrainCircuit,
+  ChefHat,
   ClipboardList,
   DollarSign,
   Home,
@@ -76,6 +77,7 @@ const HomePage = ({ setSession }) => {
     { icon: <Users size={24} />, key: "householdMembers" },
     { icon: <ClipboardList size={24} />, key: "tasksProjects" },
     { icon: <ShoppingCart size={24} />, key: "shoppingStock" },
+    { icon: <ChefHat size={24} />, key: "cookbook" },
     { icon: <BrainCircuit size={24} />, key: "homeAi" },
   ];
 
