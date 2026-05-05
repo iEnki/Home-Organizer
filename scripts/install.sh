@@ -148,6 +148,129 @@ $$;
 SQL
 }
 
+detect_local_ip() {
+  local ip=""
+  if command -v hostname >/dev/null 2>&1; then
+    ip="$(hostname -I 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i !~ /^127\\./) { print $i; exit }}')"
+  fi
+  if [[ -z "$ip" ]] && command -v ip >/dev/null 2>&1; then
+    ip="$(ip route get 1.1.1.1 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i == "src") { print $(i+1); exit }}')"
+  fi
+  echo "$ip"
+}
+
+normalize_url_scheme() {
+  local raw="$1"
+  local default_scheme="${2:-http}"
+  [[ -z "$raw" ]] && { echo ""; return; }
+  if [[ "$raw" =~ ^https?:// ]]; then
+    echo "$raw"
+  else
+    echo "${default_scheme}://${raw}"
+  fi
+}
+
+prompt_install_access_urls() {
+  local install_mode="$1"
+  local app_port="$2"
+  local access_choice local_ip access_host_input app_url_input supabase_input
+  local app_url_default="" supabase_url_default=""
+
+  INSTALL_ACCESS_MODE=""
+  INSTALL_ACCESS_LABEL=""
+  INSTALL_ACCESS_HOST=""
+  INSTALL_APP_URL=""
+  INSTALL_SUPABASE_URL=""
+
+  while true; do
+    echo "  Wie soll die App erreichbar sein?"
+    echo "  [1] Mit Domain / Reverse Proxy"
+    echo "  [2] Nur lokal auf diesem Geraet (localhost)"
+    echo "  [3] Im lokalen Netzwerk ohne Domain (LAN-IP)"
+    read -p "  -> Wahl [1]: " access_choice
+    [[ -z "$access_choice" ]] && access_choice=1
+
+    case "$access_choice" in
+      1)
+        while true; do
+          read -p "  App-URL oder Host (z.B. https://umzug.meine-domain.de): " app_url_input
+          [[ -n "$app_url_input" ]] && break
+          echo "  -> App-URL ist erforderlich."
+        done
+
+        INSTALL_ACCESS_MODE="domain"
+        INSTALL_ACCESS_LABEL="Domain / Reverse Proxy"
+        INSTALL_APP_URL="$(normalize_url_scheme "$app_url_input" "https")"
+
+        if [[ "$install_mode" == "vollstack" ]]; then
+          read -p "  Supabase-URL [Standard: ${INSTALL_APP_URL}]: " supabase_input
+          [[ -z "$supabase_input" ]] && supabase_input="$INSTALL_APP_URL"
+          INSTALL_SUPABASE_URL="$(normalize_url_scheme "$supabase_input" "https")"
+        fi
+        return 0
+        ;;
+
+      2)
+        app_url_default="http://localhost:${app_port}"
+        echo "  Lokaler Modus: Die App ist nur auf diesem Geraet ueber localhost erreichbar."
+        read -p "  App-URL [${app_url_default}]: " app_url_input
+        [[ -z "$app_url_input" ]] && app_url_input="$app_url_default"
+
+        INSTALL_ACCESS_MODE="localhost"
+        INSTALL_ACCESS_LABEL="Nur lokal auf diesem Geraet"
+        INSTALL_ACCESS_HOST="localhost"
+        INSTALL_APP_URL="$(normalize_url_scheme "$app_url_input" "http")"
+
+        if [[ "$install_mode" == "vollstack" ]]; then
+          supabase_url_default="http://localhost:8000"
+          read -p "  Supabase-URL [${supabase_url_default}]: " supabase_input
+          [[ -z "$supabase_input" ]] && supabase_input="$supabase_url_default"
+          INSTALL_SUPABASE_URL="$(normalize_url_scheme "$supabase_input" "http")"
+        fi
+        return 0
+        ;;
+
+      3)
+        local_ip="$(detect_local_ip)"
+        if [[ -n "$local_ip" ]]; then
+          read -p "  Lokale IP / Hostname [${local_ip}]: " access_host_input
+          [[ -z "$access_host_input" ]] && access_host_input="$local_ip"
+        else
+          while true; do
+            read -p "  Lokale IP / Hostname (z.B. 192.168.1.50): " access_host_input
+            [[ -n "$access_host_input" ]] && break
+            echo "  -> IP oder Hostname ist erforderlich."
+          done
+        fi
+
+        app_url_default="http://${access_host_input}:${app_port}"
+        echo "  LAN-Modus: Andere Geraete im Heimnetz koennen diese Adresse verwenden."
+        warn "Web Push und einige PWA-Funktionen sind ueber reines HTTP im LAN je nach Browser eingeschraenkt. Voller Umfang erfordert HTTPS oder localhost."
+        read -p "  App-URL [${app_url_default}]: " app_url_input
+        [[ -z "$app_url_input" ]] && app_url_input="$app_url_default"
+
+        INSTALL_ACCESS_MODE="lan"
+        INSTALL_ACCESS_LABEL="Lokales Netzwerk"
+        INSTALL_ACCESS_HOST="$access_host_input"
+        INSTALL_APP_URL="$(normalize_url_scheme "$app_url_input" "http")"
+
+        if [[ "$install_mode" == "vollstack" ]]; then
+          supabase_url_default="http://${access_host_input}:8000"
+          read -p "  Supabase-URL [${supabase_url_default}]: " supabase_input
+          [[ -z "$supabase_input" ]] && supabase_input="$supabase_url_default"
+          INSTALL_SUPABASE_URL="$(normalize_url_scheme "$supabase_input" "http")"
+        fi
+        return 0
+        ;;
+
+      *)
+        warn "Ungueltige Auswahl."
+        echo ""
+        ;;
+    esac
+  done
+}
+
 # ============================================================
 # Hauptmenue
 # ============================================================
@@ -391,12 +514,6 @@ echo "(Enter druecken fuer den angezeigten Standardwert)"
 echo ""
 
 while true; do
-  read -p "  App-URL (z.B. https://umzug.meine-domain.de): " APP_URL
-  [[ -n "$APP_URL" ]] && break
-  echo "  -> App-URL ist erforderlich."
-done
-
-while true; do
   read -p "  Deine E-Mail-Adresse (fuer Push-Notifications): " ADMIN_EMAIL
   [[ -n "$ADMIN_EMAIL" ]] && break
   echo "  -> E-Mail ist erforderlich."
@@ -405,9 +522,18 @@ done
 read -p "  App-Port [3000]: " APP_PORT
 [[ -z "$APP_PORT" ]] && APP_PORT=3000
 
+echo ""
+prompt_install_access_urls "$MODE" "$APP_PORT"
+APP_URL="$INSTALL_APP_URL"
+ACCESS_LABEL="$INSTALL_ACCESS_LABEL"
+
 if [[ "$MODE" == "vollstack" ]]; then
-  read -p "  Supabase-URL [Standard: ${APP_URL}]: " SUPABASE_URL
-  [[ -z "$SUPABASE_URL" ]] && SUPABASE_URL="$APP_URL"
+  SUPABASE_URL="$INSTALL_SUPABASE_URL"
+  if [[ "$INSTALL_ACCESS_MODE" == "lan" && -n "$INSTALL_ACCESS_HOST" ]]; then
+    STUDIO_ACCESS_URL="http://${INSTALL_ACCESS_HOST}:8000"
+  else
+    STUDIO_ACCESS_URL="http://localhost:8000"
+  fi
 
   while true; do
     read -s -p "  Supabase Studio Passwort (mind. 8 Zeichen): " STUDIO_PASSWORD
@@ -496,6 +622,7 @@ extract_key() {
 
 VAPID_PUBLIC_KEY=$(extract_key VAPID_PUBLIC_KEY)
 VAPID_PRIVATE_KEY=$(extract_key VAPID_PRIVATE_KEY)
+RECIPE_PARSER_INTERNAL_TOKEN=$(extract_key RECIPE_PARSER_INTERNAL_TOKEN)
 
 if [[ "$MODE" == "vollstack" ]]; then
   POSTGRES_PASSWORD=$(extract_key POSTGRES_PASSWORD)
@@ -681,6 +808,14 @@ OLLAMA_ORIGINS=${APP_URL}
 
 # Edge Functions
 FUNCTIONS_VERIFY_JWT=true
+RECIPE_PARSER_INTERNAL_TOKEN=${RECIPE_PARSER_INTERNAL_TOKEN}
+RECIPE_PARSER_URL=http://recipe-source-parser:8090
+RECIPE_PARSER_PORT=8090
+WHISPER_DEVICE=auto
+WHISPER_MODEL=small
+WHISPER_CPU_COMPUTE_TYPE=int8
+WHISPER_GPU_COMPUTE_TYPE=float16
+WHISPER_CPP_FALLBACK_ENABLED=true
 
 # PostgREST
 PGRST_DB_SCHEMAS=public,storage,graphql_public
@@ -841,9 +976,10 @@ if [[ "$MODE" == "vollstack" ]]; then
 APP
   URL:        ${APP_URL}
   Port:       ${APP_PORT}
+  Zugriff:    ${ACCESS_LABEL}
 
 SUPABASE STUDIO (Admin-Oberflaeche)
-  URL:        http://localhost:8000
+  URL:        ${STUDIO_ACCESS_URL}
   Benutzer:   supabase
   Passwort:   ${STUDIO_PASSWORD}
 
@@ -878,7 +1014,7 @@ EINLADUNGS-MAIL (optional, Edge Function send-household-invite)
 ============================================================
 
 1. Datenbank einrichten:
-   a) Supabase Studio oeffnen: http://localhost:8000
+   a) Supabase Studio oeffnen: ${STUDIO_ACCESS_URL}
    b) Mit "supabase" / "${STUDIO_PASSWORD}" anmelden
    c) SQL Editor -> Neue Abfrage
    d) Falls noch offen: database_setup_complete.sql ausfuehren
@@ -934,6 +1070,7 @@ else
 APP
   URL:        ${APP_URL}
   Port:       ${APP_PORT}
+  Zugriff:    ${ACCESS_LABEL}
 
 SUPABASE (extern)
   URL:        ${SUPABASE_URL}
@@ -1016,7 +1153,7 @@ echo -e "${BOLD}${GREEN}========================================================
 echo ""
 echo -e "  App:            ${CYAN}${APP_URL}${NC}  (Port: ${APP_PORT})"
 if [[ "$MODE" == "vollstack" ]]; then
-  echo -e "  Supabase Studio: ${CYAN}http://localhost:8000${NC}"
+  echo -e "  Supabase Studio: ${CYAN}${STUDIO_ACCESS_URL}${NC}"
 else
   echo -e "  Supabase:        ${CYAN}${SUPABASE_URL}${NC}  (extern)"
 fi
@@ -1031,7 +1168,7 @@ echo -e "  Multiuser:      ${CYAN}haushalt_multiuser_setup.sql = ${MULTIUSER_SCH
 echo ""
 echo -e "  ${BOLD}=> Naechster Schritt:${NC}"
 if [[ "$MODE" == "vollstack" ]]; then
-  echo "    1. Studio oeffnen: http://localhost:8000"
+  echo "    1. Studio oeffnen: ${STUDIO_ACCESS_URL}"
   echo "    2. Falls offen: database_setup_complete.sql ausfuehren"
   echo "    3. Optional/empfohlen: umzugshelfer-pwa/haushalt_multiuser_setup.sql ausfuehren"
   echo "    4. App aufrufen: ${APP_URL}"
