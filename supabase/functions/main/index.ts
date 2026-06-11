@@ -24,7 +24,26 @@ const ENV_KEYS = [
   "SITE_URL",
   "RECIPE_PARSER_URL",
   "RECIPE_PARSER_INTERNAL_TOKEN",
+  "DOCUMENT_OCR_URL",
+  "DOCUMENT_OCR_INTERNAL_TOKEN",
 ];
+
+const DEFAULT_WORKER_TIMEOUT_MS = 30_000;
+const DEFAULT_MEMORY_LIMIT_MB = 150;
+const WORKER_OVERRIDES: Record<string, { timeoutMs: number; memoryLimitMb: number }> = {
+  "recipe-import-finalize": {
+    timeoutMs: 180_000,
+    memoryLimitMb: 256,
+  },
+  "doc-process": {
+    timeoutMs: 180_000,
+    memoryLimitMb: 256,
+  },
+  "kfz-service-analyze": {
+    timeoutMs: 180_000,
+    memoryLimitMb: 256,
+  },
+};
 
 Deno.serve(async (req: Request) => {
   // Kong streift /functions/v1 — der Router sieht z.B. /check-reminders
@@ -48,10 +67,14 @@ Deno.serve(async (req: Request) => {
     .map((k) => [k, Deno.env.get(k)!]);
 
   try {
+    const workerConfig = WORKER_OVERRIDES[fnName] || {
+      timeoutMs: DEFAULT_WORKER_TIMEOUT_MS,
+      memoryLimitMb: DEFAULT_MEMORY_LIMIT_MB,
+    };
     const worker = await EdgeRuntime.userWorkers.create({
       servicePath,
-      memoryLimitMb: 150,
-      workerTimeoutMs: 30_000,
+      memoryLimitMb: workerConfig.memoryLimitMb,
+      workerTimeoutMs: workerConfig.timeoutMs,
       noModuleCache: false,
       envVars,
     });

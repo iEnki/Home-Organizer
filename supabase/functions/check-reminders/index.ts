@@ -86,6 +86,9 @@ function reminderText(locale: SupportedLocale) {
       lowStock: "Stock below minimum",
       lowStockBody: (name: string, amount: unknown, unit: string, min: unknown) =>
         `${name}: ${amount} ${unit}`.trim() + ` left (minimum: ${min})`,
+      medicineLowStock: "Medicine stock low",
+      medicineLowStockBody: (name: string, amount: unknown, min: unknown) =>
+        `${name}: ${amount} left (minimum: ${min})`,
       maintenanceDue: "Maintenance due",
       guaranteeExpiring: "Guarantee expiring",
       warrantyExpiring: "Statutory warranty expiring",
@@ -119,6 +122,17 @@ function reminderText(locale: SupportedLocale) {
       bookUnknownBorrower: "unknown",
       bookBody: (title: string, state: string, borrower: string) =>
         `"${title}" is ${state} - borrowed by ${borrower}.`,
+      expiryTitle: "Stock expiring soon",
+      expiryBody: (name: string, date: string, label: string) => `"${name}" expires ${label} (${date}).`,
+      medicineExpiryTitle: "Medicine expiring soon",
+      medicineExpiryBody: (name: string, date: string, label: string) => `"${name}" expires ${label} (${date}).`,
+      vehicleFallback: "Vehicle",
+      vehicleInspectionDue: "Vehicle inspection due",
+      vehicleServiceDue: "Vehicle service due",
+      vehicleTyreDue: "Tyre reminder",
+      vehicleTaskDue: "Vehicle task due",
+      vehicleDateBody: (name: string, what: string, date: string, label: string) =>
+        `${name}: ${what} is due ${label} (${date}).`,
     };
   }
 
@@ -131,6 +145,9 @@ function reminderText(locale: SupportedLocale) {
     lowStock: "Vorrat unter Mindestmenge",
     lowStockBody: (name: string, amount: unknown, unit: string, min: unknown) =>
       `${name}: noch ${amount} ${unit} (Minimum: ${min})`.trim(),
+    medicineLowStock: "Medikamentenbestand niedrig",
+    medicineLowStockBody: (name: string, amount: unknown, min: unknown) =>
+      `${name}: noch ${amount} (Minimum: ${min})`,
     maintenanceDue: "Wartung faellig",
     guaranteeExpiring: "Garantie laeuft ab",
     warrantyExpiring: "Gewaehrleistung laeuft ab",
@@ -164,6 +181,17 @@ function reminderText(locale: SupportedLocale) {
     bookUnknownBorrower: "unbekannt",
     bookBody: (title: string, state: string, borrower: string) =>
       `"${title}" ist ${state} - ausgeliehen an ${borrower}.`,
+    expiryTitle: "Vorrat laeuft bald ab",
+    expiryBody: (name: string, date: string, label: string) => `"${name}" laeuft ${label} ab (${date}).`,
+    medicineExpiryTitle: "Medikament laeuft bald ab",
+    medicineExpiryBody: (name: string, date: string, label: string) => `"${name}" laeuft ${label} ab (${date}).`,
+    vehicleFallback: "Fahrzeug",
+    vehicleInspectionDue: "Pickerl faellig",
+    vehicleServiceDue: "Kfz-Service faellig",
+    vehicleTyreDue: "Reifen-Erinnerung",
+    vehicleTaskDue: "Kfz-Aufgabe faellig",
+    vehicleDateBody: (name: string, what: string, date: string, label: string) =>
+      `${name}: ${what} ist ${label} faellig (${date}).`,
   };
 }
 
@@ -296,7 +324,12 @@ Deno.serve(async (req: Request) => {
         const [
           { data: dueTasks },
           { data: inventoryRows },
+          { data: medicationRows },
           { data: deviceRows },
+          { data: vehicleRows },
+          { data: vehicleServiceRows },
+          { data: vehicleTireRows },
+          { data: vehicleTaskRows },
           { data: projectRows },
           { data: reminderProfiles },
           { data: openShoppingItems },
@@ -318,24 +351,55 @@ Deno.serve(async (req: Request) => {
             .gte("erinnerungs_datum", before1MinIso)
             .lte("erinnerungs_datum", in15MinIso),
           supabase
-            .from("vorraete")
-            .select("id, name, menge, mindest_menge, einheit")
+            .from("home_vorraete")
+            .select("id, name, bestand, mindestmenge, einheit, ablaufdatum, user_id")
+            .in("user_id", recipients)
+            .not("mindestmenge", "is", null)
+            .gt("mindestmenge", 0),
+          supabase
+            .from("home_medikamente")
+            .select("id, name, bestand, mindestbestand, ablaufdatum, user_id")
             .eq("household_id", householdId)
-            .not("mindest_menge", "is", null)
-            .gt("mindest_menge", 0),
+            .not("mindestbestand", "is", null)
+            .gt("mindestbestand", 0),
           supabase
             .from("home_geraete")
             .select("id, name, naechste_wartung, garantie_bis, gewaehrleistung_bis, created_by_user_id, user_id")
             .eq("household_id", householdId)
             .or(`naechste_wartung.gte.${today},garantie_bis.gte.${today},gewaehrleistung_bis.gte.${today}`),
           supabase
-            .from("projekte")
-            .select("id, name, deadline, status")
+            .from("home_fahrzeuge")
+            .select("id, name, kennzeichen, pickerl_termin, created_by_user_id")
             .eq("household_id", householdId)
+            .gte("pickerl_termin", today)
+            .lte("pickerl_termin", in30Days),
+          supabase
+            .from("home_fahrzeug_services")
+            .select("id, typ, naechste_faelligkeit_datum, created_by_user_id, home_fahrzeuge(id, name, kennzeichen)")
+            .eq("household_id", householdId)
+            .gte("naechste_faelligkeit_datum", today)
+            .lte("naechste_faelligkeit_datum", in30Days),
+          supabase
+            .from("home_fahrzeug_reifen")
+            .select("id, saison, naechster_wechsel, created_by_user_id, home_fahrzeuge(id, name, kennzeichen)")
+            .eq("household_id", householdId)
+            .gte("naechster_wechsel", today)
+            .lte("naechster_wechsel", in30Days),
+          supabase
+            .from("home_fahrzeug_aufgaben")
+            .select("id, titel, faellig_am, created_by_user_id, home_fahrzeuge(id, name, kennzeichen)")
+            .eq("household_id", householdId)
+            .neq("status", "erledigt")
+            .gte("faellig_am", today)
+            .lte("faellig_am", in30Days),
+          supabase
+            .from("home_projekte")
+            .select("id, name, deadline, status, user_id")
+            .in("user_id", recipients)
             .not("deadline", "is", null)
             .neq("status", "abgeschlossen")
             .gte("deadline", today)
-            .lte("deadline", isoDate(addDays(now, 1))),
+            .lte("deadline", in30Days),
           supabase
             .from("user_profile")
             .select("id, locale, einkauf_reminder_aktiv, einkauf_reminder_zeit, einkauf_reminder_letzter_versand, cospend_reminder_letzter_versand")
@@ -463,7 +527,7 @@ Deno.serve(async (req: Request) => {
             );
           } else {
             const last = task.letzte_push_ueberfaellig_am;
-            if (last && now.getTime() - new Date(last).getTime() < 24 * 60 * 60 * 1000) continue;
+            if (last && now.getTime() - new Date(last).getTime() < 7 * 24 * 60 * 60 * 1000) continue;
 
             const empfaenger = resolveAufgabeEmpfaenger(task, bewohnerUserMap, recipients);
             empfaenger.forEach((userId) => {
@@ -484,22 +548,87 @@ Deno.serve(async (req: Request) => {
           }
         }
 
-        for (const row of (inventoryRows ?? []).filter((item: any) => Number(item.menge) <= Number(item.mindest_menge))) {
-          await queueReminder(supabase, msgs, householdId, recipients, (userId) => {
+        for (const row of (inventoryRows ?? []).filter((item: any) => Number(item.bestand) <= Number(item.mindestmenge))) {
+          const vorratEmpfaenger = resolveOwnedRecipients(row, recipientSet, recipients);
+          await queueReminder(supabase, msgs, householdId, vorratEmpfaenger, (userId) => {
             const tx = textsForUser(userId);
             return {
-            title: tx.lowStock,
-            body: tx.lowStockBody(row.name, row.menge, row.einheit ?? "", row.mindest_menge),
-            url: "/home/vorraete",
-            tag: `vorrat-${row.id}`,
-          };
+              title: tx.lowStock,
+              body: tx.lowStockBody(row.name, row.bestand, row.einheit ?? "", row.mindestmenge),
+              url: "/home/vorraete",
+              tag: `vorrat-${row.id}`,
+            };
           }, {
-            entityType: "vorraete",
+            entityType: "home_vorraete",
             entityId: String(row.id),
             reminderType: "low_stock",
             reminderKey: "below_minimum",
             periodKey: today,
-            value: { menge: row.menge, mindest_menge: row.mindest_menge },
+            value: { bestand: row.bestand, mindestmenge: row.mindestmenge },
+          });
+        }
+
+        for (const row of (inventoryRows ?? []).filter((item: any) => item.ablaufdatum && item.ablaufdatum <= in30Days)) {
+          const ablaufKey = dateThresholdKey(row.ablaufdatum, today);
+          if (!ablaufKey) continue;
+          const vorratEmpfaenger = resolveOwnedRecipients(row, recipientSet, recipients);
+          await queueReminder(supabase, msgs, householdId, vorratEmpfaenger, (userId) => {
+            const tx = textsForUser(userId);
+            return {
+              title: tx.expiryTitle,
+              body: tx.expiryBody(row.name, row.ablaufdatum, dateThresholdLabelForLocale(ablaufKey, localeForUser(userId))),
+              url: "/home/vorraete",
+              tag: `vorrat-ablauf-${row.id}-${ablaufKey}`,
+            };
+          }, {
+            entityType: "home_vorraete",
+            entityId: String(row.id),
+            reminderType: "ablauf",
+            reminderKey: ablaufKey,
+            periodKey: String(row.ablaufdatum),
+            value: { ablaufdatum: row.ablaufdatum },
+          });
+        }
+
+        for (const row of (medicationRows ?? []).filter((item: any) => Number(item.bestand) <= Number(item.mindestbestand))) {
+          const medRecipients = resolveOwnedRecipients(row, recipientSet, recipients);
+          await queueReminder(supabase, msgs, householdId, medRecipients, (userId) => {
+            const tx = textsForUser(userId);
+            return {
+              title: tx.medicineLowStock,
+              body: tx.medicineLowStockBody(row.name, row.bestand, row.mindestbestand),
+              url: "/home/heimapotheke",
+              tag: `medikament-${row.id}`,
+            };
+          }, {
+            entityType: "home_medikamente",
+            entityId: String(row.id),
+            reminderType: "medicine_low_stock",
+            reminderKey: "below_minimum",
+            periodKey: today,
+            value: { bestand: row.bestand, mindestbestand: row.mindestbestand },
+          });
+        }
+
+        for (const row of (medicationRows ?? []).filter((item: any) => item.ablaufdatum && item.ablaufdatum <= in30Days)) {
+          const ablaufKey = dateThresholdKey(row.ablaufdatum, today);
+          if (!ablaufKey) continue;
+          const medRecipients = resolveOwnedRecipients(row, recipientSet, recipients);
+          await queueReminder(supabase, msgs, householdId, medRecipients, (userId) => {
+            const tx = textsForUser(userId);
+            return {
+              title: tx.medicineExpiryTitle,
+              body: tx.medicineExpiryBody(row.name, row.ablaufdatum, dateThresholdLabelForLocale(ablaufKey, localeForUser(userId))),
+              url: "/home/heimapotheke",
+              tag: `medikament-ablauf-${row.id}-${ablaufKey}`,
+            };
+          }, {
+            entityType: "home_medikamente",
+            entityId: String(row.id),
+            reminderType: "medicine_expiry",
+            reminderKey: ablaufKey,
+            periodKey: String(row.ablaufdatum),
+            value: { ablaufdatum: row.ablaufdatum },
           });
         }
 
@@ -537,20 +666,120 @@ Deno.serve(async (req: Request) => {
           }
         }
 
+        for (const vehicle of vehicleRows ?? []) {
+          const thresholdKey = dateThresholdKey(vehicle.pickerl_termin, today);
+          if (!thresholdKey) continue;
+          const vehicleRecipients = resolveOwnedRecipients(vehicle, recipientSet, recipients);
+          await queueReminder(supabase, msgs, householdId, vehicleRecipients, (userId) => {
+            const tx = textsForUser(userId);
+            const name = [vehicle.name, vehicle.kennzeichen].filter(Boolean).join(" - ") || tx.vehicleFallback;
+            return {
+              title: tx.vehicleInspectionDue,
+              body: tx.vehicleDateBody(name, "Pickerl", vehicle.pickerl_termin, dateThresholdLabelForLocale(thresholdKey, localeForUser(userId))),
+              url: "/home/kfz",
+              tag: `kfz-pickerl-${vehicle.id}-${thresholdKey}`,
+            };
+          }, {
+            entityType: "home_fahrzeuge",
+            entityId: String(vehicle.id),
+            reminderType: "pickerl",
+            reminderKey: thresholdKey,
+            periodKey: String(vehicle.pickerl_termin),
+            value: { date: vehicle.pickerl_termin },
+          });
+        }
+
+        for (const service of vehicleServiceRows ?? []) {
+          const thresholdKey = dateThresholdKey(service.naechste_faelligkeit_datum, today);
+          if (!thresholdKey) continue;
+          const serviceRecipients = resolveOwnedRecipients(service, recipientSet, recipients);
+          await queueReminder(supabase, msgs, householdId, serviceRecipients, (userId) => {
+            const tx = textsForUser(userId);
+            const vehicle = Array.isArray(service.home_fahrzeuge) ? service.home_fahrzeuge[0] : service.home_fahrzeuge;
+            const name = [vehicle?.name, vehicle?.kennzeichen].filter(Boolean).join(" - ") || tx.vehicleFallback;
+            const what = service.typ || (localeForUser(userId) === "en-GB" ? "service" : "Service");
+            return {
+              title: tx.vehicleServiceDue,
+              body: tx.vehicleDateBody(name, what, service.naechste_faelligkeit_datum, dateThresholdLabelForLocale(thresholdKey, localeForUser(userId))),
+              url: "/home/kfz",
+              tag: `kfz-service-${service.id}-${thresholdKey}`,
+            };
+          }, {
+            entityType: "home_fahrzeug_services",
+            entityId: String(service.id),
+            reminderType: "service_date",
+            reminderKey: thresholdKey,
+            periodKey: String(service.naechste_faelligkeit_datum),
+            value: { date: service.naechste_faelligkeit_datum },
+          });
+        }
+
+        for (const tyre of vehicleTireRows ?? []) {
+          const thresholdKey = dateThresholdKey(tyre.naechster_wechsel, today);
+          if (!thresholdKey) continue;
+          const tyreRecipients = resolveOwnedRecipients(tyre, recipientSet, recipients);
+          await queueReminder(supabase, msgs, householdId, tyreRecipients, (userId) => {
+            const tx = textsForUser(userId);
+            const vehicle = Array.isArray(tyre.home_fahrzeuge) ? tyre.home_fahrzeuge[0] : tyre.home_fahrzeuge;
+            const name = [vehicle?.name, vehicle?.kennzeichen].filter(Boolean).join(" - ") || tx.vehicleFallback;
+            const what = tyre.saison || (localeForUser(userId) === "en-GB" ? "tyres" : "Reifen");
+            return {
+              title: tx.vehicleTyreDue,
+              body: tx.vehicleDateBody(name, what, tyre.naechster_wechsel, dateThresholdLabelForLocale(thresholdKey, localeForUser(userId))),
+              url: "/home/kfz",
+              tag: `kfz-reifen-${tyre.id}-${thresholdKey}`,
+            };
+          }, {
+            entityType: "home_fahrzeug_reifen",
+            entityId: String(tyre.id),
+            reminderType: "tyre_change",
+            reminderKey: thresholdKey,
+            periodKey: String(tyre.naechster_wechsel),
+            value: { date: tyre.naechster_wechsel },
+          });
+        }
+
+        for (const task of vehicleTaskRows ?? []) {
+          const thresholdKey = dateThresholdKey(task.faellig_am, today);
+          if (!thresholdKey) continue;
+          const taskRecipients = resolveOwnedRecipients(task, recipientSet, recipients);
+          await queueReminder(supabase, msgs, householdId, taskRecipients, (userId) => {
+            const tx = textsForUser(userId);
+            const vehicle = Array.isArray(task.home_fahrzeuge) ? task.home_fahrzeuge[0] : task.home_fahrzeuge;
+            const name = [vehicle?.name, vehicle?.kennzeichen].filter(Boolean).join(" - ") || tx.vehicleFallback;
+            return {
+              title: tx.vehicleTaskDue,
+              body: tx.vehicleDateBody(name, task.titel, task.faellig_am, dateThresholdLabelForLocale(thresholdKey, localeForUser(userId))),
+              url: "/home/kfz",
+              tag: `kfz-aufgabe-${task.id}-${thresholdKey}`,
+            };
+          }, {
+            entityType: "home_fahrzeug_aufgaben",
+            entityId: String(task.id),
+            reminderType: "task_date",
+            reminderKey: thresholdKey,
+            periodKey: String(task.faellig_am),
+            value: { date: task.faellig_am },
+          });
+        }
+
         for (const row of projectRows ?? []) {
-          await queueReminder(supabase, msgs, householdId, recipients, (userId) => {
+          const projektThresholdKey = dateThresholdKey(row.deadline, today);
+          if (!projektThresholdKey) continue;
+          const projektEmpfaenger = resolveOwnedRecipients(row, recipientSet, recipients);
+          await queueReminder(supabase, msgs, householdId, projektEmpfaenger, (userId) => {
             const tx = textsForUser(userId);
             return {
-            title: tx.projectDeadline,
-            body: tx.projectBody(row.name, row.deadline),
-            url: "/home/projekte",
-            tag: `projekt-${row.id}-${row.deadline}`,
-          };
+              title: tx.projectDeadline,
+              body: tx.projectBody(row.name, row.deadline),
+              url: "/home/projekte",
+              tag: `projekt-${row.id}-${projektThresholdKey}`,
+            };
           }, {
-            entityType: "projekte",
+            entityType: "home_projekte",
             entityId: String(row.id),
             reminderType: "deadline",
-            reminderKey: row.deadline === today ? "0d" : "1d",
+            reminderKey: projektThresholdKey,
             periodKey: String(row.deadline),
             value: { deadline: row.deadline },
           });

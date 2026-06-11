@@ -7,6 +7,51 @@
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+function bytesToBase64(bytes: Uint8Array): string {
+  const chunkSize = 8192;
+  const parts: string[] = [];
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    parts.push(String.fromCharCode(...bytes.subarray(index, index + chunkSize)));
+  }
+  return btoa(parts.join(""));
+}
+
+async function extractScannedPdfText(fileBytes: Uint8Array) {
+  const ocrUrl = Deno.env.get("DOCUMENT_OCR_URL")?.replace(/\/$/, "");
+  const token = Deno.env.get("DOCUMENT_OCR_INTERNAL_TOKEN");
+  if (!ocrUrl || !token) {
+    throw new Error("DOCUMENT_OCR_URL oder DOCUMENT_OCR_INTERNAL_TOKEN fehlt.");
+  }
+  const response = await fetch(`${ocrUrl}/ocr/pdf`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      file_base64: bytesToBase64(fileBytes),
+      max_pages: 8,
+      languages: ["deu", "eng"],
+    }),
+  });
+  const data = await response.json().catch(() => ({})) as {
+    text?: string;
+    page_count?: number;
+    processed_pages?: number;
+    truncated?: boolean;
+    warnings?: string[];
+    detail?: string;
+  };
+  if (!response.ok) throw new Error(data.detail || `document-ocr-service HTTP ${response.status}`);
+  return {
+    text: data.text || "",
+    pageCount: Number(data.page_count || 0),
+    processedPages: Number(data.processed_pages || 0),
+    truncated: Boolean(data.truncated),
+    warnings: Array.isArray(data.warnings) ? data.warnings : [],
+  };
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -413,6 +458,7 @@ Deno.serve(async (req: Request) => {
     await updateProcessing(supabaseAdmin, dokument_id, {
       status:      "done",
       finished_at: new Date().toISOString(),
+      warnings,
     });
     return jsonResponse({ status: "ok", warnings });
   }
@@ -506,6 +552,37 @@ Deno.serve(async (req: Request) => {
   if (!strukturierteDaten && fileBytes) {
     await updateProcessing(supabaseAdmin, dokument_id, { last_step: "ocr" });
 
+    const dateiTyp: string = (dokument as { datei_typ?: string }).datei_typ ?? "";
+
+    if (dateiTyp === "application/pdf") {
+      try {
+        const ocrResult = await extractScannedPdfText(fileBytes);
+        extrahierterText = ocrResult.text;
+        warnings.push(...ocrResult.warnings);
+        await updateProcessing(supabaseAdmin, dokument_id, {
+          extractor_used: "document-ocr-service",
+          pdf_page_count: ocrResult.pageCount,
+          ocr_pages_processed: ocrResult.processedPages,
+          ocr_truncated: ocrResult.truncated,
+          warnings,
+        });
+
+        if (extrahierterText) {
+          await supabaseAdmin
+            .from("dokumente")
+            .update({ extrahierter_text: extrahierterText })
+            .eq("id", dokument_id);
+        }
+      } catch (e) {
+        const ocrError = (e as Error).message;
+        warnings.push(`document-ocr-service: ${ocrError}`);
+        await updateProcessing(supabaseAdmin, dokument_id, {
+          extractor_used: "document-ocr-service",
+          ocr_error: ocrError,
+          warnings,
+        });
+      }
+    } else {
     // Haushalt-Einstellungen laden
     const { data: settings } = await supabaseAdmin
       .from("household_settings")
@@ -514,26 +591,15 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     const modus: string = (settings as { bildanalyse_modus?: string } | null)?.bildanalyse_modus ?? "chatgpt_vision";
-    const dateiTyp: string = (dokument as { datei_typ?: string }).datei_typ ?? "";
-
-    if (dateiTyp === "application/pdf" && modus === "chatgpt_vision") {
-      warnings.push("chatgpt_vision_single_page_limit: nur erste Seite wird analysiert.");
-    }
 
     try {
       // Chunked base64 — verhindert O(n²)-Stringkonkatenation bei grossen Dateien
-      const CHUNK = 8192;
-      const parts: string[] = [];
-      for (let i = 0; i < fileBytes.length; i += CHUNK) {
-        parts.push(String.fromCharCode(...fileBytes.subarray(i, i + CHUNK)));
-      }
-      const base64 = btoa(parts.join(""));
       const visionResp = await fetch(`${FUNCTIONS_URL}/ki-vision`, {
         method:  "POST",
         headers: fnHeaders,
         body:    JSON.stringify({
           mode:        modus,
-          file_base64: base64,
+          file_base64: bytesToBase64(fileBytes),
           mime_type:   dateiTyp,
           file_name:   (dokument as { dateiname?: string }).dateiname,
           locale:      requestLocale,
@@ -590,6 +656,7 @@ Deno.serve(async (req: Request) => {
       }
     } catch (e) {
       warnings.push(`ki-vision (exception): ${(e as Error).message}`);
+    }
     }
   }
 
@@ -742,6 +809,7 @@ ${klassiText}`;
     await updateProcessing(supabaseAdmin, dokument_id, {
       status:      "done",
       finished_at: new Date().toISOString(),
+      warnings,
     });
 
     return jsonResponse({ status: "ok", doc_type: docType, wissen_id: wissenId, warnings });
@@ -787,9 +855,25 @@ ${klassiText}`;
                 invoice_number: { type: ["string", "null"] },
                 purchase_type:  { type: "string" },
                 key_items:      { type: "array", items: { type: "string" } },
+                positionen: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      name:        { type: "string" },
+                      menge:       { type: ["number", "null"] },
+                      einheit:     { type: ["string", "null"] },
+                      einzelpreis: { type: ["number", "null"] },
+                      gesamtpreis: { type: ["number", "null"] },
+                      ust_satz:    { type: ["number", "null"] },
+                    },
+                    required: ["name", "menge", "einheit", "einzelpreis", "gesamtpreis", "ust_satz"],
+                    additionalProperties: false,
+                  },
+                },
                 summary:        { type: "string" },
               },
-              required:             ["merchant_name", "purchase_date", "total_amount", "currency", "invoice_number", "purchase_type", "key_items", "summary"],
+              required:             ["merchant_name", "purchase_date", "total_amount", "currency", "invoice_number", "purchase_type", "key_items", "positionen", "summary"],
               additionalProperties: false,
             },
           },
@@ -806,6 +890,8 @@ purchase_type: Kategorie des Einkaufs — einer von: Lebensmittel, Tankstelle, R
 key_items: Array mit 2–4 herausragenden Produkten oder Posten (kurze Namen, kein Preis). Leeres Array wenn nichts erkennbar.
 summary: 1 vollständiger Satz auf Deutsch, der beschreibt was gekauft/geleistet wurde — gerne mit Produktnamen wenn erkennbar.
 
+positionen: Alle erkennbaren Rechnungspositionen. name ist Pflicht; Preise als Zahlen, unbekannte Werte null.
+
 Text:
 ${smartTruncate(extrahierterText)}`;
 
@@ -815,7 +901,7 @@ ${smartTruncate(extrahierterText)}`;
           body:    JSON.stringify({
             messages:        [{ role: "user", content: EXTRAKTION_PROMPT }],
             temperature:     0.1,
-            max_tokens:      400,
+            max_tokens:      1200,
             response_format: INVOICE_SCHEMA,
           }),
         });
@@ -836,7 +922,20 @@ ${smartTruncate(extrahierterText)}`;
       const currency       = (parsed.currency as string) || "EUR";
       const invoiceNumber  = (parsed.invoice_number as string) || null;
       const purchaseType   = (parsed.purchase_type as string) || "Sonstiges";
-      const keyItems       = Array.isArray(parsed.key_items) ? (parsed.key_items as string[]) : [];
+      const rawPositionen  = Array.isArray(parsed.positionen) ? (parsed.positionen as Record<string, unknown>[]) : [];
+      const positionen = rawPositionen
+        .map((pos) => ({
+          name: String(pos.name || "").trim(),
+          menge: typeof pos.menge === "number" ? pos.menge : null,
+          einheit: typeof pos.einheit === "string" ? pos.einheit : null,
+          einzelpreis: typeof pos.einzelpreis === "number" ? pos.einzelpreis : null,
+          gesamtpreis: typeof pos.gesamtpreis === "number" ? pos.gesamtpreis : null,
+          ust_satz: typeof pos.ust_satz === "number" ? pos.ust_satz : null,
+        }))
+        .filter((pos) => pos.name);
+      const keyItems       = Array.isArray(parsed.key_items) && (parsed.key_items as string[]).length > 0
+        ? (parsed.key_items as string[])
+        : positionen.slice(0, 4).map((pos) => pos.name);
       const summary        = (parsed.summary as string) || `Rechnung von ${merchantName}.`;
 
       // Titelregel: {merchant_name} – {DD.MM.YYYY} | Fallback: {merchant_name} – Rechnung
@@ -863,7 +962,12 @@ ${smartTruncate(extrahierterText)}`;
         currency,
         invoice_number: invoiceNumber,
         purchase_type: purchaseType,
-        items: keyItems.map((name) => ({ name })),
+        items: positionen.length > 0 ? positionen.map((pos) => ({
+          name: pos.name,
+          amount: pos.gesamtpreis,
+          quantity: pos.menge,
+          unit: pos.einheit,
+        })) : keyItems.map((name) => ({ name })),
         key_items: keyItems,
         headline: summary,
       };
@@ -898,6 +1002,7 @@ ${smartTruncate(extrahierterText)}`;
             waehrung:        currency,
             brutto:          totalAmount,
             extraktion:      parsed,
+            raw_text:        extrahierterText || null,
           }, { onConflict: "household_id,dokument_id" })
           .select("id")
           .single();
@@ -909,6 +1014,35 @@ ${smartTruncate(extrahierterText)}`;
         }
       } catch (e) {
         warnings.push(`rechnungen (exception): ${(e as Error).message}`);
+      }
+
+      if (entityId) {
+        try {
+          await supabaseAdmin
+            .from("rechnungs_positionen")
+            .delete()
+            .eq("rechnung_id", entityId);
+
+          if (positionen.length > 0) {
+            const { error: posErr } = await supabaseAdmin
+              .from("rechnungs_positionen")
+              .insert(positionen.map((pos, index) => ({
+                household_id: householdId,
+                rechnung_id: entityId,
+                pos_nr: index + 1,
+                beschreibung: pos.name,
+                menge: pos.menge,
+                einheit: pos.einheit,
+                einzelpreis: pos.einzelpreis,
+                gesamtpreis: pos.gesamtpreis,
+                ust_satz: pos.ust_satz,
+                klassifikation: {},
+              })));
+            if (posErr) warnings.push(`rechnungs_positionen: ${posErr.message}`);
+          }
+        } catch (e) {
+          warnings.push(`rechnungs_positionen (exception): ${(e as Error).message}`);
+        }
       }
 
       // home_wissen
@@ -1429,6 +1563,7 @@ ${smartTruncate(extrahierterText || dateiname, 2000)}`;
   await updateProcessing(supabaseAdmin, dokument_id, {
     status:      "done",
     finished_at: new Date().toISOString(),
+    warnings,
   });
 
   return jsonResponse({
