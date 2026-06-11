@@ -174,6 +174,9 @@ ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS intervall       text;
 ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS naechstes_datum date;
 ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS ursprung_template_id uuid REFERENCES public.budget_posten(id) ON DELETE SET NULL;
 ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS ende_datum          date;
+ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS archived_at         timestamptz;
+ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS archived_reason     text;
+ALTER TABLE public.budget_posten ADD COLUMN IF NOT EXISTS archived_by_user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL;
 -- budget_scope (Phase 1: Haushalt vs. Privat)
 -- HINWEIS: zahlungskonto_id (FK auf home_finanzkonten) wird NACH der Tabellenerstellung
 -- in Abschnitt 5 ergaenzt (FK-Reihenfolge: home_finanzkonten muss zuerst existieren).
@@ -1258,11 +1261,17 @@ CREATE POLICY home_einkauf_korrekturen_crud_own ON public.home_einkauf_korrektur
 CREATE TABLE IF NOT EXISTS public.home_geraete (
   id                       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id                  uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  ort_id                   uuid REFERENCES public.home_orte(id) ON DELETE SET NULL,
   lagerort_id              uuid REFERENCES public.home_lagerorte(id) ON DELETE SET NULL,
   name                     text NOT NULL,
   hersteller               text,
   modell                   text,
   seriennummer             text,
+  status                   text DEFAULT 'in_verwendung',
+  tags                     text[] DEFAULT '{}',
+  bewohner_id              uuid,
+  zugriffshaeufigkeit      text DEFAULT 'selten',
+  menge                    integer DEFAULT 1,
   kaufdatum                date,
   kaufpreis                numeric(10,2),
   garantie_bis             date,
@@ -1279,6 +1288,11 @@ CREATE TABLE IF NOT EXISTS public.home_geraete (
 );
 
 CREATE INDEX IF NOT EXISTS idx_home_geraete_user_id          ON public.home_geraete(user_id);
+CREATE INDEX IF NOT EXISTS idx_home_geraete_user_ort         ON public.home_geraete(user_id, ort_id);
+CREATE INDEX IF NOT EXISTS idx_home_geraete_user_lagerort    ON public.home_geraete(user_id, lagerort_id);
+CREATE INDEX IF NOT EXISTS idx_home_geraete_status           ON public.home_geraete(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_home_geraete_tags             ON public.home_geraete USING gin(tags);
+CREATE INDEX IF NOT EXISTS idx_home_geraete_bewohner         ON public.home_geraete(user_id, bewohner_id);
 CREATE INDEX IF NOT EXISTS idx_home_geraete_naechste_wartung ON public.home_geraete(naechste_wartung);
 
 DROP TRIGGER IF EXISTS set_home_geraete_updated_at ON public.home_geraete;
@@ -1344,12 +1358,28 @@ DROP POLICY IF EXISTS home_bewohner_user_own ON public.home_bewohner;
 CREATE POLICY home_bewohner_user_own ON public.home_bewohner FOR ALL
   USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'home_geraete_bewohner_id_fkey'
+      AND conrelid = 'public.home_geraete'::regclass
+  ) THEN
+    ALTER TABLE public.home_geraete
+      ADD CONSTRAINT home_geraete_bewohner_id_fkey
+      FOREIGN KEY (bewohner_id)
+      REFERENCES public.home_bewohner(id)
+      ON DELETE SET NULL;
+  END IF;
+END $$;
+
 
 -- ── home_budget_limits ────────────────────────────────────
 -- home_budget_categories
 CREATE TABLE IF NOT EXISTS public.home_budget_categories (
   id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  household_id       uuid NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+  household_id       uuid,
   name               text NOT NULL,
   color              text NOT NULL DEFAULT '#6B7280',
   sort_order         integer NOT NULL DEFAULT 0,
@@ -1375,9 +1405,6 @@ CREATE TRIGGER set_home_budget_categories_updated_at
 ALTER TABLE public.home_budget_categories ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS home_budget_categories_household_member_access ON public.home_budget_categories;
-CREATE POLICY home_budget_categories_household_member_access ON public.home_budget_categories FOR ALL
-  USING (public.is_household_member(household_id))
-  WITH CHECK (public.is_household_member(household_id));
 
 CREATE OR REPLACE FUNCTION public.seed_home_budget_categories(
   p_household_id uuid,
@@ -1487,7 +1514,7 @@ $$;
 CREATE TABLE IF NOT EXISTS public.home_budget_limits (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id    uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  household_id uuid NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+  household_id uuid,
   kategorie  text NOT NULL,
   limit_euro numeric(10,2) NOT NULL DEFAULT 0,
   created_at timestamptz DEFAULT NOW(),
@@ -1512,6 +1539,7 @@ CREATE TABLE IF NOT EXISTS public.home_sparziele (
   ziel_betrag      numeric(10,2) NOT NULL,
   aktueller_betrag numeric(10,2) NOT NULL DEFAULT 0,
   zieldatum        date,
+  produkt_url      text,
   farbe            text DEFAULT '#10B981',
   emoji            text DEFAULT '🎯',
   created_at       timestamptz DEFAULT NOW(),
@@ -1642,6 +1670,7 @@ ALTER TABLE public.budget_posten
 CREATE TABLE IF NOT EXISTS public.home_verlauf (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id       uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  household_id  uuid,
   tabelle       text NOT NULL,
   datensatz_name text,
   aktion        text NOT NULL,
@@ -1656,6 +1685,7 @@ CREATE POLICY home_verlauf_own ON public.home_verlauf FOR ALL
 
 CREATE INDEX IF NOT EXISTS idx_home_verlauf_user ON public.home_verlauf(user_id);
 CREATE INDEX IF NOT EXISTS idx_home_verlauf_created ON public.home_verlauf(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_home_verlauf_household_created ON public.home_verlauf(household_id, created_at DESC);
 
 
 -- ── home_wissen ───────────────────────────────────────────
@@ -2185,7 +2215,9 @@ CREATE POLICY "Eigene Subscriptions verwalten" ON public.push_subscriptions FOR 
 
 SELECT pg_notify('pgrst', 'reload schema');
 
-
+-- Kfz-Stabilisierung: Die idempotenten Definitionen entsprechen
+-- scripts/migration_2026_06_04_home_kfz.sql und werden fuer Neuinstallationen
+-- durch die Migration am Ende des Installationsablaufs angewendet.
 -- ── Avatar-Support ─────────────────────────────────────────────────────────
 ALTER TABLE public.user_profile
   ADD COLUMN IF NOT EXISTS avatar_url text;
@@ -2382,6 +2414,63 @@ AS $$
       AND hm.role = 'admin'
   );
 $$;
+
+-- home_budget_categories: Haushalts-FK und RLS erst nach Haushaltsfunktionen setzen.
+DO $$
+BEGIN
+  ALTER TABLE public.home_budget_categories
+    ADD COLUMN IF NOT EXISTS household_id uuid;
+
+  DROP INDEX IF EXISTS public.idx_home_budget_categories_household_name_unique;
+
+  UPDATE public.home_budget_categories hbc
+     SET household_id = hm.household_id
+    FROM public.household_members hm
+   WHERE hbc.household_id IS NULL
+     AND hbc.created_by_user_id = hm.user_id;
+
+  DELETE FROM public.home_budget_categories
+   WHERE household_id IS NULL;
+
+  WITH ranked_categories AS (
+    SELECT id,
+           row_number() OVER (
+             PARTITION BY household_id, lower(btrim(name))
+             ORDER BY is_system DESC, sort_order ASC, created_at ASC, id ASC
+           ) AS row_nr
+      FROM public.home_budget_categories
+     WHERE household_id IS NOT NULL
+  )
+  DELETE FROM public.home_budget_categories hbc
+   USING ranked_categories rc
+   WHERE rc.id = hbc.id
+     AND rc.row_nr > 1;
+
+  ALTER TABLE public.home_budget_categories
+    ALTER COLUMN household_id SET NOT NULL;
+
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_home_budget_categories_household_name_unique
+    ON public.home_budget_categories(household_id, lower(btrim(name)));
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'home_budget_categories_household_id_fkey'
+      AND conrelid = 'public.home_budget_categories'::regclass
+  ) THEN
+    ALTER TABLE public.home_budget_categories
+      ADD CONSTRAINT home_budget_categories_household_id_fkey
+      FOREIGN KEY (household_id)
+      REFERENCES public.households(id)
+      ON DELETE CASCADE;
+  END IF;
+END $$;
+
+DROP POLICY IF EXISTS home_budget_categories_household_member_access ON public.home_budget_categories;
+DROP POLICY IF EXISTS household_member_access ON public.home_budget_categories;
+CREATE POLICY home_budget_categories_household_member_access ON public.home_budget_categories FOR ALL
+  USING (public.is_household_member(household_id))
+  WITH CHECK (public.is_household_member(household_id));
 
 CREATE OR REPLACE FUNCTION public.get_household_context()
 RETURNS TABLE (
@@ -2804,7 +2893,7 @@ DECLARE
     'home_projekte','home_orte','home_lagerorte','home_objekte',
     'home_vorraete','home_einkaufliste','home_einkauf_korrekturen','home_geraete','home_wartungen',
     'home_bewohner','home_budget_limits','home_sparziele','home_finanzkonten',
-    'home_verlauf','home_wissen','haushaltsaufgaben','vorraete','projekte','geraete'
+    'home_wissen','haushaltsaufgaben','vorraete','projekte','geraete'
   ];
   t text; fk record; pol record;
 BEGIN
@@ -2883,10 +2972,90 @@ BEGIN
   END LOOP;
 END $$;
 
+-- home_verlauf bleibt bewusst Legacy-kompatibel:
+-- household_id wird backfilled und per RLS haushaltsweit sichtbar, aber nicht NOT NULL.
+ALTER TABLE public.home_verlauf
+  ADD COLUMN IF NOT EXISTS household_id uuid;
+
+UPDATE public.home_verlauf hv
+SET household_id = hm.household_id
+FROM public.household_members hm
+WHERE hv.household_id IS NULL
+  AND hv.user_id = hm.user_id;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'home_verlauf_household_id_fkey'
+      AND conrelid = 'public.home_verlauf'::regclass
+  ) THEN
+    ALTER TABLE public.home_verlauf
+      ADD CONSTRAINT home_verlauf_household_id_fkey
+      FOREIGN KEY (household_id)
+      REFERENCES public.households(id)
+      ON DELETE CASCADE;
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_home_verlauf_household_created
+  ON public.home_verlauf(household_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_home_verlauf_tabelle_created
+  ON public.home_verlauf(tabelle, created_at DESC);
+
+ALTER TABLE public.home_verlauf ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS home_verlauf_own ON public.home_verlauf;
+DROP POLICY IF EXISTS household_member_access ON public.home_verlauf;
+DROP POLICY IF EXISTS home_verlauf_select_household_or_legacy ON public.home_verlauf;
+DROP POLICY IF EXISTS home_verlauf_insert_household_or_legacy ON public.home_verlauf;
+DROP POLICY IF EXISTS home_verlauf_update_own ON public.home_verlauf;
+DROP POLICY IF EXISTS home_verlauf_delete_own ON public.home_verlauf;
+
+CREATE POLICY home_verlauf_select_household_or_legacy
+  ON public.home_verlauf
+  FOR SELECT
+  USING (
+    (household_id IS NOT NULL AND public.is_household_member(household_id))
+    OR (household_id IS NULL AND (SELECT auth.uid()) = user_id)
+  );
+
+CREATE POLICY home_verlauf_insert_household_or_legacy
+  ON public.home_verlauf
+  FOR INSERT
+  WITH CHECK (
+    (SELECT auth.uid()) = user_id
+    AND (
+      (household_id IS NOT NULL AND public.is_household_member(household_id))
+      OR household_id IS NULL
+    )
+  );
+
+CREATE POLICY home_verlauf_update_own
+  ON public.home_verlauf
+  FOR UPDATE
+  USING ((SELECT auth.uid()) = user_id)
+  WITH CHECK (
+    (SELECT auth.uid()) = user_id
+    AND (
+      (household_id IS NOT NULL AND public.is_household_member(household_id))
+      OR household_id IS NULL
+    )
+  );
+
+CREATE POLICY home_verlauf_delete_own
+  ON public.home_verlauf
+  FOR DELETE
+  USING ((SELECT auth.uid()) = user_id);
+
 CREATE INDEX IF NOT EXISTS idx_budget_posten_scope
   ON public.budget_posten(household_id, budget_scope, datum);
 CREATE INDEX IF NOT EXISTS idx_budget_posten_bewohner_scope
   ON public.budget_posten(household_id, bewohner_id, budget_scope, datum);
+CREATE INDEX IF NOT EXISTS idx_budget_posten_active_household_datum
+  ON public.budget_posten(household_id, archived_at, datum);
 
 -- home_geraete: Kategorie-Index (household_id + kategorie) nach household_id-Migration
 DO $$
@@ -3253,7 +3422,7 @@ DECLARE
     'home_projekte','home_orte','home_lagerorte','home_objekte',
     'home_vorraete','home_einkaufliste','home_einkauf_korrekturen','home_geraete','home_wartungen',
     'home_bewohner','home_budget_limits','home_sparziele','home_finanzkonten',
-    'home_verlauf','home_wissen','haushaltsaufgaben','vorraete','projekte','geraete'
+    'home_wissen','haushaltsaufgaben','vorraete','projekte','geraete'
   ];
   t text;
 BEGIN
@@ -3534,6 +3703,7 @@ $$;
 -- ── 12a. dokumente: neue Spalten ──────────────────────────────
 
 ALTER TABLE public.dokumente
+  ADD COLUMN IF NOT EXISTS household_id      uuid REFERENCES public.households(id) ON DELETE CASCADE,
   ADD COLUMN IF NOT EXISTS dokument_typ      text,
   ADD COLUMN IF NOT EXISTS tags              text[] DEFAULT '{}'::text[],
   ADD COLUMN IF NOT EXISTS meta              jsonb  DEFAULT '{}'::jsonb,
@@ -3552,6 +3722,7 @@ CREATE INDEX IF NOT EXISTS idx_dokumente_household_id
 -- ── 12b. home_wissen: neue Spalten ───────────────────────────
 
 ALTER TABLE public.home_wissen
+  ADD COLUMN IF NOT EXISTS household_id uuid REFERENCES public.households(id) ON DELETE CASCADE,
   ADD COLUMN IF NOT EXISTS dokument_id uuid REFERENCES public.dokumente(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS rechnung_id uuid; -- FK zu rechnungen wird in 12f nachgezogen
 
@@ -3869,8 +4040,6 @@ CREATE POLICY home_wissen_household ON public.home_wissen FOR ALL
 
 
 SELECT pg_notify('pgrst', 'reload schema');
-
-
 -- ============================================================
 -- 13. MULTISCANNER — UNIVERSELLE DOKUMENTEN-PIPELINE
 -- Idempotent — kann mehrfach ausgefuehrt werden.
@@ -4817,4 +4986,1204 @@ CREATE POLICY home_rezept_import_jobs_household_delete ON public.home_rezept_imp
 
 SELECT pg_notify('pgrst', 'reload schema');
 
+-- =====================================================
+-- Home Organizer Kochbuch: Essensplaner
+-- Spiegel von scripts/migration_2026_05_10_home_rezept_plan.sql fuer frische Installationen.
+-- =====================================================
 
+CREATE TABLE IF NOT EXISTS public.home_rezept_plan (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id uuid NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  rezept_id uuid NOT NULL REFERENCES public.home_rezepte(id) ON DELETE CASCADE,
+
+  planned_date date NOT NULL,
+  meal_slot text NOT NULL,
+  portionen integer,
+  notizen text,
+  sort_order integer NOT NULL DEFAULT 0,
+
+  series_id uuid,
+  recurrence_frequency text NOT NULL DEFAULT 'none',
+  recurrence_until date,
+
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.home_rezept_plan
+  DROP CONSTRAINT IF EXISTS home_rezept_plan_meal_slot_check,
+  ADD CONSTRAINT home_rezept_plan_meal_slot_check
+    CHECK (meal_slot IN ('breakfast', 'lunch', 'dinner', 'snack'));
+
+ALTER TABLE public.home_rezept_plan
+  DROP CONSTRAINT IF EXISTS home_rezept_plan_recurrence_frequency_check,
+  ADD CONSTRAINT home_rezept_plan_recurrence_frequency_check
+    CHECK (recurrence_frequency IN ('none', 'weekly'));
+
+CREATE INDEX IF NOT EXISTS idx_home_rezept_plan_household_id ON public.home_rezept_plan(household_id);
+CREATE INDEX IF NOT EXISTS idx_home_rezept_plan_user_id ON public.home_rezept_plan(user_id);
+CREATE INDEX IF NOT EXISTS idx_home_rezept_plan_planned_date ON public.home_rezept_plan(planned_date);
+CREATE INDEX IF NOT EXISTS idx_home_rezept_plan_rezept_id ON public.home_rezept_plan(rezept_id);
+CREATE INDEX IF NOT EXISTS idx_home_rezept_plan_series_id ON public.home_rezept_plan(series_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_home_rezept_plan_unique_recipe_slot
+  ON public.home_rezept_plan(household_id, planned_date, meal_slot, rezept_id);
+
+DROP TRIGGER IF EXISTS set_home_rezept_plan_updated_at ON public.home_rezept_plan;
+CREATE TRIGGER set_home_rezept_plan_updated_at
+  BEFORE UPDATE ON public.home_rezept_plan
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+ALTER TABLE public.home_rezept_plan ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS home_rezept_plan_household_select ON public.home_rezept_plan;
+CREATE POLICY home_rezept_plan_household_select ON public.home_rezept_plan
+  FOR SELECT USING (public.is_household_member(household_id));
+
+DROP POLICY IF EXISTS home_rezept_plan_household_insert ON public.home_rezept_plan;
+CREATE POLICY home_rezept_plan_household_insert ON public.home_rezept_plan
+  FOR INSERT WITH CHECK (public.is_household_member(household_id));
+
+DROP POLICY IF EXISTS home_rezept_plan_household_update ON public.home_rezept_plan;
+CREATE POLICY home_rezept_plan_household_update ON public.home_rezept_plan
+  FOR UPDATE USING (public.is_household_member(household_id))
+  WITH CHECK (public.is_household_member(household_id));
+
+DROP POLICY IF EXISTS home_rezept_plan_household_delete ON public.home_rezept_plan;
+CREATE POLICY home_rezept_plan_household_delete ON public.home_rezept_plan
+  FOR DELETE USING (public.is_household_member(household_id));
+
+SELECT pg_notify('pgrst', 'reload schema');
+
+-- =====================================================
+-- Home Organizer: Heimapotheke
+-- Spiegel von scripts/migration_2026_05_13_home_heimapotheke.sql fuer frische Installationen.
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS public.home_medikamente (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  household_id uuid REFERENCES public.households(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  wirkstoff text,
+  darreichungsform text,
+  packungsgroesse text,
+  bestand numeric(10,2) NOT NULL DEFAULT 1,
+  mindestbestand numeric(10,2) NOT NULL DEFAULT 1,
+  ablaufdatum date,
+  lagerort text,
+  kategorie text,
+  notizen text,
+  kaufdatum date,
+  preis numeric(10,2),
+  haendler text,
+  rechnung_id uuid REFERENCES public.rechnungen(id) ON DELETE SET NULL,
+  rechnung_dokument_id uuid REFERENCES public.dokumente(id) ON DELETE SET NULL,
+  beipackzettel_dokument_id uuid REFERENCES public.dokumente(id) ON DELETE SET NULL,
+  beipackzettel_url text,
+  offizielle_quelle text,
+  source_payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.home_medikament_beipackzettel_analysen (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  medikament_id uuid NOT NULL REFERENCES public.home_medikamente(id) ON DELETE CASCADE,
+  household_id uuid REFERENCES public.households(id) ON DELETE CASCADE,
+  dokument_id uuid REFERENCES public.dokumente(id) ON DELETE SET NULL,
+  source_url text,
+  source_hash text,
+  analyse_status text NOT NULL DEFAULT 'pending',
+  summary_payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  model text,
+  analysiert_am timestamptz,
+  fehler text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_home_medikamente_household_name
+  ON public.home_medikamente (household_id, lower(name));
+CREATE INDEX IF NOT EXISTS idx_home_medikamente_user_id
+  ON public.home_medikamente (user_id);
+CREATE INDEX IF NOT EXISTS idx_home_medikamente_wirkstoff
+  ON public.home_medikamente (household_id, lower(wirkstoff));
+CREATE INDEX IF NOT EXISTS idx_home_medikamente_lagerort
+  ON public.home_medikamente (household_id, lagerort);
+CREATE INDEX IF NOT EXISTS idx_home_medikamente_kategorie
+  ON public.home_medikamente (household_id, kategorie);
+CREATE INDEX IF NOT EXISTS idx_home_medikamente_ablaufdatum
+  ON public.home_medikamente (household_id, ablaufdatum);
+CREATE INDEX IF NOT EXISTS idx_home_medikamente_bestand
+  ON public.home_medikamente (household_id, bestand);
+
+CREATE INDEX IF NOT EXISTS idx_home_medikament_analysen_medikament
+  ON public.home_medikament_beipackzettel_analysen (medikament_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_home_medikament_analysen_household
+  ON public.home_medikament_beipackzettel_analysen (household_id, analysiert_am DESC);
+
+DROP TRIGGER IF EXISTS set_home_medikamente_updated_at ON public.home_medikamente;
+CREATE TRIGGER set_home_medikamente_updated_at
+  BEFORE UPDATE ON public.home_medikamente
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+DROP TRIGGER IF EXISTS set_home_medikament_beipackzettel_analysen_updated_at ON public.home_medikament_beipackzettel_analysen;
+CREATE TRIGGER set_home_medikament_beipackzettel_analysen_updated_at
+  BEFORE UPDATE ON public.home_medikament_beipackzettel_analysen
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+ALTER TABLE public.home_medikamente ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.home_medikament_beipackzettel_analysen ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS home_medikamente_household_member_access ON public.home_medikamente;
+CREATE POLICY home_medikamente_household_member_access ON public.home_medikamente FOR ALL
+  USING (
+    user_id = (SELECT auth.uid())
+    OR EXISTS (
+      SELECT 1 FROM public.household_members hm
+      WHERE hm.household_id = home_medikamente.household_id
+        AND hm.user_id = (SELECT auth.uid())
+    )
+  )
+  WITH CHECK (
+    user_id = (SELECT auth.uid())
+    AND (
+      household_id IS NULL
+      OR EXISTS (
+        SELECT 1 FROM public.household_members hm
+        WHERE hm.household_id = home_medikamente.household_id
+          AND hm.user_id = (SELECT auth.uid())
+      )
+    )
+  );
+
+DROP POLICY IF EXISTS home_medikament_analysen_household_member_access ON public.home_medikament_beipackzettel_analysen;
+CREATE POLICY home_medikament_analysen_household_member_access ON public.home_medikament_beipackzettel_analysen FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.home_medikamente m
+      WHERE m.id = home_medikament_beipackzettel_analysen.medikament_id
+        AND (
+          m.user_id = (SELECT auth.uid())
+          OR EXISTS (
+            SELECT 1 FROM public.household_members hm
+            WHERE hm.household_id = m.household_id
+              AND hm.user_id = (SELECT auth.uid())
+          )
+        )
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.home_medikamente m
+      WHERE m.id = home_medikament_beipackzettel_analysen.medikament_id
+        AND (
+          m.user_id = (SELECT auth.uid())
+          OR EXISTS (
+            SELECT 1 FROM public.household_members hm
+            WHERE hm.household_id = m.household_id
+              AND hm.user_id = (SELECT auth.uid())
+          )
+        )
+    )
+  );
+
+-- ── Heimapotheke: Beipackzettel im Dokumentenarchiv normalisieren ──
+UPDATE public.dokumente
+SET
+  kategorie = 'Medikamente',
+  dokument_typ = COALESCE(NULLIF(dokument_typ, ''), 'beipackzettel'),
+  app_modus = CASE
+    WHEN app_modus IN ('home', 'beides') THEN app_modus
+    ELSE 'home'
+  END,
+  tags = (
+    SELECT array(
+      SELECT DISTINCT tag
+      FROM unnest(COALESCE(tags, '{}'::text[]) || ARRAY['heimapotheke', 'beipackzettel']) AS tag
+      WHERE tag IS NOT NULL AND tag <> ''
+    )
+  )
+WHERE
+  dokument_typ = 'beipackzettel'
+  OR kategorie IN ('Medikament', 'Medikamente')
+  OR storage_pfad ILIKE '%/heimapotheke/%'
+  OR dateiname ILIKE '%beipackzettel%';
+
+-- Kfz-Modul: Fahrzeugakte, Tankhistorie, Service und Reifen
+CREATE TABLE IF NOT EXISTS public.home_fahrzeuge (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id uuid NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+  created_by_user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  name text NOT NULL,
+  marke text,
+  modell text,
+  baujahr integer,
+  kennzeichen text,
+  vin text,
+  kilometerstand integer DEFAULT 0,
+  kraftstoffart text DEFAULT 'Benzin',
+  versicherung text,
+  polizzennummer text,
+  pickerl_termin date,
+  status text NOT NULL DEFAULT 'aktiv' CHECK (status IN ('aktiv','verkauft','stillgelegt')),
+  notizen text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.home_fahrzeug_tankvorgaenge (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id uuid NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+  fahrzeug_id uuid NOT NULL REFERENCES public.home_fahrzeuge(id) ON DELETE CASCADE,
+  created_by_user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  datum date NOT NULL DEFAULT CURRENT_DATE,
+  betrag numeric(12,2) NOT NULL DEFAULT 0,
+  tankstelle text,
+  liter numeric(10,3),
+  kilometerstand integer,
+  preis_pro_liter numeric(10,3),
+  kraftstoffart text,
+  quelle text NOT NULL DEFAULT 'manuell' CHECK (quelle IN ('manuell','budget','rechnung')),
+  budget_posten_id uuid REFERENCES public.budget_posten(id) ON DELETE SET NULL,
+  rechnung_id uuid REFERENCES public.rechnungen(id) ON DELETE SET NULL,
+  dokument_id uuid REFERENCES public.dokumente(id) ON DELETE SET NULL,
+  notizen text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.home_fahrzeug_services (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id uuid NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+  fahrzeug_id uuid NOT NULL REFERENCES public.home_fahrzeuge(id) ON DELETE CASCADE,
+  created_by_user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  typ text NOT NULL DEFAULT 'Service',
+  datum date NOT NULL DEFAULT CURRENT_DATE,
+  kilometerstand integer,
+  kosten numeric(12,2),
+  werkstatt text,
+  beschreibung text,
+  naechste_faelligkeit_datum date,
+  naechste_faelligkeit_km integer,
+  dokument_id uuid REFERENCES public.dokumente(id) ON DELETE SET NULL,
+  notizen text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.home_fahrzeug_reifen (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id uuid NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+  fahrzeug_id uuid NOT NULL REFERENCES public.home_fahrzeuge(id) ON DELETE CASCADE,
+  created_by_user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  saison text NOT NULL DEFAULT 'Sommerreifen' CHECK (saison IN ('Sommerreifen','Winterreifen','Ganzjahresreifen')),
+  marke text,
+  groesse text,
+  profiltiefe numeric(4,1),
+  kaufdatum date,
+  lagerort text,
+  zustand text DEFAULT 'gut',
+  montiert_ab date,
+  montiert_bis date,
+  naechster_wechsel date,
+  austausch_faellig_ab_mm numeric(4,1) DEFAULT 4.0,
+  dokument_id uuid REFERENCES public.dokumente(id) ON DELETE SET NULL,
+  notizen text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_home_fahrzeuge_household_status ON public.home_fahrzeuge(household_id, status);
+CREATE INDEX IF NOT EXISTS idx_home_fahrzeuge_pickerl ON public.home_fahrzeuge(household_id, pickerl_termin);
+CREATE INDEX IF NOT EXISTS idx_home_fahrzeug_tank_fahrzeug_datum ON public.home_fahrzeug_tankvorgaenge(fahrzeug_id, datum DESC);
+CREATE INDEX IF NOT EXISTS idx_home_fahrzeug_tank_household_datum ON public.home_fahrzeug_tankvorgaenge(household_id, datum DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_home_fahrzeug_tank_budget_unique ON public.home_fahrzeug_tankvorgaenge(household_id, budget_posten_id) WHERE budget_posten_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_home_fahrzeug_tank_rechnung_unique ON public.home_fahrzeug_tankvorgaenge(household_id, rechnung_id) WHERE rechnung_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_home_fahrzeug_services_fahrzeug_datum ON public.home_fahrzeug_services(fahrzeug_id, datum DESC);
+CREATE INDEX IF NOT EXISTS idx_home_fahrzeug_services_due_date ON public.home_fahrzeug_services(household_id, naechste_faelligkeit_datum);
+CREATE INDEX IF NOT EXISTS idx_home_fahrzeug_services_due_km ON public.home_fahrzeug_services(household_id, naechste_faelligkeit_km);
+CREATE INDEX IF NOT EXISTS idx_home_fahrzeug_reifen_fahrzeug ON public.home_fahrzeug_reifen(fahrzeug_id);
+CREATE INDEX IF NOT EXISTS idx_home_fahrzeug_reifen_wechsel ON public.home_fahrzeug_reifen(household_id, naechster_wechsel);
+
+DROP TRIGGER IF EXISTS set_home_fahrzeuge_updated_at ON public.home_fahrzeuge;
+CREATE TRIGGER set_home_fahrzeuge_updated_at BEFORE UPDATE ON public.home_fahrzeuge FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+DROP TRIGGER IF EXISTS set_home_fahrzeug_tankvorgaenge_updated_at ON public.home_fahrzeug_tankvorgaenge;
+CREATE TRIGGER set_home_fahrzeug_tankvorgaenge_updated_at BEFORE UPDATE ON public.home_fahrzeug_tankvorgaenge FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+DROP TRIGGER IF EXISTS set_home_fahrzeug_services_updated_at ON public.home_fahrzeug_services;
+CREATE TRIGGER set_home_fahrzeug_services_updated_at BEFORE UPDATE ON public.home_fahrzeug_services FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+DROP TRIGGER IF EXISTS set_home_fahrzeug_reifen_updated_at ON public.home_fahrzeug_reifen;
+CREATE TRIGGER set_home_fahrzeug_reifen_updated_at BEFORE UPDATE ON public.home_fahrzeug_reifen FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+ALTER TABLE public.home_fahrzeuge ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.home_fahrzeug_tankvorgaenge ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.home_fahrzeug_services ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.home_fahrzeug_reifen ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS home_fahrzeuge_household_member_access ON public.home_fahrzeuge;
+CREATE POLICY home_fahrzeuge_household_member_access ON public.home_fahrzeuge FOR ALL USING (public.is_household_member(household_id)) WITH CHECK (public.is_household_member(household_id));
+DROP POLICY IF EXISTS home_fahrzeug_tankvorgaenge_household_member_access ON public.home_fahrzeug_tankvorgaenge;
+CREATE POLICY home_fahrzeug_tankvorgaenge_household_member_access ON public.home_fahrzeug_tankvorgaenge FOR ALL USING (public.is_household_member(household_id)) WITH CHECK (public.is_household_member(household_id));
+DROP POLICY IF EXISTS home_fahrzeug_services_household_member_access ON public.home_fahrzeug_services;
+CREATE POLICY home_fahrzeug_services_household_member_access ON public.home_fahrzeug_services FOR ALL USING (public.is_household_member(household_id)) WITH CHECK (public.is_household_member(household_id));
+DROP POLICY IF EXISTS home_fahrzeug_reifen_household_member_access ON public.home_fahrzeug_reifen;
+CREATE POLICY home_fahrzeug_reifen_household_member_access ON public.home_fahrzeug_reifen FOR ALL USING (public.is_household_member(household_id)) WITH CHECK (public.is_household_member(household_id));
+
+SELECT pg_notify('pgrst', 'reload schema');
+
+-- Kfz-Ausbau: TCO, Volltankverbrauch, Reifenhistorie, Aufgaben und Teile
+ALTER TABLE public.home_fahrzeug_tankvorgaenge
+  ADD COLUMN IF NOT EXISTS vollgetankt boolean NOT NULL DEFAULT true;
+
+ALTER TABLE public.home_fahrzeug_reifen
+  ADD COLUMN IF NOT EXISTS laufleistung_km integer,
+  ADD COLUMN IF NOT EXISTS kaufpreis numeric(12,2),
+  ADD COLUMN IF NOT EXISTS herstellungsjahr integer,
+  ADD COLUMN IF NOT EXISTS dot_nummer text;
+
+ALTER TABLE public.vertraege
+  ADD COLUMN IF NOT EXISTS fahrzeug_id uuid REFERENCES public.home_fahrzeuge(id) ON DELETE SET NULL;
+ALTER TABLE public.versicherungs_polizzen
+  ADD COLUMN IF NOT EXISTS fahrzeug_id uuid REFERENCES public.home_fahrzeuge(id) ON DELETE SET NULL;
+
+CREATE TABLE IF NOT EXISTS public.home_fahrzeug_ausgaben (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id uuid NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+  fahrzeug_id uuid NOT NULL REFERENCES public.home_fahrzeuge(id) ON DELETE CASCADE,
+  created_by_user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  datum date NOT NULL DEFAULT CURRENT_DATE,
+  kategorie text NOT NULL DEFAULT 'Sonstiges'
+    CHECK (kategorie IN ('Versicherung','Steuer','Parken','Maut','Reifen','Zubehoer','Sonstiges')),
+  beschreibung text NOT NULL,
+  betrag numeric(12,2) NOT NULL CHECK (betrag >= 0),
+  budget_posten_id uuid REFERENCES public.budget_posten(id) ON DELETE SET NULL,
+  rechnung_id uuid REFERENCES public.rechnungen(id) ON DELETE SET NULL,
+  dokument_id uuid REFERENCES public.dokumente(id) ON DELETE SET NULL,
+  notizen text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.home_fahrzeug_aufgaben (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id uuid NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+  fahrzeug_id uuid NOT NULL REFERENCES public.home_fahrzeuge(id) ON DELETE CASCADE,
+  created_by_user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  titel text NOT NULL,
+  beschreibung text,
+  status text NOT NULL DEFAULT 'offen' CHECK (status IN ('offen','in_bearbeitung','erledigt')),
+  prioritaet text NOT NULL DEFAULT 'mittel' CHECK (prioritaet IN ('niedrig','mittel','hoch')),
+  faellig_am date,
+  erledigt_am timestamptz,
+  kilometerstand_faellig integer,
+  notizen text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.home_fahrzeug_teile (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id uuid NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+  fahrzeug_id uuid NOT NULL REFERENCES public.home_fahrzeuge(id) ON DELETE CASCADE,
+  aufgabe_id uuid REFERENCES public.home_fahrzeug_aufgaben(id) ON DELETE SET NULL,
+  created_by_user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  name text NOT NULL,
+  teilenummer text,
+  menge numeric(10,2) NOT NULL DEFAULT 1 CHECK (menge > 0),
+  einzelpreis numeric(12,2) CHECK (einzelpreis IS NULL OR einzelpreis >= 0),
+  status text NOT NULL DEFAULT 'benoetigt' CHECK (status IN ('benoetigt','bestellt','vorhanden','verbaut')),
+  bezugsquelle text,
+  dokument_id uuid REFERENCES public.dokumente(id) ON DELETE SET NULL,
+  notizen text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_home_fahrzeug_ausgaben_fahrzeug_datum ON public.home_fahrzeug_ausgaben(fahrzeug_id, datum DESC);
+CREATE INDEX IF NOT EXISTS idx_home_fahrzeug_ausgaben_household_kategorie ON public.home_fahrzeug_ausgaben(household_id, kategorie);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_home_fahrzeug_ausgaben_budget_unique ON public.home_fahrzeug_ausgaben(household_id, budget_posten_id) WHERE budget_posten_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_home_fahrzeug_aufgaben_fahrzeug_status ON public.home_fahrzeug_aufgaben(fahrzeug_id, status, faellig_am);
+CREATE INDEX IF NOT EXISTS idx_home_fahrzeug_teile_fahrzeug_status ON public.home_fahrzeug_teile(fahrzeug_id, status);
+CREATE INDEX IF NOT EXISTS idx_vertraege_fahrzeug ON public.vertraege(fahrzeug_id);
+CREATE INDEX IF NOT EXISTS idx_versicherungs_polizzen_fahrzeug ON public.versicherungs_polizzen(fahrzeug_id);
+
+DROP TRIGGER IF EXISTS set_home_fahrzeug_ausgaben_updated_at ON public.home_fahrzeug_ausgaben;
+CREATE TRIGGER set_home_fahrzeug_ausgaben_updated_at BEFORE UPDATE ON public.home_fahrzeug_ausgaben FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+DROP TRIGGER IF EXISTS set_home_fahrzeug_aufgaben_updated_at ON public.home_fahrzeug_aufgaben;
+CREATE TRIGGER set_home_fahrzeug_aufgaben_updated_at BEFORE UPDATE ON public.home_fahrzeug_aufgaben FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+DROP TRIGGER IF EXISTS set_home_fahrzeug_teile_updated_at ON public.home_fahrzeug_teile;
+CREATE TRIGGER set_home_fahrzeug_teile_updated_at BEFORE UPDATE ON public.home_fahrzeug_teile FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+ALTER TABLE public.home_fahrzeug_ausgaben ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.home_fahrzeug_aufgaben ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.home_fahrzeug_teile ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS home_fahrzeug_ausgaben_household_member_access ON public.home_fahrzeug_ausgaben;
+CREATE POLICY home_fahrzeug_ausgaben_household_member_access ON public.home_fahrzeug_ausgaben FOR ALL USING (public.is_household_member(household_id)) WITH CHECK (public.is_household_member(household_id));
+DROP POLICY IF EXISTS home_fahrzeug_aufgaben_household_member_access ON public.home_fahrzeug_aufgaben;
+CREATE POLICY home_fahrzeug_aufgaben_household_member_access ON public.home_fahrzeug_aufgaben FOR ALL USING (public.is_household_member(household_id)) WITH CHECK (public.is_household_member(household_id));
+DROP POLICY IF EXISTS home_fahrzeug_teile_household_member_access ON public.home_fahrzeug_teile;
+CREATE POLICY home_fahrzeug_teile_household_member_access ON public.home_fahrzeug_teile FOR ALL USING (public.is_household_member(household_id)) WITH CHECK (public.is_household_member(household_id));
+
+-- KI-Serviceanalyse wird durch die idempotente Kfz-Migration vervollstaendigt.
+-- Die Definitionen werden hier ebenfalls eingebunden, damit Neuinstallationen
+-- denselben Stand wie scripts/migration_2026_06_04_home_kfz.sql erhalten.
+ALTER TABLE public.home_fahrzeug_services
+  ADD COLUMN IF NOT EXISTS rechnung_id uuid REFERENCES public.rechnungen(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS budget_posten_id uuid REFERENCES public.budget_posten(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS rechnungsnummer text,
+  ADD COLUMN IF NOT EXISTS leistungsdatum date,
+  ADD COLUMN IF NOT EXISTS zahlungsart text,
+  ADD COLUMN IF NOT EXISTS analyse_meta jsonb NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE public.home_fahrzeug_aufgaben
+  ADD COLUMN IF NOT EXISTS service_id uuid REFERENCES public.home_fahrzeug_services(id) ON DELETE CASCADE,
+  ADD COLUMN IF NOT EXISTS quelle text NOT NULL DEFAULT 'manuell';
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'home_fahrzeug_aufgaben_quelle_check'
+      AND conrelid = 'public.home_fahrzeug_aufgaben'::regclass
+  ) THEN
+    ALTER TABLE public.home_fahrzeug_aufgaben
+      ADD CONSTRAINT home_fahrzeug_aufgaben_quelle_check
+      CHECK (quelle IN ('manuell','ki_serviceanalyse'));
+  END IF;
+END $$;
+CREATE TABLE IF NOT EXISTS public.home_fahrzeug_service_positionen (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id uuid NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+  service_id uuid NOT NULL REFERENCES public.home_fahrzeug_services(id) ON DELETE CASCADE,
+  sortierung integer NOT NULL DEFAULT 0,
+  originaltext text,
+  beschreibung text NOT NULL,
+  kategorie text NOT NULL DEFAULT 'sonstiges' CHECK (kategorie IN ('arbeit','ersatzteil','fluessigkeit','reifen','pruefung','entsorgung','sonstiges')),
+  menge numeric(12,3), einheit text, einzelpreis numeric(12,2), gesamtpreis numeric(12,2),
+  ust_satz numeric(5,2), rabatt_betrag numeric(12,2), kostenlos boolean NOT NULL DEFAULT false,
+  teilenummer text, confidence numeric(4,3), notizen text,
+  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_home_fahrzeug_service_positionen_service ON public.home_fahrzeug_service_positionen(service_id, sortierung);
+CREATE INDEX IF NOT EXISTS idx_home_fahrzeug_service_positionen_household_kategorie ON public.home_fahrzeug_service_positionen(household_id, kategorie);
+CREATE INDEX IF NOT EXISTS idx_home_fahrzeug_aufgaben_service ON public.home_fahrzeug_aufgaben(service_id);
+DROP TRIGGER IF EXISTS set_home_fahrzeug_service_positionen_updated_at ON public.home_fahrzeug_service_positionen;
+CREATE TRIGGER set_home_fahrzeug_service_positionen_updated_at BEFORE UPDATE ON public.home_fahrzeug_service_positionen FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+ALTER TABLE public.home_fahrzeug_service_positionen ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS home_fahrzeug_service_positionen_household_member_access ON public.home_fahrzeug_service_positionen;
+CREATE POLICY home_fahrzeug_service_positionen_household_member_access ON public.home_fahrzeug_service_positionen FOR ALL
+  USING (public.is_household_member(household_id)) WITH CHECK (public.is_household_member(household_id));
+
+CREATE OR REPLACE FUNCTION public.save_kfz_service_analysis(p_payload jsonb)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user uuid := auth.uid();
+  v_household uuid := nullif(p_payload->>'household_id','')::uuid;
+  v_vehicle uuid := nullif(p_payload->>'fahrzeug_id','')::uuid;
+  v_document uuid := nullif(p_payload->>'dokument_id','')::uuid;
+  v_service uuid;
+  v_invoice uuid;
+  v_budget uuid;
+  v_row jsonb;
+BEGIN
+  IF v_user IS NULL OR v_household IS NULL OR NOT public.is_household_member(v_household) THEN
+    RAISE EXCEPTION 'Kein Zugriff auf diesen Haushalt.';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.home_fahrzeuge WHERE id = v_vehicle AND household_id = v_household) THEN
+    RAISE EXCEPTION 'Fahrzeug nicht gefunden.';
+  END IF;
+  IF v_document IS NULL OR NOT EXISTS (SELECT 1 FROM public.dokumente WHERE id = v_document AND household_id = v_household) THEN
+    RAISE EXCEPTION 'Dokument nicht gefunden.';
+  END IF;
+
+  IF coalesce((p_payload->>'create_invoice')::boolean, false) THEN
+    INSERT INTO public.rechnungen (
+      household_id, dokument_id, lieferant_name, rechnungsnummer, rechnungsdatum,
+      leistungsdatum, waehrung, netto, ust, brutto, confidence, extraktion, raw_text
+    ) VALUES (
+      v_household, v_document, nullif(p_payload->>'werkstatt',''),
+      nullif(p_payload->>'rechnungsnummer',''), nullif(p_payload->>'datum','')::date,
+      nullif(p_payload->>'leistungsdatum','')::date, coalesce(nullif(p_payload->>'waehrung',''),'EUR'),
+      nullif(p_payload->>'netto','')::numeric, nullif(p_payload->>'steuer','')::numeric,
+      nullif(p_payload->>'kosten','')::numeric, nullif(p_payload->>'confidence','')::numeric,
+      coalesce(p_payload->'analyse_meta','{}'::jsonb), nullif(p_payload->>'raw_text','')
+    )
+    ON CONFLICT (household_id, dokument_id) DO UPDATE SET
+      lieferant_name = excluded.lieferant_name, rechnungsnummer = excluded.rechnungsnummer,
+      rechnungsdatum = excluded.rechnungsdatum, leistungsdatum = excluded.leistungsdatum,
+      waehrung = excluded.waehrung, netto = excluded.netto, ust = excluded.ust,
+      brutto = excluded.brutto, confidence = excluded.confidence,
+      extraktion = excluded.extraktion, raw_text = excluded.raw_text
+    RETURNING id INTO v_invoice;
+    DELETE FROM public.rechnungs_positionen WHERE rechnung_id = v_invoice;
+  END IF;
+
+  IF coalesce((p_payload->>'create_budget')::boolean, false) THEN
+    INSERT INTO public.budget_posten (
+      user_id, household_id, app_modus, typ, beschreibung, kategorie, betrag, datum, wiederholen
+    ) VALUES (
+      v_user, v_household, 'home', 'ausgabe',
+      coalesce(nullif(p_payload->>'beschreibung',''), nullif(p_payload->>'typ',''), 'Kfz-Service'),
+      'Service', coalesce(nullif(p_payload->>'kosten','')::numeric,0),
+      coalesce(nullif(p_payload->>'datum','')::date,current_date), false
+    ) RETURNING id INTO v_budget;
+  END IF;
+
+  INSERT INTO public.home_fahrzeug_services (
+    household_id, fahrzeug_id, created_by_user_id, typ, datum, leistungsdatum,
+    kilometerstand, kosten, werkstatt, beschreibung, naechste_faelligkeit_datum,
+    naechste_faelligkeit_km, dokument_id, rechnung_id, budget_posten_id,
+    rechnungsnummer, zahlungsart, analyse_meta, notizen
+  ) VALUES (
+    v_household, v_vehicle, v_user, coalesce(nullif(p_payload->>'typ',''),'Service'),
+    coalesce(nullif(p_payload->>'datum','')::date,current_date),
+    nullif(p_payload->>'leistungsdatum','')::date, nullif(p_payload->>'kilometerstand','')::integer,
+    nullif(p_payload->>'kosten','')::numeric, nullif(p_payload->>'werkstatt',''),
+    nullif(p_payload->>'beschreibung',''), nullif(p_payload->>'naechste_faelligkeit_datum','')::date,
+    nullif(p_payload->>'naechste_faelligkeit_km','')::integer, v_document, v_invoice, v_budget,
+    nullif(p_payload->>'rechnungsnummer',''), nullif(p_payload->>'zahlungsart',''),
+    coalesce(p_payload->'analyse_meta','{}'::jsonb), nullif(p_payload->>'notizen','')
+  ) RETURNING id INTO v_service;
+
+  FOR v_row IN SELECT value FROM jsonb_array_elements(coalesce(p_payload->'positionen','[]'::jsonb))
+  LOOP
+    INSERT INTO public.home_fahrzeug_service_positionen (
+      household_id, service_id, sortierung, originaltext, beschreibung, kategorie,
+      menge, einheit, einzelpreis, gesamtpreis, ust_satz, rabatt_betrag,
+      kostenlos, teilenummer, confidence, notizen
+    ) VALUES (
+      v_household, v_service, coalesce((v_row->>'sortierung')::integer,0),
+      nullif(v_row->>'originaltext',''), coalesce(nullif(v_row->>'beschreibung',''),'Position'),
+      coalesce(nullif(v_row->>'kategorie',''),'sonstiges'), nullif(v_row->>'menge','')::numeric,
+      nullif(v_row->>'einheit',''), nullif(v_row->>'einzelpreis','')::numeric,
+      nullif(v_row->>'gesamtpreis','')::numeric, nullif(v_row->>'ust_satz','')::numeric,
+      nullif(v_row->>'rabatt_betrag','')::numeric, coalesce((v_row->>'kostenlos')::boolean,false),
+      nullif(v_row->>'teilenummer',''), nullif(v_row->>'confidence','')::numeric,
+      nullif(v_row->>'notizen','')
+    );
+    IF v_invoice IS NOT NULL THEN
+      INSERT INTO public.rechnungs_positionen (
+        household_id, rechnung_id, pos_nr, beschreibung, menge, einheit,
+        einzelpreis, gesamtpreis, ust_satz, klassifikation
+      ) VALUES (
+        v_household, v_invoice, coalesce((v_row->>'sortierung')::integer,0),
+        nullif(v_row->>'beschreibung',''), nullif(v_row->>'menge','')::numeric,
+        nullif(v_row->>'einheit',''), nullif(v_row->>'einzelpreis','')::numeric,
+        nullif(v_row->>'gesamtpreis','')::numeric, nullif(v_row->>'ust_satz','')::numeric,
+        jsonb_build_object('kategorie',v_row->>'kategorie','kostenlos',coalesce((v_row->>'kostenlos')::boolean,false))
+      );
+    END IF;
+  END LOOP;
+
+  FOR v_row IN SELECT value FROM jsonb_array_elements(coalesce(p_payload->'reminders','[]'::jsonb))
+  LOOP
+    IF coalesce((v_row->>'selected')::boolean,false) THEN
+      INSERT INTO public.home_fahrzeug_aufgaben (
+        household_id, fahrzeug_id, service_id, created_by_user_id, titel,
+        beschreibung, status, prioritaet, faellig_am, kilometerstand_faellig, quelle
+      ) VALUES (
+        v_household, v_vehicle, v_service, v_user,
+        coalesce(nullif(v_row->>'titel',''),'Service-Erinnerung'), nullif(v_row->>'beschreibung',''),
+        'offen', coalesce(nullif(v_row->>'prioritaet',''),'mittel'),
+        nullif(v_row->>'faellig_am','')::date, nullif(v_row->>'kilometerstand_faellig','')::integer,
+        'ki_serviceanalyse'
+      );
+    END IF;
+  END LOOP;
+
+  INSERT INTO public.dokument_links (household_id,dokument_id,entity_type,entity_id,role)
+  VALUES (v_household,v_document,'home_fahrzeug_services',v_service,'original')
+  ON CONFLICT (household_id,dokument_id,entity_type,entity_id,role) DO NOTHING;
+  IF v_invoice IS NOT NULL THEN
+    INSERT INTO public.dokument_links (household_id,dokument_id,entity_type,entity_id,role)
+    VALUES (v_household,v_document,'rechnung',v_invoice,'original')
+    ON CONFLICT (household_id,dokument_id,entity_type,entity_id,role) DO NOTHING;
+  END IF;
+  UPDATE public.home_fahrzeuge
+  SET kilometerstand = greatest(coalesce(kilometerstand,0),coalesce(nullif(p_payload->>'kilometerstand','')::integer,0))
+  WHERE id = v_vehicle;
+  RETURN v_service;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.save_kfz_service_analysis(jsonb) FROM public;
+GRANT EXECUTE ON FUNCTION public.save_kfz_service_analysis(jsonb) TO authenticated;
+
+-- Automatische Erkennung von Tankbelegen aus Budget und Rechnungen.
+ALTER TABLE public.home_fahrzeug_tankvorgaenge
+  ADD COLUMN IF NOT EXISTS verbrauch_bestaetigt boolean NOT NULL DEFAULT true;
+
+-- Expliziter Tankstatus fuer belastbare Volltank-Verbrauchssegmente.
+ALTER TABLE public.home_fahrzeug_tankvorgaenge
+  ADD COLUMN IF NOT EXISTS tankstatus text,
+  ADD COLUMN IF NOT EXISTS tankstatus_quelle text;
+
+UPDATE public.home_fahrzeug_tankvorgaenge
+SET tankstatus = CASE WHEN vollgetankt THEN 'voll' ELSE 'teilweise' END,
+    tankstatus_quelle = COALESCE(tankstatus_quelle, 'legacy')
+WHERE tankstatus IS NULL;
+
+UPDATE public.home_fahrzeug_tankvorgaenge
+SET tankstatus_quelle = 'legacy'
+WHERE tankstatus_quelle IS NULL;
+
+ALTER TABLE public.home_fahrzeug_tankvorgaenge
+  ALTER COLUMN tankstatus SET DEFAULT 'unbekannt',
+  ALTER COLUMN tankstatus SET NOT NULL,
+  ALTER COLUMN tankstatus_quelle SET DEFAULT 'manuell',
+  ALTER COLUMN tankstatus_quelle SET NOT NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'home_fahrzeug_tankvorgaenge_tankstatus_check' AND conrelid = 'public.home_fahrzeug_tankvorgaenge'::regclass) THEN
+    ALTER TABLE public.home_fahrzeug_tankvorgaenge ADD CONSTRAINT home_fahrzeug_tankvorgaenge_tankstatus_check CHECK (tankstatus IN ('voll','teilweise','unbekannt'));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'home_fahrzeug_tankvorgaenge_tankstatus_quelle_check' AND conrelid = 'public.home_fahrzeug_tankvorgaenge'::regclass) THEN
+    ALTER TABLE public.home_fahrzeug_tankvorgaenge ADD CONSTRAINT home_fahrzeug_tankvorgaenge_tankstatus_quelle_check CHECK (tankstatus_quelle IN ('manuell','import','legacy'));
+  END IF;
+END
+$$;
+
+CREATE OR REPLACE FUNCTION public.sync_kfz_tankstatus_compat()
+RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+  IF TG_OP = 'UPDATE'
+     AND NEW.vollgetankt IS DISTINCT FROM OLD.vollgetankt
+     AND NEW.tankstatus IS NOT DISTINCT FROM OLD.tankstatus THEN
+    NEW.tankstatus := CASE WHEN NEW.vollgetankt THEN 'voll' ELSE 'teilweise' END;
+    NEW.tankstatus_quelle := 'manuell';
+  END IF;
+  NEW.vollgetankt := NEW.tankstatus = 'voll';
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS sync_kfz_tankstatus_compat ON public.home_fahrzeug_tankvorgaenge;
+CREATE TRIGGER sync_kfz_tankstatus_compat BEFORE INSERT OR UPDATE OF tankstatus, vollgetankt
+  ON public.home_fahrzeug_tankvorgaenge FOR EACH ROW EXECUTE FUNCTION public.sync_kfz_tankstatus_compat();
+
+CREATE INDEX IF NOT EXISTS idx_home_fahrzeug_tank_vollanker
+  ON public.home_fahrzeug_tankvorgaenge(fahrzeug_id, datum, kilometerstand)
+  WHERE tankstatus = 'voll' AND verbrauch_bestaetigt = true;
+
+CREATE TABLE IF NOT EXISTS public.home_fahrzeug_tank_importe (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id uuid NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+  budget_posten_id uuid NOT NULL REFERENCES public.budget_posten(id) ON DELETE CASCADE,
+  rechnung_id uuid REFERENCES public.rechnungen(id) ON DELETE SET NULL,
+  dokument_id uuid REFERENCES public.dokumente(id) ON DELETE SET NULL,
+  fahrzeug_id uuid REFERENCES public.home_fahrzeuge(id) ON DELETE SET NULL,
+  tankvorgang_id uuid REFERENCES public.home_fahrzeug_tankvorgaenge(id) ON DELETE SET NULL,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','imported','ignored')),
+  erkennungsgrund text NOT NULL,
+  confidence numeric(4,3) CHECK (confidence IS NULL OR (confidence >= 0 AND confidence <= 1)),
+  quell_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb,
+  resolved_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (household_id, budget_posten_id)
+);
+CREATE INDEX IF NOT EXISTS idx_home_fahrzeug_tank_importe_status
+  ON public.home_fahrzeug_tank_importe(household_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_home_fahrzeug_tank_importe_rechnung
+  ON public.home_fahrzeug_tank_importe(rechnung_id);
+CREATE INDEX IF NOT EXISTS idx_home_fahrzeug_tank_importe_tankvorgang
+  ON public.home_fahrzeug_tank_importe(tankvorgang_id);
+DROP TRIGGER IF EXISTS set_home_fahrzeug_tank_importe_updated_at ON public.home_fahrzeug_tank_importe;
+CREATE TRIGGER set_home_fahrzeug_tank_importe_updated_at
+  BEFORE UPDATE ON public.home_fahrzeug_tank_importe
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+ALTER TABLE public.home_fahrzeug_tank_importe ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS home_fahrzeug_tank_importe_household_member_access ON public.home_fahrzeug_tank_importe;
+CREATE POLICY home_fahrzeug_tank_importe_household_member_access
+  ON public.home_fahrzeug_tank_importe FOR ALL
+  USING (public.is_household_member(household_id))
+  WITH CHECK (public.is_household_member(household_id));
+
+SELECT pg_notify('pgrst', 'reload schema');
+
+
+-- Stabilisierung 2026-06-10: Kilometerhistorie und atomare Kfz-Schreibvorgaenge.
+create table if not exists public.home_fahrzeug_kilometerstaende (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references public.households(id) on delete cascade,
+  fahrzeug_id uuid not null references public.home_fahrzeuge(id) on delete cascade,
+  created_by_user_id uuid references auth.users(id) on delete set null,
+  datum date not null default current_date,
+  kilometerstand integer not null check (kilometerstand >= 0 and kilometerstand <= 9999999),
+  quelle text not null default 'manuell' check (quelle in ('manuell','legacy')),
+  source_id uuid,
+  notizen text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (household_id, fahrzeug_id, quelle, source_id)
+);
+
+create index if not exists idx_home_fahrzeug_kilometerstaende_vehicle_date
+  on public.home_fahrzeug_kilometerstaende(fahrzeug_id, datum desc);
+drop trigger if exists set_home_fahrzeug_kilometerstaende_updated_at on public.home_fahrzeug_kilometerstaende;
+create trigger set_home_fahrzeug_kilometerstaende_updated_at
+  before update on public.home_fahrzeug_kilometerstaende
+  for each row execute function public.set_updated_at();
+alter table public.home_fahrzeug_kilometerstaende enable row level security;
+drop policy if exists home_fahrzeug_kilometerstaende_household_member_access on public.home_fahrzeug_kilometerstaende;
+create policy home_fahrzeug_kilometerstaende_household_member_access
+  on public.home_fahrzeug_kilometerstaende for all
+  using (public.is_household_member(household_id))
+  with check (public.is_household_member(household_id));
+
+insert into public.home_fahrzeug_kilometerstaende (
+  household_id, fahrzeug_id, created_by_user_id, datum, kilometerstand, quelle, source_id, notizen
+)
+select household_id, id, created_by_user_id, coalesce(updated_at::date, current_date),
+       greatest(coalesce(kilometerstand, 0), 0), 'legacy', id, 'Ausgangsstand vor Kilometerhistorie'
+from public.home_fahrzeuge
+on conflict (household_id, fahrzeug_id, quelle, source_id) do nothing;
+
+create or replace function public.recompute_kfz_vehicle_mileage(
+  p_household_id uuid,
+  p_vehicle_id uuid
+)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_mileage integer;
+begin
+  select max(value) into v_mileage
+  from (
+    select kilometerstand as value
+    from public.home_fahrzeug_kilometerstaende
+    where household_id = p_household_id and fahrzeug_id = p_vehicle_id
+    union all
+    select kilometerstand
+    from public.home_fahrzeug_tankvorgaenge
+    where household_id = p_household_id and fahrzeug_id = p_vehicle_id and kilometerstand is not null
+    union all
+    select kilometerstand
+    from public.home_fahrzeug_services
+    where household_id = p_household_id and fahrzeug_id = p_vehicle_id and kilometerstand is not null
+  ) values_source;
+
+  update public.home_fahrzeuge
+  set kilometerstand = coalesce(v_mileage, 0)
+  where household_id = p_household_id and id = p_vehicle_id;
+  return coalesce(v_mileage, 0);
+end;
+$$;
+revoke all on function public.recompute_kfz_vehicle_mileage(uuid, uuid) from public;
+
+create or replace function public.sync_kfz_vehicle_mileage_trigger()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op in ('UPDATE','DELETE') then
+    perform public.recompute_kfz_vehicle_mileage(old.household_id, old.fahrzeug_id);
+  end if;
+  if tg_op in ('INSERT','UPDATE') then
+    perform public.recompute_kfz_vehicle_mileage(new.household_id, new.fahrzeug_id);
+  end if;
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists sync_kfz_mileage_from_fuel on public.home_fahrzeug_tankvorgaenge;
+create trigger sync_kfz_mileage_from_fuel
+  after insert or update or delete on public.home_fahrzeug_tankvorgaenge
+  for each row execute function public.sync_kfz_vehicle_mileage_trigger();
+drop trigger if exists sync_kfz_mileage_from_service on public.home_fahrzeug_services;
+create trigger sync_kfz_mileage_from_service
+  after insert or update or delete on public.home_fahrzeug_services
+  for each row execute function public.sync_kfz_vehicle_mileage_trigger();
+drop trigger if exists sync_kfz_mileage_from_history on public.home_fahrzeug_kilometerstaende;
+create trigger sync_kfz_mileage_from_history
+  after insert or update or delete on public.home_fahrzeug_kilometerstaende
+  for each row execute function public.sync_kfz_vehicle_mileage_trigger();
+
+create or replace function public.record_kfz_mileage(
+  p_household_id uuid,
+  p_vehicle_id uuid,
+  p_date date,
+  p_mileage integer,
+  p_source text default 'manuell',
+  p_source_id uuid default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+begin
+  if auth.uid() is null or not public.is_household_member(p_household_id) then
+    raise exception using errcode = '42501', message = 'KFZ_HOUSEHOLD_ACCESS_DENIED';
+  end if;
+  if p_mileage is null or p_mileage < 0 or p_mileage > 9999999 then
+    raise exception using errcode = '22023', message = 'KFZ_INVALID_MILEAGE';
+  end if;
+  if p_source not in ('manuell','legacy') then
+    raise exception using errcode = '22023', message = 'KFZ_INVALID_MILEAGE_SOURCE';
+  end if;
+  if not exists (
+    select 1 from public.home_fahrzeuge
+    where household_id = p_household_id and id = p_vehicle_id
+  ) then
+    raise exception using errcode = 'P0002', message = 'KFZ_VEHICLE_NOT_FOUND';
+  end if;
+
+  delete from public.home_fahrzeug_kilometerstaende
+  where household_id = p_household_id and fahrzeug_id = p_vehicle_id and quelle = 'legacy';
+
+  insert into public.home_fahrzeug_kilometerstaende (
+    household_id, fahrzeug_id, created_by_user_id, datum, kilometerstand, quelle, source_id
+  ) values (
+    p_household_id, p_vehicle_id, auth.uid(), coalesce(p_date, current_date), p_mileage, p_source, p_source_id
+  )
+  on conflict (household_id, fahrzeug_id, quelle, source_id)
+  do update set datum = excluded.datum, kilometerstand = excluded.kilometerstand,
+                created_by_user_id = excluded.created_by_user_id
+  returning id into v_id;
+  return v_id;
+end;
+$$;
+revoke all on function public.record_kfz_mileage(uuid, uuid, date, integer, text, uuid) from public;
+grant execute on function public.record_kfz_mileage(uuid, uuid, date, integer, text, uuid) to authenticated;
+
+create or replace function public.save_kfz_vehicle(p_payload jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_household uuid := nullif(p_payload->>'household_id','')::uuid;
+  v_vehicle uuid := nullif(p_payload->>'id','')::uuid;
+  v_mileage integer := coalesce(nullif(p_payload->>'kilometerstand','')::integer, 0);
+  v_row public.home_fahrzeuge;
+begin
+  if auth.uid() is null or not public.is_household_member(v_household) then
+    raise exception using errcode = '42501', message = 'KFZ_HOUSEHOLD_ACCESS_DENIED';
+  end if;
+  if nullif(btrim(p_payload->>'name'),'') is null then
+    raise exception using errcode = '22023', message = 'KFZ_VEHICLE_NAME_REQUIRED';
+  end if;
+  if v_mileage < 0 or v_mileage > 9999999 then
+    raise exception using errcode = '22023', message = 'KFZ_INVALID_MILEAGE';
+  end if;
+
+  if v_vehicle is null then
+    insert into public.home_fahrzeuge (
+      household_id, created_by_user_id, name, marke, modell, baujahr, kennzeichen,
+      vin, kilometerstand, kraftstoffart, versicherung, polizzennummer,
+      pickerl_termin, status, notizen
+    ) values (
+      v_household, auth.uid(), btrim(p_payload->>'name'), nullif(p_payload->>'marke',''),
+      nullif(p_payload->>'modell',''), nullif(p_payload->>'baujahr','')::integer,
+      nullif(p_payload->>'kennzeichen',''), nullif(p_payload->>'vin',''), 0,
+      nullif(p_payload->>'kraftstoffart',''), nullif(p_payload->>'versicherung',''),
+      nullif(p_payload->>'polizzennummer',''), nullif(p_payload->>'pickerl_termin','')::date,
+      coalesce(nullif(p_payload->>'status',''),'aktiv'), nullif(p_payload->>'notizen','')
+    ) returning * into v_row;
+    v_vehicle := v_row.id;
+  else
+    update public.home_fahrzeuge set
+      name = btrim(p_payload->>'name'),
+      marke = nullif(p_payload->>'marke',''),
+      modell = nullif(p_payload->>'modell',''),
+      baujahr = nullif(p_payload->>'baujahr','')::integer,
+      kennzeichen = nullif(p_payload->>'kennzeichen',''),
+      vin = nullif(p_payload->>'vin',''),
+      kraftstoffart = nullif(p_payload->>'kraftstoffart',''),
+      versicherung = nullif(p_payload->>'versicherung',''),
+      polizzennummer = nullif(p_payload->>'polizzennummer',''),
+      pickerl_termin = nullif(p_payload->>'pickerl_termin','')::date,
+      status = coalesce(nullif(p_payload->>'status',''),'aktiv'),
+      notizen = nullif(p_payload->>'notizen','')
+    where household_id = v_household and id = v_vehicle
+    returning * into v_row;
+    if not found then
+      raise exception using errcode = 'P0002', message = 'KFZ_VEHICLE_NOT_FOUND';
+    end if;
+  end if;
+
+  delete from public.home_fahrzeug_kilometerstaende
+  where household_id = v_household and fahrzeug_id = v_vehicle and quelle = 'legacy';
+
+  insert into public.home_fahrzeug_kilometerstaende (
+    household_id, fahrzeug_id, created_by_user_id, datum, kilometerstand, quelle, source_id
+  ) values (
+    v_household, v_vehicle, auth.uid(), current_date, v_mileage, 'manuell', v_vehicle
+  )
+  on conflict (household_id, fahrzeug_id, quelle, source_id)
+  do update set datum = excluded.datum, kilometerstand = excluded.kilometerstand,
+                created_by_user_id = excluded.created_by_user_id;
+
+  select * into v_row from public.home_fahrzeuge where id = v_vehicle;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke all on function public.save_kfz_vehicle(jsonb) from public;
+grant execute on function public.save_kfz_vehicle(jsonb) to authenticated;
+
+create or replace function public.save_kfz_expense_with_budget(p_payload jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_household uuid := nullif(p_payload->>'household_id','')::uuid;
+  v_vehicle uuid := nullif(p_payload->>'fahrzeug_id','')::uuid;
+  v_expense uuid := nullif(p_payload->>'id','')::uuid;
+  v_budget uuid := nullif(p_payload->>'budget_posten_id','')::uuid;
+  v_mirror boolean := coalesce((p_payload->>'mirror_to_budget')::boolean, false);
+  v_row public.home_fahrzeug_ausgaben;
+begin
+  if auth.uid() is null or not public.is_household_member(v_household) then
+    raise exception using errcode = '42501', message = 'KFZ_HOUSEHOLD_ACCESS_DENIED';
+  end if;
+  if not exists (select 1 from public.home_fahrzeuge where household_id = v_household and id = v_vehicle) then
+    raise exception using errcode = 'P0002', message = 'KFZ_VEHICLE_NOT_FOUND';
+  end if;
+
+  if v_mirror then
+    if v_budget is null then
+      insert into public.budget_posten (
+        user_id, household_id, app_modus, typ, beschreibung, kategorie, betrag, datum, wiederholen
+      ) values (
+        auth.uid(), v_household, 'home', 'ausgabe', p_payload->>'beschreibung',
+        case when p_payload->>'kategorie' = 'Zubehoer' then 'Sonstiges' else p_payload->>'kategorie' end,
+        coalesce(nullif(p_payload->>'betrag','')::numeric, 0),
+        coalesce(nullif(p_payload->>'datum','')::date, current_date), false
+      ) returning id into v_budget;
+    else
+      update public.budget_posten set
+        beschreibung = p_payload->>'beschreibung',
+        kategorie = case when p_payload->>'kategorie' = 'Zubehoer' then 'Sonstiges' else p_payload->>'kategorie' end,
+        betrag = coalesce(nullif(p_payload->>'betrag','')::numeric, 0),
+        datum = coalesce(nullif(p_payload->>'datum','')::date, current_date)
+      where household_id = v_household and id = v_budget;
+      if not found then
+        raise exception using errcode = 'P0002', message = 'KFZ_BUDGET_NOT_FOUND';
+      end if;
+    end if;
+  else
+    v_budget := null;
+  end if;
+
+  if v_expense is null then
+    insert into public.home_fahrzeug_ausgaben (
+      household_id, fahrzeug_id, created_by_user_id, datum, kategorie, beschreibung,
+      betrag, budget_posten_id, rechnung_id, dokument_id, notizen
+    ) values (
+      v_household, v_vehicle, auth.uid(), coalesce(nullif(p_payload->>'datum','')::date, current_date),
+      p_payload->>'kategorie', p_payload->>'beschreibung',
+      coalesce(nullif(p_payload->>'betrag','')::numeric, 0), v_budget,
+      nullif(p_payload->>'rechnung_id','')::uuid, nullif(p_payload->>'dokument_id','')::uuid,
+      nullif(p_payload->>'notizen','')
+    ) returning * into v_row;
+  else
+    update public.home_fahrzeug_ausgaben set
+      fahrzeug_id = v_vehicle,
+      datum = coalesce(nullif(p_payload->>'datum','')::date, current_date),
+      kategorie = p_payload->>'kategorie',
+      beschreibung = p_payload->>'beschreibung',
+      betrag = coalesce(nullif(p_payload->>'betrag','')::numeric, 0),
+      budget_posten_id = v_budget,
+      rechnung_id = nullif(p_payload->>'rechnung_id','')::uuid,
+      dokument_id = nullif(p_payload->>'dokument_id','')::uuid,
+      notizen = nullif(p_payload->>'notizen','')
+    where household_id = v_household and id = v_expense
+    returning * into v_row;
+    if not found then
+      raise exception using errcode = 'P0002', message = 'KFZ_EXPENSE_NOT_FOUND';
+    end if;
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke all on function public.save_kfz_expense_with_budget(jsonb) from public;
+grant execute on function public.save_kfz_expense_with_budget(jsonb) to authenticated;
+
+with ranked_covers as (
+  select id, row_number() over (
+    partition by household_id, entity_id order by created_at desc nulls last, id desc
+  ) as position
+  from public.dokument_links
+  where entity_type = 'home_fahrzeuge' and role = 'vehicle_cover'
+)
+update public.dokument_links links
+set role = 'vehicle_photo'
+from ranked_covers ranked
+where links.id = ranked.id and ranked.position > 1;
+
+create unique index if not exists idx_dokument_links_one_vehicle_cover
+  on public.dokument_links(household_id, entity_id)
+  where entity_type = 'home_fahrzeuge' and role = 'vehicle_cover';
+
+create or replace function public.set_kfz_vehicle_cover(
+  p_household_id uuid,
+  p_vehicle_id uuid,
+  p_document_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null or not public.is_household_member(p_household_id) then
+    raise exception using errcode = '42501', message = 'KFZ_HOUSEHOLD_ACCESS_DENIED';
+  end if;
+  if not exists (
+    select 1 from public.dokument_links
+    where household_id = p_household_id and entity_type = 'home_fahrzeuge'
+      and entity_id = p_vehicle_id and dokument_id = p_document_id
+      and role in ('vehicle_photo','vehicle_cover')
+  ) then
+    raise exception using errcode = 'P0002', message = 'KFZ_PHOTO_NOT_FOUND';
+  end if;
+  update public.dokument_links
+  set role = 'vehicle_photo'
+  where household_id = p_household_id and entity_type = 'home_fahrzeuge'
+    and entity_id = p_vehicle_id and role = 'vehicle_cover'
+    and dokument_id <> p_document_id;
+  update public.dokument_links
+  set role = 'vehicle_cover'
+  where household_id = p_household_id and entity_type = 'home_fahrzeuge'
+    and entity_id = p_vehicle_id and dokument_id = p_document_id;
+end;
+$$;
+revoke all on function public.set_kfz_vehicle_cover(uuid, uuid, uuid) from public;
+grant execute on function public.set_kfz_vehicle_cover(uuid, uuid, uuid) to authenticated;
+
+create or replace function public.delete_kfz_fuel_entry(
+  p_household_id uuid,
+  p_fuel_id uuid,
+  p_ignore_source boolean default false
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_budget uuid;
+  v_invoice uuid;
+begin
+  if auth.uid() is null or not public.is_household_member(p_household_id) then
+    raise exception using errcode = '42501', message = 'KFZ_HOUSEHOLD_ACCESS_DENIED';
+  end if;
+  delete from public.home_fahrzeug_tankvorgaenge
+  where household_id = p_household_id and id = p_fuel_id
+  returning budget_posten_id, rechnung_id into v_budget, v_invoice;
+  if not found then
+    raise exception using errcode = 'P0002', message = 'KFZ_FUEL_NOT_FOUND';
+  end if;
+  update public.home_fahrzeug_tank_importe
+  set status = case when p_ignore_source then 'ignored' else 'pending' end,
+      fahrzeug_id = null,
+      tankvorgang_id = null,
+      resolved_at = case when p_ignore_source then now() else null end,
+      quell_snapshot = coalesce(quell_snapshot, '{}'::jsonb)
+        || jsonb_build_object('manual_review_required', not p_ignore_source)
+  where household_id = p_household_id
+    and (budget_posten_id = v_budget or (v_invoice is not null and rechnung_id = v_invoice));
+end;
+$$;
+revoke all on function public.delete_kfz_fuel_entry(uuid, uuid, boolean) from public;
+grant execute on function public.delete_kfz_fuel_entry(uuid, uuid, boolean) to authenticated;
+
+create or replace function public.delete_kfz_vehicle(
+  p_household_id uuid,
+  p_vehicle_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_paths jsonb := '[]'::jsonb;
+begin
+  if auth.uid() is null or not public.is_household_member(p_household_id) then
+    raise exception using errcode = '42501', message = 'KFZ_HOUSEHOLD_ACCESS_DENIED';
+  end if;
+  if not exists (
+    select 1 from public.home_fahrzeuge
+    where household_id = p_household_id and id = p_vehicle_id
+  ) then
+    raise exception using errcode = 'P0002', message = 'KFZ_VEHICLE_NOT_FOUND';
+  end if;
+
+  select coalesce(jsonb_agg(d.storage_pfad) filter (where d.storage_pfad is not null), '[]'::jsonb)
+  into v_paths
+  from public.dokument_links l
+  join public.dokumente d on d.id = l.dokument_id
+  where l.household_id = p_household_id
+    and l.entity_type = 'home_fahrzeuge'
+    and l.entity_id = p_vehicle_id
+    and l.role in ('vehicle_photo','vehicle_cover');
+
+  delete from public.dokument_links
+  where household_id = p_household_id
+    and entity_type = 'home_fahrzeuge'
+    and entity_id = p_vehicle_id;
+
+  delete from public.dokumente d
+  where d.household_id = p_household_id
+    and d.dokument_typ = 'foto'
+    and not exists (select 1 from public.dokument_links l where l.dokument_id = d.id)
+    and d.storage_pfad in (
+      select value #>> '{}' from jsonb_array_elements(v_paths)
+    );
+
+  delete from public.home_fahrzeuge
+  where household_id = p_household_id and id = p_vehicle_id;
+  return jsonb_build_object('storage_paths', v_paths);
+end;
+$$;
+revoke all on function public.delete_kfz_vehicle(uuid, uuid) from public;
+grant execute on function public.delete_kfz_vehicle(uuid, uuid) to authenticated;
+
+create or replace function public.delete_kfz_service(
+  p_household_id uuid,
+  p_service_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null or not public.is_household_member(p_household_id) then
+    raise exception using errcode = '42501', message = 'KFZ_HOUSEHOLD_ACCESS_DENIED';
+  end if;
+  delete from public.dokument_links
+  where household_id = p_household_id
+    and entity_type = 'home_fahrzeug_services'
+    and entity_id = p_service_id;
+  delete from public.home_fahrzeug_services
+  where household_id = p_household_id and id = p_service_id;
+  if not found then
+    raise exception using errcode = 'P0002', message = 'KFZ_SERVICE_NOT_FOUND';
+  end if;
+end;
+$$;
+revoke all on function public.delete_kfz_service(uuid, uuid) from public;
+grant execute on function public.delete_kfz_service(uuid, uuid) to authenticated;
+
+select pg_notify('pgrst', 'reload schema');

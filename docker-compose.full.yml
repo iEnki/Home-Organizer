@@ -297,6 +297,8 @@ services:
         condition: service_healthy
       recipe-source-parser:
         condition: service_started
+      document-ocr-service:
+        condition: service_started
     environment:
       JWT_SECRET: ${JWT_SECRET}
       SUPABASE_URL: http://kong:8000
@@ -317,6 +319,8 @@ services:
       SITE_URL: ${SITE_URL}
       RECIPE_PARSER_URL: ${RECIPE_PARSER_URL:-http://recipe-source-parser:8090}
       RECIPE_PARSER_INTERNAL_TOKEN: ${RECIPE_PARSER_INTERNAL_TOKEN}
+      DOCUMENT_OCR_URL: ${DOCUMENT_OCR_URL:-http://document-ocr-service:8091}
+      DOCUMENT_OCR_INTERNAL_TOKEN: ${DOCUMENT_OCR_INTERNAL_TOKEN}
       # Zeitzone für korrekte Lokalzeit in Edge Functions (getHours/getMinutes)
       TZ: Europe/Vienna
     command: ["start", "--main-service", "/home/deno/functions/main"]
@@ -501,6 +505,23 @@ services:
         condition: service_started
     # Wenn die LXC/Host-Umgebung NVIDIA Runtime bereitstellt, nutzt
     # faster-whisper automatisch CUDA. Ohne CUDA faellt der Service auf CPU zurueck.
+
+  # ============================================================
+  # Dokument OCR Service
+  # Interner Service fuer gescannte PDF-Seiten im Dokumenten-/
+  # Rechnungsscanner. Nicht direkt oeffentlich exponieren.
+  # ============================================================
+  document-ocr-service:
+    build:
+      context: ./services/document-ocr-service
+      dockerfile: Dockerfile
+    container_name: document-ocr-service
+    restart: unless-stopped
+    environment:
+      PORT: 8091
+      DOCUMENT_OCR_INTERNAL_TOKEN: ${DOCUMENT_OCR_INTERNAL_TOKEN}
+    expose:
+      - "8091"
 
   # ============================================================
   # Umzughelfer React-App
