@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FileText, File, Eye, Pencil, MoreVertical, BookOpen, Plus, Trash2, CheckCircle, Loader2 } from "lucide-react";
+import { FileText, File, Eye, Pencil, MoreVertical, BookOpen, Plus, Trash2, Loader2, Wallet } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { getDokDatum } from "../../../utils/dokumentArchiv";
 
@@ -10,14 +10,15 @@ const listItemVariants = {
 };
 
 const KATEGORIE_FARBEN = {
-  Rechnung:     "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-  Vertrag:      "bg-purple-500/10 text-purple-600 dark:text-purple-400",
-  Handbuch:     "bg-green-500/10 text-green-600 dark:text-green-400",
-  Garantie:     "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  Versicherung: "bg-teal-500/10 text-teal-600 dark:text-teal-400",
-  Behörde:      "bg-red-500/10 text-red-600 dark:text-red-400",
-  Gesundheit:   "bg-pink-500/10 text-pink-600 dark:text-pink-400",
-  Sonstiges:    "bg-gray-500/10 text-gray-500 dark:text-gray-400",
+  Rechnung:     { icon: "bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/20",     badge: "bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/20",         dot: "bg-blue-400"     },
+  Vertrag:      { icon: "bg-purple-500/20 text-purple-400 ring-1 ring-purple-500/20", badge: "bg-purple-500/10 text-purple-500 dark:text-purple-400 border border-purple-500/20", dot: "bg-purple-400"   },
+  Handbuch:     { icon: "bg-green-500/20 text-green-400 ring-1 ring-green-500/20",   badge: "bg-green-500/10 text-green-500 dark:text-green-400 border border-green-500/20",     dot: "bg-green-400"    },
+  Garantie:     { icon: "bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/20",   badge: "bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/20",     dot: "bg-amber-400"    },
+  Versicherung: { icon: "bg-teal-500/20 text-teal-400 ring-1 ring-teal-500/20",     badge: "bg-teal-500/10 text-teal-500 dark:text-teal-400 border border-teal-500/20",         dot: "bg-teal-400"     },
+  Behörde:      { icon: "bg-red-500/20 text-red-400 ring-1 ring-red-500/20",         badge: "bg-red-500/10 text-red-500 dark:text-red-400 border border-red-500/20",             dot: "bg-red-400"      },
+  Gesundheit:   { icon: "bg-pink-500/20 text-pink-400 ring-1 ring-pink-500/20",     badge: "bg-pink-500/10 text-pink-500 dark:text-pink-400 border border-pink-500/20",         dot: "bg-pink-400"     },
+  Medikamente:  { icon: "bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/20", badge: "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/20", dot: "bg-emerald-400" },
+  Sonstiges:    { icon: "bg-slate-500/10 text-slate-400 ring-1 ring-slate-500/20",   badge: "bg-slate-500/10 text-slate-400 border border-slate-500/20",                         dot: "bg-slate-400"    },
 };
 
 const istRechnungKategorie = (dok) => {
@@ -80,8 +81,10 @@ export default function DokumentZeile({
   const menuRef = useRef(null);
 
   const kat = effektiveKategorie(dok);
-  const katFarbe = KATEGORIE_FARBEN[kat] || KATEGORIE_FARBEN.Sonstiges;
+  const katObj = KATEGORIE_FARBEN[kat] || KATEGORIE_FARBEN.Sonstiges;
   const istRechnung = istRechnungKategorie(dok);
+  const rechnungIstImBudget = istRechnung && dok.im_budget;
+  const rechnungIstWissen = istRechnung && dok.hat_wissen;
   const datum = getDokDatum(dok);
 
   // Haupttext: Lieferant bei Rechnungen, sonst Dateiname
@@ -149,15 +152,15 @@ export default function DokumentZeile({
       data-dokument-id={dok.id}
       onClick={() => onVorschau?.(dok)}
       variants={reduced ? {} : listItemVariants}
-      className={`relative flex min-w-0 max-w-full items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors group first:rounded-t-card-sm last:rounded-b-card-sm
+      className={`relative flex min-w-0 max-w-full items-center gap-3 pl-2.5 pr-3 py-2.5 cursor-pointer transition-all group border-l-2 first:rounded-t-card-sm last:rounded-b-card-sm
         ${isHighlighted
-          ? "bg-primary-500/5 ring-1 ring-inset ring-primary-500/30"
-          : "hover:bg-light-hover dark:hover:bg-canvas-3"
+          ? "bg-primary-500/5 ring-1 ring-inset ring-primary-500/30 border-l-primary-500"
+          : "hover:bg-light-hover dark:hover:bg-canvas-3 border-l-transparent"
         }
         ${menuOffen ? "z-[202]" : ""}`}
     >
       {/* Datei-Icon */}
-      <div className="w-8 h-8 rounded-card-sm bg-light-border dark:bg-canvas-3 flex items-center justify-center flex-shrink-0">
+      <div className={`w-9 h-9 rounded-card-sm flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-105 ${katObj.icon}`}>
         <DateiIcon dok={dok} />
       </div>
 
@@ -183,12 +186,16 @@ export default function DokumentZeile({
       {/* Badges */}
       <div className="flex items-center gap-1.5 flex-shrink-0">
         {kat && (
-          <span className={`hidden md:inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${katFarbe}`}>
+          <span className={`hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium ${katObj.badge}`}>
+            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${katObj.dot}`} aria-hidden="true" />
             {kat}
           </span>
         )}
-        {dok.im_budget && (
-          <CheckCircle size={13} className="text-green-500 flex-shrink-0" title="Im Budget" />
+        {rechnungIstImBudget && (
+          <Wallet size={13} className="text-green-500 flex-shrink-0" title="Im Budget" />
+        )}
+        {rechnungIstWissen && (
+          <BookOpen size={13} className="text-amber-500 flex-shrink-0" title="In Wissen" />
         )}
       </div>
 
@@ -246,12 +253,19 @@ export default function DokumentZeile({
                   }`}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <button
-                    onClick={() => { setMenuOffen(false); onWissen?.(dok); }}
-                    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-light-hover dark:hover:bg-canvas-3 text-amber-600 dark:text-amber-400"
-                  >
-                    <BookOpen size={13} /> Als Wissen
-                  </button>
+                  {(!istRechnung || !dok.hat_wissen) && (
+                    <button
+                      onClick={() => { setMenuOffen(false); onWissen?.(dok); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 hover:bg-light-hover dark:hover:bg-canvas-3 text-amber-600 dark:text-amber-400"
+                    >
+                      <BookOpen size={13} /> Als Wissen
+                    </button>
+                  )}
+                  {rechnungIstWissen && (
+                    <div className="flex items-center gap-2 px-3 py-2 text-amber-600 dark:text-amber-400 opacity-60 cursor-default text-xs">
+                      <BookOpen size={13} /> In Wissen
+                    </div>
+                  )}
                   {istRechnung && !dok.im_budget && (
                     <button
                       onClick={() => { setMenuOffen(false); onBudget?.(dok); }}
@@ -260,9 +274,9 @@ export default function DokumentZeile({
                       <Plus size={13} /> Zum Budget
                     </button>
                   )}
-                  {istRechnung && dok.im_budget && (
+                  {rechnungIstImBudget && (
                     <div className="flex items-center gap-2 px-3 py-2 text-green-600 dark:text-green-400 opacity-60 cursor-default text-xs">
-                      <CheckCircle size={13} /> Im Budget
+                      <Wallet size={13} /> Im Budget
                     </div>
                   )}
                   <div className="border-t border-light-border dark:border-dark-border my-1" />

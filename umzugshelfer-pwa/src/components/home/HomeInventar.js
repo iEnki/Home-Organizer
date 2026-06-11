@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Package, Plus, ChevronRight, ChevronDown, Trash2, Edit2, MoreVertical,
   QrCode, Tag, X, Loader2, Search, MapPin, Box, SlidersHorizontal,
-  AlertCircle, Sparkles, BookOpen,
+  AlertCircle, Sparkles, BookOpen, Wrench, FileText, Link2,
+  Zap, UtensilsCrossed, Palette,
 } from "lucide-react";
 import { supabase, getActiveHouseholdId } from "../../supabaseClient";
 import { QRCodeSVG } from "qrcode.react";
@@ -17,8 +18,16 @@ import useViewport from "../../hooks/useViewport";
 import MobileLocationSheet from "./inventar/MobileLocationSheet";
 import MobileFilterSheet from "./inventar/MobileFilterSheet";
 import BuecherRegalTab from "./buecher/BuecherRegalTab";
+import GeraetForm, { normalizeDeviceCategory } from "./geraete/GeraetForm";
+import GeraetZeile from "./geraete/GeraetZeile";
+import DokumentVorschauModal from "./DokumentVorschauModal";
 import { applyInventoryAiItems } from "../../utils/assistantDomainAdapters";
 import { notifyHouseholdEvent } from "../../utils/pushNotifications";
+import { DEFAULT_GERAET_FORM, buildGeraetPayload, mapGeraetToForm } from "../../utils/geraeteForm";
+import {
+  heuteIso,
+  berechneGeraetStatus,
+} from "../../utils/geraetStatus";
 
 // --- BewohnerBadge ---
 const BewohnerBadge = ({ bewohner }) => {
@@ -35,13 +44,6 @@ const BewohnerBadge = ({ bewohner }) => {
 };
 
 // --- Hilfsfunktionen ---
-const STATUS_FARBEN = {
-  in_verwendung: "bg-primary-500/10 text-green-600 dark:text-green-400",
-  eingelagert: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-  verliehen: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  defekt: "bg-red-500/10 text-red-600 dark:text-red-400",
-  entsorgt: "bg-gray-500/10 text-gray-500",
-};
 
 const STATUS_LABEL = {
   in_verwendung: "In Verwendung",
@@ -49,6 +51,35 @@ const STATUS_LABEL = {
   verliehen: "Verliehen",
   defekt: "Defekt",
   entsorgt: "Entsorgt",
+};
+
+const KATEGORIE_FARBE = {
+  "Elektronik": { grad: "from-blue-500 to-cyan-500",    icon: "bg-blue-500/15 text-blue-400"     },
+  "Kleidung":   { grad: "from-rose-500 to-pink-500",    icon: "bg-rose-500/15 text-rose-400"     },
+  "Küche":      { grad: "from-orange-500 to-amber-500", icon: "bg-orange-500/15 text-orange-400" },
+  "Bücher":     { grad: "from-amber-400 to-yellow-400", icon: "bg-amber-500/15 text-amber-400"   },
+  "Werkzeug":   { grad: "from-red-500 to-orange-500",   icon: "bg-red-500/15 text-red-400"       },
+  "Deko":       { grad: "from-purple-500 to-violet-500",icon: "bg-purple-500/15 text-purple-400" },
+  "Dokumente":  { grad: "from-indigo-500 to-blue-500",  icon: "bg-indigo-500/15 text-indigo-400" },
+  "Sport":      { grad: "from-green-500 to-teal-500",   icon: "bg-green-500/15 text-green-400"   },
+  "Sonstiges":  { grad: "from-slate-400 to-gray-500",   icon: "bg-slate-500/15 text-slate-400"   },
+};
+const KAT_FARBE_DEFAULT = { grad: "from-slate-400 to-gray-500", icon: "bg-slate-500/15 text-slate-400" };
+const KATEGORIE_ICON_MAP = {
+  "Elektronik": Zap, "Küche": UtensilsCrossed, "Bücher": BookOpen,
+  "Werkzeug": Wrench, "Deko": Palette, "Dokumente": FileText,
+};
+const ZUGRIFF_LABEL = {
+  taeglich: "Täglich", woechentlich: "Wöchentlich",
+  monatlich: "Monatlich", selten: "Selten", nie: "Nie",
+};
+
+const STATUS_CARD_CONFIG = {
+  in_verwendung: { accent: "bg-primary-500",   dot: "bg-primary-500",   badge: "border-primary-500/30 bg-primary-500/15 text-primary-500" },
+  eingelagert:   { accent: "bg-blue-500",       dot: "bg-blue-500",      badge: "border-blue-500/30 bg-blue-500/15 text-blue-400" },
+  verliehen:     { accent: "bg-accent-yellow",  dot: "bg-accent-yellow", badge: "border-accent-yellow/30 bg-accent-yellow/15 text-accent-yellow" },
+  defekt:        { accent: "bg-accent-danger",  dot: "bg-accent-danger", badge: "border-accent-danger/30 bg-accent-danger/15 text-accent-danger" },
+  entsorgt:      { accent: "bg-canvas-3",       dot: "bg-dark-text-secondary", badge: "border-dark-border bg-canvas-3 text-dark-text-secondary" },
 };
 
 // --- Ort-Formular ---
@@ -248,6 +279,13 @@ const HomeInventar = ({ session }) => {
   const [orte, setOrte] = useState([]);
   const [lagerorte, setLagerorte] = useState([]);
   const [objekte, setObjekte] = useState([]);
+  const [geraete, setGeraete] = useState([]);
+  const [wartungen, setWartungen] = useState([]);
+  const [dokumente, setDokumente] = useState([]);
+  const [geraetFormData, setGeraetFormData] = useState(DEFAULT_GERAET_FORM);
+  const [geraetQuelleObjekt, setGeraetQuelleObjekt] = useState(null);
+  const [vorschauDok, setVorschauDok] = useState(null);
+  const [dokuModal, setDokuModal] = useState(null);
   const [ausgewaehlterOrt, setAusgewaehlterOrt] = useState(null);
   const [ausgewaehlterLagerort, setAusgewaehlterLagerort] = useState(null);
   const [suche, setSuche] = useState("");
@@ -255,7 +293,15 @@ const HomeInventar = ({ session }) => {
   const [bewohnerFilter, setBewohnerFilter] = useState("");
   const [bewohner, setBewohner] = useState([]);
   const [modal, setModal] = useState(null); // { typ: "ort"|"lagerort"|"objekt"|"qr", daten }
-  const [aufgeklappt, setAufgeklappt] = useState({});
+  const [aufgeklapptGeraete, setAufgeklapptGeraete] = useState({});
+  const [aufgeklapptOrte, setAufgeklapptOrte] = useState({});
+  const [aufgeklapptKarten, setAufgeklapptKarten] = useState({});
+  const toggleGeraet = useCallback(
+    (id) => setAufgeklapptGeraete((prev) => (!!prev[id] ? {} : { [id]: true })), []
+  );
+  const toggleKarte = useCallback(
+    (id) => setAufgeklapptKarten((prev) => (!!prev[id] ? {} : { [id]: true })), []
+  );
   const [fehler, setFehler] = useState(null);
   const [kiOffen, setKiOffen] = useState(false);
   const [mobileLocationSheetOpen, setMobileLocationSheetOpen] = useState(false);
@@ -313,14 +359,20 @@ const HomeInventar = ({ session }) => {
     if (!userId) return;
     setLoading(true);
     try {
-      const [orteRes, lagerorteRes, objekteRes] = await Promise.all([
+      const [orteRes, lagerorteRes, objekteRes, geraeteRes, wartungenRes, dokRes] = await Promise.all([
         supabase.from("home_orte").select("*").eq("user_id", userId).order("name"),
         supabase.from("home_lagerorte").select("*").eq("user_id", userId).order("position").order("name"),
         supabase.from("home_objekte").select("*").eq("user_id", userId).order("name"),
+        supabase.from("home_geraete").select("*").eq("user_id", userId).order("name"),
+        supabase.from("home_wartungen").select("*").eq("user_id", userId).order("datum", { ascending: false }),
+        supabase.from("dokumente").select("id, dateiname, datei_typ, storage_pfad").eq("user_id", userId).in("app_modus", ["home", "beides"]).order("dateiname"),
       ]);
       setOrte(orteRes.data || []);
       setLagerorte(lagerorteRes.data || []);
       setObjekte(objekteRes.data || []);
+      setGeraete(geraeteRes.data || []);
+      setWartungen(wartungenRes.data || []);
+      setDokumente(dokRes.data || []);
     } catch (e) {
       setFehler("Fehler beim Laden der Inventardaten.");
     } finally {
@@ -476,6 +528,107 @@ const HomeInventar = ({ session }) => {
     ladeDaten();
   };
 
+  const speichereGeraet = async (daten) => {
+    const cleanDaten = buildGeraetPayload(daten);
+    if (daten.id) {
+      await supabase.from("home_geraete").update(cleanDaten).eq("id", daten.id);
+      await notifyHouseholdEvent({
+        userId,
+        table: "home_geraete",
+        action: "geaendert",
+        recordName: daten.name,
+        recordId: daten.id,
+        url: "/home/geraete",
+        push: false,
+      });
+    } else {
+      const { data: neuesGeraet } = await supabase
+        .from("home_geraete")
+        .insert({ ...cleanDaten, user_id: userId })
+        .select("id, name")
+        .single();
+      if (geraetQuelleObjekt?.id) {
+        await supabase
+          .from("home_objekte")
+          .update({ status: "entsorgt" })
+          .eq("id", geraetQuelleObjekt.id);
+      }
+      await notifyHouseholdEvent({
+        userId,
+        table: "home_geraete",
+        action: "erstellt",
+        recordName: neuesGeraet?.name || daten.name,
+        recordId: neuesGeraet?.id,
+        url: "/home/geraete",
+      });
+    }
+    setModal(null);
+    setGeraetFormData(DEFAULT_GERAET_FORM);
+    setGeraetQuelleObjekt(null);
+    ladeDaten();
+  };
+
+  const loescheGeraet = async (id) => {
+    if (!window.confirm(t("home:devicesDeleteConfirm", { defaultValue: "Gerät und alle Wartungseinträge löschen?" }))) return;
+    const geraet = geraete.find((eintrag) => eintrag.id === id);
+    await supabase.from("home_geraete").delete().eq("id", id);
+    await notifyHouseholdEvent({
+      userId,
+      table: "home_geraete",
+      action: "geloescht",
+      recordName: geraet?.name,
+      recordId: id,
+      url: "/home/inventar",
+    });
+    ladeDaten();
+  };
+
+  const wartungErledigt = async (geraetId) => {
+    const g = geraete.find((x) => x.id === geraetId);
+    if (!g) return;
+    const neuesDatum = g.wartungsintervall_monate
+      ? new Date(Date.now() + g.wartungsintervall_monate * 30 * 86400000).toISOString().split("T")[0]
+      : null;
+    await supabase.from("home_wartungen").insert({
+      user_id: userId,
+      geraet_id: geraetId,
+      datum: new Date().toISOString().split("T")[0],
+      typ: "Wartung",
+      beschreibung: t("home:devicesForm.maintenanceDoneNote"),
+    });
+    if (neuesDatum) {
+      await supabase.from("home_geraete").update({ naechste_wartung: neuesDatum }).eq("id", geraetId);
+    }
+    await notifyHouseholdEvent({
+      userId,
+      table: "home_wartungen",
+      action: "geaendert",
+      recordName: g.name,
+      recordId: geraetId,
+      url: "/home/inventar",
+      tag: `wartung-erledigt-${geraetId}`,
+      pushPolicy: "always",
+      title: t("home:devicesMaintenanceDone", { defaultValue: "Wartung erledigt" }),
+      body: g.name
+        ? t("home:devicesMaintenanceDoneBody", { device: g.name, defaultValue: `Wartung für "${g.name}" wurde erledigt.` })
+        : t("home:devicesMaintenanceDoneBodyGeneric", { defaultValue: "Wartung wurde erledigt." }),
+    });
+    ladeDaten();
+  };
+
+  const toggleDokumentLink = async (geraetId, dokId) => {
+    const g = geraete.find((x) => x.id === geraetId);
+    if (!g) return;
+    const current = g.verknuepfte_dokument_ids || [];
+    const updated = current.includes(dokId)
+      ? current.filter((id) => id !== dokId)
+      : [...current, dokId];
+    await supabase.from("home_geraete").update({ verknuepfte_dokument_ids: updated }).eq("id", geraetId);
+    setGeraete((prev) =>
+      prev.map((x) => x.id === geraetId ? { ...x, verknuepfte_dokument_ids: updated } : x)
+    );
+  };
+
   const loescheObjekt = async (id) => {
     if (!window.confirm("Objekt löschen?")) return;
     const objekt = objekte.find((eintrag) => eintrag.id === id);
@@ -499,21 +652,62 @@ const HomeInventar = ({ session }) => {
     setModal({ typ: "qr", daten: { qrWert } });
   };
 
-  // --- Gefilterte Objekte ---
-  const gefilterteObjekte = objekte.filter((o) => {
+  const heute = useMemo(() => heuteIso(), []);
+
+  const statusByGeraetId = useMemo(() =>
+    Object.fromEntries(geraete.map((g) => [g.id, berechneGeraetStatus(g, heute)])),
+    [geraete, heute]);
+
+  const wartungenByGeraetId = useMemo(() => {
+    const map = {};
+    wartungen.forEach((w) => { (map[w.geraet_id] ??= []).push(w); });
+    return map;
+  }, [wartungen]);
+
+  const dokumenteById = useMemo(() =>
+    Object.fromEntries(dokumente.map((d) => [d.id, d])),
+    [dokumente]);
+
+  const verknuepfteDokuByGeraetId = useMemo(() =>
+    Object.fromEntries(geraete.map((g) => [
+      g.id,
+      (g.verknuepfte_dokument_ids || []).map((id) => dokumenteById[id]).filter(Boolean),
+    ])),
+    [geraete, dokumenteById]);
+
+  const inventarEintraege = [
+    ...objekte.map((objekt) => ({ ...objekt, eintrag_typ: "objekt", sort_name: objekt.name || "" })),
+    ...geraete.map((geraet) => ({
+      ...geraet,
+      eintrag_typ: "geraet",
+      sort_name: geraet.name || "",
+      status: geraet.status || "in_verwendung",
+      menge: geraet.menge || 1,
+      tags: Array.isArray(geraet.tags) ? geraet.tags : [],
+      bewohner_id: geraet.bewohner_id || null,
+      zugriffshaeufigkeit: geraet.zugriffshaeufigkeit || "selten",
+    })),
+  ].sort((a, b) => a.sort_name.localeCompare(b.sort_name));
+
+  // --- Gefilterte Objekte und Geraete ---
+  const gefilterteObjekte = inventarEintraege.filter((o) => {
     const passOrt = !ausgewaehlterOrt || o.ort_id === ausgewaehlterOrt;
     const passLagerort = !ausgewaehlterLagerort || o.lagerort_id === ausgewaehlterLagerort;
     const passStatus = !statusFilter || o.status === statusFilter;
+    const passAktiv = Boolean(statusFilter) || o.status !== "entsorgt";
     const passBewohner = !bewohnerFilter || o.bewohner_id === bewohnerFilter;
-    const passSuche = !suche || o.name.toLowerCase().includes(suche.toLowerCase()) || (o.tags || []).some((t) => t.toLowerCase().includes(suche.toLowerCase()));
-    return passOrt && passLagerort && passStatus && passBewohner && passSuche;
+    const suchfelder = o.eintrag_typ === "geraet"
+      ? [o.name, o.hersteller, o.modell, o.seriennummer, ...(o.tags || [])]
+      : [o.name, ...(o.tags || [])];
+    const passSuche = !suche || suchfelder.some((feld) => String(feld || "").toLowerCase().includes(suche.toLowerCase()));
+    return passOrt && passLagerort && passStatus && passAktiv && passBewohner && passSuche;
   });
 
   // --- Lagerorte eines Ortes (nur Root-Level) ---
   const lagerorteVonOrt = (ortId, parentId = null) =>
     lagerorte.filter((l) => l.ort_id === ortId && l.parent_id === parentId);
 
-  const aktiveObjekteAnzahl = objekte.filter((o) => o.status !== "entsorgt").length;
+  const aktiveObjekteAnzahl = inventarEintraege.filter((o) => o.status !== "entsorgt").length;
   const ausgewaehlterOrtObj = orte.find((o) => o.id === ausgewaehlterOrt) || null;
   const ausgewaehlterLagerortObj = lagerorte.find((l) => l.id === ausgewaehlterLagerort) || null;
   const aktiveFilterAnzahl = [statusFilter, bewohnerFilter].filter(Boolean).length;
@@ -532,6 +726,52 @@ const HomeInventar = ({ session }) => {
       return;
     }
     setModal({ typ: "objekt", daten: objektModalPayload });
+  };
+
+  const handleGeraetHinzufuegen = () => {
+    setGeraetQuelleObjekt(null);
+    const initial = {
+      ...DEFAULT_GERAET_FORM,
+      ort_id: ausgewaehlterOrt || "",
+      lagerort_id: ausgewaehlterLagerort || "",
+    };
+    setGeraetFormData(initial);
+    setModal({ typ: "geraet", daten: initial });
+  };
+
+  const openEditGeraet = (geraet) => {
+    setGeraetQuelleObjekt(null);
+    setGeraetFormData(mapGeraetToForm(geraet));
+    setModal({ typ: "geraet", daten: geraet });
+  };
+
+  const mapObjektZuGeraetForm = (objekt) => ({
+    ...DEFAULT_GERAET_FORM,
+    name: objekt.name || "",
+    notizen: objekt.beschreibung || "",
+    kategorie: normalizeDeviceCategory(objekt.kategorie || ""),
+    status: objekt.status || "in_verwendung",
+    menge: objekt.menge || 1,
+    tags: Array.isArray(objekt.tags) ? objekt.tags.join(", ") : "",
+    bewohner_id: objekt.bewohner_id || "",
+    zugriffshaeufigkeit: objekt.zugriffshaeufigkeit || "selten",
+    ort_id: objekt.ort_id || "",
+    lagerort_id: objekt.lagerort_id || "",
+    kaufdatum: objekt.kaufdatum || "",
+    kaufpreis: objekt.kaufpreis ?? "",
+    garantie_bis: objekt.garantie_bis || "",
+  });
+
+  const verwalteObjektAlsGeraet = (objekt) => {
+    setOffenesObjektMenue(null);
+    setGeraetQuelleObjekt(objekt);
+    setGeraetFormData(mapObjektZuGeraetForm(objekt));
+    setModal({ typ: "geraet", daten: { quelle_objekt_id: objekt.id } });
+  };
+
+  const closeModal = () => {
+    setModal(null);
+    setGeraetQuelleObjekt(null);
   };
 
   useEffect(() => {
@@ -639,7 +879,7 @@ const HomeInventar = ({ session }) => {
               <input
                 value={suche}
                 onChange={(e) => setSuche(e.target.value)}
-                placeholder="Suche nach Name oder Tag..."
+                placeholder="Suche nach Objekt, Gerät oder Tag..."
                 className="w-full pl-8 pr-3 py-2.5 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
               />
             </div>
@@ -717,13 +957,13 @@ const HomeInventar = ({ session }) => {
           )}
 
           {gefilterteObjekte.length === 0 ? (
-            <div className="text-center py-12 text-light-text-secondary dark:text-dark-text-secondary">
-              <Package size={40} className="mx-auto mb-3 opacity-30" />
-              <p className="text-sm">Keine Objekte gefunden</p>
+            <div className="text-center py-16 text-light-text-secondary dark:text-dark-text-secondary">
+              <Package size={40} className="mx-auto mb-3 opacity-20" />
+              <p className="text-sm font-medium">Keine Objekte gefunden</p>
               {ausgewaehlterOrt && (
                 <button
                   onClick={handleObjektHinzufuegen}
-                  className="mt-3 flex items-center gap-1.5 mx-auto px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-pill text-sm"
+                  className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-pill text-sm font-medium transition-colors"
                 >
                   <Plus size={14} />
                   Erstes Objekt hinzufügen
@@ -731,78 +971,122 @@ const HomeInventar = ({ session }) => {
               )}
             </div>
           ) : (
-            <div data-tour="tour-inventar-liste" className="space-y-3 pb-24">
-              {gefilterteObjekte.map((obj) => {
+            <div data-tour="tour-inventar-liste" className="space-y-2.5 pb-24">
+              {gefilterteObjekte.map((obj, idx) => {
                 const ort = orte.find((o) => o.id === obj.ort_id);
                 const lagerort = lagerorte.find((l) => l.id === obj.lagerort_id);
+                const statusCfg = STATUS_CARD_CONFIG[obj.status] ?? STATUS_CARD_CONFIG.in_verwendung;
+                const istGeraet = obj.eintrag_typ === "geraet";
+                if (istGeraet) {
+                  return (
+                    <div
+                      key={`geraet-${obj.id}`}
+                      className="relative overflow-visible bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border shadow-elevation-1 animate-slide-in-up"
+                      style={{ animationDelay: `${idx * 40}ms`, animationFillMode: "both" }}
+                    >
+                      <GeraetZeile
+                        g={obj}
+                        status={statusByGeraetId[obj.id]}
+                        heute={heute}
+                        geraetWartungen={wartungenByGeraetId[obj.id] || []}
+                        verknuepfteDokumente={verknuepfteDokuByGeraetId[obj.id] || []}
+                        isOffen={!!aufgeklapptGeraete[obj.id]}
+                        onToggle={() => toggleGeraet(obj.id)}
+                        onBearbeiten={() => openEditGeraet(obj)}
+                        onLoeschen={() => loescheGeraet(obj.id)}
+                        onWartungErledigt={() => wartungErledigt(obj.id)}
+                        onDokuModalOpen={() => setDokuModal(obj.id)}
+                        onDokumentUnlink={(dokId) => toggleDokumentLink(obj.id, dokId)}
+                        onVorschau={(dok) => setVorschauDok(dok)}
+                        onNavigate={(dokId) => navigate("/home/dokumente", { state: { focusDokumentId: dokId } })}
+                        orte={orte}
+                        lagerorte={lagerorte}
+                        bewohner={bewohner}
+                      />
+                    </div>
+                  );
+                }
                 return (
-                  <div key={obj.id} className="relative bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border p-3">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-sm text-light-text-main dark:text-dark-text-main truncate">{obj.name}</h3>
-                        {lagerort && (
-                          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">
-                            {ort?.name} -> {lagerort.name}
-                          </p>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => setOffenesObjektMenue((prev) => (prev === obj.id ? null : obj.id))}
-                        className="w-8 h-8 rounded-card-sm border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary flex items-center justify-center"
-                        aria-label="Objekt-Aktionen"
-                      >
-                        <MoreVertical size={14} />
-                      </button>
-                    </div>
-
-                    {offenesObjektMenue === obj.id && (
-                      <div className="mb-2 grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() => {
-                            setOffenesObjektMenue(null);
-                            setModal({ typ: "objekt", daten: obj });
-                          }}
-                          className="px-2 py-1.5 text-xs border border-light-border dark:border-dark-border rounded-card-sm text-light-text-main dark:text-dark-text-main"
+                  <div
+                    key={`${obj.eintrag_typ}-${obj.id}`}
+                    className="relative overflow-hidden bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border shadow-elevation-1 animate-slide-in-up"
+                    style={{ animationDelay: `${idx * 40}ms`, animationFillMode: "both" }}
+                  >
+                    <div className={`absolute inset-x-0 top-0 h-0.5 ${statusCfg.accent}`} />
+                    <div className="p-3 pt-3.5">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-sm text-light-text-main dark:text-dark-text-main truncate">{obj.name}</h3>
+                          {istGeraet && (
+                            <p className="inline-flex items-center gap-1 text-[10px] text-primary-500 mt-0.5">
+                              <Wrench size={9} /> Gerät
+                            </p>
+                          )}
+                          {lagerort && (
+                            <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary truncate mt-0.5">
+                              {ort?.name} → {lagerort.name}
+                            </p>
+                          )}
+                        </div>
+                        {!istGeraet && <button
+                          onClick={() => setOffenesObjektMenue((prev) => (prev === obj.id ? null : obj.id))}
+                          className="w-7 h-7 rounded-card-sm border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary flex items-center justify-center hover:bg-light-border dark:hover:bg-canvas-3 transition-colors shrink-0"
+                          aria-label="Objekt-Aktionen"
                         >
-                          <span className="inline-flex items-center gap-1">
+                          <MoreVertical size={13} />
+                        </button>}
+                      </div>
+
+                      {!istGeraet && offenesObjektMenue === obj.id && (
+                        <div className="mb-2.5 grid grid-cols-3 gap-1.5">
+                          <button
+                            onClick={() => { setOffenesObjektMenue(null); setModal({ typ: "objekt", daten: obj }); }}
+                            className="flex items-center justify-center gap-1.5 px-2 py-2 text-xs border border-light-border dark:border-dark-border rounded-card-sm text-light-text-main dark:text-dark-text-main hover:bg-primary-500/10 hover:text-primary-500 hover:border-primary-500/30 transition-colors"
+                          >
                             <Edit2 size={11} /> Bearbeiten
-                          </span>
-                        </button>
-                        <button
-                          onClick={() => {
-                            setOffenesObjektMenue(null);
-                            loescheObjekt(obj.id);
-                          }}
-                          className="px-2 py-1.5 text-xs border border-red-500/30 rounded-card-sm text-red-500 hover:bg-red-500/10"
-                        >
-                          <span className="inline-flex items-center gap-1">
+                          </button>
+                          <button
+                            onClick={() => verwalteObjektAlsGeraet(obj)}
+                            className="flex items-center justify-center gap-1.5 px-2 py-2 text-xs border border-primary-500/30 rounded-card-sm text-primary-500 hover:bg-primary-500/10 transition-colors"
+                          >
+                            <Wrench size={11} /> Als Geraet
+                          </button>
+                          <button
+                            onClick={() => { setOffenesObjektMenue(null); loescheObjekt(obj.id); }}
+                            className="flex items-center justify-center gap-1.5 px-2 py-2 text-xs border border-accent-danger/30 rounded-card-sm text-accent-danger hover:bg-accent-danger/10 transition-colors"
+                          >
                             <Trash2 size={11} /> Löschen
-                          </span>
-                        </button>
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_FARBEN[obj.status]}`}>
-                        {t(`home:inventoryForm.status.${obj.status}`, { defaultValue: STATUS_LABEL[obj.status] })}
-                      </span>
-                      {obj.menge > 1 && (
-                        <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">x{obj.menge}</span>
+                          </button>
+                        </div>
                       )}
-                      <BewohnerBadge bewohner={bewohner.find((b) => b.id === obj.bewohner_id)} />
-                    </div>
 
-                    {obj.tags && obj.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {obj.tags.slice(0, 2).map((tag) => (
-                          <span key={tag} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs bg-light-border dark:bg-dark-border text-light-text-secondary dark:text-dark-text-secondary">
-                            <Tag size={9} />
-                            {tag}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${statusCfg.badge}`}>
+                          <span className={`h-1 w-1 rounded-full shrink-0 ${statusCfg.dot}`} />
+                          {t(`home:inventoryForm.status.${obj.status}`, { defaultValue: STATUS_LABEL[obj.status] })}
+                        </span>
+                        {istGeraet && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-primary-500/30 bg-primary-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-500">
+                            <Wrench size={9} /> Gerät
                           </span>
-                        ))}
-                        {obj.tags.length > 2 && <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">+{obj.tags.length - 2}</span>}
+                        )}
+                        {!istGeraet && obj.menge > 1 && (
+                          <span className="px-1.5 py-0.5 rounded-pill bg-light-border dark:bg-canvas-3 text-[10px] font-medium text-light-text-secondary dark:text-dark-text-secondary">×{obj.menge}</span>
+                        )}
+                        {!istGeraet && <BewohnerBadge bewohner={bewohner.find((b) => b.id === obj.bewohner_id)} />}
                       </div>
-                    )}
+
+                      {!istGeraet && obj.tags && obj.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {obj.tags.slice(0, 2).map((tag) => (
+                            <span key={tag} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-secondary-500/10 text-secondary-500">
+                              <Tag size={8} />{tag}
+                            </span>
+                          ))}
+                          {obj.tags.length > 2 && <span className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">+{obj.tags.length - 2}</span>}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -820,15 +1104,25 @@ const HomeInventar = ({ session }) => {
               Objekt
             </span>
           </button>
+          <button
+            onClick={handleGeraetHinzufuegen}
+            className="md:hidden fixed right-4 px-4 py-2.5 rounded-pill bg-light-card dark:bg-canvas-2 border border-primary-500/30 text-primary-500 text-sm font-medium shadow-elevation-2 z-40"
+            style={{ bottom: "calc(var(--mobile-bottom-offset, 0px) + 58px)" }}
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <Wrench size={14} />
+              Gerät
+            </span>
+          </button>
 
           <MobileLocationSheet
             open={mobileLocationSheetOpen}
             onClose={() => setMobileLocationSheetOpen(false)}
             orte={orte}
             lagerorte={lagerorte}
-            objekte={objekte}
-            expandedByOrt={aufgeklappt}
-            onToggleOrt={(ortId) => setAufgeklappt((prev) => ({ ...prev, [ortId]: !prev[ortId] }))}
+            objekte={inventarEintraege}
+            expandedByOrt={aufgeklapptOrte}
+            onToggleOrt={(ortId) => setAufgeklapptOrte((prev) => ({ ...prev, [ortId]: !prev[ortId] }))}
             ausgewaehlterOrt={ausgewaehlterOrt}
             ausgewaehlterLagerort={ausgewaehlterLagerort}
             onSelectAll={() => {
@@ -883,60 +1177,85 @@ const HomeInventar = ({ session }) => {
       {!isMobile && <div className="flex gap-5">
         {/* Sidebar: Standorte */}
         <div className="w-64 flex-shrink-0">
-          <div className="bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border overflow-hidden">
-            <div className="p-3 border-b border-light-border dark:border-dark-border">
-              <h2 className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider">Standorte</h2>
+          <div className="bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border overflow-hidden shadow-elevation-1">
+            <div className="px-3 py-2.5 border-b border-light-border dark:border-dark-border flex items-center gap-2">
+              <div className="w-1 h-3.5 rounded-pill bg-primary-500 shrink-0" />
+              <h2 className="text-[10px] font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-widest">Standorte</h2>
             </div>
+
             {/* Alle anzeigen */}
             <button
               onClick={() => { setAusgewaehlterOrt(null); setAusgewaehlterLagerort(null); }}
-              className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${!ausgewaehlterOrt ? "bg-primary-500/10 text-primary-500 font-medium" : "text-light-text-main dark:text-dark-text-main hover:bg-light-hover dark:hover:bg-canvas-3"}`}
+              className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm transition-colors border-l-2 ${
+                !ausgewaehlterOrt
+                  ? "border-primary-500 bg-primary-500/10 text-primary-500 font-medium"
+                  : "border-transparent text-light-text-main dark:text-dark-text-main hover:bg-light-hover dark:hover:bg-canvas-3"
+              }`}
             >
-              <MapPin size={14} />
-              Alle ({objekte.filter((o) => o.status !== "entsorgt").length})
+              <MapPin size={13} className="shrink-0" />
+              <span className="flex-1 text-left truncate">Alle</span>
+              <span className="ml-auto px-1.5 py-0.5 rounded-pill text-[10px] bg-light-border dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary">
+                {aktiveObjekteAnzahl}
+              </span>
             </button>
 
             {orte.map((ort) => {
               const ортLagerorte = lagerorteVonOrt(ort.id);
-              const isOffen = aufgeklappt[ort.id];
+              const ortCount = inventarEintraege.filter((o) => o.ort_id === ort.id && o.status !== "entsorgt").length;
+              const isOffen = aufgeklapptOrte[ort.id];
               return (
                 <div key={ort.id}>
-                  <div className={`flex items-center group px-3 py-2 transition-colors ${ausgewaehlterOrt === ort.id && !ausgewaehlterLagerort ? "bg-primary-500/10" : "hover:bg-light-hover dark:hover:bg-canvas-3"}`}>
+                  <div className={`flex items-center group border-l-2 transition-colors ${
+                    ausgewaehlterOrt === ort.id && !ausgewaehlterLagerort
+                      ? "border-primary-500 bg-primary-500/10"
+                      : "border-transparent hover:bg-light-hover dark:hover:bg-canvas-3"
+                  }`}>
                     <button
-                      onClick={() => setAufgeklappt((p) => ({ ...p, [ort.id]: !isOffen }))}
-                      className="mr-1 text-light-text-secondary dark:text-dark-text-secondary"
+                      onClick={() => setAufgeklapptOrte((p) => ({ ...p, [ort.id]: !isOffen }))}
+                      className="pl-3 pr-1 py-2.5 text-light-text-secondary dark:text-dark-text-secondary shrink-0"
                     >
-                      {isOffen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                      {isOffen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                     </button>
                     <button
                       onClick={() => { setAusgewaehlterOrt(ort.id); setAusgewaehlterLagerort(null); }}
-                      className="flex-1 text-left text-sm text-light-text-main dark:text-dark-text-main font-medium truncate"
+                      className={`flex-1 text-left text-sm font-medium truncate py-2.5 ${
+                        ausgewaehlterOrt === ort.id && !ausgewaehlterLagerort
+                          ? "text-primary-500"
+                          : "text-light-text-main dark:text-dark-text-main"
+                      }`}
                     >
                       {ort.name}
                     </button>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-1">
-                      <button onClick={() => setModal({ typ: "lagerort", daten: { ort_id: ort.id } })} className="p-0.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500"><Plus size={12} /></button>
-                      <button onClick={() => setModal({ typ: "ort", daten: ort })} className="p-0.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500"><Edit2 size={12} /></button>
-                      <button onClick={() => loescheOrt(ort.id)} className="p-0.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500"><Trash2 size={12} /></button>
+                    <span className="px-1.5 py-0.5 rounded-pill text-[10px] bg-light-border dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary mr-1 shrink-0">
+                      {ortCount}
+                    </span>
+                    <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity pr-2 shrink-0">
+                      <button onClick={() => setModal({ typ: "lagerort", daten: { ort_id: ort.id } })} className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 hover:bg-primary-500/10 transition-colors"><Plus size={11} /></button>
+                      <button onClick={() => setModal({ typ: "ort", daten: ort })} className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-secondary-500 hover:bg-secondary-500/10 transition-colors"><Edit2 size={11} /></button>
+                      <button onClick={() => loescheOrt(ort.id)} className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger hover:bg-accent-danger/10 transition-colors"><Trash2 size={11} /></button>
                     </div>
                   </div>
                   {isOffen && ортLagerorte.map((l) => (
                     <button
                       key={l.id}
                       onClick={() => { setAusgewaehlterOrt(ort.id); setAusgewaehlterLagerort(l.id); }}
-                      className={`w-full flex items-center gap-2 pl-8 pr-3 py-1.5 text-sm transition-colors ${ausgewaehlterLagerort === l.id ? "bg-primary-500/10 text-primary-500" : "text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"}`}
+                      className={`w-full flex items-center gap-2 pl-9 pr-3 py-2 text-xs border-l-2 transition-colors ${
+                        ausgewaehlterLagerort === l.id
+                          ? "border-primary-500 bg-primary-500/10 text-primary-500"
+                          : "border-transparent text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
+                      }`}
                     >
-                      <Box size={12} />
-                      <span className="truncate">{l.name}</span>
-                      <span className="ml-auto text-xs opacity-60">
-                        {objekte.filter((o) => o.lagerort_id === l.id).length}
+                      <Box size={11} className="shrink-0" />
+                      <span className="truncate flex-1">{l.name}</span>
+                      <span className="px-1.5 py-0.5 rounded-pill text-[10px] bg-light-border dark:bg-canvas-3">
+                        {inventarEintraege.filter((o) => o.lagerort_id === l.id && o.status !== "entsorgt").length}
                       </span>
                     </button>
                   ))}
                   {isOffen && (
                     <button
                       onClick={() => setModal({ typ: "lagerort", daten: { ort_id: ort.id } })}
-                      className="w-full flex items-center gap-2 pl-8 pr-3 py-1.5 text-xs text-primary-500 hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors"
+                      className="w-full flex items-center gap-2 pl-9 pr-3 py-2 text-xs text-primary-500 hover:bg-primary-500/10 border-l-2 border-transparent transition-colors"
                     >
                       <Plus size={11} />
                       Lagerort hinzufügen
@@ -947,7 +1266,8 @@ const HomeInventar = ({ session }) => {
             })}
 
             {orte.length === 0 && (
-              <div className="px-3 py-4 text-xs text-center text-light-text-secondary dark:text-dark-text-secondary">
+              <div className="px-3 py-6 text-xs text-center text-light-text-secondary dark:text-dark-text-secondary">
+                <MapPin size={24} className="mx-auto mb-2 opacity-20" />
                 Noch keine Standorte
               </div>
             )}
@@ -957,46 +1277,83 @@ const HomeInventar = ({ session }) => {
         {/* Hauptbereich: Objekte */}
         <div className="flex-1 min-w-0">
           {/* Filter */}
-          <div data-tour="tour-inventar-filter" className="flex flex-wrap gap-2 mb-4">
-            <div className="relative flex-1">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary" />
-              <input
-                value={suche}
-                onChange={(e) => setSuche(e.target.value)}
-                placeholder="Suche nach Name oder Tag..."
-                className="w-full pl-8 pr-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
-              />
+          <div data-tour="tour-inventar-filter" className="space-y-2.5 mb-4">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary pointer-events-none" />
+                <input
+                  value={suche}
+                  onChange={(e) => setSuche(e.target.value)}
+                  placeholder="Suche nach Objekt, Gerät oder Tag..."
+                  className="w-full pl-8 pr-3 py-2.5 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-card/80 dark:bg-canvas-2/80 backdrop-blur-sm text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-secondary-500 transition-colors"
+                />
+              </div>
+              {bewohner.length > 0 && (
+                <select
+                  value={bewohnerFilter}
+                  onChange={(e) => setBewohnerFilter(e.target.value)}
+                  className="px-3 py-2.5 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-secondary-500 transition-colors"
+                >
+                  <option value="">Alle Bewohner</option>
+                  {bewohner.map((b) => (
+                    <option key={b.id} value={b.id}>{b.emoji} {getBewohnerDisplayName(b)}</option>
+                  ))}
+                </select>
+              )}
+              {(ausgewaehlterOrt || ausgewaehlterLagerort) && (
+                <>
+                  <button
+                    data-tour="tour-inventar-hinzufuegen"
+                    onClick={() => setModal({ typ: "objekt", daten: { ort_id: ausgewaehlterOrt, lagerort_id: ausgewaehlterLagerort } })}
+                    className="flex items-center gap-1.5 px-3 py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-pill text-sm font-medium transition-colors whitespace-nowrap"
+                  >
+                    <Plus size={14} />
+                    Objekt
+                  </button>
+                  <button
+                    onClick={handleGeraetHinzufuegen}
+                    className="flex items-center gap-1.5 px-3 py-2.5 border border-primary-500/30 bg-primary-500/10 hover:bg-primary-500/20 text-primary-500 rounded-pill text-sm font-medium transition-colors whitespace-nowrap"
+                  >
+                    <Wrench size={14} />
+                    Gerät
+                  </button>
+                </>
+              )}
+              {!ausgewaehlterOrt && !ausgewaehlterLagerort && (
+                <button
+                  onClick={handleGeraetHinzufuegen}
+                  className="flex items-center gap-1.5 px-3 py-2.5 border border-primary-500/30 bg-primary-500/10 hover:bg-primary-500/20 text-primary-500 rounded-pill text-sm font-medium transition-colors whitespace-nowrap"
+                >
+                  <Wrench size={14} />
+                  Gerät
+                </button>
+              )}
             </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none"
-            >
-              <option value="">Alle Status</option>
-              {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{t(`home:inventoryForm.status.${k}`, { defaultValue: v })}</option>)}
-            </select>
-            {bewohner.length > 0 && (
-              <select
-                value={bewohnerFilter}
-                onChange={(e) => setBewohnerFilter(e.target.value)}
-                className="px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none"
-              >
-                <option value="">Alle Bewohner</option>
-                {bewohner.map((b) => (
-                  <option key={b.id} value={b.id}>{b.emoji} {getBewohnerDisplayName(b)}</option>
-                ))}
-              </select>
-            )}
-            {(ausgewaehlterOrt || ausgewaehlterLagerort) && (
+            <div className="flex gap-1.5 flex-wrap">
               <button
-                data-tour="tour-inventar-hinzufuegen"
-                onClick={() => setModal({ typ: "objekt", daten: { ort_id: ausgewaehlterOrt, lagerort_id: ausgewaehlterLagerort } })}
-                className="flex items-center gap-1.5 px-3 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-pill text-sm font-medium transition-colors whitespace-nowrap"
+                onClick={() => setStatusFilter("")}
+                className={`px-3 py-1 text-xs rounded-pill border transition-colors ${
+                  statusFilter === ""
+                    ? "bg-primary-500 text-white border-primary-500"
+                    : "border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-border dark:hover:bg-canvas-3"
+                }`}
               >
-                <Plus size={14} />
-                Objekt
+                Alle
               </button>
-            )}
+              {Object.entries(STATUS_LABEL).filter(([k]) => k !== "entsorgt").map(([k, v]) => (
+                <button
+                  key={k}
+                  onClick={() => setStatusFilter(statusFilter === k ? "" : k)}
+                  className={`px-3 py-1 text-xs rounded-pill border transition-colors ${
+                    statusFilter === k
+                      ? "bg-primary-500 text-white border-primary-500"
+                      : "border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-border dark:hover:bg-canvas-3"
+                  }`}
+                >
+                  {t(`home:inventoryForm.status.${k}`, { defaultValue: v })}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Lagerort-Aktionen wenn ausgewählt */}
@@ -1043,48 +1400,175 @@ const HomeInventar = ({ session }) => {
               )}
             </div>
           ) : (
-            <div data-tour="tour-inventar-liste" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {gefilterteObjekte.map((obj) => {
+            <div data-tour="tour-inventar-liste">
+              {/* Stats-Leiste */}
+              <div className="flex items-center gap-2 flex-wrap mb-3">
+                {[
+                  { key: "in_verwendung", label: "Aktiv",       cfg: STATUS_CARD_CONFIG.in_verwendung },
+                  { key: "eingelagert",   label: "Eingelagert", cfg: STATUS_CARD_CONFIG.eingelagert   },
+                  { key: "verliehen",     label: "Verliehen",   cfg: STATUS_CARD_CONFIG.verliehen     },
+                  { key: "defekt",        label: "Defekt",      cfg: STATUS_CARD_CONFIG.defekt        },
+                ].map(({ key, label, cfg }) => {
+                  const count = gefilterteObjekte.filter((o) => o.status === key).length;
+                  if (count === 0) return null;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setStatusFilter(statusFilter === key ? "" : key)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-[11px] font-semibold border transition-colors cursor-pointer ${
+                        statusFilter === key
+                          ? cfg.badge + " ring-1 ring-inset ring-current"
+                          : "border-light-border dark:border-dark-border text-dark-text-secondary hover:border-primary-500/40"
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                      {label} <span className="opacity-70">{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {gefilterteObjekte.map((obj, idx) => {
                 const ort = orte.find((o) => o.id === obj.ort_id);
                 const lagerort = lagerorte.find((l) => l.id === obj.lagerort_id);
+                const statusCfg = STATUS_CARD_CONFIG[obj.status] ?? STATUS_CARD_CONFIG.in_verwendung;
+                const istGeraet = obj.eintrag_typ === "geraet";
+                if (istGeraet) {
+                  return (
+                    <div
+                      key={`geraet-${obj.id}`}
+                      className="animate-slide-in-up"
+                      style={{ animationDelay: `${idx * 40}ms`, animationFillMode: "both" }}
+                    >
+                      <GeraetZeile
+                        g={obj}
+                        status={statusByGeraetId[obj.id]}
+                        heute={heute}
+                        geraetWartungen={wartungenByGeraetId[obj.id] || []}
+                        verknuepfteDokumente={verknuepfteDokuByGeraetId[obj.id] || []}
+                        isOffen={!!aufgeklapptGeraete[obj.id]}
+                        onToggle={() => toggleGeraet(obj.id)}
+                        onBearbeiten={() => openEditGeraet(obj)}
+                        onLoeschen={() => loescheGeraet(obj.id)}
+                        onWartungErledigt={() => wartungErledigt(obj.id)}
+                        onDokuModalOpen={() => setDokuModal(obj.id)}
+                        onDokumentUnlink={(dokId) => toggleDokumentLink(obj.id, dokId)}
+                        onVorschau={(dok) => setVorschauDok(dok)}
+                        onNavigate={(dokId) => navigate("/home/dokumente", { state: { focusDokumentId: dokId } })}
+                        orte={orte}
+                        lagerorte={lagerorte}
+                        bewohner={bewohner}
+                      />
+                    </div>
+                  );
+                }
+                const katCfg = KATEGORIE_FARBE[obj.kategorie] ?? KAT_FARBE_DEFAULT;
+                const KatIcon = KATEGORIE_ICON_MAP[obj.kategorie] || null;
                 return (
-                  <div key={obj.id} className="bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border p-3 group">
-                    <div className="flex items-start justify-between mb-2">
+                  <div
+                    key={`${obj.eintrag_typ}-${obj.id}`}
+                    className="relative overflow-hidden rounded-card-sm bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border shadow-elevation-1 hover:shadow-elevation-2 transition-all duration-200 animate-slide-in-up"
+                    style={{ animationDelay: `${idx * 40}ms`, animationFillMode: "both" }}
+                  >
+                    {/* Kategorie-Farbstreifen links */}
+                    <div className={`absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b ${katCfg.grad}`} />
+
+                    {/* Karten-Header — klickbar für Toggle */}
+                    <button
+                      onClick={() => toggleKarte(obj.id)}
+                      className="w-full text-left p-3 pl-4 flex items-start gap-3"
+                    >
+                      <div className={`w-9 h-9 rounded-card-sm flex items-center justify-center shrink-0 mt-0.5 ${katCfg.icon}`}>
+                        {KatIcon ? <KatIcon size={16} /> : <Package size={16} />}
+                      </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-sm text-light-text-main dark:text-dark-text-main truncate">{obj.name}</h3>
-                        {lagerort && (
-                          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">
-                            {ort?.name} → {lagerort.name}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
-                        <button onClick={() => setModal({ typ: "objekt", daten: obj })} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500"><Edit2 size={12} /></button>
-                        <button onClick={() => loescheObjekt(obj.id)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500"><Trash2 size={12} /></button>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_FARBEN[obj.status]}`}>
-                        {t(`home:inventoryForm.status.${obj.status}`, { defaultValue: STATUS_LABEL[obj.status] })}
-                      </span>
-                      {obj.menge > 1 && (
-                        <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">×{obj.menge}</span>
-                      )}
-                      <BewohnerBadge bewohner={bewohner.find((b) => b.id === obj.bewohner_id)} />
-                    </div>
-                    {obj.tags && obj.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {obj.tags.slice(0, 3).map((t) => (
-                          <span key={t} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs bg-light-border dark:bg-dark-border text-light-text-secondary dark:text-dark-text-secondary">
-                            <Tag size={9} />{t}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main truncate leading-snug">
+                            {obj.name}
+                            {obj.menge > 1 && <span className="ml-1.5 font-normal text-dark-text-secondary">×{obj.menge}</span>}
                           </span>
-                        ))}
-                        {obj.tags.length > 3 && <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">+{obj.tags.length - 3}</span>}
+                          <ChevronDown
+                            size={14}
+                            className={`shrink-0 text-dark-text-secondary transition-transform duration-200 ${aufgeklapptKarten[obj.id] ? "rotate-180" : ""}`}
+                          />
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          {obj.kategorie && (
+                            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${katCfg.icon}`}>{obj.kategorie}</span>
+                          )}
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-pill border ${statusCfg.badge}`}>
+                            <span className={`inline-block w-1 h-1 rounded-full mr-0.5 ${statusCfg.dot}`} />
+                            {t(`home:inventoryForm.status.${obj.status}`, { defaultValue: STATUS_LABEL[obj.status] })}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 text-[11px] text-dark-text-secondary flex-wrap">
+                          {(lagerort || ort) && (
+                            <span className="flex items-center gap-0.5 truncate">
+                              <MapPin size={9} />
+                              {lagerort ? `${ort?.name} › ${lagerort.name}` : ort?.name}
+                            </span>
+                          )}
+                          {(obj.tags || []).slice(0, 2).map((tag) => (
+                            <span key={tag} className="bg-secondary-500/10 text-secondary-500 px-1 rounded">{tag}</span>
+                          ))}
+                          <BewohnerBadge bewohner={bewohner.find((b) => b.id === obj.bewohner_id)} />
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Expanded Panel */}
+                    {aufgeklapptKarten[obj.id] && (
+                      <div className="border-t border-light-border dark:border-dark-border pl-4 pr-3 pb-3 pt-2.5">
+                        {obj.beschreibung && (
+                          <p className="text-xs text-dark-text-secondary mb-2.5 leading-relaxed">{obj.beschreibung}</p>
+                        )}
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mb-2.5 text-xs">
+                          {[
+                            { label: "Menge",   val: obj.menge > 1 ? obj.menge : null },
+                            { label: "Zugriff", val: ZUGRIFF_LABEL[obj.zugriffshaeufigkeit] },
+                          ].filter((r) => r.val).map(({ label, val }) => (
+                            <div key={label}>
+                              <div className="text-[10px] uppercase tracking-wide text-dark-text-secondary">{label}</div>
+                              <div className="font-medium text-dark-text-main">{val}</div>
+                            </div>
+                          ))}
+                        </div>
+                        {(obj.tags || []).length > 0 && (
+                          <div className="flex flex-wrap gap-1 mb-2.5">
+                            {obj.tags.map((tag) => (
+                              <span key={tag} className="text-[10px] bg-secondary-500/10 text-secondary-500 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                                <Tag size={8} />{tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setModal({ typ: "objekt", daten: obj }); }}
+                            className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-card-sm bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors cursor-pointer"
+                          >
+                            <Edit2 size={12} /> Bearbeiten
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); verwalteObjektAlsGeraet(obj); }}
+                            className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-card-sm bg-canvas-3 text-dark-text-secondary hover:bg-canvas-4 transition-colors cursor-pointer"
+                          >
+                            <Wrench size={12} /> Als Gerät
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); loescheObjekt(obj.id); }}
+                            className="ml-auto flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-card-sm bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors cursor-pointer"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
                 );
               })}
+              </div>
             </div>
           )}
         </div>
@@ -1100,9 +1584,10 @@ const HomeInventar = ({ session }) => {
                 {modal.typ === "ort" && (modal.daten?.id ? "Standort bearbeiten" : "Neuer Standort")}
                 {modal.typ === "lagerort" && (modal.daten?.id ? "Lagerort bearbeiten" : "Neuer Lagerort")}
                 {modal.typ === "objekt" && (modal.daten?.id ? "Objekt bearbeiten" : "Neues Objekt")}
+                {modal.typ === "geraet" && (geraetFormData.id ? "Gerät bearbeiten" : "Neues Gerät")}
                 {modal.typ === "qr" && "QR-Code"}
               </h3>
-              <button onClick={() => setModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"><X size={18} /></button>
+              <button onClick={closeModal} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"><X size={18} /></button>
             </div>
             <div className="mobile-modal-body p-4">
               {modal.typ === "ort" && (
@@ -1113,6 +1598,26 @@ const HomeInventar = ({ session }) => {
               )}
               {modal.typ === "objekt" && (
                 <ObjektForm ortId={modal.daten?.ort_id || ausgewaehlterOrt} lagerortId={modal.daten?.lagerort_id || ausgewaehlterLagerort} initial={modal.daten?.name ? modal.daten : null} bewohner={bewohner} onSpeichern={speichereObjekt} onAbbrechen={() => setModal(null)} />
+              )}
+              {modal.typ === "geraet" && (
+                <div className="space-y-4">
+                  {geraetQuelleObjekt && (
+                    <div className="rounded-card-sm border border-primary-500/30 bg-primary-500/10 px-3 py-2 text-xs text-primary-500">
+                      Das Objekt wird als Geraet uebernommen. Nach dem Speichern wird das urspruengliche Objekt auf "Entsorgt" gesetzt.
+                    </div>
+                  )}
+                  <GeraetForm value={geraetFormData} onChange={setGeraetFormData} orte={orte} lagerorte={lagerorte} bewohner={bewohner} />
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={closeModal} className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main">Abbrechen</button>
+                    <button
+                      onClick={() => speichereGeraet(geraetFormData)}
+                      className="flex-1 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50"
+                      disabled={!geraetFormData.name?.trim()}
+                    >
+                      Speichern
+                    </button>
+                  </div>
+                </div>
               )}
               {modal.typ === "qr" && (
                 <div className="flex flex-col items-center gap-4">
@@ -1139,6 +1644,68 @@ const HomeInventar = ({ session }) => {
           }}
         />
       )}
+
+      {vorschauDok && (
+        <DokumentVorschauModal
+          storagePfad={vorschauDok.storage_pfad}
+          dateiname={vorschauDok.dateiname}
+          datei_typ={vorschauDok.datei_typ}
+          onSchliessen={() => setVorschauDok(null)}
+        />
+      )}
+
+      {dokuModal !== null && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-safe">
+          <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-sm w-full border border-light-border dark:border-dark-border max-h-[80vh] flex flex-col">
+            <div className="shrink-0 flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
+              <h3 className="font-semibold text-sm text-light-text-main dark:text-dark-text-main">
+                {t("home:devicesForm.linkDocument", { defaultValue: "Dokument verknüpfen" })}
+              </h3>
+              <button onClick={() => setDokuModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 p-3">
+              {dokumente.length === 0 ? (
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary text-center py-8">
+                  {t("home:devicesForm.noDocuments", { defaultValue: "Noch keine Dokumente. Lade Dokumente im Dokumentenarchiv hoch." })}
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  {dokumente.map((d) => {
+                    const geraet = geraete.find((g) => g.id === dokuModal);
+                    const isLinked = (geraet?.verknuepfte_dokument_ids || []).includes(d.id);
+                    return (
+                      <button
+                        key={d.id}
+                        onClick={() => toggleDokumentLink(dokuModal, d.id)}
+                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-card-sm text-sm transition-colors ${
+                          isLinked
+                            ? "bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400"
+                            : "hover:bg-light-border dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main"
+                        }`}
+                      >
+                        <FileText size={14} className={isLinked ? "text-blue-500" : "text-light-text-secondary dark:text-dark-text-secondary"} />
+                        <span className="flex-1 text-left truncate">{d.dateiname}</span>
+                        {isLinked && <Link2 size={12} className="text-blue-500 flex-shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="shrink-0 p-3 border-t border-light-border dark:border-dark-border">
+              <button
+                onClick={() => setDokuModal(null)}
+                className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:bg-light-hover dark:hover:bg-canvas-3"
+              >
+                {t("common:actions.close", { defaultValue: "Schließen" })}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {tourAktiv && (
         <TourOverlay
           steps={TOUR_STEPS.inventar}

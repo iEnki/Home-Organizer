@@ -1,6 +1,8 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import HomeEinkaufliste from "./HomeEinkaufliste";
+import { supabase } from "../../supabaseClient";
+import { translateShoppingEntriesIfMissing } from "../../utils/localizedRecipeShopping";
 
 const mockToast = {
   success: jest.fn(),
@@ -54,8 +56,40 @@ const mockRows = [
   },
 ];
 
+const mockBuildSelectBuilder = () => {
+  const builder = {
+    select: jest.fn(() => builder),
+    eq: jest.fn(() => builder),
+    order: jest.fn(() => builder),
+    update: jest.fn(() => builder),
+    delete: jest.fn(() => builder),
+    insert: jest.fn(() => builder),
+    upsert: jest.fn(() => builder),
+    maybeSingle: jest.fn(() => Promise.resolve({ data: null, error: null })),
+    single: jest.fn(() => Promise.resolve({ data: null, error: null })),
+    then: (resolve, reject) =>
+      Promise.resolve({ data: mockRows, error: null }).then(resolve, reject),
+  };
+  return builder;
+};
+
 jest.mock("../../hooks/useToast", () => ({
   useToast: () => mockToast,
+}));
+
+jest.mock("../../contexts/LocaleContext", () => ({
+  useLocale: () => ({
+    locale: "de",
+    supportedLocales: ["de", "en-GB"],
+    profileLoaded: true,
+    setLocale: jest.fn(),
+    loadProfileLocale: jest.fn(),
+  }),
+}));
+
+jest.mock("../../utils/localizedRecipeShopping", () => ({
+  ...jest.requireActual("../../utils/localizedRecipeShopping"),
+  translateShoppingEntriesIfMissing: jest.fn(() => Promise.resolve([])),
 }));
 
 jest.mock("./KiHomeAssistent", () => () => null);
@@ -70,33 +104,22 @@ jest.mock("./tour/useTour", () => ({
 }));
 
 jest.mock("../../supabaseClient", () => {
-  const buildSelectBuilder = () => {
-    const builder = {
-      select: jest.fn(() => builder),
-      eq: jest.fn(() => builder),
-      order: jest.fn(() => builder),
-      update: jest.fn(() => builder),
-      delete: jest.fn(() => builder),
-      insert: jest.fn(() => builder),
-      upsert: jest.fn(() => builder),
-      maybeSingle: jest.fn(() => Promise.resolve({ data: null, error: null })),
-      single: jest.fn(() => Promise.resolve({ data: null, error: null })),
-      then: (resolve, reject) =>
-        Promise.resolve({ data: mockRows, error: null }).then(resolve, reject),
-    };
-    return builder;
-  };
-
   return {
     getActiveHouseholdId: jest.fn(() => null),
     supabase: {
-      from: jest.fn(() => buildSelectBuilder()),
-      rpc: jest.fn(() => Promise.resolve({ data: null, error: null })),
+      from: jest.fn(),
+      rpc: jest.fn(),
     },
   };
 });
 
 describe("HomeEinkaufliste", () => {
+  beforeEach(() => {
+    supabase.from.mockImplementation(() => mockBuildSelectBuilder());
+    supabase.rpc.mockResolvedValue({ data: null, error: null });
+    translateShoppingEntriesIfMissing.mockResolvedValue([]);
+  });
+
   test("rendert gruppierte Einträge und filtert Prüfen-Einträge", async () => {
     render(<HomeEinkaufliste session={{ user: { id: "user-1" } }} />);
 
@@ -119,8 +142,8 @@ describe("HomeEinkaufliste", () => {
     expect(await screen.findByText("Milch")).toBeInTheDocument();
     expect(screen.queryByText("Batterien")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /1 zuletzt abgehakte artikel/i }));
+    fireEvent.click(screen.getByRole("button", { name: /erledigt\s+1 zuletzt abgehakter artikel/i }));
 
-    expect(await screen.findByText("Batterien")).toBeInTheDocument();
+    expect((await screen.findAllByText("Batterien")).length).toBeGreaterThan(0);
   });
 });

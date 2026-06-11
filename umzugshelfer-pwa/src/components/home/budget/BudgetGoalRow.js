@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Edit2, PiggyBank, Trash2 } from "lucide-react";
+import { Edit2, ExternalLink, PiggyBank, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 const formatCurrency = (value) =>
@@ -126,6 +126,18 @@ export default function BudgetGoalRow({
 
             {/* Action buttons */}
             <div className="flex shrink-0 gap-1.5">
+              {ziel.produkt_url && (
+                <a
+                  href={ziel.produkt_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-card-sm border border-light-border dark:border-dark-border p-2 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 hover:border-primary-500/50 transition-colors"
+                  aria-label={t("budget:goals.openProductLink")}
+                  title={t("budget:goals.openProductLink")}
+                >
+                  <ExternalLink size={12} />
+                </a>
+              )}
               <button
                 onClick={() => onEdit(ziel)}
                 className="rounded-card-sm border border-light-border dark:border-dark-border p-2 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 hover:border-primary-500/50 transition-colors"

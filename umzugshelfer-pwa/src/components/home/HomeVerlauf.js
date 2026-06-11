@@ -1,12 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   History,
-  Package,
-  ShoppingCart,
-  Wrench,
-  CheckSquare,
-  FolderOpen,
-  BookOpen,
   Loader2,
   RefreshCw,
   Plus,
@@ -14,26 +8,30 @@ import {
   Trash2,
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
+import { createVerlaufQuery } from "../../utils/homeVerlauf";
 import {
+  VERLAUF_FILTER_TABELLEN,
   getVerlaufActionMeta,
   getVerlaufDisplayText,
   getVerlaufTableMeta,
 } from "../../utils/homeVerlaufPresentation";
 
-const TABELLEN_META = {
-  home_objekte: { label: "Inventar", icon: Package, farbe: "text-blue-500", bg: "bg-blue-500/10" },
-  home_vorraete: { label: "Vorräte", icon: ShoppingCart, farbe: "text-primary-500", bg: "bg-primary-500/10" },
-  home_geraete: { label: "Geräte", icon: Wrench, farbe: "text-orange-500", bg: "bg-orange-500/10" },
-  todo_aufgaben: { label: "Aufgaben", icon: CheckSquare, farbe: "text-purple-500", bg: "bg-purple-500/10" },
-  home_projekte: { label: "Projekte", icon: FolderOpen, farbe: "text-pink-500", bg: "bg-pink-500/10" },
-  home_wissen: { label: "Wissen", icon: BookOpen, farbe: "text-amber-500", bg: "bg-amber-500/10" },
-  home_buecher: { label: "Bücher", icon: BookOpen, farbe: "text-teal-500", bg: "bg-teal-500/10" },
+const TABELLEN_STYLE = {
+  home_objekte: { farbe: "text-blue-500", bg: "bg-blue-500/10" },
+  budget_posten: { farbe: "text-emerald-500", bg: "bg-emerald-500/10" },
+  rechnungen: { farbe: "text-cyan-500", bg: "bg-cyan-500/10" },
+  home_vorraete: { farbe: "text-primary-500", bg: "bg-primary-500/10" },
+  home_geraete: { farbe: "text-orange-500", bg: "bg-orange-500/10" },
+  todo_aufgaben: { farbe: "text-purple-500", bg: "bg-purple-500/10" },
+  home_projekte: { farbe: "text-pink-500", bg: "bg-pink-500/10" },
+  home_wissen: { farbe: "text-amber-500", bg: "bg-amber-500/10" },
+  home_buecher: { farbe: "text-teal-500", bg: "bg-teal-500/10" },
 };
 
 const AKTIONS_META = {
   erstellt: { label: "erstellt", icon: Plus, farbe: "text-green-600 dark:text-green-400" },
-  geaendert: { label: "geändert", icon: Edit2, farbe: "text-blue-600 dark:text-blue-400" },
-  geloescht: { label: "gelöscht", icon: Trash2, farbe: "text-red-600 dark:text-red-400" },
+  geaendert: { label: "geaendert", icon: Edit2, farbe: "text-blue-600 dark:text-blue-400" },
+  geloescht: { label: "geloescht", icon: Trash2, farbe: "text-red-600 dark:text-red-400" },
 };
 
 const gruppiereNachDatum = (eintraege) => {
@@ -60,14 +58,13 @@ const HomeVerlauf = ({ session }) => {
     if (!userId) return;
     setLoading(true);
     try {
-      let query = supabase
-        .from("home_verlauf")
-        .select("*")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(200);
-      if (tabelleFilter) query = query.eq("tabelle", tabelleFilter);
-      const { data } = await query;
+      const query = createVerlaufQuery({
+        supabase,
+        userId,
+        tabelle: tabelleFilter,
+        limit: 200,
+      });
+      const { data } = query ? await query : { data: [] };
       setEintraege(data || []);
     } finally {
       setLoading(false);
@@ -104,15 +101,18 @@ const HomeVerlauf = ({ session }) => {
         >
           Alle
         </button>
-        {Object.entries(TABELLEN_META).map(([key, meta]) => (
-          <button
-            key={key}
-            onClick={() => setTabelleFilter(key)}
-            className={`px-3 py-1.5 rounded-pill text-xs font-medium transition-colors ${tabelleFilter === key ? "bg-indigo-500 text-white" : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"}`}
-          >
-            {meta.label}
-          </button>
-        ))}
+        {VERLAUF_FILTER_TABELLEN.map((key) => {
+          const meta = getVerlaufTableMeta(key);
+          return (
+            <button
+              key={key}
+              onClick={() => setTabelleFilter(key)}
+              className={`px-3 py-1.5 rounded-pill text-xs font-medium transition-colors ${tabelleFilter === key ? "bg-indigo-500 text-white" : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"}`}
+            >
+              {meta.label}
+            </button>
+          );
+        })}
       </div>
 
       {loading && (
@@ -124,8 +124,8 @@ const HomeVerlauf = ({ session }) => {
       {!loading && eintraege.length === 0 && (
         <div className="text-center py-16 text-light-text-secondary dark:text-dark-text-secondary">
           <History size={40} className="mx-auto mb-3 opacity-30" />
-          <p className="text-sm">Noch keine Aktivitäten aufgezeichnet.</p>
-          <p className="text-xs mt-1 opacity-70">Änderungen an Inventar, Vorräten, Projekten usw. erscheinen hier.</p>
+          <p className="text-sm">Noch keine Aktivitaeten aufgezeichnet.</p>
+          <p className="text-xs mt-1 opacity-70">Aenderungen an Inventar, Vorraeten, Projekten usw. erscheinen hier.</p>
         </div>
       )}
 
@@ -139,11 +139,13 @@ const HomeVerlauf = ({ session }) => {
               {gruppen[datum].map((e) => {
                 const fallbackTableMeta = getVerlaufTableMeta(e.tabelle);
                 const fallbackActionMeta = getVerlaufActionMeta(e.aktion);
-                const tabMeta = TABELLEN_META[e.tabelle] || {
+                const tabMeta = {
                   label: fallbackTableMeta.label,
                   icon: History,
-                  farbe: "text-gray-500",
-                  bg: "bg-gray-500/10",
+                  ...(TABELLEN_STYLE[e.tabelle] || {
+                    farbe: "text-gray-500",
+                    bg: "bg-gray-500/10",
+                  }),
                 };
                 const aktMeta = AKTIONS_META[e.aktion] || {
                   label: fallbackActionMeta.label,

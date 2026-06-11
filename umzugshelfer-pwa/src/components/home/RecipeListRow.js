@@ -3,13 +3,14 @@ import { ChefHat, Clock, Heart, Users } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { nutritionSummaryParts } from "../../utils/recipeNutrition";
+import RecipeQualityBadges from "./RecipeQualityBadges";
 
 export const listRowVariants = {
   hidden: { opacity: 0, x: -6 },
   show: { opacity: 1, x: 0, transition: { duration: 0.2 } },
 };
 
-export default function RecipeListRow({ recipe, display, onOpen, onToggleFavorite }) {
+export default function RecipeListRow({ recipe, display, ingredients = [], onOpen, onToggleFavorite }) {
   const { t } = useTranslation("recipes");
   const reduced = useReducedMotion();
   const minutes =
@@ -28,13 +29,18 @@ export default function RecipeListRow({ recipe, display, onOpen, onToggleFavorit
       className="group flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors first:rounded-t-card-sm last:rounded-b-card-sm hover:bg-light-hover dark:hover:bg-canvas-3"
     >
       {/* Thumbnail */}
-      <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-card-sm bg-light-surface-2 dark:bg-canvas-3 sm:h-14 sm:w-14">
-        {recipe.thumbnail_url ? (
-          <img src={recipe.thumbnail_url} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <ChefHat size={16} className="text-primary-500/50" />
-          </div>
+      <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-card-sm bg-light-surface-2 dark:bg-canvas-3 sm:h-14 sm:w-14">
+        <div className="flex h-full w-full items-center justify-center">
+          <ChefHat size={16} className="text-primary-500/50" />
+        </div>
+        {recipe.thumbnail_url && (
+          <img
+            src={recipe.thumbnail_url}
+            alt=""
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
+            onError={(e) => { e.currentTarget.style.display = "none"; }}
+          />
         )}
       </div>
 
@@ -71,6 +77,7 @@ export default function RecipeListRow({ recipe, display, onOpen, onToggleFavorit
             {nutritionParts[0]}
           </span>
         )}
+        <RecipeQualityBadges recipe={recipe} ingredients={ingredients} t={t} limit={2} className="mt-1" />
       </div>
 
       {/* Favorite button — always visible on mobile, hover-only on desktop */}

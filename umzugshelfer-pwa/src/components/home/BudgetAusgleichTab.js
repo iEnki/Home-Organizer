@@ -594,7 +594,7 @@ export default function BudgetAusgleichTab({
               return (
                 <div
                   key={row.id}
-                  className={`relative overflow-hidden rounded-card border p-4 animate-fade-in ${
+                  className={`relative overflow-hidden rounded-card border p-3 sm:p-4 animate-fade-in ${
                     positive
                       ? "border-primary-500/30 bg-primary-500/5 dark:bg-primary-500/8"
                       : "border-red-500/30 bg-red-500/5 dark:bg-red-500/8"
@@ -612,7 +612,7 @@ export default function BudgetAusgleichTab({
                       {row.emoji} {getBewohnerDisplayName(row)}
                     </p>
                     <p
-                      className={`mt-1 text-lg font-bold tabular-nums ${
+                      className={`mt-1 text-base sm:text-lg font-bold tabular-nums ${
                         positive ? "text-primary-500" : "text-red-400 dark:text-red-400"
                       }`}
                     >
@@ -681,30 +681,32 @@ export default function BudgetAusgleichTab({
                     {t("budget:settlementTab.openSince", { date: formatIsoDate(suggestion.oldest_origin_date), count: suggestion.share_count })}
                   </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
                   <span className={`text-base font-semibold tabular-nums ${debtAmountClass(centsToEuro(suggestion.open_amount_cents))}`}>
                     {currency(centsToEuro(suggestion.open_amount_cents))}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => toggleSuggestionDetails(suggestionKey)}
-                    className="px-3 py-1.5 rounded-card-sm border border-light-border dark:border-dark-border text-sm text-light-text-main dark:text-dark-text-main hover:border-primary-500"
-                  >
-                    {isExpanded ? t("budget:settlementTab.hideDetails") : t("budget:settlementTab.showDetails")}
-                  </button>
-                  <button onClick={() => handleApplySuggestion(suggestion)} disabled={saving || migrationBlocked} className="px-3 py-1.5 rounded-card-sm border border-primary-500 text-primary-500 text-sm disabled:opacity-60">
-                    {t("budget:settlementTab.apply")}
-                  </button>
-                  {showNettingButton && (
+                  <div className="flex flex-wrap gap-2">
                     <button
-                      onClick={() => handleApplyNettoSuggestion(suggestion, counterSuggestion)}
-                      disabled={saving || migrationBlocked}
-                      className="px-3 py-1.5 rounded-card-sm border border-sky-500 text-sky-400 text-sm disabled:opacity-60"
-                      title={t("budget:settlementTab.netOffsetTitle", { amount: currency(centsToEuro(counterSuggestion.open_amount_cents)) })}
+                      type="button"
+                      onClick={() => toggleSuggestionDetails(suggestionKey)}
+                      className="px-3 py-1.5 rounded-card-sm border border-light-border dark:border-dark-border text-sm text-light-text-main dark:text-dark-text-main hover:border-primary-500"
                     >
-                      {t("budget:settlementTab.netOffset", { amount: currency(centsToEuro(nettoAmountCents)) })}
+                      {isExpanded ? t("budget:settlementTab.hideDetails") : t("budget:settlementTab.showDetails")}
                     </button>
-                  )}
+                    <button onClick={() => handleApplySuggestion(suggestion)} disabled={saving || migrationBlocked} className="px-3 py-1.5 rounded-card-sm border border-primary-500 text-primary-500 text-sm disabled:opacity-60">
+                      {t("budget:settlementTab.apply")}
+                    </button>
+                    {showNettingButton && (
+                      <button
+                        onClick={() => handleApplyNettoSuggestion(suggestion, counterSuggestion)}
+                        disabled={saving || migrationBlocked}
+                        className="px-3 py-1.5 rounded-card-sm border border-sky-500 text-sky-400 text-sm disabled:opacity-60"
+                        title={t("budget:settlementTab.netOffsetTitle", { amount: currency(centsToEuro(counterSuggestion.open_amount_cents)) })}
+                      >
+                        {t("budget:settlementTab.netOffset", { amount: currency(centsToEuro(nettoAmountCents)) })}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 </div>
                 {isExpanded && (
@@ -828,7 +830,7 @@ export default function BudgetAusgleichTab({
 
       {/* ── Monatsabschluss ── */}
       <section className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 overflow-hidden shadow-elevation-1 dark:shadow-elevation-1">
-        <div className="flex items-center justify-between gap-3 p-4 border-b border-light-border dark:border-dark-border">
+        <div className="flex flex-col gap-3 p-4 border-b border-light-border dark:border-dark-border sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <div className="h-3.5 w-0.5 rounded-full bg-primary-500" />
@@ -836,9 +838,9 @@ export default function BudgetAusgleichTab({
             </div>
             <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.monthlyCloseSubtitle")}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <input type="month" value={abschlussMonat} onChange={(event) => setAbschlussMonat(event.target.value)} className={INPUT_CLS} />
-            <button onClick={handleCloseMonth} disabled={closingMonth || migrationBlocked} className="rounded-pill bg-primary-500 px-3 py-1.5 text-sm text-white disabled:opacity-60 hover:bg-primary-600 transition-colors">
+          <div className="flex items-center gap-2 flex-wrap">
+            <input type="month" value={abschlussMonat} onChange={(event) => setAbschlussMonat(event.target.value)} className="flex-1 min-w-[140px] px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500" />
+            <button onClick={handleCloseMonth} disabled={closingMonth || migrationBlocked} className="shrink-0 rounded-pill bg-primary-500 px-3 py-1.5 text-sm text-white disabled:opacity-60 hover:bg-primary-600 transition-colors">
               {selectedMonthIsStale || !monthClose ? t("budget:settlementTab.recalculate") : t("budget:settlementTab.updateBtn")}
             </button>
           </div>
@@ -876,14 +878,16 @@ export default function BudgetAusgleichTab({
               </div>
               <div className="space-y-2">
                 {monthCloseMembers.map((row) => (
-                  <div key={row.id} className="grid gap-2 rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-3 md:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))]">
+                  <div key={row.id} className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-3 space-y-2 md:space-y-0 md:grid md:gap-2 md:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))]">
                     <div className="text-sm font-medium text-light-text-main dark:text-dark-text-main">
                       {bewohnerById[row.member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[row.member_id] || { name: t("budget:settlementTab.unknown") })}
                     </div>
-                    <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.prevMonthLabel")} <span className="font-medium tabular-nums text-sky-300 dark:text-sky-200">{currency(centsToEuro(row.opening_balance_cents))}</span></div>
-                    <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.newLabel")} <span className={`font-medium tabular-nums ${saldoAmountClass(centsToEuro(row.created_in_month_cents))}`}>{currency(centsToEuro(row.created_in_month_cents))}</span></div>
-                    <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.settledLabel")} <span className={`font-medium tabular-nums ${settledAmountClass(centsToEuro(row.settled_in_month_cents))}`}>{currency(centsToEuro(row.settled_in_month_cents))}</span></div>
-                    <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.openLabel")} <span className={`font-semibold tabular-nums ${saldoAmountClass(centsToEuro(row.closing_balance_cents))}`}>{currency(centsToEuro(row.closing_balance_cents))}</span></div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 md:contents">
+                      <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.prevMonthLabel")} <span className="font-medium tabular-nums text-sky-300 dark:text-sky-200">{currency(centsToEuro(row.opening_balance_cents))}</span></div>
+                      <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.newLabel")} <span className={`font-medium tabular-nums ${saldoAmountClass(centsToEuro(row.created_in_month_cents))}`}>{currency(centsToEuro(row.created_in_month_cents))}</span></div>
+                      <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.settledLabel")} <span className={`font-medium tabular-nums ${settledAmountClass(centsToEuro(row.settled_in_month_cents))}`}>{currency(centsToEuro(row.settled_in_month_cents))}</span></div>
+                      <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.openLabel")} <span className={`font-semibold tabular-nums ${saldoAmountClass(centsToEuro(row.closing_balance_cents))}`}>{currency(centsToEuro(row.closing_balance_cents))}</span></div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -948,8 +952,8 @@ export default function BudgetAusgleichTab({
                 className="flex items-center justify-between gap-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-3 animate-slide-in-up"
                 style={{ animationDelay: `${i * 40}ms`, animationFillMode: "both" }}
               >
-                <div className="min-w-0">
-                  <p className="text-sm text-light-text-main dark:text-dark-text-main">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-light-text-main dark:text-dark-text-main truncate">
                     {bewohnerById[row.from_member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[row.from_member_id] || { name: t("budget:settlementTab.unknown") })}
                     {" → "}
                     {bewohnerById[row.to_member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[row.to_member_id] || { name: t("budget:settlementTab.unknown") })}

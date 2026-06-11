@@ -4,6 +4,7 @@ import {
   ChevronDown,
   Edit2,
   FileText,
+  Link2,
   RefreshCw,
   Receipt,
   Trash2,
@@ -30,15 +31,33 @@ const formatCurrency = (value) =>
     maximumFractionDigits: 2,
   }).format(Math.abs(Number(value || 0)));
 
+const formatInvoiceDate = (value) => {
+  if (!value) return null;
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat("de-AT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(parsed);
+};
+
+const getInvoiceTitle = (rechnung) =>
+  rechnung?.lieferant_name || rechnung?.dateiname || "Rechnung";
+
 export default function BudgetEntryRow({
   entry,
   ctx,
   isOpen,
+  selectionMode = false,
+  selected = false,
+  onSelect,
   onToggle,
   onEdit,
   onDelete,
   onPreviewInvoice,
   onOpenInvoicePositions,
+  onLinkInvoice,
 }) {
   const { t, i18n } = useTranslation(["budget", "common"]);
   const meta = useMemo(() => getBudgetEntryMeta(entry, ctx), [entry, ctx]);
@@ -63,6 +82,32 @@ export default function BudgetEntryRow({
         className="w-full px-3 py-3 text-left transition-colors hover:bg-light-hover/40 dark:hover:bg-canvas-3/40"
       >
         <div className="flex items-start gap-3">
+          {selectionMode && (
+            <span
+              role="checkbox"
+              aria-checked={selected}
+              tabIndex={0}
+              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-card-sm border text-[12px] ${
+                selected
+                  ? "border-primary-500 bg-primary-500 text-white"
+                  : "border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1"
+              }`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onSelect?.(entry.id);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === " " || event.key === "Enter") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onSelect?.(entry.id);
+                }
+              }}
+              aria-label={`Budgetposten ${entry.beschreibung || ""} auswählen`}
+            >
+              {selected ? "✓" : ""}
+            </span>
+          )}
           <div className="min-w-0 flex-1">
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1">
@@ -167,7 +212,7 @@ export default function BudgetEntryRow({
             <div>
               <p className={DETAIL_LABEL_CLS}>Kostenaufteilung</p>
               <p className={DETAIL_VALUE_CLS}>
-                {meta.hatSplit ? meta.splitOriginLabel || "Aktiv" : "Keine"}
+                {meta.hatSplit ? meta.splitModeLabel || "Aktiv" : "Keine"}
               </p>
             </div>
             <div>
@@ -216,13 +261,36 @@ export default function BudgetEntryRow({
 
           <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-2">
             <div className="flex items-center justify-between gap-2">
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className={DETAIL_LABEL_CLS}>Rechnung</p>
-                <p className={DETAIL_VALUE_CLS}>
-                  {meta.hatRechnung
-                    ? `${meta.verknuepfteRechnungen.length} verknuepft`
-                    : t("budget:invoice.noneLinked", { defaultValue: "No invoice linked" })}
-                </p>
+                {meta.hatRechnung ? (
+                  <div className="mt-1 space-y-1.5">
+                    {meta.verknuepfteRechnungen.map((rechnung) => {
+                      const details = [
+                        formatInvoiceDate(rechnung.rechnungsdatum),
+                        rechnung.dateiname,
+                        rechnung.brutto != null ? formatCurrency(rechnung.brutto) : null,
+                      ].filter(Boolean);
+
+                      return (
+                        <div key={rechnung.link_id || rechnung.dokument_id} className="min-w-0">
+                          <p className="truncate text-sm font-medium text-light-text-main dark:text-dark-text-main">
+                            {getInvoiceTitle(rechnung)}
+                          </p>
+                          {details.length > 0 && (
+                            <p className="truncate text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                              {details.join(" · ")}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className={DETAIL_VALUE_CLS}>
+                    {t("budget:invoice.noneLinked", { defaultValue: "No invoice linked" })}
+                  </p>
+                )}
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {hatRechnungsPositionen && (
@@ -243,6 +311,13 @@ export default function BudgetEntryRow({
                     Rechnung oeffnen
                   </button>
                 )}
+                <button
+                  onClick={() => onLinkInvoice?.(entry)}
+                  className="inline-flex items-center gap-1 rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 px-3 py-2 text-sm text-light-text-main dark:text-dark-text-main hover:bg-light-hover dark:hover:bg-canvas-3"
+                >
+                  <Link2 size={13} />
+                  Rechnung zuordnen
+                </button>
               </div>
             </div>
           </div>

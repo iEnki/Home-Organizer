@@ -2,13 +2,14 @@ import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
   X, Check, AlertTriangle, ChevronDown, ChevronUp,
-  Package, Box, Cpu, Wallet, FileText, Info,
+  Package, Box, Cpu, Wallet, FileText, Info, Pill,
 } from "lucide-react";
 import { supabase, getActiveHouseholdId } from "../../supabaseClient";
 import { useToast } from "../../hooks/useToast";
 import { buildEqualShares, validateSplitConfig } from "../../utils/budgetSplits";
 import {
   DEFAULT_HOME_BUDGET_CATEGORY,
+  buildSelectableHomeBudgetCategoryRows,
   getActiveHomeBudgetCategoryNames,
   getDefaultHomeBudgetCategories,
   getSelectableHomeBudgetCategoryNames,
@@ -22,6 +23,8 @@ import { useLocale } from "../../contexts/LocaleContext";
 import { buildInvoiceKnowledgeContent } from "../../utils/localizedKnowledge";
 import KostenAufteilungAuswahl from "./KostenAufteilungAuswahl";
 import ModalShell from "../ui/ModalShell";
+import { findExistingMedication } from "../../utils/heimapotheke";
+import { syncFuelImports } from "../../utils/kfzFuelImports";
 
 // ============================================================
 // Konstanten
@@ -56,6 +59,13 @@ const MODUL_CONFIG = {
     pflicht: false,
     defaultAktiv: false,
   },
+  medikamente: {
+    label: "Heimapotheke",
+    icon: <Pill size={16} />,
+    farbe: "text-rose-400",
+    pflicht: false,
+    defaultAktiv: false,
+  },
   inventar: {
     label: "Inventar",
     icon: <Box size={16} />,
@@ -65,7 +75,7 @@ const MODUL_CONFIG = {
   },
 };
 
-const MODUL_OPTIONEN = ["vorraete", "inventar", "geraete", "keine_zuordnung"];
+const MODUL_OPTIONEN = ["vorraete", "medikamente", "inventar", "geraete", "keine_zuordnung"];
 
 const BUDGET_INSERT_VARIANTEN = [
   ["user_id", "household_id", "beschreibung", "betrag", "datum", "kategorie", "app_modus", "typ", "budget_scope", "zahlungskonto_id", "bewohner_id"],
@@ -75,6 +85,19 @@ const BUDGET_INSERT_VARIANTEN = [
   ["user_id", "household_id", "beschreibung", "betrag", "datum", "kategorie", "app_modus"],
   ["user_id", "household_id", "beschreibung", "betrag", "datum", "kategorie"],
 ];
+
+const SCANNER_BUDGET_KATEGORIE_ALIASE = new Map([
+  ["kraftstoff", "Tanken"],
+  ["lebensmittel", "Lebensmittel & Getränke"],
+  ["getraenke", "Lebensmittel & Getränke"],
+  ["getränke", "Lebensmittel & Getränke"],
+]);
+
+function normalizeScannerBudgetKategorie(value) {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return null;
+  return SCANNER_BUDGET_KATEGORIE_ALIASE.get(trimmed.toLocaleLowerCase("de-DE")) || trimmed;
+}
 
 // ============================================================
 // Hilfsfunktionen
@@ -201,7 +224,17 @@ function SelectFeld({ label, value, onChange, optionen }) {
 // Haupt-Komponente
 // ============================================================
 
-export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrechen, onGespeichert }) {
+export default function RechnungReviewModal({
+  ergebnis,
+  datei,
+  session,
+  existingDokumentId = null,
+  existingRechnungId = null,
+  existingStoragePfad = null,
+  serverProcessed = false,
+  onAbbrechen,
+  onGespeichert,
+}) {
   const { t } = useTranslation(["home","common"]);
   void t;
 
@@ -330,7 +363,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
       .order("name", { ascending: true });
     if (error) throw error;
 
-    const nextCategories = data?.length ? data : getDefaultHomeBudgetCategories();
+    const nextCategories = buildSelectableHomeBudgetCategoryRows(data || []);
     setBudgetCategories(nextCategories);
     return nextCategories;
   }, [session?.user?.id]);
@@ -459,8 +492,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
 
   // Budget-Felder
   const initialBudgetKategorie = useMemo(() => {
-    const vorgeschlagenRaw = ergebnis.budget_kategorie_vorschlag;
-    const vorgeschlagen = vorgeschlagenRaw === "Kraftstoff" ? "Tanken" : vorgeschlagenRaw;
+    const vorgeschlagen = normalizeScannerBudgetKategorie(ergebnis.budget_kategorie_vorschlag);
     const activeCategories = getActiveHomeBudgetCategoryNames(budgetCategories);
     if (activeCategories.includes(vorgeschlagen)) return vorgeschlagen;
     return activeCategories[0] || DEFAULT_HOME_BUDGET_CATEGORY;
@@ -557,7 +589,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
       const { data, error } = await supabase
         .from("budget_posten")
         .insert(payload)
-        .select("id")
+        .select("id, household_id")
         .single();
 
       if (!error) return { data, error: null };
@@ -689,6 +721,81 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
     setSplitValidierungsFehler(null);
   }, []);
 
+  const insertCriticalDocumentLinks = useCallback(async ({
+    householdId,
+    dokumentId,
+    rechnungId,
+    budgetId,
+    wissenId,
+  }) => {
+    const criticalRows = [
+      {
+        household_id: householdId,
+        dokument_id: dokumentId,
+        entity_type: "rechnung",
+        entity_id: rechnungId,
+        role: "original",
+      },
+      ...(budgetId ? [{
+        household_id: householdId,
+        dokument_id: dokumentId,
+        entity_type: "budget_posten",
+        entity_id: budgetId,
+        role: "expense",
+      }] : []),
+    ].filter((row) => row.household_id && row.dokument_id && row.entity_id && row.entity_type);
+
+    if (criticalRows.length > 0) {
+      const { error } = await supabase
+        .from("dokument_links")
+        .upsert(criticalRows, {
+          onConflict: "household_id,dokument_id,entity_type,entity_id,role",
+        });
+      if (error) {
+        throw new Error(`Kritische Dokument-Links konnten nicht gespeichert werden: ${error.message}`);
+      }
+    }
+
+    if (budgetId) {
+      const { data: budgetLink, error: verifyError } = await supabase
+        .from("dokument_links")
+        .select("id")
+        .eq("household_id", householdId)
+        .eq("dokument_id", dokumentId)
+        .eq("entity_type", "budget_posten")
+        .eq("entity_id", budgetId)
+        .eq("role", "expense")
+        .maybeSingle();
+
+      if (verifyError || !budgetLink?.id) {
+        throw new Error(
+          verifyError?.message
+            ? `Budget-Rechnungslink konnte nicht verifiziert werden: ${verifyError.message}`
+            : "Budget-Rechnungslink fehlt nach dem Speichern.",
+        );
+      }
+    }
+
+    if (wissenId) {
+      const { error } = await supabase
+        .from("dokument_links")
+        .upsert([{
+          household_id: householdId,
+          dokument_id: dokumentId,
+          entity_type: "home_wissen",
+          entity_id: wissenId,
+          role: "knowledge",
+        }], {
+          onConflict: "household_id,dokument_id,entity_type,entity_id,role",
+        });
+      if (error) {
+        return "Wissens-Dokument-Link konnte nicht gespeichert werden.";
+      }
+    }
+
+    return null;
+  }, []);
+
   // Positionen-Aenderung
   const updatePosition = useCallback((idx, feld, wert) => {
     setPositionen((prev) =>
@@ -712,11 +819,12 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
     setSpeichern(true);
 
     const userId = session.user.id;
-    let dokumentPfad = null;
-    let dokDatenbankId = null;
-    let rechnungId = null;
+    let dokumentPfad = serverProcessed ? existingStoragePfad : null;
+    let dokDatenbankId = serverProcessed ? existingDokumentId : null;
+    let rechnungId = serverProcessed ? existingRechnungId : null;
     let wissenId = null;
     let budgetId = null;
+    let budgetLinkHouseholdId = null;
     const finalDateiname = sanitizeStorageFilename(dokDateiname || datei?.name || "rechnung.pdf");
 
     try {
@@ -729,8 +837,8 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
         throw new Error("Gesamtbetrag ist ungueltig.");
       }
 
-      // 1. Datei hochladen (immer)
-      if (datei) {
+      // 1. Datei hochladen (nur beim klassischen Bildscan)
+      if (!serverProcessed && datei) {
         const ts = Date.now();
         const pfad = `${userId}/${ts}_${finalDateiname}`;
         const { data: uploadData, error: uploadErr } = await supabase.storage
@@ -740,50 +848,74 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
         dokumentPfad = uploadData?.path;
       }
 
-      // 2. Dokument-Eintrag (user_id ergaenzt) + id fuer Rueckverlinkung
-      const { data: dokData, error: dokErr } = await supabase
-        .from("dokumente")
-        .insert({
-          user_id:       userId,
-          household_id:  householdId,
-          app_modus:     "home",
-          dateiname:     finalDateiname,
-          beschreibung:  dokBeschreibung,
-          storage_pfad:  dokumentPfad,
-          datei_typ:     datei?.type || null,
-          kategorie:     "Rechnung",
-          dokument_typ:  "rechnung",
-        })
-        .select("id")
-        .single();
-
-      if (dokErr) {
-        if (dokumentPfad) {
-          try {
-            await supabase.storage.from("user-dokumente").remove([dokumentPfad]);
-          } catch (e) { console.warn("Storage-Rollback fehlgeschlagen:", e); }
+      // 2. Dokument-Eintrag anlegen oder vorhandenen Server-Record aktualisieren
+      if (serverProcessed) {
+        if (!dokDatenbankId) throw new Error("Dokument-ID fehlt fuer serververarbeitete Rechnung.");
+        const { error: dokUpdateErr } = await supabase
+          .from("dokumente")
+          .update({
+            dateiname: finalDateiname,
+            beschreibung: dokBeschreibung,
+            kategorie: "Rechnung",
+            dokument_typ: "rechnung",
+          })
+          .eq("id", dokDatenbankId);
+        if (dokUpdateErr) {
+          throw new Error(`Dokument-Aktualisierung fehlgeschlagen: ${dokUpdateErr.message}`);
         }
-        throw new Error(`Dokument-Speicherung fehlgeschlagen: ${dokErr.message}`);
+      } else {
+        const { data: dokData, error: dokErr } = await supabase
+          .from("dokumente")
+          .insert({
+            user_id:       userId,
+            household_id:  householdId,
+            app_modus:     "home",
+            dateiname:     finalDateiname,
+            beschreibung:  dokBeschreibung,
+            storage_pfad:  dokumentPfad,
+            datei_typ:     datei?.type || null,
+            kategorie:     "Rechnung",
+            dokument_typ:  "rechnung",
+          })
+          .select("id")
+          .single();
+
+        if (dokErr) {
+          if (dokumentPfad) {
+            try {
+              await supabase.storage.from("user-dokumente").remove([dokumentPfad]);
+            } catch (e) { console.warn("Storage-Rollback fehlgeschlagen:", e); }
+          }
+          throw new Error(`Dokument-Speicherung fehlgeschlagen: ${dokErr.message}`);
+        }
+        dokDatenbankId = dokData?.id ?? null;
       }
-      dokDatenbankId = dokData?.id ?? null;
       if (!dokDatenbankId) {
         throw new Error("Dokument-ID fehlt nach dem Speichern.");
       }
 
-      // 3. Rechnungskopf speichern
-      const { data: rechnungData, error: rechnungErr } = await supabase
-        .from("rechnungen")
-        .insert({
-          household_id:    householdId,
-          dokument_id:     dokDatenbankId,
-          lieferant_name:  haendler || null,
-          rechnungsdatum:  datum || null,
-          brutto:          gesamtNum,
-          raw_text:        ergebnis.roher_text || null,
-          confidence:      ergebnis.confidence ?? null,
-        })
-        .select("id")
-        .single();
+      // 3. Rechnungskopf speichern oder vorhandenen Server-Record aktualisieren
+      const rechnungPayload = {
+        household_id:    householdId,
+        dokument_id:     dokDatenbankId,
+        lieferant_name:  haendler || null,
+        rechnungsdatum:  datum || null,
+        brutto:          gesamtNum,
+        raw_text:        ergebnis.roher_text || null,
+        confidence:      ergebnis.confidence ?? null,
+      };
+      const { data: rechnungData, error: rechnungErr } = serverProcessed && rechnungId
+        ? await supabase
+          .from("rechnungen")
+          .update(rechnungPayload)
+          .eq("id", rechnungId)
+          .select("id")
+          .single()
+        : await supabase
+          .from("rechnungen")
+          .insert(rechnungPayload)
+          .select("id")
+          .single();
       if (rechnungErr) {
         throw new Error(`Rechnung konnte nicht gespeichert werden: ${rechnungErr.message}`);
       }
@@ -809,7 +941,16 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
             modul_vorschlag: pos.modul_vorschlag || null,
             confidence: pos.confidence ?? null,
           },
-        }));
+      }));
+      if (serverProcessed) {
+        const { error: deletePosErr } = await supabase
+          .from("rechnungs_positionen")
+          .delete()
+          .eq("rechnung_id", rechnungId);
+        if (deletePosErr) {
+          throw new Error(`Bestehende Rechnungspositionen konnten nicht aktualisiert werden: ${deletePosErr.message}`);
+        }
+      }
       if (positionsRows.length > 0) {
         const { error: posErr } = await supabase.from("rechnungs_positionen").insert(positionsRows);
         if (posErr) {
@@ -858,24 +999,31 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
             headline: buildInvoiceKnowledgeContent(invoiceSummary, "en-GB"),
           },
         };
-        const { data: wissenData, error: wissenErr } = await supabase
-          .from("home_wissen")
-          .insert({
-            user_id:      userId,
-            household_id: householdId,
-            titel:        title,
-            inhalt:       zusammenfassung.trim() || fallbackInhalt,
-            kategorie:    "Rechnungen & Belege",
-            tags:         ["rechnung", ...(haendler ? [haendler.toLowerCase().split(" ")[0]] : [])],
-            dokument_id:  dokDatenbankId,
-            rechnung_id:  rechnungId,
-            herkunft:     "auto_full",
-            summary:      invoiceSummary,
-            localized_content: localizedContent,
-            source_locale: locale === "en-GB" ? "en-GB" : "de",
-          })
-          .select("id")
-          .single();
+        const wissenPayload = {
+          user_id:      userId,
+          household_id: householdId,
+          titel:        title,
+          inhalt:       zusammenfassung.trim() || fallbackInhalt,
+          kategorie:    "Rechnungen & Belege",
+          tags:         ["rechnung", ...(haendler ? [haendler.toLowerCase().split(" ")[0]] : [])],
+          dokument_id:  dokDatenbankId,
+          rechnung_id:  rechnungId,
+          herkunft:     "auto_full",
+          summary:      invoiceSummary,
+          localized_content: localizedContent,
+          source_locale: locale === "en-GB" ? "en-GB" : "de",
+        };
+        const { data: wissenData, error: wissenErr } = serverProcessed
+          ? await supabase
+            .from("home_wissen")
+            .upsert(wissenPayload, { onConflict: "dokument_id" })
+            .select("id")
+            .single()
+          : await supabase
+            .from("home_wissen")
+            .insert(wissenPayload)
+            .select("id")
+            .single();
         if (wissenErr) {
           warnings.push("Wissens-Eintrag konnte nicht gespeichert werden.");
         } else {
@@ -904,6 +1052,7 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
             warnings.push(`Budget konnte nicht gespeichert werden (${budgetErr.message || "unbekannter Fehler"}).`);
           } else {
             budgetId = budgetData?.id ?? null;
+            budgetLinkHouseholdId = budgetData?.household_id || householdId;
           }
         } catch (budgetCatchErr) {
           warnings.push(`Budget fehlgeschlagen (${budgetCatchErr?.message || "unbekannter Fehler"}).`);
@@ -911,32 +1060,15 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
       }
 
       // 7. Dokumentverknuepfungen speichern
-      const linkRows = [
-        {
-          household_id: householdId,
-          dokument_id: dokDatenbankId,
-          entity_type: "rechnung",
-          entity_id: rechnungId,
-          role: "original",
-        },
-        ...(wissenId ? [{
-          household_id: householdId,
-          dokument_id: dokDatenbankId,
-          entity_type: "home_wissen",
-          entity_id: wissenId,
-          role: "knowledge",
-        }] : []),
-        ...(budgetId ? [{
-          household_id: householdId,
-          dokument_id: dokDatenbankId,
-          entity_type: "budget_posten",
-          entity_id: budgetId,
-          role: "expense",
-        }] : []),
-      ].filter((row) => row.dokument_id && row.entity_id && row.entity_type);
-      const { error: linkErr } = await supabase.from("dokument_links").insert(linkRows);
-      if (linkErr) {
-        throw new Error(`Dokument-Links konnten nicht gespeichert werden: ${linkErr.message}`);
+      const wissenLinkWarning = await insertCriticalDocumentLinks({
+        householdId: budgetLinkHouseholdId || householdId,
+        dokumentId: dokDatenbankId,
+        rechnungId,
+        budgetId,
+        wissenId,
+      });
+      if (wissenLinkWarning) {
+        warnings.push(wissenLinkWarning);
       }
 
       // 8. Geraete (wenn aktiv)
@@ -1002,7 +1134,81 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
         } catch { warnings.push("Vorraete fehlgeschlagen."); }
       }
 
-      // 10. Inventar (wenn aktiv)
+      // 10. Medikamente (wenn aktiv)
+      if (modulAktiv.medikamente) {
+        try {
+          const medPositionen = positionen.filter((p) => p.modul_vorschlag === "medikamente");
+          const { data: vorhandeneMedikamente } = await supabase
+            .from("home_medikamente")
+            .select("*")
+            .eq("household_id", householdId);
+          for (const pos of medPositionen) {
+            const kandidat = {
+              name: pos.name,
+              wirkstoff: pos.wirkstoff || null,
+              darreichungsform: pos.darreichungsform || null,
+              packungsgroesse: pos.packungsgroesse || null,
+            };
+            const vorhandenes = findExistingMedication(vorhandeneMedikamente || [], kandidat);
+            const menge = normalizeNumber(pos.menge) || 1;
+            if (vorhandenes) {
+              const { error: updateErr } = await supabase
+                .from("home_medikamente")
+                .update({
+                  bestand: Number(vorhandenes.bestand || 0) + Number(menge),
+                  kaufdatum: datum || vorhandenes.kaufdatum || null,
+                  preis: normalizeNumber(pos.gesamtpreis) || vorhandenes.preis || null,
+                  haendler: haendler || vorhandenes.haendler || null,
+                  rechnung_id: rechnungId,
+                  rechnung_dokument_id: dokDatenbankId,
+                })
+                .eq("id", vorhandenes.id);
+              if (updateErr) { warnings.push("Medikament-Bestand konnte nicht aktualisiert werden."); break; }
+              await supabase.from("dokument_links").insert({
+                household_id: householdId,
+                dokument_id: dokDatenbankId,
+                entity_type: "medikament",
+                entity_id: vorhandenes.id,
+                role: "rechnung",
+              });
+            } else {
+              const { data: medData, error: medErr } = await supabase
+                .from("home_medikamente")
+                .insert({
+                  user_id: userId,
+                  household_id: householdId,
+                  name: pos.name,
+                  wirkstoff: pos.wirkstoff || null,
+                  darreichungsform: pos.darreichungsform || null,
+                  packungsgroesse: pos.packungsgroesse || null,
+                  bestand: menge,
+                  mindestbestand: 1,
+                  kategorie: pos.obergruppe || "Sonstiges",
+                  kaufdatum: datum || null,
+                  preis: normalizeNumber(pos.gesamtpreis) || null,
+                  haendler: haendler || null,
+                  rechnung_id: rechnungId,
+                  rechnung_dokument_id: dokDatenbankId,
+                  source_payload: { source: "rechnung_scan", position: pos },
+                })
+                .select("id")
+                .single();
+              if (medErr) { warnings.push("Medikament konnte nicht gespeichert werden."); break; }
+              if (medData?.id) {
+                await supabase.from("dokument_links").insert({
+                  household_id: householdId,
+                  dokument_id: dokDatenbankId,
+                  entity_type: "medikament",
+                  entity_id: medData.id,
+                  role: "rechnung",
+                });
+              }
+            }
+          }
+        } catch { warnings.push("Medikamente fehlgeschlagen."); }
+      }
+
+      // 11. Inventar (wenn aktiv)
       if (modulAktiv.inventar) {
         try {
           const inventarPositionen = positionen.filter((p) => p.modul_vorschlag === "inventar");
@@ -1039,6 +1245,34 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
         body: `${haendler || "Eine Rechnung"} wurde gespeichert${budgetId ? " und im Budget erfasst" : ""}.`,
       });
 
+      if (budgetId) {
+        await notifyHouseholdEvent({
+          supabaseClient: supabase,
+          userId,
+          table: "budget_posten",
+          action: "erstellt",
+          recordName: budgetBeschreibung || haendler || finalDateiname || "Rechnung",
+          recordId: budgetId,
+          url: "/home/budget",
+          tag: `invoice-budget-history-${budgetId}`,
+          history: true,
+          push: false,
+          historyOptions: { householdId: budgetLinkHouseholdId || householdId },
+        });
+      }
+
+      if (budgetId) {
+        try {
+          await syncFuelImports({
+            householdId: budgetLinkHouseholdId || householdId,
+            userId,
+            includeInvoicePositions: true,
+          });
+        } catch (fuelSyncError) {
+          console.warn("Tankbeleg-Synchronisation fehlgeschlagen:", fuelSyncError);
+        }
+      }
+
       if (budgetId && bewohner.length >= 2) {
         setGespeicherterPostenId(budgetId);
         setSplitSchritt(true);
@@ -1050,16 +1284,16 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
       if (budgetId) {
         try { await supabase.from("budget_posten").delete().eq("id", budgetId); } catch {}
       }
-      if (wissenId) {
+      if (wissenId && !serverProcessed) {
         try { await supabase.from("home_wissen").delete().eq("id", wissenId); } catch {}
       }
-      if (rechnungId) {
+      if (rechnungId && !serverProcessed) {
         try { await supabase.from("rechnungen").delete().eq("id", rechnungId); } catch {}
       }
-      if (dokDatenbankId) {
+      if (dokDatenbankId && !serverProcessed) {
         try { await supabase.from("dokumente").delete().eq("id", dokDatenbankId); } catch {}
       }
-      if (dokumentPfad) {
+      if (dokumentPfad && !serverProcessed) {
         try { await supabase.storage.from("user-dokumente").remove([dokumentPfad]); } catch {}
       }
       console.error("Speicher-Fehler:", err);
@@ -1073,8 +1307,8 @@ export default function RechnungReviewModal({ ergebnis, datei, session, onAbbrec
     budgetScope, zahlungskontoId, budgetBewohnerId, locale,
     geraetName, geraetHersteller, gewaehrleistungBis, garantieBis, naechsteWartung, ergebnis,
     positionen, zusammenfassung, success, toastError, onGespeichert,
-    normalizeNumber, resolveHouseholdId, insertBudgetPostenRobust,
-    bewohner.length,
+    normalizeNumber, resolveHouseholdId, insertBudgetPostenRobust, insertCriticalDocumentLinks,
+    bewohner.length, existingDokumentId, existingRechnungId, existingStoragePfad, serverProcessed,
   ]);
 
   // ============================================================

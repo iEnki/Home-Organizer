@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   ArrowLeft,
   BookMarked,
+  CalendarPlus,
   Check,
   ChefHat,
   Clock,
@@ -13,6 +14,7 @@ import {
   RefreshCw,
   ShoppingCart,
   Trash2,
+  Utensils,
   Users,
   X,
 } from "lucide-react";
@@ -21,6 +23,9 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { formatIngredientAmount } from "../../utils/recipeNormalize";
 import { nutritionSummaryParts } from "../../utils/recipeNutrition";
 import SearchableSelect from "../ui/SearchableSelect";
+import RecipeCookLogPanel from "./RecipeCookLogPanel";
+import RecipeCookModeModal from "./RecipeCookModeModal";
+import RecipeQualityBadges from "./RecipeQualityBadges";
 
 export default function RecipeDetailView({
   recipe,
@@ -31,8 +36,12 @@ export default function RecipeDetailView({
   onDelete,
   onToggleFavorite,
   onAddShopping,
+  onPlanRecipe,
   onUpdateGroup,
   onRecalculateNutrition,
+  supabase,
+  userId,
+  toast,
   groupOptions = [],
   nutritionBusy = false,
 }) {
@@ -41,6 +50,8 @@ export default function RecipeDetailView({
   const [servings, setServings] = useState(recipe?.portionen || 4);
   const [groupValue, setGroupValue] = useState(recipe?.gruppe || "");
   const [groupEditorOpen, setGroupEditorOpen] = useState(false);
+  const [cookModeOpen, setCookModeOpen] = useState(false);
+  const [cookLogSignal, setCookLogSignal] = useState(0);
 
   useEffect(() => {
     setGroupValue(recipe?.gruppe || "");
@@ -50,6 +61,9 @@ export default function RecipeDetailView({
 
   const factorBase = recipe.portionen || 4;
   const nutritionParts = nutritionSummaryParts(recipe, t);
+  const recipeWarnings = Array.isArray(recipe.warnings)
+    ? recipe.warnings.map((warning) => String(warning || "").trim()).filter(Boolean)
+    : [];
   const minutes =
     recipe.gesamtzeit_minuten ||
     (recipe.vorbereitungszeit_minuten || 0) + (recipe.kochzeit_minuten || 0) ||
@@ -96,7 +110,13 @@ export default function RecipeDetailView({
                 <img
                   src={recipe.thumbnail_url}
                   alt=""
+                  loading="lazy"
                   className="h-full w-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                    const parent = e.currentTarget.closest(".relative");
+                    if (parent) parent.dataset.imgError = "1";
+                  }}
                 />
               </div>
               {/* Gradient overlay */}
@@ -325,6 +345,16 @@ export default function RecipeDetailView({
           )}
 
           {/* ── Ingredients + Instructions ── */}
+          <RecipeQualityBadges recipe={recipe} ingredients={ingredients} t={t} />
+
+          {recipeWarnings.length > 0 && (
+            <div className="rounded-card-sm border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+              {recipeWarnings.map((warning, index) => (
+                <div key={`${warning}-${index}`}>{warning}</div>
+              ))}
+            </div>
+          )}
+
           <div className="grid gap-5 lg:grid-cols-[1fr_1.2fr]">
 
             {/* Ingredients */}
@@ -376,15 +406,31 @@ export default function RecipeDetailView({
                 ))}
               </div>
 
-              <motion.button
-                type="button"
-                onClick={() => onAddShopping?.(servings)}
-                whileTap={reduced ? {} : { scale: 0.96 }}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-pill bg-amber-500 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-600"
-              >
-                <ShoppingCart size={14} /> {t("detail.addMissingShopping")}
-              </motion.button>
-            </section>
+            <motion.button
+              type="button"
+              onClick={() => onAddShopping?.(servings)}
+              whileTap={reduced ? {} : { scale: 0.96 }}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-pill bg-amber-500 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-600"
+            >
+              <ShoppingCart size={14} /> {t("detail.addMissingShopping")}
+            </motion.button>
+            <motion.button
+              type="button"
+              onClick={() => onPlanRecipe?.(recipe)}
+              whileTap={reduced ? {} : { scale: 0.96 }}
+              className="ml-2 mt-3 inline-flex items-center gap-1.5 rounded-pill border border-light-border px-3 py-2 text-sm font-medium text-light-text-main transition-colors hover:border-primary-500/40 hover:bg-light-hover dark:border-dark-border dark:text-dark-text-main dark:hover:bg-canvas-3"
+            >
+              <CalendarPlus size={14} /> {t("detail.planMeal")}
+            </motion.button>
+            <motion.button
+              type="button"
+              onClick={() => setCookModeOpen(true)}
+              whileTap={reduced ? {} : { scale: 0.96 }}
+              className="ml-2 mt-3 inline-flex items-center gap-1.5 rounded-pill border border-light-border px-3 py-2 text-sm font-medium text-light-text-main transition-colors hover:border-primary-500/40 hover:bg-light-hover dark:border-dark-border dark:text-dark-text-main dark:hover:bg-canvas-3"
+            >
+              <Utensils size={14} /> {t("detail.cookMode")}
+            </motion.button>
+          </section>
 
             {/* Instructions */}
             <section>
@@ -408,8 +454,28 @@ export default function RecipeDetailView({
               </ol>
             </section>
           </div>
+          {supabase && userId && (
+            <RecipeCookLogPanel
+              supabase={supabase}
+              userId={userId}
+              recipe={recipe}
+              toast={toast}
+              quickAddSignal={cookLogSignal}
+            />
+          )}
         </div>
       </div>
+      <RecipeCookModeModal
+        open={cookModeOpen}
+        recipe={recipe}
+        display={display}
+        ingredients={ingredients}
+        onClose={() => setCookModeOpen(false)}
+        onFinished={() => {
+          setCookModeOpen(false);
+          setCookLogSignal((value) => value + 1);
+        }}
+      />
     </motion.div>
   );
 }

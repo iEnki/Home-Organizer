@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
@@ -111,7 +111,7 @@ export default function DokumentWissenAnalyseModal({
 
   const previewTags = useMemo(() => normalizeTagsInput(tagsInput), [tagsInput]);
 
-  const hydratePreview = (analysis, entry, documentRow) => {
+  const hydratePreview = useCallback((analysis, entry, documentRow) => {
     const keepManualContent = isManualKnowledgeOverride(entry);
     const mergedTags = mergeUniqueTags(documentRow?.tags, entry?.tags, analysis?.tags);
     const suggestedTitle = shouldKeepExistingKnowledgeTitle(entry)
@@ -127,9 +127,9 @@ export default function DokumentWissenAnalyseModal({
         ? entry?.inhalt || ""
         : buildKnowledgeSummaryText(analysis)
     );
-  };
+  }, []);
 
-  const runAnalysis = async (force = false) => {
+  const runAnalysis = useCallback(async (force = false) => {
     if (!dok?.id || !userId || !session) return;
 
     setLoading(true);
@@ -226,12 +226,11 @@ export default function DokumentWissenAnalyseModal({
     } finally {
       setLoading(false);
     }
-  };
+  }, [dok, hydratePreview, locale, session, userId]);
 
   useEffect(() => {
     runAnalysis(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dok?.id, userId]);
+  }, [runAnalysis]);
 
   const handleSpeichern = async () => {
     if (!analysisResult?.analysis || !title.trim()) return;

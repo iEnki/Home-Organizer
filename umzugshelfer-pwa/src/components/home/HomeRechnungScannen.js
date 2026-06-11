@@ -17,7 +17,7 @@ const MODUS_LABEL = {
 export default function HomeRechnungScannen({ session }) {
   const { t } = useTranslation(["home", "documents", "common"]);
   const { locale } = useLocale();
-  const { error: toastError } = useToast();
+  const { error: toastError, info: toastInfo } = useToast();
 
   const [schritt, setSchritt] = useState("upload"); // "upload" | "analyse" | "review"
   const [datei, setDatei] = useState(null);
@@ -25,6 +25,7 @@ export default function HomeRechnungScannen({ session }) {
   const [vorschauSichtbar, setVorschauSichtbar] = useState(true);
   const [analyseStatus, setAnalyseStatus] = useState("");
   const [ergebnis, setErgebnis] = useState(null);
+  const [serverReviewContext, setServerReviewContext] = useState(null);
   const [bildanalyseModus, setBildanalyseModus] = useState("chatgpt_vision");
 
   const bildInputRef = useRef(null);
@@ -71,20 +72,172 @@ export default function HomeRechnungScannen({ session }) {
     }
   }, [t, toastError]);
 
+  const sanitizeStorageFilename = useCallback((name) => (
+    String(name || "rechnung.pdf")
+      .trim()
+      .replace(/[\\/:*?"<>|]+/g, "_")
+      .replace(/\s+/g, "_") || "rechnung.pdf"
+  ), []);
+
+  const resolveHouseholdId = useCallback(async () => {
+    const userId = session?.user?.id;
+    if (!userId) return null;
+    const { data, error } = await supabase
+      .from("household_members")
+      .select("household_id")
+      .eq("user_id", userId)
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data?.household_id || null;
+  }, [session?.user?.id]);
+
+  const ladeServerRechnung = useCallback(async (dokumentId) => {
+    const { data: dokument, error: dokError } = await supabase
+      .from("dokumente")
+      .select("id, storage_pfad, dateiname, extrahierter_text, meta")
+      .eq("id", dokumentId)
+      .single();
+    if (dokError) throw dokError;
+
+    const { data: rechnung, error: rechnungError } = await supabase
+      .from("rechnungen")
+      .select("*")
+      .eq("dokument_id", dokumentId)
+      .maybeSingle();
+    if (rechnungError) throw rechnungError;
+    if (!rechnung?.id) {
+      throw new Error(t("documents:invoiceScan.pdfOcrFailed"));
+    }
+
+    const { data: positionRows, error: positionError } = await supabase
+      .from("rechnungs_positionen")
+      .select("*")
+      .eq("rechnung_id", rechnung.id)
+      .order("pos_nr", { ascending: true });
+    if (positionError) throw positionError;
+
+    const positionen = (positionRows || []).map((pos) => ({
+      name: pos.beschreibung || "",
+      menge: pos.menge,
+      einheit: pos.einheit,
+      einzelpreis: pos.einzelpreis,
+      gesamtpreis: pos.gesamtpreis,
+      ust_satz: pos.ust_satz,
+      obergruppe: pos.klassifikation?.obergruppe || "keine_zuordnung",
+      modul_vorschlag: pos.klassifikation?.modul_vorschlag || pos.klassifikation?.modul || "keine_zuordnung",
+      confidence: pos.klassifikation?.confidence ?? 0.5,
+      review_noetig: true,
+    }));
+
+    const processing = dokument?.meta?.processing || {};
+    if (processing.ocr_truncated && processing.pdf_page_count) {
+      toastInfo(t("documents:invoiceScan.pdfOcrLimited", {
+        pages: processing.pdf_page_count,
+        limit: processing.ocr_pages_processed || 5,
+      }), 6000);
+    }
+
+    return {
+      result: {
+        haendler: rechnung.lieferant_name || "",
+        datum: rechnung.rechnungsdatum || "",
+        gesamt: rechnung.brutto,
+        positionen,
+        roher_text: rechnung.raw_text || dokument.extrahierter_text || "",
+        confidence: rechnung.confidence ?? 0.65,
+        erkannte_module: [],
+        summary_text: rechnung.extraktion?.summary || "",
+        budget_kategorie_vorschlag: rechnung.extraktion?.purchase_type || null,
+      },
+      context: {
+        existingDokumentId: dokument.id,
+        existingRechnungId: rechnung.id,
+        existingStoragePfad: dokument.storage_pfad,
+        serverProcessed: true,
+      },
+    };
+  }, [t, toastInfo]);
+
+  const analysierePdfServerseitig = useCallback(async () => {
+    const userId = session?.user?.id;
+    if (!userId) throw new Error(t("common:auth.noSession", { defaultValue: "Keine gueltige Sitzung vorhanden." }));
+
+    setAnalyseStatus(t("documents:invoiceScan.pdfOcrRunning"));
+    const householdId = await resolveHouseholdId();
+    if (!householdId) throw new Error("Haushalt konnte nicht bestimmt werden.");
+
+    const finalName = sanitizeStorageFilename(datei.name || "rechnung.pdf");
+    const pfad = `${userId}/${Date.now()}_${finalName}`;
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from("user-dokumente")
+      .upload(pfad, datei, { upsert: false, contentType: datei.type });
+    if (uploadError) throw new Error(`Upload fehlgeschlagen: ${uploadError.message}`);
+
+    const storagePfad = uploadData?.path || pfad;
+    const { data: dokData, error: dokError } = await supabase
+      .from("dokumente")
+      .insert({
+        user_id: userId,
+        household_id: householdId,
+        app_modus: "home",
+        dateiname: finalName,
+        storage_pfad: storagePfad,
+        datei_typ: datei.type,
+        groesse_kb: Math.round(datei.size / 1024),
+        kategorie: "Rechnung",
+        dokument_typ: "rechnung",
+        meta: { processing: { status: "queued", source: "invoice_scan_pdf" } },
+      })
+      .select("id")
+      .single();
+    if (dokError) {
+      try {
+        await supabase.storage.from("user-dokumente").remove([storagePfad]);
+      } catch (rollbackError) {
+        console.warn("Storage-Rollback fehlgeschlagen:", rollbackError);
+      }
+      throw new Error(`Dokument-Speicherung fehlgeschlagen: ${dokError.message}`);
+    }
+
+    const { data: processData, error: processError } = await supabase.functions.invoke("doc-process", {
+      body: {
+        dokument_id: dokData.id,
+        level: "full",
+        force: true,
+        locale,
+      },
+    });
+    if (processError) throw new Error(processError.message || t("documents:invoiceScan.pdfOcrFailed"));
+    if (!["ok", "already_done"].includes(processData?.status)) {
+      throw new Error(processData?.error || processData?.warnings?.[0] || t("documents:invoiceScan.pdfOcrFailed"));
+    }
+
+    return await ladeServerRechnung(dokData.id);
+  }, [datei, ladeServerRechnung, locale, resolveHouseholdId, sanitizeStorageFilename, session?.user?.id, t]);
+
   const handleAnalysieren = useCallback(async () => {
     if (!datei) return;
     setSchritt("analyse");
     setAnalyseStatus(t("documents:invoiceScan.statusStart"));
+    setServerReviewContext(null);
 
     try {
-      const kiClient = await getKiClient(session?.user?.id);
-      setAnalyseStatus(t("documents:invoiceScan.statusRunning", { mode: MODUS_LABEL[bildanalyseModus] || bildanalyseModus }));
+      let result;
+      if (datei.type === "application/pdf") {
+        const serverResult = await analysierePdfServerseitig();
+        result = serverResult.result;
+        setServerReviewContext(serverResult.context);
+      } else {
+        const kiClient = await getKiClient(session?.user?.id);
+        setAnalyseStatus(t("documents:invoiceScan.statusRunning", { mode: MODUS_LABEL[bildanalyseModus] || bildanalyseModus }));
 
-      const result = await starteAnalyse(datei, bildanalyseModus, {
-        kiClient,
-        session,
-        locale,
-      });
+        result = await starteAnalyse(datei, bildanalyseModus, {
+          kiClient,
+          session,
+          locale,
+        });
+      }
 
       setErgebnis(result);
       setSchritt("review");
@@ -93,10 +246,11 @@ export default function HomeRechnungScannen({ session }) {
       toastError(err.message || t("documents:invoiceScan.errAnalyse"));
       setSchritt("upload");
     }
-  }, [datei, bildanalyseModus, locale, session, t, toastError]);
+  }, [analysierePdfServerseitig, datei, bildanalyseModus, locale, session, t, toastError]);
 
   const handleReviewAbbrechen = useCallback(() => {
     setErgebnis(null);
+    setServerReviewContext(null);
     setSchritt("upload");
   }, []);
 
@@ -105,6 +259,7 @@ export default function HomeRechnungScannen({ session }) {
     setVorschau(null);
     setVorschauSichtbar(true);
     setErgebnis(null);
+    setServerReviewContext(null);
     setSchritt("upload");
   }, []);
 
@@ -284,6 +439,10 @@ export default function HomeRechnungScannen({ session }) {
           ergebnis={ergebnis}
           datei={datei}
           session={session}
+          existingDokumentId={serverReviewContext?.existingDokumentId}
+          existingRechnungId={serverReviewContext?.existingRechnungId}
+          existingStoragePfad={serverReviewContext?.existingStoragePfad}
+          serverProcessed={serverReviewContext?.serverProcessed}
           onAbbrechen={handleReviewAbbrechen}
           onGespeichert={handleReviewGespeichert}
         />

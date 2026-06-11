@@ -62,7 +62,7 @@ const HomeBewohner = ({ session }) => {
         const ids = liste.map((b) => b.id);
         const [aufgabenRes, budgetRes] = await Promise.all([
           supabase.from("todo_aufgaben").select("bewohner_id").in("bewohner_id", ids).eq("erledigt", false),
-          supabase.from("budget_posten").select("bewohner_id, betrag").in("bewohner_id", ids),
+          supabase.from("budget_posten").select("bewohner_id, betrag").in("bewohner_id", ids).is("archived_at", null),
         ]);
 
         const aufgabenMap = {};

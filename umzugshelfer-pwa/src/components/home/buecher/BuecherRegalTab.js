@@ -178,10 +178,11 @@ export default function BuecherRegalTab({
         </div>
       ) : (
         <div className="space-y-2">
-          {gefilterteSortiert.map((buch) => (
+          {gefilterteSortiert.map((buch, idx) => (
             <BuchZeile
               key={buch.id}
               buch={buch}
+              index={idx}
               onBearbeiten={(b) => setModal({ typ: "form", buch: b })}
               onVerleihen={handleVerleihenOpen}
               onAktualisiert={ladeBuecher}

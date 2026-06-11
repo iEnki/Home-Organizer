@@ -369,7 +369,7 @@ const HomeWissen = ({ session }) => {
     if (!window.confirm(`"${display.title || eintrag.titel}" löschen?`)) return;
     try {
       if (eintrag.dokument_id && isInvoiceEntry(eintrag)) {
-        await deleteInvoiceCascade({ supabase, dokumentId: eintrag.dokument_id });
+        await deleteInvoiceCascade({ supabase, dokumentId: eintrag.dokument_id, archivedByUserId: userId });
       } else {
         const { error } = await supabase.from("home_wissen").delete().eq("id", eintrag.id);
         if (error) throw error;

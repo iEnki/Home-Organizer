@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Home, Package, ShoppingCart, Wrench, CheckSquare,
   FolderOpen, AlertTriangle, ChevronRight, Users,
-  TrendingUp, TrendingDown, Calendar, Clock, FileText,
+  TrendingUp, TrendingDown, Calendar, Clock, FileText, Pill,
 } from "lucide-react";
 import {
   motion, animate, useMotionValue, useTransform,
@@ -14,10 +14,16 @@ import { getActiveHouseholdId, supabase } from "../../supabaseClient";
 import { ensureRecurringBudgetEntries, getMonthBounds, getLocalDateString } from "../../utils/budgetRecurring";
 import { buildOpenPairBalances } from "../../utils/budgetLedger";
 import { formatGermanCurrency } from "../../utils/formatUtils";
+import { getMedicationStatus } from "../../utils/heimapotheke";
+import { createVerlaufQuery } from "../../utils/homeVerlauf";
 import { getVerlaufDisplayText, getVerlaufTableMeta } from "../../utils/homeVerlaufPresentation";
+import { notifyHouseholdBatchEvent } from "../../utils/pushNotifications";
 import TourOverlay from "./tour/TourOverlay";
 import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
+import useViewport from "../../hooks/useViewport";
+import { getLimitProgress, getLimitStatus } from "../../utils/budgetLimits";
+import { HOME_BUDGET_CATEGORY_COLORS } from "../../utils/homeBudgetCategories";
 
 // ── Animated count-up number ─────────────────────────────────────────────────
 const AnimatedNumber = ({ value }) => {
@@ -237,6 +243,8 @@ const HomeDashboard = ({ session }) => {
     timeline: [],
   });
   const [openLedgerRows, setOpenLedgerRows] = useState([]);
+  const [sparziele, setSparziele] = useState([]);
+  const [budgetLimitRows, setBudgetLimitRows] = useState([]);
 
   const resolveDashboardHouseholdId = useCallback(async () => {
     const activeHouseholdId = getActiveHouseholdId();
@@ -252,12 +260,38 @@ const HomeDashboard = ({ session }) => {
     return data?.household_id || null;
   }, [userId]);
 
+  const logRecurringBudgetHistory = useCallback(async (occurrences = [], householdId = null) => {
+    const rows = (occurrences || []).filter((entry) => entry?.id);
+    if (!userId || rows.length === 0) return;
+
+    await notifyHouseholdBatchEvent({
+      supabaseClient: supabase,
+      userId,
+      table: "budget_posten",
+      action: "erstellt",
+      eintraege: rows.map((entry) => ({
+        datensatz_name: entry.beschreibung,
+        options: { householdId: entry.household_id || householdId || null },
+      })),
+      url: "/home/budget",
+      tag: `budget-recurring-history-${Date.now()}`,
+      history: true,
+      push: false,
+    });
+  }, [userId]);
+
   const ladeStats = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
     try {
       const householdId = await resolveDashboardHouseholdId();
-      await ensureRecurringBudgetEntries({ supabase, userId, householdId, appModi: ["home", "beides"] });
+      await ensureRecurringBudgetEntries({
+        supabase,
+        userId,
+        householdId,
+        appModi: ["home", "beides"],
+        onCreatedOccurrences: (occurrences) => logRecurringBudgetHistory(occurrences, householdId),
+      });
 
       const heute = getLocalDateString();
       const todayDate = new Date();
@@ -267,24 +301,27 @@ const HomeDashboard = ({ session }) => {
       const { start: nextMonthStart, nextStart: nextMonthEnd  } = getMonthBounds(new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 1));
 
       const [
-        objekteRes, orteRes, vorraeteRes, einkaufRes,
+        objekteRes, orteRes, vorraeteRes, medikamenteRes, einkaufRes,
         geraeteRes, aufgabenRes, projekteRes, bewohnerRes,
         budgetRes, aufgabenTimeline, vormonatRes, nextMonthRes,
-        dokumenteRes,
+        dokumenteRes, sparzieleRes, budgetLimitsRes,
       ] = await Promise.all([
         supabase.from("home_objekte").select("id", { count: "exact", head: true }).eq("user_id", userId).neq("status", "entsorgt"),
         supabase.from("home_orte").select("id", { count: "exact", head: true }).eq("user_id", userId),
         supabase.from("home_vorraete").select("id, bestand, mindestmenge, name, ablaufdatum").eq("user_id", userId),
+        supabase.from("home_medikamente").select("id, bestand, mindestbestand, name, ablaufdatum").eq("user_id", userId),
         supabase.from("home_einkaufliste").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("erledigt", false),
         supabase.from("home_geraete").select("id, naechste_wartung, name").eq("user_id", userId),
         supabase.from("todo_aufgaben").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("erledigt", false).in("app_modus", ["home", "beides"]).lte("faelligkeitsdatum", `${heute}T23:59:59`),
         supabase.from("home_projekte").select("id, name, zieldatum, status").eq("user_id", userId).eq("status", "in_bearbeitung").limit(3),
         supabase.from("home_bewohner").select("id", { count: "exact", head: true }).eq("user_id", userId),
-        supabase.from("budget_posten").select("id, typ, betrag, datum, budget_scope, bewohner_id").eq("user_id", userId).in("app_modus", ["home", "beides"]).gte("datum", monthStart).lt("datum", thisMonthEnd),
+        supabase.from("budget_posten").select("id, typ, betrag, datum, budget_scope, bewohner_id, kategorie").eq("user_id", userId).in("app_modus", ["home", "beides"]).is("archived_at", null).gte("datum", monthStart).lt("datum", thisMonthEnd),
         supabase.from("todo_aufgaben").select("id, beschreibung, faelligkeitsdatum, home_projekt_id, erledigt").eq("user_id", userId).eq("erledigt", false).in("app_modus", ["home", "beides"]).gte("faelligkeitsdatum", heute).lte("faelligkeitsdatum", in30).limit(10),
-        supabase.from("budget_posten").select("typ, betrag, budget_scope").eq("user_id", userId).in("app_modus", ["home", "beides"]).gte("datum", vormonatStart).lt("datum", vormonatEnd),
-        supabase.from("budget_posten").select("id, beschreibung, betrag, typ, intervall, naechstes_datum, budget_scope").eq("user_id", userId).in("app_modus", ["home", "beides"]).eq("wiederholen", true).gte("naechstes_datum", nextMonthStart).lt("naechstes_datum", nextMonthEnd),
+        supabase.from("budget_posten").select("typ, betrag, budget_scope").eq("user_id", userId).in("app_modus", ["home", "beides"]).is("archived_at", null).gte("datum", vormonatStart).lt("datum", vormonatEnd),
+        supabase.from("budget_posten").select("id, beschreibung, betrag, typ, intervall, naechstes_datum, budget_scope").eq("user_id", userId).in("app_modus", ["home", "beides"]).is("archived_at", null).eq("wiederholen", true).gte("naechstes_datum", nextMonthStart).lt("naechstes_datum", nextMonthEnd),
         supabase.from("dokumente").select("id", { count: "exact", head: true }).eq("user_id", userId).in("app_modus", ["home", "beides"]),
+        supabase.from("home_sparziele").select("id, name, ziel_betrag, aktueller_betrag, farbe, emoji, zieldatum").eq("user_id", userId).order("created_at"),
+        supabase.from("home_budget_limits").select("kategorie, limit_euro").eq("user_id", userId),
       ]);
 
       if (householdId) {
@@ -305,6 +342,9 @@ const HomeDashboard = ({ session }) => {
       // ── Basis Stats ──
       const vorraete = vorraeteRes.data || [];
       const vorraeteRot = vorraete.filter((v) => Number(v.bestand) < Number(v.mindestmenge)).length;
+      const medikamente = medikamenteRes.data || [];
+      const medikamenteNiedrig = medikamente.filter((m) => getMedicationStatus(m).lowStock).length;
+      const medikamenteAblauf = medikamente.filter((m) => m.ablaufdatum && m.ablaufdatum <= in30).length;
 
       const geraete = geraeteRes.data || [];
       const geraeteWartungFaellig = geraete.filter((g) => g.naechste_wartung && g.naechste_wartung <= heute).length;
@@ -314,6 +354,9 @@ const HomeDashboard = ({ session }) => {
         orte: orteRes.count || 0,
         vorraeteRot,
         vorraeteGesamt: vorraete.length,
+        medikamenteGesamt: medikamente.length,
+        medikamenteNiedrig,
+        medikamenteAblauf,
         einkaufOffen: einkaufRes.count || 0,
         geraete: geraete.length,
         geraeteWartungFaellig,
@@ -322,6 +365,28 @@ const HomeDashboard = ({ session }) => {
         bewohner: bewohnerRes.count || 0,
         dokumente: dokumenteRes.count || 0,
       });
+      setSparziele(sparzieleRes.data || []);
+
+      // ── Budget-Limits berechnen ──
+      const limitsData = (budgetLimitsRes.data || []).filter(l => Number(l.limit_euro) > 0);
+      const postenCurrentMonth = budgetRes.data || [];
+      const computedLimitRows = limitsData.map(l => {
+        const verbrauch = postenCurrentMonth
+          .filter(p =>
+            p.typ !== "einnahme" &&
+            (p.budget_scope === "haushalt" || !p.budget_scope) &&
+            (p.kategorie || "Sonstiges") === l.kategorie
+          )
+          .reduce((sum, p) => sum + Math.abs(Number(p.betrag)), 0);
+        const limitEuro = Number(l.limit_euro);
+        const progress = getLimitProgress({ verbrauch, limitEuro });
+        const status = getLimitStatus({ verbrauch, limitEuro });
+        const color = HOME_BUDGET_CATEGORY_COLORS[l.kategorie] || "#6B7280";
+        return { kategorie: l.kategorie, limitEuro, verbrauch, progress, status, color };
+      });
+      const LIMIT_PRIO = { ueberschritten: 0, warnung: 1, ok: 2 };
+      computedLimitRows.sort((a, b) => (LIMIT_PRIO[a.status] ?? 3) - (LIMIT_PRIO[b.status] ?? 3));
+      setBudgetLimitRows(computedLimitRows);
 
       // ── Vorräte-Ampel ──
       const ampelRot   = vorraete.filter(v => Number(v.bestand) < Number(v.mindestmenge)).length;
@@ -408,22 +473,25 @@ const HomeDashboard = ({ session }) => {
       });
 
       // ── Verlauf (silent fail) ──
-      supabase
-        .from("home_verlauf")
-        .select("aktion, created_at, tabelle, datensatz_name")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(6)
-        .then(({ data }) => {
+      const verlaufQuery = createVerlaufQuery({
+        supabase,
+        userId,
+        householdId,
+        select: "aktion, created_at, tabelle, datensatz_name",
+        limit: 6,
+      });
+      if (verlaufQuery) {
+        verlaufQuery.then(({ data }) => {
           if (data) setErweitert(e => ({ ...e, verlauf: data }));
         });
+      }
 
     } catch (e) {
       console.error("HomeDashboard ladeStats:", e);
     } finally {
       setLoading(false);
     }
-  }, [resolveDashboardHouseholdId, userId]);
+  }, [logRecurringBudgetHistory, resolveDashboardHouseholdId, userId]);
 
   useEffect(() => { ladeStats(); }, [ladeStats]);
 
@@ -451,6 +519,18 @@ const HomeDashboard = ({ session }) => {
       warnung: stats.vorraeteRot > 0,
     },
     {
+      titel: t("home:dashboard.cards.medicineCabinet", { defaultValue: "Heimapotheke" }),
+      wert: stats.medikamenteGesamt || 0,
+      einheit: t("home:dashboard.cards.medicineUnit", { defaultValue: "Medikamente" }),
+      unter: (stats.medikamenteAblauf || 0) > 0
+        ? t("home:dashboard.warnMedicineExpiry", { count: stats.medikamenteAblauf, defaultValue: `${stats.medikamenteAblauf} laufen bald ab` })
+        : t("home:dashboard.warnMedicineLow", { count: stats.medikamenteNiedrig || 0, defaultValue: `${stats.medikamenteNiedrig || 0} niedriger Bestand` }),
+      icon: Pill,
+      farbe: (stats.medikamenteAblauf || stats.medikamenteNiedrig) ? "red" : "green",
+      pfad: "/home/heimapotheke",
+      warnung: (stats.medikamenteAblauf || stats.medikamenteNiedrig) > 0,
+    },
+    {
       titel: t("home:dashboard.cards.shopping"),
       wert: stats.einkaufOffen,
       einheit: t("home:dashboard.cards.shoppingUnit"),
@@ -458,11 +538,13 @@ const HomeDashboard = ({ session }) => {
     },
     {
       titel: t("home:dashboard.cards.devices"),
-      wert: stats.geraeteWartungFaellig,
-      einheit: t("home:dashboard.cards.deviceUnit"),
-      unter: naechsteWartung
-        ? t("home:dashboard.cards.deviceNext", { name: naechsteWartung.name, days: naechsteWartung.tage })
-        : t("home:dashboard.cards.deviceTotal", { count: stats.geraete }),
+      wert: stats.geraete,
+      einheit: "gespeichert",
+      unter: stats.geraeteWartungFaellig > 0
+        ? `${stats.geraeteWartungFaellig} Wartung fällig`
+        : naechsteWartung
+          ? t("home:dashboard.cards.deviceNext", { name: naechsteWartung.name, days: naechsteWartung.tage })
+          : "Alles in Ordnung",
       icon: Wrench,
       farbe: stats.geraeteWartungFaellig > 0 ? "orange" : "green",
       pfad: "/home/geraete",
@@ -509,8 +591,42 @@ const HomeDashboard = ({ session }) => {
     indigo: "bg-indigo-500/10 text-indigo-500",
   };
 
+  const SEKTIONEN = [
+    {
+      titel: "Räume & Objekte",
+      grad: "from-blue-500 to-teal-400",
+      labelFarbe: "text-blue-400",
+      items: [kacheln[0], kacheln[4], kacheln[8]],
+    },
+    {
+      titel: "Versorgung",
+      grad: "from-amber-500 to-orange-400",
+      labelFarbe: "text-amber-400",
+      items: [kacheln[1], kacheln[2], kacheln[3]],
+    },
+    {
+      titel: "Haushalt & Leben",
+      grad: "from-purple-500 to-indigo-400",
+      labelFarbe: "text-purple-400",
+      items: [kacheln[5], kacheln[6], kacheln[7]],
+    },
+  ];
+
+  const urgencyCount =
+    (stats.aufgabenHeute > 0 ? 1 : 0) +
+    (stats.vorraeteRot > 0 ? 1 : 0) +
+    ((stats.medikamenteNiedrig > 0 || stats.medikamenteAblauf > 0) ? 1 : 0) +
+    (stats.geraeteWartungFaellig > 0 ? 1 : 0);
+
+  const urgentKachel =
+    stats.aufgabenHeute > 0      ? kacheln.find(k => k.pfad === "/home/aufgaben") :
+    stats.geraeteWartungFaellig > 0 ? kacheln.find(k => k.pfad === "/home/geraete") :
+    stats.vorraeteRot > 0        ? kacheln.find(k => k.pfad === "/home/vorraete") :
+    null;
+
   // ── Reduced Motion ────────────────────────────────────────────────────────────
   const reduced = useReducedMotion();
+  const { isMobile } = useViewport();
 
   // ── Skeleton Loading State ────────────────────────────────────────────────────
   if (loading) {
@@ -594,590 +710,1165 @@ const HomeDashboard = ({ session }) => {
         </div>
       </motion.div>
 
-      {/* ── Warnungs-Banner (AnimatePresence) ───────────────────────────────── */}
-      <AnimatePresence>
-        {(stats.vorraeteRot > 0 || stats.geraeteWartungFaellig > 0 || stats.aufgabenHeute > 0) && (
+      {isMobile ? (
+        /* ═══════════════════════════════════════════════════════════════════════
+           MOBILE LAYOUT – Bento Grid mit Prioritäten auf einen Blick
+        ═══════════════════════════════════════════════════════════════════════ */
+        <div className="space-y-4">
+
+          {/* ── Alert-Strip (nur wenn Dringendes vorhanden) ─────────────────── */}
+          <AnimatePresence>
+            {urgencyCount > 0 && (
+              <motion.div
+                key="mobile-alert"
+                variants={reduced ? {} : warnVariants}
+                initial="hidden"
+                animate="show"
+                exit="exit"
+                className="flex items-center gap-2 px-3 py-2.5 rounded-card-sm
+                           bg-amber-500/10 border border-amber-500/20"
+              >
+                <AlertTriangle size={14} className="text-amber-400 shrink-0" />
+                <span className="text-sm text-amber-300">
+                  {urgencyCount === 1 ? "1 Punkt benötigt" : `${urgencyCount} Punkte benötigen`} Aufmerksamkeit
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ── Heute-Sektion: Aufgaben + nächstes Event ────────────────────── */}
           <motion.div
-            key="warn-banner"
-            variants={reduced ? {} : warnVariants}
+            variants={reduced ? {} : gridVariants}
             initial="hidden"
             animate="show"
-            exit="exit"
-            className="relative overflow-hidden rounded-card-sm origin-top"
+            className="grid grid-cols-2 gap-3"
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-amber-500/25 to-orange-500/20
-                            border border-amber-500/35 rounded-card-sm" />
-            <div className="relative p-3 flex items-start gap-2.5">
-              <AlertTriangle size={15} className="text-amber-400 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-amber-700 dark:text-amber-300 flex flex-wrap gap-x-3 gap-y-0.5">
-                {stats.vorraeteRot > 0 && (
-                  <span>{t("home:dashboard.warnStock", { count: stats.vorraeteRot })}</span>
-                )}
-                {stats.geraeteWartungFaellig > 0 && (
-                  <span>{t("home:dashboard.warnDevice", { count: stats.geraeteWartungFaellig })}</span>
-                )}
-                {stats.aufgabenHeute > 0 && (
-                  <span>{t("home:dashboard.warnTask", { count: stats.aufgabenHeute })}</span>
+            <motion.button
+              variants={reduced ? {} : cardVariants}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => navigate("/home/aufgaben")}
+              className="p-3 rounded-card-sm cursor-pointer
+                         bg-light-card dark:bg-canvas-2
+                         border border-light-border dark:border-dark-border
+                         shadow-elevation-1 text-left"
+            >
+              <CheckSquare
+                size={18}
+                className={`mb-2 ${stats.aufgabenHeute > 0 ? "text-red-400" : "text-primary-500"}`}
+              />
+              <div className="text-2xl font-bold text-light-text-main dark:text-dark-text-main">
+                <AnimatedNumber value={stats.aufgabenHeute} />
+              </div>
+              <div className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">fällig</div>
+              <div className="text-xs font-medium text-light-text-main dark:text-dark-text-main mt-0.5">
+                Aufgaben heute
+              </div>
+            </motion.button>
+
+            <motion.div
+              variants={reduced ? {} : cardVariants}
+              className="p-3 rounded-card-sm
+                         bg-light-card dark:bg-canvas-2
+                         border border-light-border dark:border-dark-border
+                         shadow-elevation-1"
+            >
+              <Calendar size={18} className="text-secondary-500 mb-2" />
+              {timeline[0] ? (
+                <>
+                  <div className="text-2xl font-bold text-light-text-main dark:text-dark-text-main">
+                    {Math.max(0, tagesBis(timeline[0].datum) ?? 0)}
+                  </div>
+                  <div className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">Tage</div>
+                  <div className="text-xs font-medium text-light-text-main dark:text-dark-text-main mt-0.5 truncate">
+                    {timeline[0].titel}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-light-text-main dark:text-dark-text-main">–</div>
+                  <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                    Keine Events
+                  </div>
+                </>
+              )}
+            </motion.div>
+          </motion.div>
+
+          {/* ── Budget + Ausgleich – kombinierte Karte (immer sichtbar) ────── */}
+          <motion.div
+            variants={reduced ? {} : cardVariants}
+            initial="hidden"
+            animate="show"
+            data-tour="tour-dashboard-budget"
+            className="w-full rounded-card overflow-hidden
+                       bg-light-card dark:bg-canvas-2
+                       border border-light-border dark:border-dark-border
+                       shadow-elevation-2"
+          >
+            {/* ── Oberer Bereich: Budget ── */}
+            <button
+              onClick={() => navigate("/home/budget")}
+              className="w-full p-4 text-left cursor-pointer
+                         hover:bg-light-hover dark:hover:bg-canvas-3
+                         active:bg-light-surface-2 dark:active:bg-canvas-3
+                         transition-colors duration-200"
+            >
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm">💶</span>
+                  <span className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">
+                    Budget – {monatLabel()}
+                  </span>
+                </div>
+                <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary" />
+              </div>
+
+              {budgetTotal === 0 ? (
+                <div className="text-2xl font-bold text-light-text-secondary dark:text-dark-text-secondary mt-1">
+                  0 €
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-end justify-between mt-1">
+                    <div className="text-3xl font-bold text-primary-500 tabular-nums">
+                      {fmt(budgetMonat.ausgabenHaushalt)} €
+                    </div>
+                    <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-0.5">
+                      {budgetMonat.buchungen} Buchungen
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3 mt-1 text-xs flex-wrap">
+                    <span className="flex items-center gap-0.5 text-red-400">
+                      <TrendingDown size={10} /> Haushalt diesen Monat
+                    </span>
+                    {budgetMonat.ausgabenPrivat > 0 && (
+                      <span className="text-amber-400">
+                        + {fmt(budgetMonat.ausgabenPrivat)} € privat
+                      </span>
+                    )}
+                    {budgetMonat.vormonatAusgaben > 0 && (() => {
+                      const delta = budgetMonat.ausgabenHaushalt - budgetMonat.vormonatAusgaben;
+                      const pct = Math.round(Math.abs(delta) / budgetMonat.vormonatAusgaben * 100);
+                      const hoeher = delta > 0;
+                      return (
+                        <span className={`flex items-center gap-0.5 ${hoeher ? "text-red-400" : "text-green-400"}`}>
+                          {hoeher ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                          {hoeher ? "+" : "−"}{pct}% zum Vormonat ({fmt(budgetMonat.vormonatAusgaben)} €)
+                        </span>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Haushalt / Privat Mini-Bar */}
+                  {budgetTotal > 0 && (
+                    <div className="mt-3">
+                      <div className="flex items-center gap-3 text-[10px] text-light-text-secondary dark:text-dark-text-secondary mb-1">
+                        <span className="flex items-center gap-1">
+                          <span className="inline-block w-2 h-2 rounded-full bg-primary-500" />
+                          Haushalt
+                        </span>
+                        {budgetMonat.ausgabenPrivat > 0 && (
+                          <span className="flex items-center gap-1">
+                            <span className="inline-block w-2 h-2 rounded-full bg-secondary-500" />
+                            Privat
+                          </span>
+                        )}
+                      </div>
+                      <div className="relative h-1.5 w-full rounded-full overflow-hidden bg-secondary-500/20 dark:bg-canvas-3">
+                        <motion.div
+                          className="absolute left-0 top-0 bottom-0 bg-primary-500 rounded-full"
+                          initial={{ scaleX: 0 }}
+                          animate={{ scaleX: hhRatio }}
+                          transition={{ duration: 0.7, ease: "easeOut", delay: 0.2 }}
+                          style={{ transformOrigin: "left", width: "100%" }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </button>
+
+            {/* ── Trennlinie ── */}
+            <div className="h-px bg-light-border dark:bg-dark-border mx-0" />
+
+            {/* ── Unterer Bereich: Ausgleich im Haushalt ── */}
+            <button
+              onClick={() => navigate("/home/budget?tab=ausgleich")}
+              className="w-full p-4 text-left cursor-pointer
+                         hover:bg-light-hover dark:hover:bg-canvas-3
+                         active:bg-light-surface-2 dark:active:bg-canvas-3
+                         transition-colors duration-200"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm">↔</span>
+                  <span className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">
+                    Ausgleich im Haushalt
+                  </span>
+                </div>
+                {offeneSaldoCount === 0 ? (
+                  <span className="text-[10px] px-2 py-0.5 rounded-pill font-semibold
+                                   bg-green-500/15 text-green-400 border border-green-500/30">
+                    ✓ Ausgeglichen
+                  </span>
+                ) : (
+                  <span className="text-[10px] px-2 py-0.5 rounded-pill font-semibold
+                                   bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                    {offeneSaldoCount} offen
+                  </span>
                 )}
               </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <div className="flex items-end justify-between">
+                <div className="text-2xl font-bold text-light-text-main dark:text-dark-text-main tabular-nums">
+                  {formatGermanCurrency(gesamtOffeneSchulden)} €
+                </div>
+                <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary mb-0.5" />
+              </div>
+              <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                {offeneSaldoCount === 0
+                  ? "Keine offenen Positionen"
+                  : `${offeneSaldoCount} offene ${offeneSaldoCount === 1 ? "Position" : "Positionen"}`}
+              </div>
+            </button>
 
-      {/* ── Status-Kacheln ──────────────────────────────────────────────────── */}
-      <motion.section variants={reduced ? {} : sectionItemVariants}>
-        <motion.div
-          data-tour="tour-dashboard-status"
-          variants={gridVariants}
-          initial="hidden"
-          animate="show"
-          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3"
-        >
-          {kacheln.map((k) => {
-            const Icon = k.icon;
+            {/* ── Trennlinie ── */}
+            <div className="h-px bg-light-border dark:bg-dark-border" />
+
+            {/* ── Sparziele (Mobile) ── */}
+            <button
+              onClick={() => navigate("/home/budget")}
+              className="w-full p-4 text-left cursor-pointer
+                         hover:bg-light-hover dark:hover:bg-canvas-3
+                         active:bg-light-surface-2 dark:active:bg-canvas-3
+                         transition-colors duration-200"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm">🎯</span>
+                  <span className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">
+                    Sparziele
+                  </span>
+                  {sparziele.length > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-pill font-semibold
+                                     bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                      {sparziele.length}
+                    </span>
+                  )}
+                </div>
+                <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary" />
+              </div>
+              {sparziele.length === 0 ? (
+                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  Keine Sparziele angelegt.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {sparziele.slice(0, 2).map((z) => {
+                    const progress = Math.min(
+                      (Number(z.aktueller_betrag) / Math.max(Number(z.ziel_betrag), 1)) * 100,
+                      100
+                    );
+                    return (
+                      <div key={z.id}>
+                        <div className="flex justify-between text-xs mb-0.5">
+                          <span className="truncate text-light-text-main dark:text-dark-text-main">
+                            {z.emoji || "🎯"} {z.name}
+                          </span>
+                          <span className="shrink-0 ml-2 text-light-text-secondary dark:text-dark-text-secondary">
+                            {Math.round(progress)}%
+                          </span>
+                        </div>
+                        <div className="h-1.5 bg-light-border dark:bg-canvas-3 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-all duration-700 ${progress === 0 ? "opacity-25" : ""}`}
+                            style={{ width: progress === 0 ? "3px" : `${progress}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                          <span>{Number(z.aktueller_betrag).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €</span>
+                          <span>{Number(z.ziel_betrag).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {sparziele.length > 2 && (
+                    <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
+                      +{sparziele.length - 2} weitere
+                    </p>
+                  )}
+                </div>
+              )}
+            </button>
+
+            {/* ── Trennlinie ── */}
+            {budgetLimitRows.length > 0 && (
+              <div className="h-px bg-light-border dark:bg-dark-border" />
+            )}
+
+            {/* ── Budgetlimits (Mobile) ── */}
+            {budgetLimitRows.length > 0 && (
+              <button
+                onClick={() => navigate("/home/budget?tab=limits")}
+                className="w-full p-4 text-left cursor-pointer
+                           hover:bg-light-hover dark:hover:bg-canvas-3
+                           active:bg-light-surface-2 dark:active:bg-canvas-3
+                           transition-colors duration-200"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm">📊</span>
+                    <span className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">
+                      Budgetlimits
+                    </span>
+                    {budgetLimitRows.some(r => r.status === "ueberschritten") && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-pill font-semibold bg-red-500/15 text-red-500 border border-red-500/20">
+                        {budgetLimitRows.filter(r => r.status === "ueberschritten").length} überschritten
+                      </span>
+                    )}
+                  </div>
+                  <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary" />
+                </div>
+                <div className="space-y-2">
+                  {budgetLimitRows.slice(0, 2).map((row) => {
+                    const barClass = row.status === "ueberschritten" ? "bg-red-500" : row.status === "warnung" ? "bg-amber-500" : "bg-green-500";
+                    const pctClass = row.status === "ueberschritten" ? "text-red-500" : row.status === "warnung" ? "text-amber-500" : "text-green-500";
+                    return (
+                      <div key={row.kategorie}>
+                        <div className="flex justify-between text-xs mb-0.5">
+                          <span className="flex items-center gap-1.5 truncate text-light-text-main dark:text-dark-text-main">
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: row.color }} />
+                            {row.kategorie}
+                          </span>
+                          <span className={`shrink-0 ml-2 font-medium ${pctClass}`}>{Math.round(row.progress)}%</span>
+                        </div>
+                        <div className="h-1.5 bg-light-border dark:bg-canvas-3 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-700 ${barClass}`}
+                            style={{ width: `${row.progress}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                          <span>{Number(row.verbrauch).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €</span>
+                          <span>von {Number(row.limitEuro).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {budgetLimitRows.length > 2 && (
+                    <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">+{budgetLimitRows.length - 2} weitere</p>
+                  )}
+                </div>
+              </button>
+            )}
+          </motion.div>
+
+          {/* ── Urgent Card (optional, nur wenn Modul Warnung hat) ──────────── */}
+          {urgentKachel && (() => {
+            const UrgentIcon = urgentKachel.icon;
             return (
               <motion.button
-                key={k.pfad}
-                data-tour={k.tourId || undefined}
-                variants={cardVariants}
-                whileHover={reduced ? {} : {
-                  scale: 1.03,
-                  transition: { type: "spring", stiffness: 400, damping: 25 },
-                }}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => navigate(k.pfad)}
-                animate={k.warnung ? {
+                initial={{ opacity: 0, y: 18 }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
                   boxShadow: [
                     "0 0 0px rgba(239,68,68,0)",
-                    "0 0 14px rgba(239,68,68,0.4)",
+                    "0 0 16px rgba(239,68,68,0.3)",
                     "0 0 0px rgba(239,68,68,0)",
                   ],
-                } : {}}
-                transition={k.warnung ? { repeat: Infinity, duration: 2.4, ease: "easeInOut" } : {}}
-                className="relative p-4 rounded-card cursor-pointer
+                }}
+                transition={{
+                  opacity: { duration: 0.3 },
+                  y: { type: "spring", stiffness: 320, damping: 30 },
+                  boxShadow: { repeat: Infinity, duration: 2.4, ease: "easeInOut", delay: 0.5 },
+                }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => navigate(urgentKachel.pfad)}
+                className="w-full p-4 rounded-card cursor-pointer
                            bg-light-card dark:bg-canvas-2
-                           border border-light-border dark:border-dark-border
-                           shadow-elevation-2
-                           hover:border-primary-500/40 hover:shadow-glow-primary
-                           transition-[border-color,box-shadow] duration-200
-                           text-left group"
+                           border border-red-500/30
+                           shadow-elevation-2 text-left relative"
               >
-                {k.warnung && (
+                <div className="flex items-center justify-between mb-3">
+                  <div className={`p-2 rounded-card-sm ${farbKlassen[urgentKachel.farbe]}`}>
+                    <UrgentIcon size={18} />
+                  </div>
                   <motion.span
-                    className="absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full bg-red-500"
+                    className="w-2.5 h-2.5 rounded-full bg-red-500"
                     animate={{ scale: [1, 1.5, 1], opacity: [1, 0.6, 1] }}
                     transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
                   />
-                )}
-                <div className={`w-9 h-9 rounded-card-sm flex items-center justify-center mb-3
-                                 transition-all duration-200
-                                 group-hover:ring-2 group-hover:ring-primary-500/30
-                                 ${farbKlassen[k.farbe]}`}>
-                  <Icon size={18} />
                 </div>
-                <div className="text-2xl font-bold text-light-text-main dark:text-dark-text-main">
-                  <AnimatedNumber value={k.wert} />
+                <div className="text-3xl font-bold text-light-text-main dark:text-dark-text-main">
+                  <AnimatedNumber value={urgentKachel.wert} />
                 </div>
-                <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                  {k.einheit}
+                <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                  {urgentKachel.einheit}
                 </div>
-                <div className="text-xs font-medium text-light-text-main dark:text-dark-text-main mt-1">
-                  {k.titel}
+                <div className="text-base font-semibold text-light-text-main dark:text-dark-text-main mt-1">
+                  {urgentKachel.titel}
                 </div>
-                {k.unter && (
-                  <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5 leading-tight">
-                    {k.unter}
+                {urgentKachel.unter && (
+                  <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                    {urgentKachel.unter}
                   </div>
                 )}
-                <ChevronRight
-                  size={14}
-                  className="absolute bottom-3 right-3 text-light-text-secondary dark:text-dark-text-secondary
-                             opacity-0 group-hover:opacity-100 transition-opacity"
-                />
               </motion.button>
             );
-          })}
-        </motion.div>
-      </motion.section>
+          })()}
 
-      {/* ── Row A: Budget · Ausgleich · Vorräte-Ampel ───────────────────────── */}
-      <motion.section variants={reduced ? {} : sectionItemVariants}>
-        <SectionHeader icon={TrendingUp} label={t("home:dashboard.sectionBudget") || "Budget & Vorräte"} />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-          {/* Budget-Widget */}
-          <motion.button
-            data-tour="tour-dashboard-budget"
-            variants={cardVariants}
-            whileHover={reduced ? {} : { scale: 1.01, transition: { type: "spring", stiffness: 400, damping: 25 } }}
-            whileTap={{ scale: 0.99 }}
-            onClick={() => navigate("/home/budget")}
-            className="p-4 rounded-card cursor-pointer
-                       bg-light-card dark:bg-canvas-2
-                       border border-light-border dark:border-dark-border shadow-elevation-2
-                       hover:border-primary-500/40 hover:shadow-glow-primary
-                       transition-[border-color,box-shadow] duration-200 text-left group"
+          {/* ── Haushalts-Übersichtskarte (Mobile) ──────────────────────── */}
+          <div
+            data-tour="tour-dashboard-status"
+            className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-2 overflow-hidden"
           >
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-base">💶</span>
-                <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-                  {t("home:dashboard.budgetTitle", { month: monatLabel() })}
-                </span>
-              </div>
-              <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary
-                                                 opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
-
-            {budgetMonat.ausgabenHaushalt === 0 && budgetMonat.ausgabenPrivat === 0 && budgetMonat.buchungen === 0 ? (
-              <>
-                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-                  {t("home:dashboard.noBudgetEntries")}
-                </p>
-                {budgetMonat.kommendeNichtMonatlich.length > 0 && (
-                  <p className="text-xs text-amber-400 flex items-center gap-1 mt-2">
-                    <AlertTriangle size={11} />
-                    {t("home:dashboard.irregularPayments", {
-                      count: budgetMonat.kommendeNichtMonatlich.length,
-                      amount: fmt(budgetMonat.kommendeNichtMonatlich.reduce((s, p) => s + Math.abs(Number(p.betrag)), 0)),
-                    })}
-                  </p>
-                )}
-              </>
-            ) : (
-              <div className="space-y-1.5">
-                <div className="flex items-end justify-between">
-                  <span className="text-2xl font-bold text-light-text-main dark:text-dark-text-main tabular-nums">
-                    {fmt(budgetMonat.ausgabenHaushalt)} €
-                  </span>
-                  <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">
-                    {t("home:dashboard.bookings", { count: budgetMonat.buchungen })}
-                  </span>
+            <div className="grid grid-cols-1 divide-y divide-light-border dark:divide-dark-border">
+              {SEKTIONEN.map((sek) => (
+                <div key={sek.titel} className="relative flex flex-col">
+                  <div className={`absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r ${sek.grad}`} />
+                  <div className="px-4 pt-4 pb-1.5">
+                    <span className={`text-[10px] font-semibold uppercase tracking-wider ${sek.labelFarbe}`}>
+                      {sek.titel}
+                    </span>
+                  </div>
+                  {sek.items.map((k) => {
+                    const Icon = k.icon;
+                    return (
+                      <button
+                        key={k.pfad}
+                        data-tour={k.tourId || undefined}
+                        onClick={() => navigate(k.pfad)}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-light-hover dark:hover:bg-canvas-3 active:bg-light-hover dark:active:bg-canvas-3 transition-colors text-left group"
+                      >
+                        <div className="relative shrink-0">
+                          <div className={`w-8 h-8 rounded-card-sm flex items-center justify-center ${farbKlassen[k.farbe]}`}>
+                            <Icon size={15} />
+                          </div>
+                          {k.warnung && (
+                            <motion.span
+                              className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-light-card dark:ring-canvas-2"
+                              animate={{ scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }}
+                              transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
+                            />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-medium text-light-text-main dark:text-dark-text-main truncate">
+                            {k.titel}
+                          </div>
+                          {k.unter && (
+                            <div className="text-[10px] text-dark-text-secondary truncate leading-tight">{k.unter}</div>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-base font-bold text-light-text-main dark:text-dark-text-main leading-none">
+                            <AnimatedNumber value={k.wert} />
+                          </div>
+                          <div className="text-[10px] text-dark-text-secondary">{k.einheit}</div>
+                        </div>
+                        <ChevronRight size={12} className="text-dark-text-secondary opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                      </button>
+                    );
+                  })}
+                  <div className="pb-2" />
                 </div>
-                <p className="text-xs text-red-400 flex items-center gap-1">
-                  <TrendingDown size={11} /> {t("home:dashboard.householdThisMonth")}
-                </p>
-                {budgetMonat.ausgabenPrivat > 0 && (
-                  <p className="text-xs text-amber-400">
-                    + {fmt(budgetMonat.ausgabenPrivat)} € privat
-                  </p>
-                )}
-                {budgetMonat.vormonatAusgaben > 0 && (() => {
-                  const delta = budgetMonat.ausgabenHaushalt - budgetMonat.vormonatAusgaben;
-                  const pct = Math.round(Math.abs(delta) / budgetMonat.vormonatAusgaben * 100);
-                  const hoeher = delta > 0;
-                  return (
-                    <p className={`text-xs flex items-center gap-1 ${hoeher ? "text-red-400" : "text-green-500"}`}>
-                      {hoeher ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-                      {hoeher ? "+" : "−"}{pct}% zum Vormonat ({fmt(budgetMonat.vormonatAusgaben)} €)
-                    </p>
-                  );
-                })()}
-                {budgetMonat.kommendeNichtMonatlich.length > 0 && (
-                  <p className="text-xs text-amber-400 flex items-center gap-1">
-                    <AlertTriangle size={11} />
-                    {t("home:dashboard.irregularPayments", {
-                      count: budgetMonat.kommendeNichtMonatlich.length,
-                      amount: fmt(budgetMonat.kommendeNichtMonatlich.reduce((s, p) => s + Math.abs(Number(p.betrag)), 0)),
-                    })}
-                  </p>
-                )}
+              ))}
+            </div>
+          </div>
 
-                {/* Mini-Spending-Bar: Haushalt vs. Privat */}
-                {budgetTotal > 0 && (
-                  <div className="mt-2 pt-2 border-t border-light-border dark:border-dark-border">
-                    <div className="flex items-center gap-3 text-[10px] text-light-text-secondary dark:text-dark-text-secondary mb-1.5">
-                      <span className="flex items-center gap-1">
-                        <span className="inline-block w-2 h-2 rounded-full bg-primary-500" />
-                        Haushalt
-                      </span>
-                      {budgetMonat.ausgabenPrivat > 0 && (
-                        <span className="flex items-center gap-1">
-                          <span className="inline-block w-2 h-2 rounded-full bg-secondary-500" />
-                          Privat
-                        </span>
-                      )}
-                    </div>
-                    <div className="relative h-1.5 w-full rounded-full overflow-hidden bg-secondary-500/20 dark:bg-canvas-3">
-                      <motion.div
-                        className="absolute left-0 top-0 bottom-0 bg-primary-500 rounded-full"
-                        initial={{ scaleX: 0 }}
-                        animate={{ scaleX: hhRatio }}
-                        transition={{ duration: 0.7, ease: "easeOut", delay: 0.15 }}
-                        style={{ transformOrigin: "left", width: "100%" }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </motion.button>
-
-          {/* Ausgleich-Widget */}
-          <motion.button
-            variants={cardVariants}
-            whileHover={reduced ? {} : { scale: 1.01, transition: { type: "spring", stiffness: 400, damping: 25 } }}
-            whileTap={{ scale: 0.99 }}
-            onClick={() => navigate("/home/budget?tab=ausgleich")}
-            className="p-4 rounded-card cursor-pointer
-                       bg-light-card dark:bg-canvas-2
-                       border border-light-border dark:border-dark-border shadow-elevation-2
-                       hover:border-primary-500/40 hover:shadow-glow-primary
-                       transition-[border-color,box-shadow] duration-200 text-left group"
+          {/* ── Horizontales Scroll-Row: Sekundär-Module ────────────────────── */}
+          <div
+            className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4"
+            style={{ scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}
           >
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-base">↔</span>
-                <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-                  {t("home:dashboard.settlementTitle")}
-                </span>
-              </div>
-              {offeneSaldoCount === 0 ? (
-                <span className="text-[10px] px-2 py-0.5 rounded-pill font-semibold
-                                 bg-green-500/15 text-green-400 border border-green-500/30">
-                  ✓ Ausgeglichen
-                </span>
-              ) : (
-                <span className="text-[10px] px-2 py-0.5 rounded-pill font-semibold
-                                 bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                  {offeneSaldoCount} offen
-                </span>
-              )}
-            </div>
-            <div className="space-y-1.5">
-              <div className="text-2xl font-bold text-light-text-main dark:text-dark-text-main tabular-nums">
-                {formatGermanCurrency(gesamtOffeneSchulden)} €
-              </div>
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                {t("home:dashboard.openDebtTotal")}
-              </p>
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                {t("home:dashboard.openPositions", { count: offeneSaldoCount })}
-              </p>
-            </div>
-          </motion.button>
-
-          {/* Vorräte-Ampel-Widget */}
-          <motion.button
-            variants={cardVariants}
-            whileHover={reduced ? {} : { scale: 1.01, transition: { type: "spring", stiffness: 400, damping: 25 } }}
-            whileTap={{ scale: 0.99 }}
-            onClick={() => navigate("/home/vorraete")}
-            className="p-4 rounded-card cursor-pointer
-                       bg-light-card dark:bg-canvas-2
-                       border border-light-border dark:border-dark-border shadow-elevation-2
-                       hover:border-primary-500/40 hover:shadow-glow-primary
-                       transition-[border-color,box-shadow] duration-200 text-left group"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-base">🛒</span>
-                <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-                  {t("home:dashboard.stockTitle", { count: stats.vorraeteGesamt })}
-                </span>
-              </div>
-              <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary
-                                                 opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
-
-            {stats.vorraeteGesamt === 0 ? (
-              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-                {t("home:dashboard.noStock")}
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {[
-                  { count: vorraeteAmpel.rot,   farbe: "bg-red-500",   label: t("home:dashboard.ampel.restock"),    delay: 0,   alert: vorraeteAmpel.rot > 0 },
-                  { count: vorraeteAmpel.gelb,  farbe: "bg-amber-500", label: t("home:dashboard.ampel.low"),        delay: 0.1, alert: false },
-                  { count: vorraeteAmpel.gruen, farbe: "bg-green-500", label: t("home:dashboard.ampel.sufficient"), delay: 0.2, alert: false },
-                ].map(({ count, farbe, label, delay, alert }) => (
-                  <motion.div
-                    key={label}
-                    className="flex items-center gap-3 rounded-card-sm px-2 py-1 -mx-2"
-                    animate={alert ? {
-                      backgroundColor: ["rgba(239,68,68,0)", "rgba(239,68,68,0.1)", "rgba(239,68,68,0)"],
-                    } : {}}
-                    transition={alert ? { repeat: Infinity, duration: 2.2, ease: "easeInOut" } : {}}
-                  >
-                    <motion.div
-                      className={`w-4 h-4 rounded-full flex-shrink-0 ${farbe}`}
-                      initial={{ scale: 0 }}
-                      animate={alert
-                        ? { scale: [1, 1.4, 1], opacity: [1, 0.65, 1] }
-                        : { scale: 1 }}
-                      transition={alert
-                        ? { repeat: Infinity, duration: 1.6, ease: "easeInOut", delay }
-                        : { delay, type: "spring", stiffness: 300, damping: 20 }}
-                    />
-                    <span className="text-xl font-bold text-light-text-main dark:text-dark-text-main w-8 text-right tabular-nums">
-                      <AnimatedNumber value={count} />
+            {[
+              { label: "Aufgaben",  icon: CheckSquare, route: "/home/aufgaben",  count: stats.aufgabenHeute,  color: "text-primary-500"  },
+              { label: "Projekte",  icon: FolderOpen,  route: "/home/projekte",  count: stats.projekteAktiv,  color: "text-purple-400"   },
+              { label: "Bewohner",  icon: Users,        route: "/home/bewohner",  count: stats.bewohner,       color: "text-teal-400"     },
+              { label: "Dokumente", icon: FileText,     route: "/home/dokumente", count: stats.dokumente,      color: "text-indigo-400"   },
+            ].map(item => {
+              const ItemIcon = item.icon;
+              return (
+                <button
+                  key={item.label}
+                  onClick={() => navigate(item.route)}
+                  className="flex items-center gap-1.5 shrink-0 px-3 py-2 rounded-pill
+                             bg-light-card dark:bg-canvas-2
+                             border border-light-border dark:border-dark-border
+                             text-sm font-medium
+                             text-light-text-main dark:text-dark-text-main
+                             cursor-pointer hover:bg-light-hover dark:hover:bg-canvas-3
+                             transition-colors duration-200"
+                >
+                  <ItemIcon size={14} className={item.color} />
+                  <span>{item.label}</span>
+                  {item.count != null && (
+                    <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                      {item.count}
                     </span>
-                    <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-                      {label}
-                    </span>
-                  </motion.div>
-                ))}
-              </div>
-            )}
-          </motion.button>
-        </div>
-      </motion.section>
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
-      {/* ── Row B: Projekte · Nächste Ereignisse ────────────────────────────── */}
-      <motion.section variants={reduced ? {} : sectionItemVariants}>
-        <SectionHeader icon={Calendar} label={t("home:dashboard.sectionProjects") || "Projekte & Termine"} />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-          {/* Projekte-Widget */}
-          <motion.button
-            variants={cardVariants}
-            whileHover={reduced ? {} : { scale: 1.01, transition: { type: "spring", stiffness: 400, damping: 25 } }}
-            whileTap={{ scale: 0.99 }}
-            onClick={() => navigate("/home/projekte")}
-            className="p-4 rounded-card cursor-pointer
-                       bg-light-card dark:bg-canvas-2
-                       border border-light-border dark:border-dark-border shadow-elevation-2
-                       hover:border-primary-500/40 hover:shadow-glow-primary
-                       transition-[border-color,box-shadow] duration-200 text-left group"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-base">📋</span>
-                <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-                  {t("home:dashboard.activeProjectsTitle", { count: stats.projekteAktiv })}
-                </span>
-              </div>
-              <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary
-                                                 opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
-
-            {aktiveProjekte.length === 0 ? (
-              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-                {t("home:dashboard.noProjects")}
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {aktiveProjekte.map(p => (
-                  <div key={p.id}>
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${projektAmpelFarbe(p)}`} />
-                        <span className="text-xs font-medium text-light-text-main dark:text-dark-text-main truncate">
-                          {p.name}
-                        </span>
-                      </div>
-                      <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary ml-2 flex-shrink-0 tabular-nums">
-                        {p.progress}%
-                      </span>
-                    </div>
-                    <AnimBar ratio={p.progress / 100} color="bg-purple-500" />
-                    <div className="flex items-center gap-2 mt-0.5 text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                      {p.todoGesamt > 0 && <span>✅ {p.todoErledigt}/{p.todoGesamt}</span>}
-                      {p.zieldatum && (
-                        <span>{t("home:dashboard.projectDue", { date: new Date(p.zieldatum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) })}</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </motion.button>
-
-          {/* Nächste Ereignisse — vertikale Timeline */}
-          <motion.div
-            variants={cardVariants}
-            className="p-4 rounded-card bg-light-card dark:bg-canvas-2
-                       border border-light-border dark:border-dark-border shadow-elevation-2"
-          >
-            <div className="flex items-center gap-2 mb-4">
-              <Calendar size={15} className="text-primary-500" />
-              <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-                {t("home:dashboard.next30Days")}
-              </span>
-            </div>
-
-            {timeline.length === 0 ? (
-              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-                {t("home:dashboard.noEvents")}
-              </p>
-            ) : (
-              <motion.div
-                variants={timelineVariants}
-                initial="hidden"
-                animate="show"
-                className="relative space-y-3 pl-1"
-              >
-                {/* Vertikale Verbindungslinie */}
-                <div className="absolute left-[6px] top-2 bottom-2
-                                w-0.5 bg-light-border dark:bg-dark-border" />
-
-                {timeline.map((e, i) => {
-                  const tage = tagesBis(e.datum);
-                  const isOverdue = tage !== null && tage < 0;
-                  const isUrgent  = tage !== null && tage >= 0 && tage <= 1;
-                  const isHodie   = tage === 0;
-                  const dotColor  = TIMELINE_DOT_COLOR[e.typ] || "bg-canvas-4";
-
-                  return (
-                    <motion.div
-                      key={i}
-                      variants={timelineItemVariants}
-                      animate={isOverdue
-                        ? { x: [0, -3, 3, -2, 2, 0], backgroundColor: ["rgba(239,68,68,0)", "rgba(239,68,68,0.1)", "rgba(239,68,68,0)"] }
-                        : isUrgent
-                        ? { backgroundColor: ["rgba(245,158,11,0)", "rgba(245,158,11,0.08)", "rgba(245,158,11,0)"] }
-                        : {}}
-                      transition={isOverdue
-                        ? { x: { delay: 0.6 + i * 0.1, duration: 0.4 }, backgroundColor: { delay: 0.6 + i * 0.1, repeat: Infinity, duration: 2.5 } }
-                        : isUrgent
-                        ? { backgroundColor: { repeat: Infinity, duration: 2.5, delay: i * 0.1 } }
-                        : {}}
-                      className="flex items-start gap-3 rounded-card-sm -mx-1 px-1 py-0.5"
-                    >
-                      {/* Farbiger Dot auf der Linie */}
-                      <motion.div
-                        className={`w-3.5 h-3.5 rounded-full flex-shrink-0 mt-0.5 z-10
-                                    ring-2 ring-light-card dark:ring-canvas-2 ${dotColor}`}
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 + i * 0.05 }}
-                      />
-
-                      {/* Titel */}
-                      <span className="text-xs text-light-text-main dark:text-dark-text-main flex-1 truncate leading-5 min-w-0">
-                        {e.titel}
-                      </span>
-
-                      {/* Rechts: Urgency-Badge + Datum-Pill */}
-                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                        {isHodie && (
-                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-pill
-                                           bg-red-500/15 text-red-400 border border-red-500/30">
-                            heute
-                          </span>
-                        )}
-                        {isOverdue && (
-                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-pill
-                                           bg-red-500/15 text-red-400 border border-red-500/30">
-                            überfällig
-                          </span>
-                        )}
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-pill font-medium
-                                          bg-light-surface-2 dark:bg-canvas-3
-                                          border border-light-border dark:border-dark-border
-                                          ${tagesFarbe(e.datum)}`}>
-                          {new Date(e.datum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
-                        </span>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </motion.div>
-            )}
-          </motion.div>
-        </div>
-      </motion.section>
-
-      {/* ── Aktivitäts-Feed ──────────────────────────────────────────────────── */}
-      {verlauf.length > 0 && (
-        <motion.section variants={reduced ? {} : sectionItemVariants}>
-          <motion.div
-            variants={cardVariants}
-            className="p-4 rounded-card bg-light-card dark:bg-canvas-2
-                       border border-light-border dark:border-dark-border shadow-elevation-2"
-          >
-            <SectionHeader icon={Clock} label={t("home:dashboard.recentActivity")} />
+          {/* ── Verlauf (kompakt, wenn vorhanden) ───────────────────────────── */}
+          {verlauf.length > 0 && (
             <motion.div
-              variants={listVariants}
+              variants={reduced ? {} : cardVariants}
               initial="hidden"
               animate="show"
-              className="relative space-y-2.5"
+              className="p-4 rounded-card bg-light-card dark:bg-canvas-2
+                         border border-light-border dark:border-dark-border shadow-elevation-2"
             >
-              {/* Vertikale Verbindungslinie */}
-              <div className="absolute left-[13px] top-3.5 bottom-0
-                              w-0.5 bg-light-border dark:bg-dark-border" />
-
-              {verlauf.map((v, i) => {
-                const meta = getVerlaufTableMeta(v.tabelle);
-                const emoji = MODUL_ICON[v.tabelle] || meta.emoji || "📝";
-                const colorClass = MODUL_COLOR[v.tabelle] || "bg-canvas-3 text-dark-text-secondary";
-
-                return (
-                  <motion.div key={i} variants={listItemVariants} className="flex items-center gap-3 relative">
-                    {/* Farbiger Icon-Kreis */}
-                    <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center
-                                     text-sm z-10 ring-2 ring-light-card dark:ring-canvas-2 ${colorClass}`}>
-                      {emoji}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <span className="block text-xs text-light-text-main dark:text-dark-text-main truncate">
+              <SectionHeader icon={Clock} label={t("home:dashboard.recentActivity")} />
+              <div className="space-y-2.5">
+                {verlauf.slice(0, 4).map((v, i) => {
+                  const meta = getVerlaufTableMeta(v.tabelle);
+                  const emoji = MODUL_ICON[v.tabelle] || meta.emoji || "📝";
+                  return (
+                    <div key={i} className="flex items-center gap-2.5">
+                      <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center
+                                       text-sm ${MODUL_COLOR[v.tabelle] || "bg-canvas-3 text-dark-text-secondary"}`}>
+                        {emoji}
+                      </div>
+                      <span className="text-xs text-light-text-main dark:text-dark-text-main flex-1 truncate">
                         {getVerlaufDisplayText(v)}
                       </span>
-                      <span className="block text-[11px] text-light-text-secondary dark:text-dark-text-secondary truncate">
-                        {meta.label}
+                      <span className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary shrink-0">
+                        {relativeZeit(v.created_at, t)}
                       </span>
                     </div>
-
-                    {/* Zeitstempel als Pill-Badge */}
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-pill flex-shrink-0
-                                     bg-light-surface-2 dark:bg-canvas-3
-                                     border border-light-border dark:border-dark-border
-                                     text-light-text-secondary dark:text-dark-text-secondary">
-                      {relativeZeit(v.created_at, t)}
-                    </span>
-                  </motion.div>
-                );
-              })}
-            </motion.div>
-          </motion.div>
-        </motion.section>
-      )}
-
-      {/* ── Schnellzugriff ───────────────────────────────────────────────────── */}
-      <motion.section variants={reduced ? {} : sectionItemVariants}>
-        <SectionHeader label={t("home:dashboard.quickAccess")} />
-        <motion.div
-          variants={gridVariants}
-          initial="hidden"
-          animate="show"
-          className="grid grid-cols-2 sm:grid-cols-4 gap-3"
-        >
-          {SCHNELLZUGRIFF_ITEMS.map((item) => (
-            <motion.button
-              key={item.pfad}
-              variants={cardVariants}
-              whileHover={reduced ? {} : {
-                scale: 1.03,
-                transition: { type: "spring", stiffness: 400, damping: 25 },
-              }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => navigate(item.pfad)}
-              className="flex items-center gap-3 p-3 rounded-card-sm cursor-pointer
-                         bg-light-card dark:bg-canvas-2
-                         border border-light-border dark:border-dark-border shadow-elevation-1
-                         hover:border-primary-500/40 hover:bg-light-hover dark:hover:bg-canvas-3
-                         transition-colors duration-200 text-left group"
-            >
-              {/* Icon-Container mit Farbe */}
-              <div className={`w-9 h-9 rounded-card-sm flex items-center justify-center
-                               text-xl flex-shrink-0 ${item.color}`}>
-                {item.icon}
+                  );
+                })}
               </div>
-              <span className="text-sm text-light-text-main dark:text-dark-text-main flex-1 min-w-0 truncate">
-                {t(`home:dashboard.quickLabels.${item.labelKey}`)}
-              </span>
-              <ChevronRight
-                size={14}
-                className="text-light-text-secondary dark:text-dark-text-secondary
-                           opacity-0 group-hover:opacity-100 flex-shrink-0
-                           transition-opacity duration-150"
-              />
-            </motion.button>
-          ))}
-        </motion.div>
-      </motion.section>
+            </motion.div>
+          )}
+        </div>
+      ) : (
+        /* ═══════════════════════════════════════════════════════════════════════
+           DESKTOP LAYOUT – unverändertes Original-Layout
+        ═══════════════════════════════════════════════════════════════════════ */
+        <>
+          {/* ── Warnungs-Banner (AnimatePresence) ─────────────────────────── */}
+          <AnimatePresence>
+            {(stats.vorraeteRot > 0 || stats.medikamenteAblauf > 0 || stats.medikamenteNiedrig > 0 || stats.geraeteWartungFaellig > 0 || stats.aufgabenHeute > 0) && (
+              <motion.div
+                key="warn-banner"
+                variants={reduced ? {} : warnVariants}
+                initial="hidden"
+                animate="show"
+                exit="exit"
+                className="relative overflow-hidden rounded-card-sm origin-top"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-amber-500/25 to-orange-500/20
+                                border border-amber-500/35 rounded-card-sm" />
+                <div className="relative p-3 flex items-start gap-2.5">
+                  <AlertTriangle size={15} className="text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-amber-700 dark:text-amber-300 flex flex-wrap gap-x-3 gap-y-0.5">
+                    {stats.vorraeteRot > 0 && (
+                      <span>{t("home:dashboard.warnStock", { count: stats.vorraeteRot })}</span>
+                    )}
+                    {stats.medikamenteAblauf > 0 && (
+                      <span>{t("home:dashboard.warnMedicineExpiry", { count: stats.medikamenteAblauf, defaultValue: `${stats.medikamenteAblauf} Medikamente laufen bald ab` })}</span>
+                    )}
+                    {stats.medikamenteNiedrig > 0 && (
+                      <span>{t("home:dashboard.warnMedicineLow", { count: stats.medikamenteNiedrig, defaultValue: `${stats.medikamenteNiedrig} Medikamente mit niedrigem Bestand` })}</span>
+                    )}
+                    {stats.geraeteWartungFaellig > 0 && (
+                      <span>{t("home:dashboard.warnDevice", { count: stats.geraeteWartungFaellig })}</span>
+                    )}
+                    {stats.aufgabenHeute > 0 && (
+                      <span>{t("home:dashboard.warnTask", { count: stats.aufgabenHeute })}</span>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ── Haushalts-Übersichtskarte (Desktop) ──────────────────────── */}
+          <motion.section variants={reduced ? {} : sectionItemVariants} data-tour="tour-dashboard-status">
+            <div className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-2 overflow-hidden">
+              <div className="grid grid-cols-1 sm:grid-cols-3 divide-y divide-light-border dark:divide-dark-border sm:divide-y-0 sm:divide-x">
+                {SEKTIONEN.map((sek) => (
+                  <div key={sek.titel} className="relative flex flex-col">
+                    <div className={`absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r ${sek.grad}`} />
+                    <div className="px-4 pt-4 pb-1.5">
+                      <span className={`text-[10px] font-semibold uppercase tracking-wider ${sek.labelFarbe}`}>
+                        {sek.titel}
+                      </span>
+                    </div>
+                    {sek.items.map((k) => {
+                      const Icon = k.icon;
+                      return (
+                        <motion.button
+                          key={k.pfad}
+                          data-tour={k.tourId || undefined}
+                          onClick={() => navigate(k.pfad)}
+                          whileTap={{ scale: 0.98 }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors text-left group"
+                        >
+                          <div className="relative shrink-0">
+                            <div className={`w-8 h-8 rounded-card-sm flex items-center justify-center group-hover:ring-2 group-hover:ring-primary-500/20 transition-all ${farbKlassen[k.farbe]}`}>
+                              <Icon size={15} />
+                            </div>
+                            {k.warnung && (
+                              <motion.span
+                                className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-light-card dark:ring-canvas-2"
+                                animate={{ scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }}
+                                transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
+                              />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-medium text-light-text-main dark:text-dark-text-main truncate">
+                              {k.titel}
+                            </div>
+                            {k.unter && (
+                              <div className="text-[10px] text-dark-text-secondary truncate leading-tight">{k.unter}</div>
+                            )}
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="text-base font-bold text-light-text-main dark:text-dark-text-main leading-none">
+                              <AnimatedNumber value={k.wert} />
+                            </div>
+                            <div className="text-[10px] text-dark-text-secondary">{k.einheit}</div>
+                          </div>
+                          <ChevronRight size={12} className="text-dark-text-secondary opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                        </motion.button>
+                      );
+                    })}
+                    <div className="pb-2" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.section>
+
+          {/* ── Budgetübersicht ───────────────────────────────────────────── */}
+          <motion.section variants={reduced ? {} : sectionItemVariants}>
+            <SectionHeader icon={TrendingUp} label="Budgetübersicht" />
+            <div className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-2 overflow-hidden">
+              <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-light-border dark:divide-dark-border">
+
+                {/* Sektion 1: Budget */}
+                <div className="relative">
+                  <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-primary-500 to-emerald-400" />
+                  <motion.button
+                    data-tour="tour-dashboard-budget"
+                    whileHover={reduced ? {} : { backgroundColor: "rgba(0,0,0,0.03)" }}
+                    whileTap={{ scale: 0.99 }}
+                    onClick={() => navigate("/home/budget")}
+                    className="w-full p-4 text-left group hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">💶</span>
+                        <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
+                          {t("home:dashboard.budgetTitle", { month: monatLabel() })}
+                        </span>
+                      </div>
+                      <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                    {budgetMonat.ausgabenHaushalt === 0 && budgetMonat.ausgabenPrivat === 0 && budgetMonat.buchungen === 0 ? (
+                      <>
+                        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+                          {t("home:dashboard.noBudgetEntries")}
+                        </p>
+                        {budgetMonat.kommendeNichtMonatlich.length > 0 && (
+                          <p className="text-xs text-amber-400 flex items-center gap-1 mt-2">
+                            <AlertTriangle size={11} />
+                            {t("home:dashboard.irregularPayments", {
+                              count: budgetMonat.kommendeNichtMonatlich.length,
+                              amount: fmt(budgetMonat.kommendeNichtMonatlich.reduce((s, p) => s + Math.abs(Number(p.betrag)), 0)),
+                            })}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <div className="flex items-end justify-between">
+                          <span className="text-2xl font-bold text-light-text-main dark:text-dark-text-main tabular-nums">
+                            {fmt(budgetMonat.ausgabenHaushalt)} €
+                          </span>
+                          <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">
+                            {t("home:dashboard.bookings", { count: budgetMonat.buchungen })}
+                          </span>
+                        </div>
+                        <p className="text-xs text-red-400 flex items-center gap-1">
+                          <TrendingDown size={11} /> {t("home:dashboard.householdThisMonth")}
+                        </p>
+                        {budgetMonat.ausgabenPrivat > 0 && (
+                          <p className="text-xs text-amber-400">
+                            + {fmt(budgetMonat.ausgabenPrivat)} € privat
+                          </p>
+                        )}
+                        {budgetMonat.vormonatAusgaben > 0 && (() => {
+                          const delta = budgetMonat.ausgabenHaushalt - budgetMonat.vormonatAusgaben;
+                          const pct = Math.round(Math.abs(delta) / budgetMonat.vormonatAusgaben * 100);
+                          const hoeher = delta > 0;
+                          return (
+                            <p className={`text-xs flex items-center gap-1 ${hoeher ? "text-red-400" : "text-green-500"}`}>
+                              {hoeher ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+                              {hoeher ? "+" : "−"}{pct}% zum Vormonat ({fmt(budgetMonat.vormonatAusgaben)} €)
+                            </p>
+                          );
+                        })()}
+                        {budgetMonat.kommendeNichtMonatlich.length > 0 && (
+                          <p className="text-xs text-amber-400 flex items-center gap-1">
+                            <AlertTriangle size={11} />
+                            {t("home:dashboard.irregularPayments", {
+                              count: budgetMonat.kommendeNichtMonatlich.length,
+                              amount: fmt(budgetMonat.kommendeNichtMonatlich.reduce((s, p) => s + Math.abs(Number(p.betrag)), 0)),
+                            })}
+                          </p>
+                        )}
+                        {budgetTotal > 0 && (
+                          <div className="mt-2 pt-2 border-t border-light-border dark:border-dark-border">
+                            <div className="flex items-center gap-3 text-[10px] text-light-text-secondary dark:text-dark-text-secondary mb-1.5">
+                              <span className="flex items-center gap-1">
+                                <span className="inline-block w-2 h-2 rounded-full bg-primary-500" />
+                                Haushalt
+                              </span>
+                              {budgetMonat.ausgabenPrivat > 0 && (
+                                <span className="flex items-center gap-1">
+                                  <span className="inline-block w-2 h-2 rounded-full bg-secondary-500" />
+                                  Privat
+                                </span>
+                              )}
+                            </div>
+                            <div className="relative h-1.5 w-full rounded-full overflow-hidden bg-secondary-500/20 dark:bg-canvas-3">
+                              <motion.div
+                                className="absolute left-0 top-0 bottom-0 bg-primary-500 rounded-full"
+                                initial={{ scaleX: 0 }}
+                                animate={{ scaleX: hhRatio }}
+                                transition={{ duration: 0.7, ease: "easeOut", delay: 0.15 }}
+                                style={{ transformOrigin: "left", width: "100%" }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </motion.button>
+                </div>
+
+                {/* Sektion 2: Ausgleich */}
+                <div className="relative">
+                  <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-blue-500 to-sky-400" />
+                  <motion.button
+                    whileTap={{ scale: 0.99 }}
+                    onClick={() => navigate("/home/budget?tab=ausgleich")}
+                    className="w-full p-4 text-left group hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">↔</span>
+                        <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
+                          {t("home:dashboard.settlementTitle")}
+                        </span>
+                      </div>
+                      {offeneSaldoCount === 0 ? (
+                        <span className="text-[10px] px-2 py-0.5 rounded-pill font-semibold bg-green-500/15 text-green-400 border border-green-500/30">
+                          ✓ Ausgeglichen
+                        </span>
+                      ) : (
+                        <span className="text-[10px] px-2 py-0.5 rounded-pill font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                          {offeneSaldoCount} offen
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="text-2xl font-bold text-light-text-main dark:text-dark-text-main tabular-nums">
+                        {formatGermanCurrency(gesamtOffeneSchulden)} €
+                      </div>
+                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                        {t("home:dashboard.openDebtTotal")}
+                      </p>
+                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                        {t("home:dashboard.openPositions", { count: offeneSaldoCount })}
+                      </p>
+                    </div>
+                  </motion.button>
+                </div>
+
+                {/* Sektion 3: Ziele & Limits */}
+                <div className="relative flex flex-col">
+                  <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-amber-500 to-yellow-400" />
+
+                  {/* ── Sparziele ── */}
+                  <button
+                    onClick={() => navigate("/home/budget")}
+                    className="w-full p-4 pb-3 text-left group hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">🎯</span>
+                        <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">Sparziele</span>
+                      </div>
+                      <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                    {sparziele.length === 0 ? (
+                      <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Keine Sparziele angelegt.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {sparziele.slice(0, budgetLimitRows.length > 0 ? 2 : 3).map((z) => {
+                          const progress = Math.min((Number(z.aktueller_betrag) / Math.max(Number(z.ziel_betrag), 1)) * 100, 100);
+                          return (
+                            <div key={z.id}>
+                              <div className="flex items-baseline justify-between gap-2 mb-1">
+                                <span className="text-xs text-light-text-main dark:text-dark-text-main truncate">{z.emoji || "🎯"} {z.name}</span>
+                                <span className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary shrink-0">{Math.round(progress)}%</span>
+                              </div>
+                              <div className="h-1.5 bg-light-border dark:bg-canvas-3 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-all duration-700 ${progress === 0 ? "opacity-25" : ""}`}
+                                  style={{ width: progress === 0 ? "3px" : `${progress}%` }}
+                                />
+                              </div>
+                              <div className="flex justify-between text-[10px] text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                                <span>{Number(z.aktueller_betrag).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €</span>
+                                <span>{Number(z.ziel_betrag).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {sparziele.length > (budgetLimitRows.length > 0 ? 2 : 3) && (
+                          <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
+                            +{sparziele.length - (budgetLimitRows.length > 0 ? 2 : 3)} weitere
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </button>
+
+                  {/* Trennlinie — nur wenn Limits vorhanden */}
+                  {budgetLimitRows.length > 0 && (
+                    <div className="mx-4 h-px bg-light-border dark:bg-dark-border" />
+                  )}
+
+                  {/* ── Budgetlimits ── */}
+                  {budgetLimitRows.length > 0 && (
+                    <button
+                      onClick={() => navigate("/home/budget?tab=limits")}
+                      className="w-full p-4 pt-3 text-left group hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">📊</span>
+                          <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">Budgetlimits</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {(() => {
+                            const ueberschritten = budgetLimitRows.filter(r => r.status === "ueberschritten").length;
+                            const warnung = budgetLimitRows.filter(r => r.status === "warnung").length;
+                            if (ueberschritten > 0) return (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-pill font-semibold bg-red-500/10 text-red-500 border border-red-500/20">
+                                {ueberschritten} überschritten
+                              </span>
+                            );
+                            if (warnung > 0) return (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-pill font-semibold bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                                {warnung} Warnung
+                              </span>
+                            );
+                            return (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-pill font-semibold bg-green-500/10 text-green-500 border border-green-500/20">
+                                Alles OK
+                              </span>
+                            );
+                          })()}
+                          <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        {budgetLimitRows.slice(0, 3).map((row) => {
+                          const barClass = row.status === "ueberschritten" ? "bg-red-500" : row.status === "warnung" ? "bg-amber-500" : "bg-green-500";
+                          const pctClass = row.status === "ueberschritten" ? "text-red-500 dark:text-red-400" : row.status === "warnung" ? "text-amber-500 dark:text-amber-400" : "text-green-600 dark:text-green-400";
+                          return (
+                            <div key={row.kategorie}>
+                              <div className="flex items-center justify-between gap-2 mb-1">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: row.color }} />
+                                  <span className="text-xs text-light-text-main dark:text-dark-text-main truncate">{row.kategorie}</span>
+                                </div>
+                                <span className={`text-[10px] shrink-0 font-medium ${pctClass}`}>{Math.round(row.progress)}%</span>
+                              </div>
+                              <div className="h-1.5 bg-light-border dark:bg-canvas-3 rounded-full overflow-hidden">
+                                <motion.div
+                                  className={`h-full rounded-full ${barClass}`}
+                                  initial={{ scaleX: 0 }}
+                                  animate={{ scaleX: row.progress / 100 }}
+                                  transition={{ duration: 0.6, ease: "easeOut" }}
+                                  style={{ transformOrigin: "left" }}
+                                />
+                              </div>
+                              <div className="flex justify-between text-[10px] text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                                <span>{Number(row.verbrauch).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €</span>
+                                <span>von {Number(row.limitEuro).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {budgetLimitRows.length > 3 && (
+                          <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">+{budgetLimitRows.length - 3} weitere</p>
+                        )}
+                      </div>
+                    </button>
+                  )}
+                </div>
+
+              </div>
+            </div>
+          </motion.section>
+
+          {/* ── Row B: Projekte · Nächste Ereignisse ──────────────────────── */}
+          <motion.section variants={reduced ? {} : sectionItemVariants}>
+            <SectionHeader icon={Calendar} label={t("home:dashboard.sectionProjects") || "Projekte & Termine"} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+              {/* Projekte-Widget */}
+              <motion.button
+                variants={cardVariants}
+                whileHover={reduced ? {} : { scale: 1.01, transition: { type: "spring", stiffness: 400, damping: 25 } }}
+                whileTap={{ scale: 0.99 }}
+                onClick={() => navigate("/home/projekte")}
+                className="p-4 rounded-card cursor-pointer
+                           bg-light-card dark:bg-canvas-2
+                           border border-light-border dark:border-dark-border shadow-elevation-2
+                           hover:border-primary-500/40 hover:shadow-glow-primary
+                           transition-[border-color,box-shadow] duration-200 text-left group"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">📋</span>
+                    <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
+                      {t("home:dashboard.activeProjectsTitle", { count: stats.projekteAktiv })}
+                    </span>
+                  </div>
+                  <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary
+                                                     opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+
+                {aktiveProjekte.length === 0 ? (
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+                    {t("home:dashboard.noProjects")}
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {aktiveProjekte.map(p => (
+                      <div key={p.id}>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${projektAmpelFarbe(p)}`} />
+                            <span className="text-xs font-medium text-light-text-main dark:text-dark-text-main truncate">
+                              {p.name}
+                            </span>
+                          </div>
+                          <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary ml-2 flex-shrink-0 tabular-nums">
+                            {p.progress}%
+                          </span>
+                        </div>
+                        <AnimBar ratio={p.progress / 100} color="bg-purple-500" />
+                        <div className="flex items-center gap-2 mt-0.5 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                          {p.todoGesamt > 0 && <span>✅ {p.todoErledigt}/{p.todoGesamt}</span>}
+                          {p.zieldatum && (
+                            <span>{t("home:dashboard.projectDue", { date: new Date(p.zieldatum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) })}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </motion.button>
+
+              {/* Nächste Ereignisse — vertikale Timeline */}
+              <motion.div
+                variants={cardVariants}
+                className="p-4 rounded-card bg-light-card dark:bg-canvas-2
+                           border border-light-border dark:border-dark-border shadow-elevation-2"
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <Calendar size={15} className="text-primary-500" />
+                  <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
+                    {t("home:dashboard.next30Days")}
+                  </span>
+                </div>
+
+                {timeline.length === 0 ? (
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+                    {t("home:dashboard.noEvents")}
+                  </p>
+                ) : (
+                  <motion.div
+                    variants={timelineVariants}
+                    initial="hidden"
+                    animate="show"
+                    className="relative space-y-3 pl-1"
+                  >
+                    <div className="absolute left-[6px] top-2 bottom-2
+                                    w-0.5 bg-light-border dark:bg-dark-border" />
+
+                    {timeline.map((e, i) => {
+                      const tage = tagesBis(e.datum);
+                      const isOverdue = tage !== null && tage < 0;
+                      const isUrgent  = tage !== null && tage >= 0 && tage <= 1;
+                      const isHodie   = tage === 0;
+                      const dotColor  = TIMELINE_DOT_COLOR[e.typ] || "bg-canvas-4";
+
+                      return (
+                        <motion.div
+                          key={i}
+                          variants={timelineItemVariants}
+                          animate={isOverdue
+                            ? { x: [0, -3, 3, -2, 2, 0], backgroundColor: ["rgba(239,68,68,0)", "rgba(239,68,68,0.1)", "rgba(239,68,68,0)"] }
+                            : isUrgent
+                            ? { backgroundColor: ["rgba(245,158,11,0)", "rgba(245,158,11,0.08)", "rgba(245,158,11,0)"] }
+                            : {}}
+                          transition={isOverdue
+                            ? { x: { delay: 0.6 + i * 0.1, duration: 0.4 }, backgroundColor: { delay: 0.6 + i * 0.1, repeat: Infinity, duration: 2.5 } }
+                            : isUrgent
+                            ? { backgroundColor: { repeat: Infinity, duration: 2.5, delay: i * 0.1 } }
+                            : {}}
+                          className="flex items-start gap-3 rounded-card-sm -mx-1 px-1 py-0.5"
+                        >
+                          <motion.div
+                            className={`w-3.5 h-3.5 rounded-full flex-shrink-0 mt-0.5 z-10
+                                        ring-2 ring-light-card dark:ring-canvas-2 ${dotColor}`}
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 + i * 0.05 }}
+                          />
+                          <span className="text-xs text-light-text-main dark:text-dark-text-main flex-1 truncate leading-5 min-w-0">
+                            {e.titel}
+                          </span>
+                          <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                            {isHodie && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-pill
+                                               bg-red-500/15 text-red-400 border border-red-500/30">
+                                heute
+                              </span>
+                            )}
+                            {isOverdue && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-pill
+                                               bg-red-500/15 text-red-400 border border-red-500/30">
+                                überfällig
+                              </span>
+                            )}
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-pill font-medium
+                                              bg-light-surface-2 dark:bg-canvas-3
+                                              border border-light-border dark:border-dark-border
+                                              ${tagesFarbe(e.datum)}`}>
+                              {new Date(e.datum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
+                            </span>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </motion.div>
+            </div>
+          </motion.section>
+
+          {/* ── Aktivitäts-Feed ───────────────────────────────────────────── */}
+          {verlauf.length > 0 && (
+            <motion.section variants={reduced ? {} : sectionItemVariants}>
+              <motion.div
+                variants={cardVariants}
+                className="p-4 rounded-card bg-light-card dark:bg-canvas-2
+                           border border-light-border dark:border-dark-border shadow-elevation-2"
+              >
+                <SectionHeader icon={Clock} label={t("home:dashboard.recentActivity")} />
+                <motion.div
+                  variants={listVariants}
+                  initial="hidden"
+                  animate="show"
+                  className="relative space-y-2.5"
+                >
+                  <div className="absolute left-[13px] top-3.5 bottom-0
+                                  w-0.5 bg-light-border dark:bg-dark-border" />
+
+                  {verlauf.map((v, i) => {
+                    const meta = getVerlaufTableMeta(v.tabelle);
+                    const emoji = MODUL_ICON[v.tabelle] || meta.emoji || "📝";
+                    const colorClass = MODUL_COLOR[v.tabelle] || "bg-canvas-3 text-dark-text-secondary";
+
+                    return (
+                      <motion.div key={i} variants={listItemVariants} className="flex items-center gap-3 relative">
+                        <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center
+                                         text-sm z-10 ring-2 ring-light-card dark:ring-canvas-2 ${colorClass}`}>
+                          {emoji}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <span className="block text-xs text-light-text-main dark:text-dark-text-main truncate">
+                            {getVerlaufDisplayText(v)}
+                          </span>
+                          <span className="block text-[11px] text-light-text-secondary dark:text-dark-text-secondary truncate">
+                            {meta.label}
+                          </span>
+                        </div>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-pill flex-shrink-0
+                                         bg-light-surface-2 dark:bg-canvas-3
+                                         border border-light-border dark:border-dark-border
+                                         text-light-text-secondary dark:text-dark-text-secondary">
+                          {relativeZeit(v.created_at, t)}
+                        </span>
+                      </motion.div>
+                    );
+                  })}
+                </motion.div>
+              </motion.div>
+            </motion.section>
+          )}
+
+          {/* ── Schnellzugriff ────────────────────────────────────────────── */}
+          <motion.section variants={reduced ? {} : sectionItemVariants}>
+            <SectionHeader label={t("home:dashboard.quickAccess")} />
+            <motion.div
+              variants={gridVariants}
+              initial="hidden"
+              animate="show"
+              className="grid grid-cols-2 sm:grid-cols-4 gap-3"
+            >
+              {SCHNELLZUGRIFF_ITEMS.map((item) => (
+                <motion.button
+                  key={item.pfad}
+                  variants={cardVariants}
+                  whileHover={reduced ? {} : {
+                    scale: 1.03,
+                    transition: { type: "spring", stiffness: 400, damping: 25 },
+                  }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => navigate(item.pfad)}
+                  className="flex items-center gap-3 p-3 rounded-card-sm cursor-pointer
+                             bg-light-card dark:bg-canvas-2
+                             border border-light-border dark:border-dark-border shadow-elevation-1
+                             hover:border-primary-500/40 hover:bg-light-hover dark:hover:bg-canvas-3
+                             transition-colors duration-200 text-left group"
+                >
+                  <div className={`w-9 h-9 rounded-card-sm flex items-center justify-center
+                                   text-xl flex-shrink-0 ${item.color}`}>
+                    {item.icon}
+                  </div>
+                  <span className="text-sm text-light-text-main dark:text-dark-text-main flex-1 min-w-0 truncate">
+                    {t(`home:dashboard.quickLabels.${item.labelKey}`)}
+                  </span>
+                  <ChevronRight
+                    size={14}
+                    className="text-light-text-secondary dark:text-dark-text-secondary
+                               opacity-0 group-hover:opacity-100 flex-shrink-0
+                               transition-opacity duration-150"
+                  />
+                </motion.button>
+              ))}
+            </motion.div>
+          </motion.section>
+        </>
+      )}
 
       {tourAktiv && (
         <TourOverlay

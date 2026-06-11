@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChefHat, Plus, Upload } from "lucide-react";
+import { CalendarDays, ChefHat, History, Plus, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { supabase } from "../../supabaseClient";
 import { useLocale } from "../../contexts/LocaleContext";
@@ -15,7 +15,8 @@ import {
   resolveLocalizedRecipeIngredients,
   translateRecipeIfMissing,
 } from "../../utils/localizedRecipeShopping";
-import { addMissingRecipeIngredientsToShoppingList, matchRecipeIngredientsToStock } from "../../utils/recipeShoppingMatcher";
+import { findSimilarRecipes } from "../../utils/recipeDuplicateMatcher";
+import { buildRecipeShoppingPreview, insertSelectedPreviewItems } from "../../utils/recipeShoppingPreview";
 import { estimateRecipeNutritionIfMissing, hasRecipeNutrition } from "../../utils/recipeNutrition";
 import RecipeCard from "./RecipeCard";
 import RecipeListRow from "./RecipeListRow";
@@ -25,6 +26,11 @@ import RecipeImportModal from "./RecipeImportModal";
 import RecipeReviewModal from "./RecipeReviewModal";
 import RecipeSearchFilterToolbar from "./RecipeSearchFilterToolbar";
 import RecipeListenModal from "./RecipeListenModal";
+import MealPlanner from "./MealPlanner";
+import RecipeDuplicateWarning from "./RecipeDuplicateWarning";
+import RecipeImportHistoryModal from "./RecipeImportHistoryModal";
+import RecipeShoppingPreviewModal from "./RecipeShoppingPreviewModal";
+import ModalShell from "../ui/ModalShell";
 
 const sectionVariants = {
   hidden: {},
@@ -89,6 +95,18 @@ function SkeletonListRow() {
   );
 }
 
+async function resolveHouseholdId(userId) {
+  if (!userId) return null;
+  const { data, error } = await supabase
+    .from("household_members")
+    .select("household_id")
+    .eq("user_id", userId)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.household_id || null;
+}
+
 export default function HomeKochbuch({ session }) {
   const { t } = useTranslation("recipes");
   const { locale } = useLocale();
@@ -96,11 +114,13 @@ export default function HomeKochbuch({ session }) {
   const userId = session?.user?.id;
   const { rezeptId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
   const reduced = useReducedMotion();
 
   const [recipes, setRecipes] = useState([]);
   const [ingredientsByRecipe, setIngredientsByRecipe] = useState({});
+  const [householdId, setHouseholdId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("alle");
@@ -120,15 +140,38 @@ export default function HomeKochbuch({ session }) {
   const [listenFilter, setListenFilter] = useState(null);
   const [searchInZutaten, setSearchInZutaten] = useState(false);
   const [nutritionBusyId, setNutritionBusyId] = useState(null);
+  const [activeTab, setActiveTab] = useState("recipes");
+  const [plannerInitialRecipe, setPlannerInitialRecipe] = useState(null);
+  const [importHistoryOpen, setImportHistoryOpen] = useState(false);
+  const [shoppingPreview, setShoppingPreview] = useState(null);
+  const [shoppingPreviewIds, setShoppingPreviewIds] = useState([]);
+  const [shoppingPreviewBusy, setShoppingPreviewBusy] = useState(false);
+  const [pendingRecipeSave, setPendingRecipeSave] = useState(null);
+
+  useEffect(() => {
+    const assistantFlow = location.state?.assistantFlow;
+    if (!assistantFlow) return;
+    const startModal = assistantFlow.ui_state?.startModal;
+    const prefillQuery = assistantFlow.ui_state?.prefillQuery || assistantFlow.params?.query || "";
+    if (prefillQuery) setQuery(prefillQuery);
+    if (startModal === "import") setImportOpen(true);
+    if (startModal === "form") setFormOpen(true);
+    if (startModal === "listen") setListenModalOffen(true);
+    if (startModal === "mealPlanner") setActiveTab("planner");
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
 
   const loadData = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
     try {
+      const currentHouseholdId = await resolveHouseholdId(userId);
+      setHouseholdId(currentHouseholdId);
+      if (!currentHouseholdId) throw new Error(t("toast.noHousehold"));
       const { data: recipeRows, error } = await supabase
         .from("home_rezepte")
         .select("*")
-        .eq("user_id", userId)
+        .eq("household_id", currentHouseholdId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       const recipeIds = (recipeRows || []).map((item) => item.id);
@@ -343,15 +386,31 @@ export default function HomeKochbuch({ session }) {
       setIngredientsByRecipe((prev) => ({ ...prev, [recipe.id]: ingredients || [] }));
       setReviewRecipe(recipe);
       setImportOpen(false);
+      setImportHistoryOpen(false);
       await loadData();
     }
   };
 
-  const saveRecipe = async (recipeData, ingredients) => {
+  const saveRecipe = async (recipeData, ingredients, options = {}) => {
     if (!userId) return;
     try {
+      if (!options.skipDuplicateCheck) {
+        const matches = findSimilarRecipes({
+          recipes,
+          ingredientsByRecipe,
+          candidateRecipe: recipeData,
+          candidateIngredients: ingredients,
+        });
+        if (matches.length > 0) {
+          setPendingRecipeSave({ kind: "create", recipeData, ingredients, matches });
+          return;
+        }
+      }
+      const currentHouseholdId = householdId || await resolveHouseholdId(userId);
+      if (!currentHouseholdId) throw new Error(t("toast.noHousehold"));
       const payload = {
         ...recipeData,
+        household_id: currentHouseholdId,
         user_id: userId,
         sprache: activeLocale,
         ziel_locale: activeLocale,
@@ -378,11 +437,24 @@ export default function HomeKochbuch({ session }) {
     }
   };
 
-  const saveReview = async ({ addShopping, favorite, recipePatch, ingredientsPatch }) => {
+  const saveReview = async ({ addShopping, favorite, recipePatch, ingredientsPatch }, options = {}) => {
     if (!reviewRecipe) return;
     try {
       const patch = recipePatch || {};
       const currentIngredients = ingredientsPatch || ingredientsByRecipe[reviewRecipe.id] || [];
+      if (!options.skipDuplicateCheck) {
+        const matches = findSimilarRecipes({
+          recipes,
+          ingredientsByRecipe,
+          candidateRecipe: { ...reviewRecipe, ...patch },
+          candidateIngredients: currentIngredients,
+          excludeRecipeId: reviewRecipe.id,
+        });
+        if (matches.length > 0) {
+          setPendingRecipeSave({ kind: "review", payload: { addShopping, favorite, recipePatch, ingredientsPatch }, matches });
+          return;
+        }
+      }
       const localizedPatch = {
         ...(reviewRecipe.localized_content || {}),
         [activeLocale]: buildRecipeLocalizedPayload({ ...reviewRecipe, ...patch }, currentIngredients),
@@ -406,8 +478,21 @@ export default function HomeKochbuch({ session }) {
         }
       }
       if (addShopping) {
-        const matched = await matchRecipeIngredientsToStock({ supabase, userId, ingredients: currentIngredients });
-        await addMissingRecipeIngredientsToShoppingList({ supabase, userId, recipe: reviewRecipe, ingredients: matched, locale: activeLocale, servings: reviewRecipe.portionen || 4 });
+        const preview = await buildRecipeShoppingPreview({
+          supabase,
+          userId,
+          recipe: { ...reviewRecipe, ...patch },
+          ingredients: currentIngredients,
+          locale: activeLocale,
+          servings: reviewRecipe.portionen || 4,
+        });
+        await insertSelectedPreviewItems({
+          supabase,
+          userId,
+          previewItems: preview.items,
+          selectedIds: preview.selectedIds,
+          locale: activeLocale,
+        });
       }
       await logVerlauf(supabase, userId, "home_rezepte", patch.titel || reviewRecipe.titel, "gespeichert");
       setReviewRecipe(null);
@@ -470,11 +555,107 @@ export default function HomeKochbuch({ session }) {
   };
 
   const addShoppingForSelected = async (servings = null) => {
-    const ingredients = resolveLocalizedRecipeIngredients(selected, ingredientsByRecipe[selected.id] || [], activeLocale);
-    const matched = await matchRecipeIngredientsToStock({ supabase, userId, ingredients });
-    const result = await addMissingRecipeIngredientsToShoppingList({ supabase, userId, recipe: selected, ingredients: matched, locale: activeLocale, servings: servings || selected.portionen || 4 });
-    toast.success(t("toast.shoppingAdded", { count: result.inserted }));
+    try {
+      const ingredients = resolveLocalizedRecipeIngredients(selected, ingredientsByRecipe[selected.id] || [], activeLocale);
+      const preview = await buildRecipeShoppingPreview({
+        supabase,
+        userId,
+        recipe: selected,
+        ingredients,
+        locale: activeLocale,
+        servings: servings || selected.portionen || 4,
+      });
+      setShoppingPreview({ title: t("shoppingPreview.title"), items: preview.items, grouped: preview.grouped });
+      setShoppingPreviewIds(preview.selectedIds);
+    } catch (err) {
+      toast.error(err.message || t("mealPlanner.shoppingFailed"));
+    }
   };
+
+  const updateSelectedRecipe = async (recipePatch, ingredientRows, options = {}) => {
+    if (!selected) return;
+    try {
+      if (!options.skipDuplicateCheck) {
+        const matches = findSimilarRecipes({
+          recipes,
+          ingredientsByRecipe,
+          candidateRecipe: { ...selected, ...recipePatch },
+          candidateIngredients: ingredientRows,
+          excludeRecipeId: selected.id,
+        });
+        if (matches.length > 0) {
+          setPendingRecipeSave({ kind: "edit", recipePatch, ingredientRows, matches });
+          return;
+        }
+      }
+      const localizedContent = {
+        ...(selected.localized_content || {}),
+        [activeLocale]: buildRecipeLocalizedPayload({ ...selected, ...recipePatch }, ingredientRows),
+      };
+      const isPrimaryLocale = activeLocale === (selected.ziel_locale || selected.sprache || "de");
+      const neutralPatch = {};
+      if (Object.prototype.hasOwnProperty.call(recipePatch, "gruppe")) neutralPatch.gruppe = recipePatch.gruppe || null;
+      const { error: updateError } = await supabase
+        .from("home_rezepte")
+        .update(isPrimaryLocale ? { ...recipePatch, localized_content: localizedContent } : { ...neutralPatch, localized_content: localizedContent })
+        .eq("id", selected.id);
+      if (updateError) throw updateError;
+      if (isPrimaryLocale) {
+        const { error: deleteError } = await supabase.from("home_rezept_zutaten").delete().eq("rezept_id", selected.id);
+        if (deleteError) throw deleteError;
+        if (ingredientRows.length) {
+          const { error: insertError } = await supabase.from("home_rezept_zutaten").insert(ingredientRows.map((item) => ({ ...item, rezept_id: selected.id, household_id: selected.household_id })));
+          if (insertError) throw insertError;
+        }
+      }
+      setFormOpen(false);
+      await loadData();
+      toast.success(t("toast.saved"));
+    } catch (err) {
+      toast.error(err.message || t("toast.saveFailed"));
+    }
+  };
+
+  const planRecipe = (recipe) => {
+    setPlannerInitialRecipe(recipe);
+    setSelected(null);
+    setActiveTab("planner");
+    navigate("/home/kochbuch");
+  };
+
+  const confirmPendingRecipeSave = async () => {
+    const pending = pendingRecipeSave;
+    setPendingRecipeSave(null);
+    if (!pending) return;
+    if (pending.kind === "create") {
+      await saveRecipe(pending.recipeData, pending.ingredients, { skipDuplicateCheck: true });
+    } else if (pending.kind === "review") {
+      await saveReview(pending.payload, { skipDuplicateCheck: true });
+    } else if (pending.kind === "edit") {
+      await updateSelectedRecipe(pending.recipePatch, pending.ingredientRows, { skipDuplicateCheck: true });
+    }
+  };
+
+  const duplicateConfirmModal = (
+    <ModalShell
+      open={!!pendingRecipeSave}
+      title={t("duplicates.modalTitle")}
+      onClose={() => setPendingRecipeSave(null)}
+      maxWidthClass="max-w-xl"
+      footer={(
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={() => setPendingRecipeSave(null)} className="rounded-pill border border-light-border px-4 py-2 text-sm text-light-text-main dark:border-dark-border dark:text-dark-text-main">
+            {t("duplicates.cancel")}
+          </button>
+          <button type="button" onClick={confirmPendingRecipeSave} className="rounded-pill bg-primary-500 px-4 py-2 text-sm font-semibold text-white">
+            {t("duplicates.saveAnyway")}
+          </button>
+        </div>
+      )}
+    >
+      <RecipeDuplicateWarning matches={pendingRecipeSave?.matches || []} />
+    </ModalShell>
+  );
 
   if (selected) {
     const display = resolveLocalizedRecipe(selected, activeLocale);
@@ -490,8 +671,12 @@ export default function HomeKochbuch({ session }) {
           onDelete={deleteRecipe}
           onToggleFavorite={toggleFavorite}
           onAddShopping={addShoppingForSelected}
+          onPlanRecipe={planRecipe}
           onUpdateGroup={updateSelectedGroup}
           onRecalculateNutrition={recalculateSelectedNutrition}
+          supabase={supabase}
+          userId={userId}
+          toast={toast}
           groupOptions={verfuegbareListen}
           nutritionBusy={nutritionBusyId === selected.id}
         />
@@ -500,28 +685,30 @@ export default function HomeKochbuch({ session }) {
           initialRecipe={{ ...selected, titel: display.title, beschreibung: display.description, anleitung: display.instructions, notizen: display.notes, tags: display.tags, gruppe: selected.gruppe || "" }}
           initialIngredients={displayIngredients.map((item) => ({ ...item, name: item.displayName || item.name, menge_text: item.displayAmountText || item.menge_text, original_text: item.displayOriginalText || item.original_text }))}
           onClose={() => setFormOpen(false)}
-          onSave={async (recipePatch, ingredientRows) => {
-            const localizedContent = {
-              ...(selected.localized_content || {}),
-              [activeLocale]: buildRecipeLocalizedPayload({ ...selected, ...recipePatch }, ingredientRows),
-            };
-            const isPrimaryLocale = activeLocale === (selected.ziel_locale || selected.sprache || "de");
-            const neutralPatch = {};
-            if (Object.prototype.hasOwnProperty.call(recipePatch, "gruppe")) neutralPatch.gruppe = recipePatch.gruppe || null;
-            await supabase
-              .from("home_rezepte")
-              .update(isPrimaryLocale ? { ...recipePatch, localized_content: localizedContent } : { ...neutralPatch, localized_content: localizedContent })
-              .eq("id", selected.id);
-            if (isPrimaryLocale) {
-              await supabase.from("home_rezept_zutaten").delete().eq("rezept_id", selected.id);
-              if (ingredientRows.length) {
-                await supabase.from("home_rezept_zutaten").insert(ingredientRows.map((item) => ({ ...item, rezept_id: selected.id, household_id: selected.household_id })));
-              }
+          onSave={updateSelectedRecipe}
+        />
+        <RecipeShoppingPreviewModal
+          open={!!shoppingPreview}
+          title={shoppingPreview?.title}
+          preview={shoppingPreview}
+          selectedIds={shoppingPreviewIds}
+          busy={shoppingPreviewBusy}
+          onSelectionChange={setShoppingPreviewIds}
+          onClose={() => setShoppingPreview(null)}
+          onConfirm={async (ids) => {
+            setShoppingPreviewBusy(true);
+            try {
+              const result = await insertSelectedPreviewItems({ supabase, userId, previewItems: shoppingPreview?.items || [], selectedIds: ids, locale: activeLocale });
+              toast.success(t("toast.shoppingAdded", { count: result.inserted }));
+              setShoppingPreview(null);
+            } catch (err) {
+              toast.error(err.message || t("mealPlanner.shoppingFailed"));
+            } finally {
+              setShoppingPreviewBusy(false);
             }
-            setFormOpen(false);
-            await loadData();
           }}
         />
+        {duplicateConfirmModal}
       </>
     );
   }
@@ -544,19 +731,65 @@ export default function HomeKochbuch({ session }) {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => setImportOpen(true)}
+            onClick={() => setImportHistoryOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-pill border border-light-border px-4 py-2 text-sm text-light-text-main hover:bg-light-hover transition-colors dark:border-dark-border dark:text-dark-text-main dark:hover:bg-canvas-3"
+          >
+            <History size={15} /> {t("imports.button")}
+          </button>
+          <button
+            onClick={() => { setActiveTab("recipes"); setImportOpen(true); }}
             className="inline-flex items-center gap-1.5 rounded-pill bg-primary-500 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-600 transition-colors"
           >
             <Upload size={15} /> {t("page.import")}
           </button>
           <button
-            onClick={() => setFormOpen(true)}
+            onClick={() => { setActiveTab("recipes"); setFormOpen(true); }}
             className="inline-flex items-center gap-1.5 rounded-pill border border-light-border px-4 py-2 text-sm text-light-text-main hover:bg-light-hover transition-colors dark:border-dark-border dark:text-dark-text-main dark:hover:bg-canvas-3"
           >
             <Plus size={15} /> {t("page.manual")}
           </button>
         </div>
       </motion.div>
+
+      <div className="inline-flex rounded-card-sm border border-light-border bg-light-surface-1 p-1 dark:border-dark-border dark:bg-canvas-3">
+        <button
+          type="button"
+          onClick={() => setActiveTab("recipes")}
+          className={`inline-flex items-center gap-1.5 rounded-card-sm px-3 py-1.5 text-sm font-medium transition ${
+            activeTab === "recipes"
+              ? "bg-light-card text-primary-500 shadow-elevation-1 dark:bg-canvas-2"
+              : "text-light-text-secondary hover:text-light-text-main dark:text-dark-text-secondary dark:hover:text-dark-text-main"
+          }`}
+        >
+          <ChefHat size={14} /> {t("mealPlanner.tabs.recipes")}
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("planner")}
+          className={`inline-flex items-center gap-1.5 rounded-card-sm px-3 py-1.5 text-sm font-medium transition ${
+            activeTab === "planner"
+              ? "bg-light-card text-primary-500 shadow-elevation-1 dark:bg-canvas-2"
+              : "text-light-text-secondary hover:text-light-text-main dark:text-dark-text-secondary dark:hover:text-dark-text-main"
+          }`}
+        >
+          <CalendarDays size={14} /> {t("mealPlanner.tabs.planner")}
+        </button>
+      </div>
+
+      {activeTab === "planner" ? (
+        <MealPlanner
+          supabase={supabase}
+          userId={userId}
+          recipes={recipes}
+          ingredientsByRecipe={ingredientsByRecipe}
+          activeLocale={activeLocale}
+          toast={toast}
+          initialRecipe={plannerInitialRecipe}
+          onInitialRecipeHandled={() => setPlannerInitialRecipe(null)}
+          onOpenRecipe={(recipe) => { setSelected(recipe); navigate(`/home/kochbuch/${recipe.id}`); }}
+        />
+      ) : (
+        <>
 
       {/* Search & Filter Toolbar */}
       <RecipeSearchFilterToolbar
@@ -617,6 +850,7 @@ export default function HomeKochbuch({ session }) {
                 key={recipe.id}
                 recipe={recipe}
                 display={resolveLocalizedRecipe(recipe, activeLocale)}
+                ingredients={ingredientsByRecipe[recipe.id] || []}
                 onOpen={(item) => { setSelected(item); navigate(`/home/kochbuch/${item.id}`); }}
                 onToggleFavorite={toggleFavorite}
               />
@@ -638,6 +872,7 @@ export default function HomeKochbuch({ session }) {
                       key={recipe.id}
                       recipe={recipe}
                       display={resolveLocalizedRecipe(recipe, activeLocale)}
+                      ingredients={ingredientsByRecipe[recipe.id] || []}
                       onOpen={(item) => { setSelected(item); navigate(`/home/kochbuch/${item.id}`); }}
                       onToggleFavorite={toggleFavorite}
                     />
@@ -661,6 +896,7 @@ export default function HomeKochbuch({ session }) {
               <RecipeCard
                 recipe={recipe}
                 display={resolveLocalizedRecipe(recipe, activeLocale)}
+                ingredients={ingredientsByRecipe[recipe.id] || []}
                 onOpen={(item) => { setSelected(item); navigate(`/home/kochbuch/${item.id}`); }}
                 onToggleFavorite={toggleFavorite}
               />
@@ -684,6 +920,7 @@ export default function HomeKochbuch({ session }) {
                     <RecipeCard
                       recipe={recipe}
                       display={resolveLocalizedRecipe(recipe, activeLocale)}
+                      ingredients={ingredientsByRecipe[recipe.id] || []}
                       onOpen={(item) => { setSelected(item); navigate(`/home/kochbuch/${item.id}`); }}
                       onToggleFavorite={toggleFavorite}
                     />
@@ -710,9 +947,46 @@ export default function HomeKochbuch({ session }) {
         recipe={reviewRecipe}
         display={reviewRecipe ? resolveLocalizedRecipe(reviewRecipe, activeLocale) : null}
         ingredients={reviewRecipe ? resolveLocalizedRecipeIngredients(reviewRecipe, ingredientsByRecipe[reviewRecipe.id] || [], activeLocale) : []}
+        duplicateMatches={reviewRecipe ? findSimilarRecipes({
+          recipes,
+          ingredientsByRecipe,
+          candidateRecipe: reviewRecipe,
+          candidateIngredients: ingredientsByRecipe[reviewRecipe.id] || [],
+          excludeRecipeId: reviewRecipe.id,
+        }) : []}
         onClose={() => setReviewRecipe(null)}
         onSave={saveReview}
       />
+      <RecipeImportHistoryModal
+        open={importHistoryOpen}
+        householdId={householdId}
+        onClose={() => setImportHistoryOpen(false)}
+        onOpenReview={loadRecipeForReview}
+      />
+      <RecipeShoppingPreviewModal
+        open={!!shoppingPreview}
+        title={shoppingPreview?.title}
+        preview={shoppingPreview}
+        selectedIds={shoppingPreviewIds}
+        busy={shoppingPreviewBusy}
+        onSelectionChange={setShoppingPreviewIds}
+        onClose={() => setShoppingPreview(null)}
+        onConfirm={async (ids) => {
+          setShoppingPreviewBusy(true);
+          try {
+            const result = await insertSelectedPreviewItems({ supabase, userId, previewItems: shoppingPreview?.items || [], selectedIds: ids, locale: activeLocale });
+            toast.success(t("toast.shoppingAdded", { count: result.inserted }));
+            setShoppingPreview(null);
+          } catch (err) {
+            toast.error(err.message || t("mealPlanner.shoppingFailed"));
+          } finally {
+            setShoppingPreviewBusy(false);
+          }
+        }}
+      />
+      {duplicateConfirmModal}
+        </>
+      )}
     </div>
   );
 }

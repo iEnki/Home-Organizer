@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, Palette, Plus, RotateCcw } from "lucide-react";
+import { ArrowDown, ArrowUp, Palette, Plus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ModalShell from "../../ui/ModalShell";
 import { getHomeBudgetCategoryLabel } from "../../../utils/homeBudgetCategories";
@@ -13,9 +13,9 @@ export default function BudgetCategoryManagerModal({
   categories = [],
   onCreate,
   onMove,
-  onToggleActive,
   onChangeColor,
-  canDeactivate,
+  onDelete,
+  canDelete,
 }) {
   const { t, i18n } = useTranslation(["budget", "common"]);
   const [newName, setNewName] = useState("");
@@ -24,10 +24,6 @@ export default function BudgetCategoryManagerModal({
 
   const activeCategories = useMemo(
     () => (categories || []).filter((entry) => entry.is_active !== false),
-    [categories],
-  );
-  const inactiveCategories = useMemo(
-    () => (categories || []).filter((entry) => entry.is_active === false),
     [categories],
   );
 
@@ -99,16 +95,17 @@ export default function BudgetCategoryManagerModal({
           </>
         )}
 
-        <button
-          type="button"
-          onClick={() => onToggleActive?.(entry, entry.is_active === false)}
-          disabled={entry.is_active !== false && !canDeactivate?.(entry)}
-          className="rounded-card-sm border border-light-border dark:border-dark-border px-3 py-2 text-xs font-medium text-light-text-main dark:text-dark-text-main hover:bg-light-hover dark:hover:bg-canvas-3 disabled:opacity-40"
-        >
-          {entry.is_active === false
-            ? t("common:actions.reactivate", { defaultValue: "Reactivate" })
-            : t("common:actions.deactivate", { defaultValue: "Deactivate" })}
-        </button>
+        {canDelete?.(entry) && (
+          <button
+            type="button"
+            onClick={() => onDelete?.(entry)}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-card-sm border border-red-500/30 text-red-500 hover:bg-red-500/10"
+            aria-label={t("common:actions.delete", { defaultValue: "Delete" })}
+            title={t("common:actions.delete", { defaultValue: "Delete" })}
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -160,7 +157,7 @@ export default function BudgetCategoryManagerModal({
           </button>
         </div>
         <p className="mt-2 text-xs text-light-text-secondary dark:text-dark-text-secondary">
-          {t("budget:categories.managerHint", { defaultValue: "You can create categories, change colours, sort, deactivate and reactivate them. Renaming and deleting stay locked intentionally." })}
+          {t("budget:categories.managerHint")}
         </p>
       </div>
 
@@ -177,24 +174,6 @@ export default function BudgetCategoryManagerModal({
             </p>
           ) : (
             activeCategories.map((entry, index) => renderCategoryRow(entry, index, activeCategories))
-          )}
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <RotateCcw size={15} className="text-light-text-secondary dark:text-dark-text-secondary" />
-          <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
-            {t("budget:categories.inactive", { defaultValue: "Inactive categories" })}
-          </h3>
-        </div>
-        <div className="space-y-2">
-          {inactiveCategories.length === 0 ? (
-            <p className="rounded-card-sm border border-dashed border-light-border dark:border-dark-border px-4 py-6 text-sm text-light-text-secondary dark:text-dark-text-secondary">
-              {t("budget:categories.noInactive", { defaultValue: "No inactive categories." })}
-            </p>
-          ) : (
-            inactiveCategories.map((entry, index) => renderCategoryRow(entry, index, inactiveCategories))
           )}
         </div>
       </section>

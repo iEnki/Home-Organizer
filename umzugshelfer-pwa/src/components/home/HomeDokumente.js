@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   FileText, FolderOpen, Upload, Download, Trash2, BookOpen,
-  X, Plus, CheckCircle, File, Loader2, AlertTriangle, Pencil, ZoomIn, ZoomOut,
+  X, Plus, CheckCircle, File, Loader2, AlertTriangle, Pencil, ZoomIn, ZoomOut, Wallet,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase, getActiveHouseholdId } from "../../supabaseClient";
@@ -22,18 +22,19 @@ import DokumentWissenAnalyseModal from "./documents/DokumentWissenAnalyseModal";
 // ── Konstanten ────────────────────────────────────────────────────────────────
 const KATEGORIEN = [
   "Rechnung", "Vertrag", "Handbuch", "Garantie",
-  "Versicherung", "Behörde", "Gesundheit", "Sonstiges",
+  "Versicherung", "Behörde", "Gesundheit", "Medikamente", "Sonstiges",
 ];
 
 const KATEGORIE_FARBEN = {
-  Rechnung:     "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-  Vertrag:      "bg-purple-500/10 text-purple-600 dark:text-purple-400",
-  Handbuch:     "bg-green-500/10 text-green-600 dark:text-green-400",
-  Garantie:     "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  Versicherung: "bg-teal-500/10 text-teal-600 dark:text-teal-400",
-  Behörde:      "bg-red-500/10 text-red-600 dark:text-red-400",
-  Gesundheit:   "bg-pink-500/10 text-pink-600 dark:text-pink-400",
-  Sonstiges:    "bg-gray-500/10 text-gray-500 dark:text-gray-400",
+  Rechnung:     { icon: "bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/20",     badge: "bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/20",         accent: "bg-blue-500",     dot: "bg-blue-400"     },
+  Vertrag:      { icon: "bg-purple-500/20 text-purple-400 ring-1 ring-purple-500/20", badge: "bg-purple-500/10 text-purple-500 dark:text-purple-400 border border-purple-500/20", accent: "bg-purple-500", dot: "bg-purple-400"   },
+  Handbuch:     { icon: "bg-green-500/20 text-green-400 ring-1 ring-green-500/20",   badge: "bg-green-500/10 text-green-500 dark:text-green-400 border border-green-500/20",     accent: "bg-green-500",  dot: "bg-green-400"    },
+  Garantie:     { icon: "bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/20",   badge: "bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/20",     accent: "bg-amber-500",  dot: "bg-amber-400"    },
+  Versicherung: { icon: "bg-teal-500/20 text-teal-400 ring-1 ring-teal-500/20",     badge: "bg-teal-500/10 text-teal-500 dark:text-teal-400 border border-teal-500/20",         accent: "bg-teal-500",   dot: "bg-teal-400"     },
+  Behörde:      { icon: "bg-red-500/20 text-red-400 ring-1 ring-red-500/20",         badge: "bg-red-500/10 text-red-500 dark:text-red-400 border border-red-500/20",             accent: "bg-red-500",    dot: "bg-red-400"      },
+  Gesundheit:   { icon: "bg-pink-500/20 text-pink-400 ring-1 ring-pink-500/20",     badge: "bg-pink-500/10 text-pink-500 dark:text-pink-400 border border-pink-500/20",         accent: "bg-pink-500",   dot: "bg-pink-400"     },
+  Medikamente:  { icon: "bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/20", badge: "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/20", accent: "bg-emerald-500", dot: "bg-emerald-400" },
+  Sonstiges:    { icon: "bg-slate-500/10 text-slate-400 ring-1 ring-slate-500/20",   badge: "bg-slate-500/10 text-slate-400 border border-slate-500/20",                         accent: "bg-slate-500",  dot: "bg-slate-400"    },
 };
 
 const WISSEN_KATEGORIEN = [
@@ -51,6 +52,14 @@ const BUDGET_INSERT_VARIANTEN = [
   ["user_id", "beschreibung", "betrag", "datum", "kategorie", "typ", "app_modus"],
   ["user_id", "beschreibung", "betrag", "datum", "kategorie"],
 ];
+
+const chunkArray = (items, size = 75) => {
+  const chunks = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+};
 
 const guessMimeFromName = (name) => {
   const n = (name || "").toLowerCase();
@@ -96,6 +105,8 @@ const hatVorschauCheck = (dok) =>
   !!dok?.storage_pfad && (hatBildVorschauCheck(dok) || istPdfDatei(dok));
 
 const effektiveKategorie = (dok) => {
+  if ((dok?.dokument_typ || "").trim().toLowerCase() === "beipackzettel") return "Medikamente";
+  if ((dok?.kategorie || "").trim().toLowerCase() === "medikament") return "Medikamente";
   if (dok?.kategorie) return dok.kategorie;
   if (istRechnungTyp(dok)) return "Rechnung";
   return extrahiereKategorieHinweis(dok.beschreibung);
@@ -690,7 +701,7 @@ const DokumentKarte = ({
   highlighted,
 }) => {
   const kat = effektiveKategorie(dok);
-  const katFarbe = KATEGORIE_FARBEN[kat] || KATEGORIE_FARBEN.Sonstiges;
+  const katObj = KATEGORIE_FARBEN[kat] || KATEGORIE_FARBEN.Sonstiges;
   const beschreibungOhneHinweis = dok.beschreibung?.replace(/\s*\[[^\]]+\]$/, "") || "";
   const [vorschauOffen, setVorschauOffen] = useState(false);
   const [laedt, setLaedt] = useState(false);
@@ -699,6 +710,9 @@ const DokumentKarte = ({
   const hatBildVorschau = hatBildVorschauCheck(dok) && !!vorschauUrl;
   const hatPdfVorschau = istPdf && !!vorschauUrl && !hatBildVorschau;
   const hatVorschau = hatBildVorschau || hatPdfVorschau || hatVorschauCheck(dok);
+  const istRechnung = istRechnungKategorie(dok);
+  const rechnungIstImBudget = istRechnung && dok.im_budget;
+  const rechnungIstWissen = istRechnung && dok.hat_wissen;
 
   const dateiIcon = () => {
     if (dok.datei_typ?.startsWith("image/")) return <File size={20} className="text-blue-500" />;
@@ -709,14 +723,15 @@ const DokumentKarte = ({
   return (
     <div
       data-dokument-id={dok.id}
-      className={`p-4 rounded-card bg-light-card dark:bg-canvas-2 border shadow-elevation-2 transition-[border-color,box-shadow] duration-200 ${
+      className={`relative p-4 rounded-card bg-light-card dark:bg-canvas-2 border shadow-elevation-2 overflow-hidden transition-[border-color,box-shadow] duration-200 ${
         highlighted
           ? "border-primary-500 ring-2 ring-primary-500/30 shadow-glow-primary"
-          : "border-light-border dark:border-dark-border hover:border-primary-500/40 hover:shadow-glow-primary"
+          : "border-light-border dark:border-dark-border hover:border-primary-500/40 hover:shadow-elevation-3"
       }`}
     >
+      <span className={`absolute left-0 top-0 bottom-0 w-[3px] ${katObj.accent} opacity-60`} aria-hidden="true" />
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-card-sm bg-light-border dark:bg-canvas-3 flex items-center justify-center flex-shrink-0">
+        <div className={`w-10 h-10 rounded-card-sm flex items-center justify-center flex-shrink-0 ${katObj.icon}`}>
           {dateiIcon()}
         </div>
         <div className="flex-1 min-w-0">
@@ -730,8 +745,19 @@ const DokumentKarte = ({
           )}
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
             {kat && (
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${katFarbe}`}>
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${katObj.badge}`}>
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${katObj.dot}`} aria-hidden="true" />
                 {kat}
+              </span>
+            )}
+            {rechnungIstImBudget && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-600 dark:text-green-400">
+                <Wallet size={11} /> Im Budget
+              </span>
+            )}
+            {rechnungIstWissen && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                <BookOpen size={11} /> In Wissen
               </span>
             )}
             {dok.groesse_kb != null && (
@@ -853,17 +879,24 @@ const DokumentKarte = ({
           >
             <Download size={12} /> Herunterladen
           </motion.button>
-          <motion.button
-            onClick={() => onWissen(dok)}
-            whileTap={{ scale: 0.92 }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors"
-          >
-            <BookOpen size={12} /> Als Wissen
-          </motion.button>
-          {istRechnungKategorie(dok) && (
-            dok.im_budget ? (
+          {(!istRechnung || !dok.hat_wissen) && (
+            <motion.button
+              onClick={() => onWissen(dok)}
+              whileTap={{ scale: 0.92 }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors"
+            >
+              <BookOpen size={12} /> Als Wissen
+            </motion.button>
+          )}
+          {rechnungIstWissen && (
+            <span className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <BookOpen size={12} /> In Wissen
+            </span>
+          )}
+          {istRechnung && (
+            rechnungIstImBudget ? (
               <span className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-green-500/10 text-green-600 dark:text-green-400">
-                <CheckCircle size={12} /> Im Budget
+                <Wallet size={12} /> Im Budget
               </span>
             ) : (
               <motion.button
@@ -1016,6 +1049,19 @@ const HomeDokumente = ({ session }) => {
   const handledFocusRef = useRef(null);
   const focusDokumentId = location.state?.focusDokumentId || null;
 
+  useEffect(() => {
+    const assistantFlow = location.state?.assistantFlow;
+    if (!assistantFlow) return;
+    const startModal = assistantFlow.ui_state?.startModal;
+    if (startModal === "upload") {
+      setUploadModalOffen(true);
+    }
+    if (assistantFlow.ui_state?.prefillQuery || assistantFlow.params?.query) {
+      setSuchbegriff(assistantFlow.ui_state?.prefillQuery || assistantFlow.params?.query || "");
+    }
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
+
   const loadPreviewUrl = useCallback(async (dok) => {
     const existing = vorschauUrls[dok.id];
     const ts = vorschauUrlsTs[dok.id] || 0;
@@ -1107,28 +1153,38 @@ const HomeDokumente = ({ session }) => {
       let wissenDokIdSet = new Set();
 
       if (dokIds.length > 0) {
-        let linksQuery = supabase
-          .from("dokument_links")
-          .select("dokument_id")
-          .eq("entity_type", "budget_posten")
-          .in("dokument_id", dokIds);
-        if (householdId) linksQuery = linksQuery.eq("household_id", householdId);
-        const { data: linkRows } = await linksQuery;
+        const linkRows = [];
+        const rechnungRows = [];
+        const wissenRows = [];
+
+        for (const idChunk of chunkArray(dokIds)) {
+          let linksQuery = supabase
+            .from("dokument_links")
+            .select("dokument_id")
+            .eq("entity_type", "budget_posten")
+            .in("dokument_id", idChunk);
+          if (householdId) linksQuery = linksQuery.eq("household_id", householdId);
+          const { data: chunkLinkRows, error: linkError } = await linksQuery;
+          if (!linkError) linkRows.push(...(chunkLinkRows || []));
+
+          let rechnungQuery = supabase
+            .from("rechnungen")
+            .select("id, dokument_id, lieferant_name, brutto, rechnungsdatum")
+            .in("dokument_id", idChunk);
+          if (householdId) rechnungQuery = rechnungQuery.eq("household_id", householdId);
+          const { data: chunkRechnungRows, error: rechnungError } = await rechnungQuery;
+          if (!rechnungError) rechnungRows.push(...(chunkRechnungRows || []));
+
+          const { data: chunkWissenRows, error: wissenError } = await supabase
+            .from("home_wissen")
+            .select("dokument_id")
+            .in("dokument_id", idChunk)
+            .not("dokument_id", "is", null);
+          if (!wissenError) wissenRows.push(...(chunkWissenRows || []));
+        }
+
         budgetLinkedSet = new Set((linkRows || []).map((row) => row.dokument_id));
-
-        let rechnungQuery = supabase
-          .from("rechnungen")
-          .select("id, dokument_id, lieferant_name, brutto, rechnungsdatum")
-          .in("dokument_id", dokIds);
-        if (householdId) rechnungQuery = rechnungQuery.eq("household_id", householdId);
-        const { data: rechnungRows } = await rechnungQuery;
         rechnungByDokId = new Map((rechnungRows || []).map((row) => [row.dokument_id, row]));
-
-        const { data: wissenRows } = await supabase
-          .from("home_wissen")
-          .select("dokument_id")
-          .in("dokument_id", dokIds)
-          .not("dokument_id", "is", null);
         wissenDokIdSet = new Set((wissenRows || []).map((r) => r.dokument_id));
       }
 
@@ -1205,6 +1261,7 @@ const HomeDokumente = ({ session }) => {
         supabase,
         dokumentId: id,
         fallbackStoragePfad: storagePfad,
+        archivedByUserId: userId,
       });
       await notifyHouseholdEvent({
         supabaseClient: supabase,
@@ -1325,10 +1382,21 @@ const HomeDokumente = ({ session }) => {
       if (statusFilter === "offen"  && (!istRechnungKategorie(dok) || dok.im_budget)) return false;
       if (suchbegriff) {
         const q = suchbegriff.toLowerCase();
+        const suchText = [
+          dok.dateiname,
+          dok.beschreibung,
+          effektiveKategorie(dok),
+          dok.dokument_typ,
+          ...(Array.isArray(dok.tags) ? dok.tags : []),
+          dok.meta?.source,
+          dok.meta?.source_url,
+          dok.meta?.basg?.product_name,
+          dok.meta?.basg?.wirkstoff,
+          dok.meta?.basg?.substances,
+          dok.rechnung_info?.lieferant_name,
+        ].flat().filter(Boolean).join(" ").toLowerCase();
         const treffer =
-          dok.dateiname.toLowerCase().includes(q) ||
-          (dok.beschreibung || "").toLowerCase().includes(q) ||
-          (dok.rechnung_info?.lieferant_name || "").toLowerCase().includes(q);
+          suchText.includes(q);
         if (!treffer) return false;
       }
       return true;

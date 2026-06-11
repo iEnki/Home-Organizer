@@ -1,80 +1,84 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Edit2, ArrowRightLeft, Trash2, MoreVertical } from "lucide-react";
-import { BUCH_STATUS_FARBEN } from "../../../utils/buecher";
+import { BookOpen, Edit2, ArrowRightLeft, Trash2, MoreVertical } from "lucide-react";
+import { getBuchCoverUrl } from "../../../utils/buchCoverUtils";
 
-export default function BuchKarte({ buch, onBearbeiten, onVerleihen, onLoeschen }) {
+const STATUS_CONFIG = {
+  im_regal:   { dot: "bg-primary-500",        badge: "border-primary-500/30 bg-primary-500/15 text-primary-500" },
+  verliehen:  { dot: "bg-accent-yellow",       badge: "border-accent-yellow/30 bg-accent-yellow/15 text-accent-yellow" },
+  vermisst:   { dot: "bg-accent-danger",       badge: "border-accent-danger/30 bg-accent-danger/15 text-accent-danger" },
+  verschenkt: { dot: "bg-secondary-500",       badge: "border-secondary-500/30 bg-secondary-500/15 text-secondary-500" },
+  entsorgt:   { dot: "bg-light-text-secondary dark:bg-dark-text-secondary", badge: "border-dark-border bg-canvas-3 text-dark-text-secondary" },
+};
+
+export default function BuchKarte({ buch, onBearbeiten, onVerleihen, onLoeschen, index = 0 }) {
   const { t } = useTranslation(["books"]);
   const [menuOffen, setMenuOffen] = useState(false);
 
   const statusLabel = t(`books:status.${buch.status}`, { defaultValue: buch.status });
-  const statusFarbe = BUCH_STATUS_FARBEN[buch.status] ?? "";
-
+  const statusCfg = STATUS_CONFIG[buch.status] ?? STATUS_CONFIG.im_regal;
+  const coverUrl = getBuchCoverUrl(buch);
   const titelInitiale = buch.titel ? buch.titel.charAt(0).toUpperCase() : "B";
 
-  const handleBearbeiten = (e) => {
+  const stopAndClose = (fn) => (e) => {
     e.stopPropagation();
     setMenuOffen(false);
-    onBearbeiten(buch);
-  };
-
-  const handleVerleihen = (e) => {
-    e.stopPropagation();
-    setMenuOffen(false);
-    onVerleihen(buch);
-  };
-
-  const handleLoeschen = (e) => {
-    e.stopPropagation();
-    setMenuOffen(false);
-    onLoeschen(buch);
+    fn(buch);
   };
 
   return (
     <div
-      className="relative rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 overflow-hidden cursor-pointer hover:border-teal-500/40 transition-colors"
+      className="group relative rounded-card overflow-hidden bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border shadow-elevation-1 hover:shadow-elevation-2 hover:border-secondary-500/30 transition-all duration-300 cursor-pointer animate-slide-in-up"
+      style={{ animationDelay: `${index * 50}ms`, animationFillMode: "both" }}
       onClick={() => onBearbeiten(buch)}
     >
-      {/* Cover-Bereich */}
-      <div className="relative bg-teal-500/5 flex items-center justify-center" style={{ height: 110 }}>
-        {buch.thumbnail_url || buch.cover_url ? (
+      {/* Cover */}
+      <div className="relative overflow-hidden" style={{ paddingBottom: "150%" }}>
+        {coverUrl ? (
           <img
-            src={buch.thumbnail_url ?? buch.cover_url}
+            src={coverUrl}
             alt={buch.titel}
-            className="w-full h-full object-cover"
+            loading="lazy"
+            className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             onError={(e) => { e.target.style.display = "none"; }}
           />
         ) : (
-          <div className="flex items-center justify-center w-full h-full bg-teal-500/10">
-            <span className="text-2xl font-bold text-teal-600 dark:text-teal-400 select-none">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-secondary-500/20 via-canvas-3 to-primary-500/20">
+            <span className="text-3xl font-bold text-light-text-main dark:text-dark-text-main opacity-30 select-none leading-none mb-2">
               {titelInitiale}
             </span>
+            <BookOpen size={20} className="text-secondary-500 opacity-40" />
           </div>
         )}
 
-        {/* Status-Badge */}
-        <span className={`absolute bottom-1.5 right-1.5 px-1.5 py-0.5 text-xs rounded-pill font-medium ${statusFarbe}`}>
+        {/* Ambient overlay on hover */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+        {/* Status badge */}
+        <div className={`absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider backdrop-blur-sm ${statusCfg.badge}`}>
+          <span className={`h-1 w-1 rounded-full shrink-0 ${statusCfg.dot}`} />
           {statusLabel}
-        </span>
+        </div>
       </div>
 
-      {/* Titel + Autor */}
-      <div className="px-2.5 py-2 min-h-0">
-        <p className="text-xs font-semibold text-light-text-main dark:text-dark-text-main leading-snug line-clamp-2">
+      {/* Info */}
+      <div className="px-2.5 py-2.5">
+        <p className="text-[11px] font-semibold text-light-text-main dark:text-dark-text-main leading-snug line-clamp-2 mb-0.5">
           {buch.titel}
         </p>
         {buch.autor_anzeige && (
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate mt-0.5">
+          <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary truncate">
             {buch.autor_anzeige}
           </p>
         )}
       </div>
 
-      {/* 3-Punkte-Menü */}
-      <div className="absolute top-1.5 right-1.5">
+      {/* 3-dot menu */}
+      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
         <button
           onClick={(e) => { e.stopPropagation(); setMenuOffen((v) => !v); }}
-          className="p-1 rounded-card-sm bg-black/30 hover:bg-black/50 text-white transition-colors"
+          className="p-1.5 rounded-card-sm bg-black/50 hover:bg-black/70 text-white transition-colors"
+          aria-label="Aktionen"
         >
           <MoreVertical size={12} />
         </button>
@@ -82,24 +86,16 @@ export default function BuchKarte({ buch, onBearbeiten, onVerleihen, onLoeschen 
         {menuOffen && (
           <>
             <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setMenuOffen(false); }} />
-            <div className="absolute right-0 top-7 z-20 bg-light-card dark:bg-canvas-3 border border-light-border dark:border-dark-border rounded-card-sm shadow-elevation-2 overflow-hidden min-w-[130px]">
-              <button
-                onClick={handleBearbeiten}
-                className="flex items-center gap-2 w-full px-3 py-2 text-xs text-light-text-main dark:text-dark-text-main hover:bg-light-border dark:hover:bg-canvas-4"
-              >
+            <div className="absolute right-0 top-8 z-20 min-w-[140px] overflow-hidden rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-3 shadow-elevation-3 animate-fade-in">
+              <button onClick={stopAndClose(onBearbeiten)} className="flex w-full items-center gap-2 px-3 py-2.5 text-xs text-light-text-main dark:text-dark-text-main hover:bg-primary-500/10 hover:text-primary-500 transition-colors">
                 <Edit2 size={12} /> {t("books:card.edit")}
               </button>
-              <button
-                onClick={handleVerleihen}
-                className="flex items-center gap-2 w-full px-3 py-2 text-xs text-light-text-main dark:text-dark-text-main hover:bg-light-border dark:hover:bg-canvas-4"
-              >
+              <button onClick={stopAndClose(onVerleihen)} className="flex w-full items-center gap-2 px-3 py-2.5 text-xs text-light-text-main dark:text-dark-text-main hover:bg-secondary-500/10 hover:text-secondary-500 transition-colors">
                 <ArrowRightLeft size={12} />
                 {buch.status === "verliehen" ? t("books:card.loan") : t("books:card.lend")}
               </button>
-              <button
-                onClick={handleLoeschen}
-                className="flex items-center gap-2 w-full px-3 py-2 text-xs text-accent-danger hover:bg-accent-danger/10"
-              >
+              <div className="h-px bg-light-border dark:bg-dark-border mx-2" />
+              <button onClick={stopAndClose(onLoeschen)} className="flex w-full items-center gap-2 px-3 py-2.5 text-xs text-accent-danger hover:bg-accent-danger/10 transition-colors">
                 <Trash2 size={12} /> {t("books:card.delete")}
               </button>
             </div>

@@ -1,5 +1,5 @@
 import React from "react";
-import { Home, User, Hash } from "lucide-react";
+import { Home, User, ReceiptText } from "lucide-react";
 import { useCountUp } from "../../../hooks/useCountUp";
 
 const formatCurrency = (value) =>
@@ -80,7 +80,7 @@ export default function BudgetKpiStrip({ haushaltSumme, privatSumme, anzahl }) {
       <KpiCard
         label="Buchungen"
         value={anzahl}
-        icon={Hash}
+        icon={ReceiptText}
         accentFrom="#06B6D4"
         accentTo="#8B5CF6"
         delay={160}

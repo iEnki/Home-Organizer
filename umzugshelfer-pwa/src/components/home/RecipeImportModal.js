@@ -167,9 +167,25 @@ export default function RecipeImportModal({ open, onClose, onReviewReady }) {
 function localizeImportError(message, t) {
   if (!message) return "";
   const raw = String(message);
+  const normalized = raw.toLowerCase();
   const mappings = [
+    ["request has been cancelled by supervisor", "finalizeTimeout"],
+    ["cancelled by supervisor", "finalizeTimeout"],
+    ["recipe-import-finalize", "finalizeTimeout"],
+    ["Your IP address is blocked", "sourceUnavailable"],
+    ["blocked from accessing this post", "sourceUnavailable"],
+    ["Video unavailable", "sourceUnavailable"],
+    ["This video is unavailable", "sourceUnavailable"],
+    ["This post is unavailable", "sourceUnavailable"],
+    ["content isn't available", "sourceUnavailable"],
+    ["not available", "sourceUnavailable"],
+    ["unable to extract", "sourceUnavailable"],
+    ["private video", "sourceUnavailable"],
+    ["private post", "sourceUnavailable"],
+    ["login required", "sourceUnavailable"],
+    ["HTTP Error 403", "sourceUnavailable"],
+    ["Forbidden", "sourceUnavailable"],
     ["Supabase-Konfiguration oder Sitzung fehlt", "configMissing"],
-    ["Import fehlgeschlagen", "importFailed"],
     ["Tageslimit fuer Kochbuch-Importe erreicht", "dailyLimit"],
     ["Kochbuch ist deaktiviert", "cookbookDisabled"],
     ["OpenAI API-Key ist im Haushalt nicht konfiguriert", "openAiMissing"],
@@ -186,12 +202,12 @@ function localizeImportError(message, t) {
     ["Kein aktiver Haushalt vorhanden", "noHousehold"],
     ["Ungueltige URL", "invalidUrl"],
     ["Nur HTTPS-URLs sind erlaubt", "httpsOnly"],
+    ["Import fehlgeschlagen", "importFailed"],
   ];
-  const match = mappings.find(([needle]) => raw.includes(needle));
-  if (!match) return raw;
+  const match = mappings.find(([needle]) => normalized.includes(String(needle).toLowerCase()));
+  if (!match) return raw.length > 280 ? `${raw.slice(0, 280).trim()}...` : raw;
   const translated = t(`importModal.serverErrors.${match[1]}`);
-  const detail = raw.includes(" - ") ? raw.split(" - ").slice(1).join(" - ").trim() : "";
-  return detail ? `${translated} ${detail}` : translated;
+  return translated;
 }
 
 function localizeProgressMessage(message, t) {

@@ -6,8 +6,14 @@ import { formatMonatLabel } from "../../../utils/dokumentArchiv";
 
 const KATEGORIEN = [
   "Rechnung", "Vertrag", "Handbuch", "Garantie",
-  "Versicherung", "Behörde", "Gesundheit", "Sonstiges",
+  "Versicherung", "Behörde", "Gesundheit", "Medikamente", "Sonstiges",
 ];
+
+const KATEGORIE_DOTS = {
+  Rechnung: "bg-blue-400",    Vertrag: "bg-purple-400",  Handbuch: "bg-green-400",
+  Garantie: "bg-amber-400",   Versicherung: "bg-teal-400", Behörde: "bg-red-400",
+  Gesundheit: "bg-pink-400",  Medikamente: "bg-emerald-400", Sonstiges: "bg-slate-400",
+};
 
 const MONATS_NAMEN = {
   "01": "Januar", "02": "Februar", "03": "März", "04": "April",
@@ -63,18 +69,22 @@ export default function DokumentFilterBar({
   };
 
   const STATUS_LABEL = { budget: "Im Budget", wissen: "Als Wissen", offen: "Offen (Rechnung)" };
+  const kategorieOptionen = [
+    "Alle",
+    ...KATEGORIEN,
+    ...Object.keys(kategorieZaehlung || {}).filter((kat) => kat && !KATEGORIEN.includes(kat)),
+  ];
 
   return (
     <motion.div
       initial={reduced ? false : { opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: "spring", stiffness: 360, damping: 32, delay: 0.08 }}
-      className="sticky top-[72px] z-10 -mx-1 min-w-0 overflow-x-hidden px-1 py-1
-                 bg-light-bg/90 dark:bg-canvas-1/90 backdrop-blur-sm"
+      className="sticky top-[72px] z-10 -mx-1 min-w-0 overflow-x-hidden px-1 py-1"
     >
       <div
         className="space-y-2 rounded-card border border-light-border dark:border-dark-border
-                   bg-light-card dark:bg-canvas-2 px-4 py-3"
+                   bg-light-card/95 dark:bg-canvas-2/95 backdrop-blur-sm px-4 py-3"
       >
         <div className="flex flex-wrap items-center gap-2">
           <div data-tour="tour-dokumente-suche" className="relative basis-full w-full min-w-0 sm:flex-1 sm:basis-auto">
@@ -134,7 +144,7 @@ export default function DokumentFilterBar({
 
         <div className="flex items-center gap-2 flex-wrap">
           <div data-tour="tour-dokumente-filter" className="flex gap-1.5 overflow-x-auto scrollbar-hide w-full">
-            {["Alle", ...KATEGORIEN].map((kat) => {
+            {kategorieOptionen.map((kat) => {
               const aktiv = kategorieFilter === kat;
               const anzahl = kat === "Alle" ? undefined : (kategorieZaehlung[kat] || 0);
               if (kat !== "Alle" && anzahl === 0) return null;
@@ -144,12 +154,18 @@ export default function DokumentFilterBar({
                   onClick={() => onKategorie(kat)}
                   whileTap={reduced ? {} : { scale: 0.93 }}
                   whileHover={reduced ? {} : { scale: 1.04, transition: { type: "spring", stiffness: 500, damping: 28 } }}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-pill text-xs font-medium whitespace-nowrap transition-colors border flex-shrink-0 ${
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-xs font-medium whitespace-nowrap transition-colors border flex-shrink-0 ${
                     aktiv
-                      ? "bg-primary-500 text-white border-primary-500"
+                      ? "bg-primary-500 text-white border-primary-500 shadow-sm"
                       : "bg-light-card dark:bg-canvas-2 text-light-text-secondary dark:text-dark-text-secondary border-light-border dark:border-dark-border hover:border-primary-500/50"
                   }`}
                 >
+                  {kat !== "Alle" && (
+                    <span
+                      className={`w-2 h-2 rounded-full flex-shrink-0 ${aktiv ? "bg-white/70" : (KATEGORIE_DOTS[kat] ?? "bg-slate-400")}`}
+                      aria-hidden="true"
+                    />
+                  )}
                   {kat}
                   {anzahl != null && anzahl > 0 && (
                     <span className={`text-[10px] ${aktiv ? "opacity-80" : "opacity-60"}`}>

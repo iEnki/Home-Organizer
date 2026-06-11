@@ -41,7 +41,7 @@ export default function DokumentArchivListe({
   }
 
   return (
-    <div className="space-y-3 min-w-0 pt-2">
+    <div className="space-y-3 min-w-0 pt-5">
       {reihenfolge.map((key) => {
         const doks = map[key];
         const istZugeklappt = collapsed.has(key);
@@ -50,8 +50,9 @@ export default function DokumentArchivListe({
             {/* Monats-Header — Toggle-Button */}
             <button
               onClick={() => toggleCollapse(key)}
-              className="w-full flex items-center gap-2 px-1 pb-1.5 text-left group"
+              className="w-full flex items-center gap-2.5 px-1 pb-2 text-left group"
             >
+              <span className="w-0.5 h-4 rounded-full bg-primary-500/40 flex-shrink-0 group-hover:bg-primary-500/70 transition-colors" aria-hidden="true" />
               <motion.span
                 animate={{ rotate: istZugeklappt ? -90 : 0 }}
                 transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 360, damping: 28 }}
@@ -59,10 +60,11 @@ export default function DokumentArchivListe({
               >
                 <ChevronDown size={13} className="text-light-text-secondary dark:text-dark-text-secondary" />
               </motion.span>
-              <span className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide group-hover:text-primary-500 transition-colors">
+              <span className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-widest group-hover:text-primary-500 transition-colors">
                 {formatMonatLabel(key)}
               </span>
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-light-border dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary">
+              <span className="flex-1 h-px bg-light-border dark:bg-dark-border" aria-hidden="true" />
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary-500/10 text-primary-500 border border-primary-500/20 flex-shrink-0">
                 {doks.length}
               </span>
             </button>

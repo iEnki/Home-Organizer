@@ -17,6 +17,8 @@ import { useCountUp } from "../../../hooks/useCountUp";
 const peakGlowPlugin = {
   id: "peakGlow",
   afterDatasetsDraw(chart) {
+    // Horizontal bar charts use different coordinate geometry — skip to avoid ghost rendering
+    if (chart.options?.indexAxis === "y") return;
     const { ctx, data } = chart;
     const dataset = data.datasets?.[0];
     if (!dataset) return;
@@ -132,6 +134,7 @@ const MONTH_BAR_OPTS = {
   responsive: true,
   maintainAspectRatio: false,
   indexAxis: "y",
+  clip: false,
   animation: {
     duration: 700,
     easing: "easeOutQuart",
@@ -142,7 +145,7 @@ const MONTH_BAR_OPTS = {
     tooltip: { ...TOOLTIP_STYLE, callbacks: { label: (ctx) => fmt(ctx.raw) } },
   },
   scales: {
-    x: { ...SCALE, ticks: { ...SCALE.ticks, callback: (v) => `${v} €` } },
+    x: { ...SCALE, min: 0, ticks: { ...SCALE.ticks, callback: (v) => `${v} €` } },
     y: SCALE,
   },
 };
@@ -151,6 +154,7 @@ const ACCOUNT_BAR_OPTS = {
   responsive: true,
   maintainAspectRatio: false,
   indexAxis: "y",
+  clip: false,
   animation: {
     duration: 700,
     easing: "easeOutQuart",
@@ -161,7 +165,7 @@ const ACCOUNT_BAR_OPTS = {
     tooltip: { ...TOOLTIP_STYLE, callbacks: { label: (ctx) => fmt(ctx.raw) } },
   },
   scales: {
-    x: { ...SCALE, ticks: { ...SCALE.ticks, callback: (v) => `${v} €` } },
+    x: { ...SCALE, min: 0, ticks: { ...SCALE.ticks, callback: (v) => `${v} €` } },
     y: SCALE,
   },
 };
@@ -569,8 +573,8 @@ export default function BudgetStatsView({
         backgroundColor: colors.map((c) => `${c}99`),
         borderColor: colors,
         borderWidth: 1,
-        borderRadius: 5,
-        borderSkipped: false,
+        borderRadius: { topRight: 4, bottomRight: 4 },
+        borderSkipped: "start",
       }],
     };
   }, [monthStats, colorMap, i18n.language]);
@@ -587,8 +591,8 @@ export default function BudgetStatsView({
         backgroundColor: colors.map((c) => `${c}99`),
         borderColor: colors,
         borderWidth: 1,
-        borderRadius: 5,
-        borderSkipped: false,
+        borderRadius: { topRight: 4, bottomRight: 4 },
+        borderSkipped: "start",
       }],
     };
   }, [stats]);

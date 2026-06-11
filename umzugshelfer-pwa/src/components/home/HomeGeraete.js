@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Wrench, X, FileText, Link2, Loader2, AlertCircle, Sparkles, Plus } from "lucide-react";
+import { Wrench, X, FileText, Link2, Loader2, AlertCircle, Sparkles, Plus, LayoutGrid, List } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import DokumentVorschauModal from "./DokumentVorschauModal";
 import KiHomeAssistent from "./KiHomeAssistent";
@@ -20,44 +20,14 @@ import {
 } from "../../utils/geraetStatus";
 import { applyDeviceAiItems } from "../../utils/assistantDomainAdapters";
 import { notifyHouseholdEvent } from "../../utils/pushNotifications";
-
-const DEFAULT_FORM = {
-  name: "",
-  hersteller: "",
-  modell: "",
-  seriennummer: "",
-  kaufdatum: "",
-  kaufpreis: "",
-  gewaehrleistung_bis: "",
-  garantie_bis: "",
-  naechste_wartung: "",
-  wartungsintervall_monate: "",
-  notizen: "",
-  kategorie: "",
-};
-
-const mapGeraetToForm = (g) => ({
-  id:                       g.id,
-  name:                     g.name || "",
-  hersteller:               g.hersteller || "",
-  modell:                   g.modell || "",
-  seriennummer:             g.seriennummer || "",
-  kaufdatum:                g.kaufdatum || "",
-  kaufpreis:                g.kaufpreis ?? "",
-  gewaehrleistung_bis:      g.gewaehrleistung_bis || "",
-  garantie_bis:             g.garantie_bis || "",
-  naechste_wartung:         g.naechste_wartung || "",
-  wartungsintervall_monate: g.wartungsintervall_monate ?? "",
-  notizen:                  g.notizen || "",
-  kategorie:                normalizeDeviceCategory(g.kategorie || ""),
-});
-
-const str2null = (v) => (v === "" || v == null ? null : v);
+import { DEFAULT_GERAET_FORM, buildGeraetPayload, mapGeraetToForm } from "../../utils/geraeteForm";
 
 const HomeGeraete = ({ session }) => {
   const { t, i18n } = useTranslation(["home", "common"]);
   const userId = session?.user?.id;
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const highlightedGeraetId = searchParams.get("highlight");
   const { active: tourAktiv, schritt, setSchritt, beenden: tourBeenden } = useTour("geraete");
 
   // --- Daten-State ---
@@ -65,12 +35,16 @@ const HomeGeraete = ({ session }) => {
   const [geraete, setGeraete]         = useState([]);
   const [wartungen, setWartungen]     = useState([]);
   const [dokumente, setDokumente]     = useState([]);
+  const [orte, setOrte]               = useState([]);
+  const [lagerorte, setLagerorte]     = useState([]);
+  const [bewohner, setBewohner]       = useState([]);
   const [fehler, setFehler]           = useState(null);
 
   // --- UI-State ---
   const [ausgeklappt, setAusgeklappt] = useState({});
+  const [ansicht, setAnsicht]         = useState(() => localStorage.getItem("geraete_ansicht") || "liste");
   const [modal, setModal]             = useState(null);   // null | {} | geraetObj
-  const [formData, setFormData]       = useState(DEFAULT_FORM);
+  const [formData, setFormData]       = useState(DEFAULT_GERAET_FORM);
   const [dokuModal, setDokuModal]     = useState(null);   // geraetId
   const [vorschauDok, setVorschauDok] = useState(null);  // { storage_pfad, dateiname, datei_typ }
   const [kiOffen, setKiOffen]         = useState(false);
@@ -82,10 +56,19 @@ const HomeGeraete = ({ session }) => {
   const [sortierung, setSortierung]     = useState("frist");
   const [gruppierung, setGruppierung]   = useState("keine");
 
+  const toggleGeraet = useCallback(
+    (id) => setAusgeklappt((prev) => (!!prev[id] ? {} : { [id]: true })), []
+  );
+
+  const toggleAnsicht = useCallback((neu) => {
+    setAnsicht(neu);
+    localStorage.setItem("geraete_ansicht", neu);
+  }, []);
+
   // --- Modal-Helper ---
-  const openCreateModal = () => { setFormData(DEFAULT_FORM); setModal({}); };
+  const openCreateModal = () => { setFormData(DEFAULT_GERAET_FORM); setModal({}); };
   const openEditModal   = (g) => { setFormData(mapGeraetToForm(g)); setModal(g); };
-  const closeModal      = ()  => { setModal(null); setFormData(DEFAULT_FORM); };
+  const closeModal      = ()  => { setModal(null); setFormData(DEFAULT_GERAET_FORM); };
 
   // --- Daten laden ---
   const ladeDaten = useCallback(async () => {
@@ -93,14 +76,31 @@ const HomeGeraete = ({ session }) => {
     setLoading(true);
     setFehler(null);
     try {
-      const [geraeteRes, wartungenRes, dokRes] = await Promise.all([
+      const [geraeteRes, wartungenRes, dokRes, orteRes, lagerorteRes] = await Promise.all([
         supabase.from("home_geraete").select("*").eq("user_id", userId).order("name"),
         supabase.from("home_wartungen").select("*").eq("user_id", userId).order("datum", { ascending: false }),
         supabase.from("dokumente").select("id, dateiname, datei_typ, storage_pfad").eq("user_id", userId).in("app_modus", ["home", "beides"]).order("dateiname"),
+        supabase.from("home_orte").select("*").eq("user_id", userId).order("name"),
+        supabase.from("home_lagerorte").select("*").eq("user_id", userId).order("position").order("name"),
       ]);
       setGeraete(geraeteRes.data || []);
       setWartungen(wartungenRes.data || []);
       setDokumente(dokRes.data || []);
+      setOrte(orteRes.data || []);
+      setLagerorte(lagerorteRes.data || []);
+      supabase.rpc("get_bewohner_overview").then(({ data, error }) => {
+        if (!error && Array.isArray(data)) {
+          setBewohner(
+            data.map((b) => ({
+              id: b.id,
+              name: b.name || "Bewohner",
+              display_name: b.display_name || b.name || "Bewohner",
+              farbe: b.farbe || "#10B981",
+              emoji: b.emoji || "👤",
+            })),
+          );
+        }
+      });
     } catch {
       setFehler(t("home:loadError", { defaultValue: "Data could not be loaded." }));
     } finally {
@@ -110,22 +110,19 @@ const HomeGeraete = ({ session }) => {
 
   useEffect(() => { ladeDaten(); }, [ladeDaten]);
 
+  useEffect(() => {
+    if (!highlightedGeraetId) return;
+    setAusgeklappt({ [highlightedGeraetId]: true });
+    window.setTimeout(() => {
+      document
+        .querySelector(`[data-geraet-id="${highlightedGeraetId}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 150);
+  }, [highlightedGeraetId, geraete.length]);
+
   // --- Speichern ---
   const handleSpeichern = async (daten) => {
-    const cleanDaten = {
-      name:                     str2null(daten.name),
-      hersteller:               str2null(daten.hersteller),
-      modell:                   str2null(daten.modell),
-      seriennummer:             str2null(daten.seriennummer),
-      kaufdatum:                str2null(daten.kaufdatum),
-      gewaehrleistung_bis:      str2null(daten.gewaehrleistung_bis),
-      garantie_bis:             str2null(daten.garantie_bis),
-      naechste_wartung:         str2null(daten.naechste_wartung),
-      notizen:                  str2null(daten.notizen),
-      kategorie:                str2null(normalizeDeviceCategory(daten.kategorie)),
-      kaufpreis:                daten.kaufpreis === "" ? null : parseFloat(daten.kaufpreis) || null,
-      wartungsintervall_monate: daten.wartungsintervall_monate === "" ? null : parseInt(daten.wartungsintervall_monate, 10) || null,
-    };
+    const cleanDaten = buildGeraetPayload(daten);
     if (daten.id) {
       await supabase.from("home_geraete").update(cleanDaten).eq("id", daten.id);
       await notifyHouseholdEvent({
@@ -250,7 +247,7 @@ const HomeGeraete = ({ session }) => {
     if (suchbegriff) {
       const q = suchbegriff.toLowerCase();
       result = result.filter((g) =>
-        [g.name, g.hersteller, g.modell].some((f) => f?.toLowerCase().includes(q)));
+        [g.name, g.hersteller, g.modell, g.seriennummer, ...(g.tags || [])].some((f) => f?.toLowerCase().includes(q)));
     }
     if (katFilter !== "Alle") result = result.filter((g) => normalizeDeviceCategory(g.kategorie) === katFilter);
     return result;
@@ -275,7 +272,7 @@ const HomeGeraete = ({ session }) => {
     if (suchbegriff) {
       const q = suchbegriff.toLowerCase();
       result = result.filter((g) =>
-        [g.name, g.hersteller, g.modell].some((f) => f?.toLowerCase().includes(q)));
+        [g.name, g.hersteller, g.modell, g.seriennummer, ...(g.tags || [])].some((f) => f?.toLowerCase().includes(q)));
     }
     if (statusFilter !== "alle")
       result = result.filter((g) => statusByGeraetId[g.id] === statusFilter);
@@ -323,17 +320,36 @@ const HomeGeraete = ({ session }) => {
     <div className="max-w-5xl mx-auto px-4 lg:px-6 py-4 space-y-4">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Wrench size={22} className="text-primary-500" />
-          <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">{t("home:devicesForm.title")}</h1>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <Wrench size={22} className="text-primary-500 shrink-0" />
+          <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main truncate">{t("home:devicesForm.title")}</h1>
         </div>
-        <button
-          onClick={() => setKiOffen(true)}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-pill text-sm font-medium bg-primary-500/10 hover:bg-primary-500/20 text-primary-500 border border-primary-500/30 transition-colors"
-        >
-          <Sparkles size={15} /><span className="hidden sm:inline">KI</span>
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Ansicht-Toggle (nur Desktop) */}
+          <div className="hidden sm:flex items-center rounded-card-sm border border-light-border dark:border-dark-border overflow-hidden">
+            <button
+              onClick={() => toggleAnsicht("liste")}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs transition-colors ${ansicht === "liste" ? "bg-primary-500 text-white" : "text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"}`}
+              title="Listenansicht"
+            >
+              <List size={13} />
+            </button>
+            <button
+              onClick={() => toggleAnsicht("karten")}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs transition-colors ${ansicht === "karten" ? "bg-primary-500 text-white" : "text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"}`}
+              title="Kartenansicht"
+            >
+              <LayoutGrid size={13} />
+            </button>
+          </div>
+          <button
+            onClick={() => setKiOffen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-pill text-sm font-medium bg-primary-500/10 hover:bg-primary-500/20 text-primary-500 border border-primary-500/30 transition-colors"
+          >
+            <Sparkles size={15} /><span className="hidden sm:inline">KI</span>
+          </button>
+        </div>
       </div>
 
       {fehler && (
@@ -355,7 +371,32 @@ const HomeGeraete = ({ session }) => {
         onAdd={openCreateModal}
       />
 
-      {/* Liste */}
+      {/* Stats-Leiste */}
+      {!loading && geraete.length > 0 && Object.keys(statusZaehlung).length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap -mt-1">
+          {STATUS_PRIORITAET.filter((s) => statusZaehlung[s]).map((s) => {
+            const cfg = STATUS_CONFIG[s];
+            const colorMap = { red: "bg-red-500/10 text-red-500 border-red-500/30", amber: "bg-amber-500/10 text-amber-500 border-amber-500/30", gray: "bg-gray-500/10 text-gray-500 border-gray-500/30", green: "bg-green-500/10 text-green-500 border-green-500/30" };
+            const dotMap = { red: "bg-red-500", amber: "bg-amber-400", gray: "bg-gray-400", green: "bg-green-500" };
+            const isActive = statusFilter === s;
+            return (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(isActive ? "alle" : s)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-[11px] font-semibold border transition-colors cursor-pointer ${
+                  isActive ? colorMap[cfg?.farbe] + " ring-1 ring-inset ring-current" : "border-light-border dark:border-dark-border text-dark-text-secondary hover:border-primary-500/40"
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotMap[cfg?.farbe] || "bg-gray-400"}`} />
+                {t(`home:devicesStatus.${s}`, { defaultValue: cfg?.label || s })}
+                <span className="opacity-70">{statusZaehlung[s]}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Liste / Karten */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 size={32} className="animate-spin text-light-text-secondary dark:text-dark-text-secondary" />
@@ -375,11 +416,59 @@ const HomeGeraete = ({ session }) => {
         <div className="text-center py-12 text-light-text-secondary dark:text-dark-text-secondary">
           <p className="text-sm">{t("home:devicesForm.emptyFilter")}</p>
         </div>
+      ) : ansicht === "karten" ? (
+        /* Kartenansicht */
+        <div data-tour="tour-geraete-liste" className="space-y-4">
+          {gruppierteListe.map((gruppe) => (
+            <section key={gruppe.key}>
+              {gruppe.label && (
+                <div className="flex items-center gap-2 px-1 pb-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+                    {gruppe.label}
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-light-border dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary">
+                    {gruppe.items.length}
+                  </span>
+                </div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {gruppe.items.map((g, idx) => (
+                  <div
+                    key={g.id}
+                    className="animate-slide-in-up"
+                    style={{ animationDelay: `${idx * 35}ms`, animationFillMode: "both" }}
+                  >
+                    <GeraetZeile
+                      g={g}
+                      status={statusByGeraetId[g.id]}
+                      heute={heute}
+                      geraetWartungen={wartungenByGeraetId[g.id] || []}
+                      verknuepfteDokumente={verknuepfteDokuByGeraetId[g.id] || []}
+                      isOffen={!!ausgeklappt[g.id]}
+                      onToggle={() => toggleGeraet(g.id)}
+                      onBearbeiten={() => openEditModal(g)}
+                      onLoeschen={() => loesche(g.id)}
+                      onWartungErledigt={() => wartungErledigt(g.id)}
+                      onDokuModalOpen={() => setDokuModal(g.id)}
+                      onDokumentUnlink={(dokId) => toggleDokumentLink(g.id, dokId)}
+                      onVorschau={(dok) => setVorschauDok(dok)}
+                      onNavigate={(dokId) => navigate("/home/dokumente", { state: { focusDokumentId: dokId } })}
+                      isHighlighted={g.id === highlightedGeraetId}
+                      orte={orte}
+                      lagerorte={lagerorte}
+                      bewohner={bewohner}
+                    />
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
       ) : (
+        /* Listenansicht */
         <div data-tour="tour-geraete-liste" className="space-y-3">
           {gruppierteListe.map((gruppe) => (
             <section key={gruppe.key}>
-              {/* Gruppen-Header */}
               {gruppe.label && (
                 <div className="flex items-center gap-2 px-1 pb-1.5">
                   <ChevronPlaceholder />
@@ -391,8 +480,7 @@ const HomeGeraete = ({ session }) => {
                   </span>
                 </div>
               )}
-
-              <div className="bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border divide-y divide-light-border dark:divide-dark-border overflow-hidden">
+              <div className="space-y-2">
                 {gruppe.items.map((g) => (
                   <GeraetZeile
                     key={g.id}
@@ -402,7 +490,7 @@ const HomeGeraete = ({ session }) => {
                     geraetWartungen={wartungenByGeraetId[g.id] || []}
                     verknuepfteDokumente={verknuepfteDokuByGeraetId[g.id] || []}
                     isOffen={!!ausgeklappt[g.id]}
-                    onToggle={() => setAusgeklappt((p) => ({ ...p, [g.id]: !p[g.id] }))}
+                    onToggle={() => toggleGeraet(g.id)}
                     onBearbeiten={() => openEditModal(g)}
                     onLoeschen={() => loesche(g.id)}
                     onWartungErledigt={() => wartungErledigt(g.id)}
@@ -410,6 +498,10 @@ const HomeGeraete = ({ session }) => {
                     onDokumentUnlink={(dokId) => toggleDokumentLink(g.id, dokId)}
                     onVorschau={(dok) => setVorschauDok(dok)}
                     onNavigate={(dokId) => navigate("/home/dokumente", { state: { focusDokumentId: dokId } })}
+                    isHighlighted={g.id === highlightedGeraetId}
+                    orte={orte}
+                    lagerorte={lagerorte}
+                    bewohner={bewohner}
                   />
                 ))}
               </div>
@@ -431,7 +523,7 @@ const HomeGeraete = ({ session }) => {
               </button>
             </div>
             <div className="mobile-modal-body flex-1 p-4">
-              <GeraetForm value={formData} onChange={setFormData} />
+              <GeraetForm value={formData} onChange={setFormData} orte={orte} lagerorte={lagerorte} bewohner={bewohner} />
             </div>
             <div className="mobile-modal-footer shrink-0 border-t border-light-border dark:border-dark-border px-4 py-3 flex gap-2">
               <button

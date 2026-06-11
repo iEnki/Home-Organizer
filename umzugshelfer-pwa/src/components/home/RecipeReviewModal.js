@@ -2,8 +2,9 @@ import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import ModalShell from "../ui/ModalShell";
 import RecipeFormModal from "./RecipeFormModal";
+import RecipeDuplicateWarning from "./RecipeDuplicateWarning";
 
-export default function RecipeReviewModal({ open, recipe, display, ingredients, onClose, onSave }) {
+export default function RecipeReviewModal({ open, recipe, display, ingredients, duplicateMatches = [], onClose, onSave }) {
   const { t } = useTranslation("recipes");
   const [editOpen, setEditOpen] = useState(false);
   const [addShopping, setAddShopping] = useState(false);
@@ -48,6 +49,7 @@ export default function RecipeReviewModal({ open, recipe, display, ingredients, 
               {recipe.warnings.map((warning) => <div key={warning}>{warning}</div>)}
             </div>
           )}
+          <RecipeDuplicateWarning matches={duplicateMatches} compact />
           <div className="grid gap-4 lg:grid-cols-2">
             <section>
               <h3 className="mb-2 text-sm font-semibold text-light-text-main dark:text-dark-text-main">{t("review.ingredients")}</h3>

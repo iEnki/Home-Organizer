@@ -31,7 +31,7 @@ const UmzugAbschlussModal = ({ session, onAbschluss, onSchliessen }) => {
         supabase.from("pack_kisten").select("id", { count: "exact", head: true }).eq("user_id", userId),
         supabase.from("pack_gegenstaende").select("id", { count: "exact", head: true }).eq("user_id", userId),
         supabase.from("todo_aufgaben").select("id", { count: "exact", head: true }).eq("user_id", userId),
-        supabase.from("budget_posten").select("id", { count: "exact", head: true }).eq("user_id", userId),
+        supabase.from("budget_posten").select("id", { count: "exact", head: true }).eq("user_id", userId).is("archived_at", null),
       ]);
       setStats({
         kisten: kistenRes.count || 0,

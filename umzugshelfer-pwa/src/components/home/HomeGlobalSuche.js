@@ -14,6 +14,7 @@ import {
   Sparkles,
   Wrench,
   ChefHat,
+  Pill,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
@@ -27,6 +28,7 @@ import { useTour } from "./tour/useTour";
 const QUELLEN = [
   { key: "objekte", labelKey: "search.sources.inventory", icon: Package, farbe: "text-blue-500", pfad: "/home/inventar" },
   { key: "vorraete", labelKey: "search.sources.supplies", icon: ShoppingCart, farbe: "text-primary-500", pfad: "/home/vorraete" },
+  { key: "medikamente", labelKey: "search.sources.medicines", icon: Pill, farbe: "text-rose-500", pfad: "/home/heimapotheke" },
   { key: "geraete", labelKey: "search.sources.devices", icon: Wrench, farbe: "text-orange-500", pfad: "/home/geraete" },
   { key: "aufgaben", labelKey: "search.sources.tasks", icon: CheckSquare, farbe: "text-purple-500", pfad: "/home/aufgaben" },
   { key: "dokumente", labelKey: "search.sources.documents", icon: FileText, farbe: "text-indigo-500", pfad: "/home/dokumente" },
@@ -80,6 +82,7 @@ const Schnellsuche = ({ session }) => {
         const [
           objekteRes,
           vorraeteRes,
+          medikamenteRes,
           geraeteRes,
           aufgabenRes,
           dokumenteRes,
@@ -98,6 +101,12 @@ const Schnellsuche = ({ session }) => {
             .select("id, name, kategorie, bestand, einheit")
             .eq("user_id", userId)
             .ilike("name", `%${q}%`)
+            .limit(5),
+          supabase
+            .from("home_medikamente")
+            .select("id, name, wirkstoff, kategorie, bestand, lagerort")
+            .eq("user_id", userId)
+            .or(`name.ilike.%${q}%,wirkstoff.ilike.%${q}%`)
             .limit(5),
           supabase
             .from("home_geraete")
@@ -138,6 +147,7 @@ const Schnellsuche = ({ session }) => {
         setErgebnisse({
           objekte: objekteRes.data || [],
           vorraete: vorraeteRes.data || [],
+          medikamente: medikamenteRes.data || [],
           geraete: geraeteRes.data || [],
           aufgaben: aufgabenRes.data || [],
           dokumente: dokumenteRes.data || [],

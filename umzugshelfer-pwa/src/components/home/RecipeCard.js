@@ -3,8 +3,9 @@ import { ChefHat, Clock, ExternalLink, Heart, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { motion, useReducedMotion } from "framer-motion";
 import { nutritionSummaryParts } from "../../utils/recipeNutrition";
+import RecipeQualityBadges from "./RecipeQualityBadges";
 
-export default function RecipeCard({ recipe, display, onOpen, onToggleFavorite }) {
+export default function RecipeCard({ recipe, display, ingredients = [], onOpen, onToggleFavorite }) {
   const { t } = useTranslation("recipes");
   const reduced = useReducedMotion();
   const minutes =
@@ -24,22 +25,24 @@ export default function RecipeCard({ recipe, display, onOpen, onToggleFavorite }
       className="group w-full overflow-hidden rounded-card border border-light-border bg-light-card text-left shadow-elevation-2 transition-[border-color,box-shadow] hover:border-primary-500/40 hover:shadow-glow-primary dark:border-dark-border dark:bg-canvas-2"
     >
       {/* Thumbnail — compact 4:3 at all sizes */}
-      <div className="aspect-[4/3] overflow-hidden bg-light-surface-2 dark:bg-canvas-3">
-        {recipe.thumbnail_url ? (
+      <div className="relative aspect-[4/3] overflow-hidden bg-light-surface-2 dark:bg-canvas-3">
+        {/* Fallback — immer sichtbar, wird vom Bild überdeckt */}
+        <div className="flex h-full flex-col items-center justify-center gap-1.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-card-sm bg-primary-500/10">
+            <ChefHat size={16} className="text-primary-500" />
+          </div>
+          <span className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
+            {recipe.quelle_plattform || recipe.import_typ || t("card.fallback")}
+          </span>
+        </div>
+        {recipe.thumbnail_url && (
           <img
             src={recipe.thumbnail_url}
             alt=""
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            onError={(e) => { e.currentTarget.style.display = "none"; }}
           />
-        ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-1.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-card-sm bg-primary-500/10">
-              <ChefHat size={16} className="text-primary-500" />
-            </div>
-            <span className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
-              {recipe.quelle_plattform || recipe.import_typ || t("card.fallback")}
-            </span>
-          </div>
         )}
       </div>
 
@@ -112,6 +115,8 @@ export default function RecipeCard({ recipe, display, onOpen, onToggleFavorite }
         )}
 
         {/* Meta badges — always visible */}
+        <RecipeQualityBadges recipe={recipe} ingredients={ingredients} t={t} limit={2} />
+
         <div className="flex flex-wrap gap-1 text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
           <span className="inline-flex items-center gap-0.5 rounded-pill bg-light-bg px-1.5 py-0.5 dark:bg-canvas-1">
             <Users size={9} /> {recipe.portionen || 4}
