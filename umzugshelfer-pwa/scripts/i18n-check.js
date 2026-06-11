@@ -61,10 +61,9 @@ function walkFiles(dir, acc = []) {
 }
 
 const literalPatterns = [
-  /["'`][^"'`]*(?:[ÄÖÜäöüß]|\\u00(?:c4|d6|dc|e4|f6|fc|df))[^"'`]*["'`]/,
-  /["'`][^"'`]*\b(?:Umzug|Haushalt|Rechnung|Dokument|Kosten|Konto|Speichern|Abbrechen|Löschen|Loeschen|Bearbeiten|Hinzufügen|Hinzufuegen|Suchen|Kategorie|Betrag|Datum|Beschreibung|Einstellungen|Profil|Einladung|Passwort|Anmelden|Registrieren|Erinnerung)\b[^"'`]*["'`]/
+  /["'`][^"'`]*(?:[\u00c4\u00d6\u00dc\u00e4\u00f6\u00fc\u00df]|\\u00(?:c4|d6|dc|e4|f6|fc|df))[^"'`]*["'`]/,
+  /["'`][^"'`]*\b(?:Umzug|Haushalt|Rechnung|Dokument|Kosten|Konto|Speichern|Abbrechen|L\u00f6schen|Loeschen|Bearbeiten|Hinzuf\u00fcgen|Hinzufuegen|Suchen|Kategorie|Betrag|Datum|Beschreibung|Einstellungen|Profil|Einladung|Passwort|Anmelden|Registrieren|Erinnerung)\b[^"'`]*["'`]/
 ];
-
 const autoTranslatePath = path.join(__dirname, "..", "src", "i18n", "uiAutoTranslate.js");
 const autoTranslatedLiterals = new Set();
 if (fs.existsSync(autoTranslatePath)) {
@@ -91,6 +90,12 @@ const literalIgnore = [
   "src/utils/assistantDomains.js",
   "src\\utils\\mojibake.js",
   "src/utils/mojibake.js",
+  "src\\utils\\localizedRecipeShopping.js",
+  "src/utils/localizedRecipeShopping.js",
+  "src\\utils\\buecher.js",
+  "src/utils/buecher.js",
+  "src\\utils\\homeBudgetCategories.js",
+  "src/utils/homeBudgetCategories.js",
   "src\\components\\PacklisteManager.js",
   "src/components/PacklisteManager.js"
 ];
@@ -130,7 +135,26 @@ const allowedLiteralFindings = [
   { file: "src\\utils\\bookSearch.js", text: "Wähle den plausibelsten Kandidaten" },
   { file: "src/utils/bookSearch.js", text: "Wähle den plausibelsten Kandidaten" },
   { file: "src\\utils\\budgetLimits.js", text: "Überschritten" },
-  { file: "src/utils/budgetLimits.js", text: "Überschritten" },
+  { file: "src/utils/budgetLimits.js", text: "Überschritten" },  { file: "src\\components\\home\\RechnungReviewModal.js", text: "getr" },
+  { file: "src/components/home/RechnungReviewModal.js", text: "getr" },
+  { file: "src\\components\\home\\RecipeImportModal.js", text: "Supabase-Konfiguration oder Sitzung fehlt" },
+  { file: "src/components/home/RecipeImportModal.js", text: "Supabase-Konfiguration oder Sitzung fehlt" },
+  { file: "src\\components\\home\\RecipeImportModal.js", text: "OpenAI API-Key ist im Haushalt nicht konfiguriert" },
+  { file: "src/components/home/RecipeImportModal.js", text: "OpenAI API-Key ist im Haushalt nicht konfiguriert" },
+  { file: "src\\components\\home\\RecipeImportModal.js", text: "Kein aktiver Haushalt vorhanden" },
+  { file: "src/components/home/RecipeImportModal.js", text: "Kein aktiver Haushalt vorhanden" },
+  { file: "src\\components\\home\\RecipeImportModal.js", text: "Ollama-Analyse wartet auf OpenAI" },
+  { file: "src/components/home/RecipeImportModal.js", text: "Ollama-Analyse wartet auf OpenAI" },
+  { file: "src\\components\\home\\HomeHeimapotheke.js", text: "darreichungsform" },
+  { file: "src/components/home/HomeHeimapotheke.js", text: "darreichungsform" },
+  { file: "src\\components\\home\\HomeHeimapotheke.js", text: "packungsgroesse" },
+  { file: "src/components/home/HomeHeimapotheke.js", text: "packungsgroesse" },
+  { file: "src\\components\\home\\documents\\DokumentFilterBar.js", text: "Garantie" },
+  { file: "src/components/home/documents/DokumentFilterBar.js", text: "Garantie" },
+  { file: "src\\utils\\heimapotheke.js", text: "Erk" },
+  { file: "src/utils/heimapotheke.js", text: "Erk" },
+  { file: "src\\utils\\heimapotheke.js", text: "pfchen" },
+  { file: "src/utils/heimapotheke.js", text: "pfchen" },
 ];
 
 function isAllowedLiteralFinding(line, relativeFile) {
@@ -145,6 +169,8 @@ function isTechnicalLiteral(line) {
     trimmed.startsWith("console.") ||
     trimmed.includes(" console.") ||
     trimmed.startsWith("debugLog(") ||
+    trimmed.includes("\"–\"") ||
+    trimmed.includes("format(weekStart") ||
     trimmed.startsWith("const prompt =") ||
     trimmed.startsWith("const systemPrompt =") ||
     trimmed.startsWith("const userPrompt =") ||

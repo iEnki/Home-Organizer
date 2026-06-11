@@ -383,6 +383,7 @@ alter table public.home_geraete
 create table if not exists public.home_verlauf (
   id              uuid primary key default gen_random_uuid(),
   user_id         uuid references auth.users(id) on delete cascade not null,
+  household_id    uuid references public.households(id) on delete cascade,
   tabelle         text not null,           -- z.B. "home_objekte"
   datensatz_name  text not null,           -- Anzeigename des betroffenen Datensatzes
   aktion          text not null            -- "erstellt" | "geaendert" | "geloescht"
@@ -392,14 +393,47 @@ create table if not exists public.home_verlauf (
 
 create index if not exists idx_home_verlauf_user_id on public.home_verlauf(user_id);
 create index if not exists idx_home_verlauf_created_at on public.home_verlauf(created_at desc);
+create index if not exists idx_home_verlauf_household_created on public.home_verlauf(household_id, created_at desc);
 
 alter table public.home_verlauf enable row level security;
 
 drop policy if exists home_verlauf_crud_own on public.home_verlauf;
-create policy home_verlauf_crud_own
-  on public.home_verlauf for all
+drop policy if exists home_verlauf_select_household_or_legacy on public.home_verlauf;
+drop policy if exists home_verlauf_insert_household_or_legacy on public.home_verlauf;
+drop policy if exists home_verlauf_update_own on public.home_verlauf;
+drop policy if exists home_verlauf_delete_own on public.home_verlauf;
+
+create policy home_verlauf_select_household_or_legacy
+  on public.home_verlauf for select
+  using (
+    (household_id is not null and public.is_household_member(household_id))
+    or (household_id is null and auth.uid() = user_id)
+  );
+
+create policy home_verlauf_insert_household_or_legacy
+  on public.home_verlauf for insert
+  with check (
+    auth.uid() = user_id
+    and (
+      (household_id is not null and public.is_household_member(household_id))
+      or household_id is null
+    )
+  );
+
+create policy home_verlauf_update_own
+  on public.home_verlauf for update
   using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  with check (
+    auth.uid() = user_id
+    and (
+      (household_id is not null and public.is_household_member(household_id))
+      or household_id is null
+    )
+  );
+
+create policy home_verlauf_delete_own
+  on public.home_verlauf for delete
+  using (auth.uid() = user_id);
 
 -- 2. home_wissen: Wissensdatenbank / Wiki-Einträge
 create table if not exists public.home_wissen (
