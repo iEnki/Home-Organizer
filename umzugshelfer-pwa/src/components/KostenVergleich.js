@@ -28,6 +28,7 @@ const KostenVergleich = ({ session }) => {
       .from("budget_posten")
       .select("id, beschreibung, kategorie, betrag, teilzahlungen:budget_teilzahlungen(betrag_teilzahlung)")
       .eq("user_id", userId)
+      .is("archived_at", null)
       .in("app_modus", ["umzug", "beides"])
       .order("kategorie");
     setBudgetPosten(data || []);

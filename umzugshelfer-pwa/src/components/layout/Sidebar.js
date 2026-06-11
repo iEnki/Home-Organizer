@@ -4,8 +4,8 @@ import {
   LayoutDashboard, Users, DollarSign, ListChecks, Archive,
   Paintbrush, Calculator, CalendarClock, FolderOpen,
   Package, ShoppingCart, Wrench, CheckSquare, ShoppingBag,
-  Search, BookOpen, History, FileText, ChefHat,
-  Menu, X, CalendarDays, ScanLine,
+  Search, BookOpen, History, FileText, ChefHat, Pill,
+  Menu, X, CalendarDays, ScanLine, Car,
 } from "lucide-react";
 
 const COLLAPSED_W = 52;
@@ -48,8 +48,10 @@ const homeGruppen = [
     label: "Haushalt",
     items: [
       { name: "Inventar", path: "/home/inventar",    icon: Package },
+      { name: "Heimapotheke", path: "/home/heimapotheke", icon: Pill },
       { name: "Vorräte",  path: "/home/vorraete",    icon: ShoppingCart },
       { name: "Geräte",   path: "/home/geraete",     icon: Wrench },
+      { name: "Kfz",      path: "/home/kfz",         icon: Car },
       { name: "Einkauf",  path: "/home/einkaufliste", icon: ShoppingBag },
     ],
   },
@@ -58,6 +60,7 @@ const homeGruppen = [
     items: [
       { name: "Aufgaben", path: "/home/aufgaben",  icon: CheckSquare },
       { name: "Projekte", path: "/home/projekte",  icon: FolderOpen },
+      { name: "Kalender", path: "/kalender",       icon: CalendarDays },
     ],
   },
   {
@@ -93,7 +96,9 @@ const NAV_LABEL_KEYS_BY_PATH = {
   "/home":                  "nav:items.home",
   "/home/inventar":         "nav:items.inventory",
   "/home/vorraete":         "nav:items.stock",
+  "/home/heimapotheke":     "nav:items.medicineCabinet",
   "/home/geraete":          "nav:items.devices",
+  "/home/kfz":              "nav:items.vehicles",
   "/home/einkaufliste":     "nav:items.shopping",
   "/home/aufgaben":         "nav:items.tasks",
   "/home/projekte":         "nav:items.projects",

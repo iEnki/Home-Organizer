@@ -162,6 +162,7 @@ const BudgetTracker = ({ session }) => {
         .from("budget_posten")
         .select("*, teilzahlungen:budget_teilzahlungen(*)")
         .eq("user_id", userId)
+        .is("archived_at", null)
         .in("app_modus", ["umzug", "beides"])
         .order("datum", { ascending: false });
       if (postenError) throw postenError;

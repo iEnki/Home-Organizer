@@ -555,7 +555,7 @@ const Dashboard = ({ session }) => {
       const { data: deadlineBudgetsFromDB } = await supabase
         .from("budget_posten")
         .select("id, beschreibung, datum, betrag, teilzahlungen:budget_teilzahlungen(betrag_teilzahlung)")
-        .eq("user_id", userId).gte("datum", heuteString)
+        .eq("user_id", userId).is("archived_at", null).gte("datum", heuteString)
         .order("datum", { ascending: true }).limit(3);
 
       const deadlines = [];
@@ -581,7 +581,8 @@ const Dashboard = ({ session }) => {
       const { data: alleBudgetPosten, error: budgetPostenError } = await supabase
         .from("budget_posten")
         .select("kategorie, teilzahlungen:budget_teilzahlungen(betrag_teilzahlung)")
-        .eq("user_id", userId);
+        .eq("user_id", userId)
+        .is("archived_at", null);
       if (budgetPostenError) throw budgetPostenError;
 
       let totalAusgegeben = 0;

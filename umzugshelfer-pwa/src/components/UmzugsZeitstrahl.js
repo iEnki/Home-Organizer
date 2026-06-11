@@ -240,6 +240,7 @@ const UmzugsZeitstrahl = ({ session }) => {
         .from("budget_posten")
         .select("id, beschreibung, kategorie, lieferdatum, betrag, datum, created_at")
         .eq("user_id", userId)
+        .is("archived_at", null)
         .in("app_modus", ["umzug", "beides"]);
       if (lieferError) throw lieferError;
       const lieferEventsArr =
@@ -1486,5 +1487,4 @@ Generiere nun das Umzugstagebuch:`;
 };
 
 export default UmzugsZeitstrahl;
-
 

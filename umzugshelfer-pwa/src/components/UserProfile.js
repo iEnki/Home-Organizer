@@ -107,8 +107,9 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
   const location  = useLocation();
   const { theme } = useTheme();
   const {
-    appMode, switchToHome, switchToUmzug,
+    appMode, switchToHome,
     deaktiviereUmzug, aktiviereUmzug,
+    clearUmzugDeaktiviert,
   } = useAppMode();
   const { isDesktop } = useViewport();
   const reduced = useReducedMotion();
@@ -256,12 +257,16 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         if (data?.kochbuch_ollama_thinking_enabled !== undefined) setKochbuchOllamaThinkingEnabled(!!data.kochbuch_ollama_thinking_enabled);
         if (data?.einkauf_reminder_aktiv !== undefined) setEinkaufReminderAktiv(!!data.einkauf_reminder_aktiv);
         if (data?.einkauf_reminder_zeit)    setEinkaufReminderZeit(data.einkauf_reminder_zeit);
-        if (data?.umzug_deaktiviert !== undefined) setUmzugDeaktiviertLokal(!!data.umzug_deaktiviert);
+        if (data?.umzug_deaktiviert !== undefined) {
+          const deaktiviert = !!data.umzug_deaktiviert;
+          setUmzugDeaktiviertLokal(deaktiviert);
+          if (!deaktiviert) clearUmzugDeaktiviert?.();
+        }
         if (data?.avatar_url)               setAvatarUrl(data.avatar_url);
         if (data?.username)                 setDisplayName(data.username);
         setLadend(false);
       });
-  }, [userId]);
+  }, [userId, clearUmzugDeaktiviert]);
 
   // Bildanalyse-Einstellungen: nur für Admins
   useEffect(() => {
@@ -574,11 +579,23 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     setTimeout(() => setTourReset(false), 3000);
   };
 
-  const handleModusWechsel = (ziel) => {
+  const handleModusWechsel = async (ziel) => {
     if (ziel === "home") {
       switchToHome();
+      await supabase.from("user_profile").update({ app_modus: "home", umzug_deaktiviert: false }).eq("id", userId);
+      if (isHouseholdAdmin) {
+        await supabase.rpc("set_household_app_mode", { p_app_modus: "home", p_umzug_deaktiviert: false });
+      }
+      navigate("/home");
     } else {
-      switchToUmzug();
+      setUmzugDeaktiviertLokal(false);
+      clearUmzugDeaktiviert?.();
+      aktiviereUmzug();
+      await supabase.from("user_profile").update({ app_modus: "umzug", umzug_deaktiviert: false }).eq("id", userId);
+      if (isHouseholdAdmin) {
+        await supabase.rpc("set_household_app_mode", { p_app_modus: "umzug", p_umzug_deaktiviert: false });
+      }
+      navigate("/dashboard");
     }
   };
 

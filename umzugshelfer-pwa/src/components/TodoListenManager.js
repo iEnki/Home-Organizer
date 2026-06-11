@@ -599,6 +599,7 @@ const TodoListenManager = ({ session }) => {
         .from("budget_posten")
         .select("id, beschreibung, betrag")
         .eq("user_id", userId)
+        .is("archived_at", null)
         .order("beschreibung", { ascending: true });
       if (fetchError) throw fetchError;
       setBudgetPostenListe(data || []);

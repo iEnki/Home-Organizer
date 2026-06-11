@@ -8,6 +8,7 @@ import {
   PanelRightOpen,
   Send,
   Sparkles,
+  Trash2,
   X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -31,9 +32,22 @@ import {
   commitAssistantAction,
   prepareAssistantAction,
 } from "../../utils/assistantDomainAdapters";
+import { isMedicationAdviceRequest, medicationAdviceRefusal } from "../../utils/heimapotheke";
+import {
+  buildHomeAssistantFlowPayload,
+  buildWorkflowPreviewItems,
+  detectHomeAssistantCapability,
+  detectHomeAssistantFlow,
+  extractInitialSlots,
+  getCapability,
+  mergeWorkflowAnswer,
+  resolveNextWorkflowStep,
+  searchRecipesForAssistant,
+} from "../../utils/assistantCapabilities";
 import {
   DEFAULT_ASSISTANT_UI_CONFIG,
   appendAssistantMessage,
+  clearAssistantThreadHistory,
   createAssistantThread,
   loadAssistantActionReceipts,
   listAssistantThreads,
@@ -175,6 +189,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
   const [messages, setMessages] = useState([]);
   const [receipts, setReceipts] = useState([]);
   const [pendingAction, setPendingAction] = useState(null);
+  const [activeWorkflow, setActiveWorkflow] = useState(null);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [speechActive, setSpeechActive] = useState(false);
@@ -273,6 +288,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
 
   const handleClose = useCallback(() => {
     setPendingAction(null);
+    setActiveWorkflow(null);
     persistUiConfig({ is_open: false, is_minimized: true });
   }, [persistUiConfig]);
 
@@ -306,14 +322,46 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
     setMessages([]);
     setReceipts([]);
     setPendingAction(null);
+    setActiveWorkflow(null);
     setInput("");
   }, [householdId, location.pathname, t, userId]);
+
+  const handleClearThread = useCallback(async () => {
+    const threadId = activeThreadId;
+    if (!threadId || loading) return;
+
+    const confirmed = window.confirm(t("assistant:clearChatConfirm"));
+    if (!confirmed) return;
+
+    setLoading(true);
+    try {
+      const title = t("assistant:newThreadTitle");
+      await clearAssistantThreadHistory(threadId, userId, title);
+      const updatedAt = new Date().toISOString();
+      setMessages([]);
+      setReceipts([]);
+      setPendingAction(null);
+      setActiveWorkflow(null);
+      setInput("");
+      setThreads((prev) =>
+        prev.map((thread) =>
+          thread.id === threadId ? { ...thread, title, updated_at: updatedAt } : thread,
+        ),
+      );
+      toast.success(t("assistant:clearChatSuccess"));
+    } catch (error) {
+      toast.error(error?.message || t("assistant:errGeneric"));
+    } finally {
+      setLoading(false);
+    }
+  }, [activeThreadId, loading, t, toast, userId]);
 
   const handleSelectThread = useCallback(
     async (event) => {
       const threadId = event.target.value;
       setActiveThreadId(threadId);
       setPendingAction(null);
+      setActiveWorkflow(null);
       await loadThreadMessages(threadId);
     },
     [loadThreadMessages],
@@ -349,6 +397,151 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
     [t, threads, userId],
   );
 
+  const handlePreparedAssistantResult = useCallback(async ({ threadId, preparedAction, fallbackText = "" }) => {
+    if (preparedAction?.kind === "assistant_response") {
+      await pushMessage(threadId, "assistant", preparedAction.text || fallbackText || t("assistant:uncertainReply"), {
+        type: "assistant_response",
+        domain: preparedAction.domain || null,
+      });
+      return true;
+    }
+
+    if (preparedAction?.kind === "open_flow") {
+      const text = preparedAction.text || fallbackText || t("assistant:openFlowReply", { flow: preparedAction.flow?.flow_key || "Home" });
+      await pushMessage(threadId, "assistant", text, preparedAction.flow);
+      setPendingAction({
+        kind: "open_flow",
+        flow: preparedAction.flow,
+        reply: text,
+        previewText: text,
+      });
+      return true;
+    }
+
+    return false;
+  }, [pushMessage, t]);
+
+  const handleWorkflowReady = useCallback(async ({ threadId, workflow }) => {
+    const capability = getCapability(workflow.capabilityId);
+    if (!capability) {
+      await pushMessage(threadId, "assistant", "Diese Home-Funktion ist nicht bekannt.");
+      setActiveWorkflow(null);
+      return;
+    }
+
+    if (workflow.preparedAction?.kind === "search" || capability.actionKind === "search") {
+      const query = workflow.slots?.query || "";
+      const results = await searchRecipesForAssistant({ userId, query });
+      const text = results.length > 0
+        ? `Ich habe ${results.length} passende Rezepte gefunden.`
+        : `Ich habe kein passendes Rezept zu "${query}" gefunden.`;
+      await pushMessage(threadId, "assistant", text, {
+        type: "recipe_results",
+        query,
+        results,
+      });
+      setActiveWorkflow(null);
+      return;
+    }
+
+    const actionContext = await loadAssistantActionContext({
+      domain: capability.domain,
+      userId,
+      householdId,
+      appMode,
+      pathname: location.pathname,
+    });
+
+    const preparedAction = await prepareAssistantAction({
+      domain: capability.domain,
+      session,
+      items: workflow.preparedAction?.items || [workflow.slots],
+      context: actionContext,
+    });
+
+    if (await handlePreparedAssistantResult({
+      threadId,
+      preparedAction,
+      fallbackText: workflow.previewText || `${capability.label} vorbereitet.`,
+    })) {
+      setActiveWorkflow(null);
+      return;
+    }
+
+    const previewText = workflow.previewText || `${capability.label} vorbereitet.`;
+    await pushMessage(threadId, "assistant", previewText, {
+      type: "workflow_preview",
+      domain: capability.domain,
+      capability_id: capability.id,
+      previewItems: buildWorkflowPreviewItems(workflow),
+    });
+
+    setPendingAction({
+      threadId,
+      domain: capability.domain,
+      capabilityId: capability.id,
+      preparedAction: {
+        ...preparedAction,
+        domain: capability.domain,
+        capabilityId: capability.id,
+        items: workflow.preparedAction?.items || [workflow.slots],
+      },
+      actionContext,
+      previewText,
+      previewItems: buildWorkflowPreviewItems(workflow),
+    });
+    setActiveWorkflow(null);
+  }, [appMode, handlePreparedAssistantResult, householdId, location.pathname, pushMessage, session, userId]);
+
+  const advanceWorkflow = useCallback(async ({ threadId, workflow }) => {
+    const nextWorkflow = await resolveNextWorkflowStep({ workflow, userId });
+    if (nextWorkflow.status === "question") {
+      setActiveWorkflow(nextWorkflow);
+      await pushMessage(threadId, "assistant", nextWorkflow.question, {
+        type: "workflow_question",
+        domain: nextWorkflow.domain,
+        capability_id: nextWorkflow.capabilityId,
+        slot: nextWorkflow.pendingSlot,
+        choices: nextWorkflow.choices || [],
+      });
+      return;
+    }
+    if (nextWorkflow.status === "ready") {
+      await handleWorkflowReady({ threadId, workflow: nextWorkflow });
+      return;
+    }
+    setActiveWorkflow(null);
+    await pushMessage(threadId, "assistant", nextWorkflow.message || t("assistant:errGeneric"));
+  }, [handleWorkflowReady, pushMessage, t, userId]);
+
+  const beginWorkflow = useCallback(async ({ threadId, capability, text, aiItems = [] }) => {
+    const slots = extractInitialSlots({
+      capabilityId: capability.id,
+      text,
+      aiItems,
+    });
+    await advanceWorkflow({
+      threadId,
+      workflow: {
+        status: "collecting",
+        capabilityId: capability.id,
+        domain: capability.domain,
+        slots,
+      },
+    });
+  }, [advanceWorkflow]);
+
+  const continueWorkflow = useCallback(async ({ threadId, text, selectedValue = null }) => {
+    if (!activeWorkflow) return false;
+    const mergedWorkflow = mergeWorkflowAnswer({
+      workflow: activeWorkflow,
+      text,
+      selectedValue,
+    });
+    await advanceWorkflow({ threadId, workflow: mergedWorkflow });
+    return true;
+  }, [activeWorkflow, advanceWorkflow]);
+
   const handleSend = useCallback(async () => {
     const trimmed = input.trim();
     if (!trimmed || loading) return;
@@ -362,6 +555,41 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
     try {
       await pushMessage(threadId, "user", trimmed);
       await maybeRenameThread(threadId, trimmed);
+
+      if (isMedicationAdviceRequest(trimmed)) {
+        await pushMessage(threadId, "assistant", medicationAdviceRefusal, {
+          type: "guardrail",
+          domain: "medikamente",
+        });
+        return;
+      }
+
+      if (activeWorkflow?.status === "question") {
+        await continueWorkflow({ threadId, text: trimmed });
+        return;
+      }
+
+      const detectedFlow = detectHomeAssistantFlow(trimmed);
+      if (detectedFlow) {
+        if (detectedFlow.inactive) {
+          await pushMessage(
+            threadId,
+            "assistant",
+            `${detectedFlow.label} ist vorbereitet, aber aktuell nicht als Home-Route eingebunden.`,
+          );
+          return;
+        }
+        const flowPayload = buildHomeAssistantFlowPayload(detectedFlow, trimmed);
+        const text = `Ich oeffne den passenden Home-Flow: ${detectedFlow.label}.`;
+        await pushMessage(threadId, "assistant", text, flowPayload);
+        setPendingAction({
+          kind: "open_flow",
+          flow: flowPayload,
+          reply: text,
+          previewText: text,
+        });
+        return;
+      }
 
       const classification = await classifyAssistantInput({
         userId,
@@ -404,6 +632,11 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
       }
 
       if (classification.intent !== "extract_records" || !classification.domain) {
+        const capability = detectHomeAssistantCapability(trimmed);
+        if (capability) {
+          await beginWorkflow({ threadId, capability, text: trimmed });
+          return;
+        }
         await pushMessage(
           threadId,
           "assistant",
@@ -412,12 +645,23 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
         return;
       }
 
-      const items = await extractAssistantDomainItems({
-        userId,
-        domain: classification.domain,
-        text: trimmed,
-        locale,
-      });
+      const capability = detectHomeAssistantCapability(trimmed, classification.domain);
+      let items = [];
+      try {
+        items = await extractAssistantDomainItems({
+          userId,
+          domain: classification.domain,
+          text: trimmed,
+          locale,
+        });
+      } catch (error) {
+        if (!capability) throw error;
+      }
+
+      if (capability) {
+        await beginWorkflow({ threadId, capability, text: trimmed, aiItems: items });
+        return;
+      }
 
       if (!Array.isArray(items) || items.length === 0) {
         await pushMessage(threadId, "assistant", t("assistant:noItemsExtracted"));
@@ -438,6 +682,14 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
         items,
         context: actionContext,
       });
+
+      if (await handlePreparedAssistantResult({
+        threadId,
+        preparedAction,
+        fallbackText: classification.reply,
+      })) {
+        return;
+      }
 
       const previewText =
         classification.reply ||
@@ -486,7 +738,47 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
     t,
     toast,
     userId,
+    activeWorkflow,
+    beginWorkflow,
+    continueWorkflow,
+    handlePreparedAssistantResult,
   ]);
+
+  const handleWorkflowChoice = useCallback(async (message, choice) => {
+    if (!choice || loading) return;
+    const threadId = await ensureThread();
+    if (!threadId) return;
+    setLoading(true);
+    setInput("");
+    setPendingAction(null);
+    try {
+      await pushMessage(threadId, "user", choice.label || String(choice.value));
+      if (!activeWorkflow || activeWorkflow.pendingSlot !== message.payload?.slot) {
+        const workflow = {
+          status: "question",
+          capabilityId: message.payload?.capability_id,
+          domain: message.payload?.domain,
+          pendingSlot: message.payload?.slot,
+          choices: message.payload?.choices || [],
+          slots: {},
+        };
+        const merged = mergeWorkflowAnswer({
+          workflow,
+          text: choice.label || String(choice.value),
+          selectedValue: choice.value,
+        });
+        await advanceWorkflow({ threadId, workflow: merged });
+      } else {
+        await continueWorkflow({ threadId, text: choice.label || String(choice.value), selectedValue: choice.value });
+      }
+    } catch (error) {
+      const errorMessage = error?.message || t("assistant:errGeneric");
+      toast.error(errorMessage);
+      await pushMessage(threadId, "assistant", errorMessage, { type: "error" });
+    } finally {
+      setLoading(false);
+    }
+  }, [activeWorkflow, advanceWorkflow, continueWorkflow, ensureThread, loading, pushMessage, t, toast]);
 
   const handleConfirmPending = useCallback(async () => {
     if (!pendingAction || loading) return;
@@ -561,8 +853,16 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
   return (
     <>
       {open && (
-        <div className="fixed inset-0 z-[150] flex items-end justify-end bg-black/30 backdrop-blur-sm">
-          <div className={`flex h-[min(82vh,760px)] w-full max-w-[440px] flex-col rounded-t-3xl border border-light-border bg-light-card shadow-elevation-3 dark:border-dark-border dark:bg-canvas-2 md:mb-6 md:h-[680px] md:rounded-3xl ${panelPositionClass}`}>
+        <div
+          className="fixed inset-0 z-[150] flex items-end justify-end bg-black/30 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) handleClose();
+          }}
+        >
+          <div
+            className={`flex h-[min(82vh,760px)] w-full max-w-[440px] flex-col rounded-t-3xl border border-light-border bg-light-card shadow-elevation-3 dark:border-dark-border dark:bg-canvas-2 md:mb-6 md:h-[680px] md:rounded-3xl ${panelPositionClass}`}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
             <div className="flex items-center gap-2 border-b border-light-border px-4 py-3 dark:border-dark-border">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-500/10 text-primary-500">
                 <Sparkles size={18} />
@@ -582,6 +882,15 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
                 title={t("assistant:newChat")}
               >
                 <MessageSquarePlus size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={handleClearThread}
+                disabled={!activeThreadId || loading}
+                className="rounded-full p-2 text-light-text-secondary hover:bg-light-hover disabled:opacity-50 dark:text-dark-text-secondary dark:hover:bg-canvas-3"
+                title={t("assistant:clearChat")}
+              >
+                <Trash2 size={16} />
               </button>
               <button
                 type="button"
@@ -657,6 +966,66 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
                       ))}
                     </div>
                   )}
+                  {message.payload?.type === "workflow_question" && Array.isArray(message.payload.choices) && message.payload.choices.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      <select
+                        defaultValue=""
+                        onChange={(event) => {
+                          const selected = message.payload.choices.find((choice) => String(choice.value) === event.target.value);
+                          if (selected) handleWorkflowChoice(message, selected);
+                        }}
+                        className="w-full rounded-card-sm border border-light-border bg-light-card px-3 py-2 text-sm text-light-text-main dark:border-dark-border dark:bg-canvas-2 dark:text-dark-text-main"
+                      >
+                        <option value="">Auswaehlen...</option>
+                        {message.payload.choices.map((choice) => (
+                          <option key={`${message.id}-${choice.value}`} value={choice.value}>
+                            {choice.label}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="flex flex-wrap gap-2">
+                        {message.payload.choices.slice(0, 5).map((choice) => (
+                          <button
+                            key={`${message.id}-choice-${choice.value}`}
+                            type="button"
+                            onClick={() => handleWorkflowChoice(message, choice)}
+                            className="rounded-full bg-primary-500/10 px-3 py-1 text-xs font-medium text-primary-500 hover:bg-primary-500/20"
+                          >
+                            {choice.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {message.payload?.type === "recipe_results" && Array.isArray(message.payload.results) && message.payload.results.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {message.payload.results.map((recipe) => (
+                        <button
+                          key={recipe.id}
+                          type="button"
+                          onClick={() => {
+                            navigate(recipe.route || `/home/kochbuch/${recipe.id}`);
+                            handleClose();
+                          }}
+                          className="block w-full rounded-card-sm bg-light-card px-3 py-2 text-left text-sm hover:bg-light-hover dark:bg-canvas-2 dark:hover:bg-canvas-3"
+                        >
+                          <span className="block font-medium text-light-text-main dark:text-dark-text-main">
+                            {recipe.title}
+                          </span>
+                          {recipe.description ? (
+                            <span className="mt-1 block text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                              {recipe.description}
+                            </span>
+                          ) : null}
+                          {Array.isArray(recipe.ingredients) && recipe.ingredients.length > 0 ? (
+                            <span className="mt-1 block text-xs text-primary-500">
+                              {recipe.ingredients.join(", ")}
+                            </span>
+                          ) : null}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
 
@@ -698,23 +1067,34 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
                     const previewItems =
                       pa?.kind === "shopping"
                         ? (pa.prepared?.drafts || pa.previewItems || [])
-                        : (pa?.items || []);
+                        : (pendingAction.previewItems || pa?.items || []);
                     if (previewItems.length === 0) return null;
                     return (
                       <ul className="mt-3 space-y-2 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                         {previewItems.slice(0, 6).map((item, index) => {
                           let label;
                           if (domain === "buecher") label = item.titel || item.name;
+                          else if (domain === "medikamente") label = `${item.name || "Medikament"}${item.aktion ? ` (${item.aktion})` : ""}`;
                           else if (domain === "wartungen") label = `${item.geraet_name || "Gerät"}: ${item.typ || "Wartung"}`;
                           else if (domain === "budget_split") label = `${item.beschreibung || "Split"} (${item.betrag} EUR, Zahler: ${item.payer_member_name || "?"})`;
                           else if (domain === "budget_settlement") label = `${item.from_member_name || "?"} → ${item.to_member_name || "?"}: ${item.amount} EUR`;
                           else if (domain === "packliste") label = item.gegenstand || item.kiste_name || item.beschreibung;
-                          else label = item.name || item.beschreibung || item.original_text || item.titel;
+                          else label = item.name || item.beschreibung || item.original_text || item.titel || item.lieferant_name;
+                          const invoicePositions = Array.isArray(item.positionen)
+                            ? item.positionen
+                                .map((position) => position?.beschreibung || position?.name || position)
+                                .filter(Boolean)
+                            : [];
                           return (
                             <li key={`${domain}-preview-${index}`} className="rounded-card-sm bg-light-card px-3 py-2 dark:bg-canvas-2">
                               <span className="font-medium text-light-text-main dark:text-dark-text-main">
                                 {label || `${t("assistant:defaultEntry")} ${index + 1}`}
                               </span>
+                              {invoicePositions.length > 0 ? (
+                                <span className="mt-1 block text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                                  {invoicePositions.length} Positionen: {invoicePositions.join(", ")}
+                                </span>
+                              ) : null}
                               {item.betrag && domain !== "budget_split" ? ` · ${item.betrag} EUR` : ""}
                               {item.kategorie ? ` · ${item.kategorie}` : ""}
                             </li>

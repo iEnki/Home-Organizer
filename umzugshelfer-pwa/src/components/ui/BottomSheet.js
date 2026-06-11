@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-export default function BottomSheet({ open, onClose, title, children }) {
+export default function BottomSheet({ open, onClose, title, children, responsive = false }) {
   const { t } = useTranslation(["common"]);
 
   useEffect(() => {
@@ -22,7 +22,7 @@ export default function BottomSheet({ open, onClose, title, children }) {
 
   return (
     <div
-      className="lg:hidden fixed inset-0 z-[120] flex items-end pt-4"
+      className={`${responsive ? "lg:items-center lg:justify-center lg:p-4" : "lg:hidden"} fixed inset-0 z-[120] flex items-end pt-4`}
       style={{ paddingBottom: "max(0.75rem, var(--mobile-bottom-offset, 0px))" }}
     >
       <button
@@ -31,8 +31,9 @@ export default function BottomSheet({ open, onClose, title, children }) {
         onClick={onClose}
       />
       <section
-        className="relative w-full rounded-t-2xl border-t border-light-border dark:border-dark-border
-                   bg-light-card-bg dark:bg-canvas-2 flex flex-col shadow-elevation-3 overflow-hidden"
+        className={`relative w-full rounded-t-2xl border-t border-light-border dark:border-dark-border
+                   bg-light-card-bg dark:bg-canvas-2 flex flex-col shadow-elevation-3 overflow-hidden
+                   ${responsive ? "lg:max-w-xl lg:rounded-card lg:border" : ""}`}
         style={{
           maxHeight: "calc(100dvh - var(--safe-area-top, 0px) - var(--mobile-bottom-offset, 0px) - 1rem)",
           paddingBottom: "0.75rem",
