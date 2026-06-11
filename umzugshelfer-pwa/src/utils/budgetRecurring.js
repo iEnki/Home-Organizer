@@ -133,6 +133,7 @@ export const findOccurrenceForTemplateMonth = async ({
     .from("budget_posten")
     .select("*")
     .eq("ursprung_template_id", templateId)
+    .is("archived_at", null)
     .gte("datum", start)
     .lt("datum", nextStart)
     .order("datum", { ascending: true })
@@ -149,6 +150,7 @@ export const ensureTemplateOccurrenceForMonth = async ({
   userId,
   year,
   month,
+  onCreatedOccurrence = null,
 }) => {
   if (!supabase || !template?.id || !template?.wiederholen) return null;
 
@@ -163,33 +165,46 @@ export const ensureTemplateOccurrenceForMonth = async ({
   const occurrenceDate = getRecurringOccurrenceDateForMonth(template, year, month);
   if (!occurrenceDate) return null;
 
+  const insertPayload = {
+    user_id: template.user_id || userId || null,
+    beschreibung: template.beschreibung,
+    betrag: template.betrag,
+    kategorie: template.kategorie,
+    datum: occurrenceDate,
+    typ: template.typ || "ausgabe",
+    app_modus: template.app_modus,
+    bewohner_id: template.bewohner_id || null,
+    home_projekt_id: template.home_projekt_id || null,
+    budget_scope: template.budget_scope || "haushalt",
+    zahlungskonto_id: template.zahlungskonto_id || null,
+    wiederholen: false,
+    intervall: null,
+    naechstes_datum: null,
+    ende_datum: null,
+    ursprung_template_id: template.id,
+  };
+
   const { data, error } = await supabase
     .from("budget_posten")
-    .upsert(
-      {
-        user_id: template.user_id || userId || null,
-        beschreibung: template.beschreibung,
-        betrag: template.betrag,
-        kategorie: template.kategorie,
-        datum: occurrenceDate,
-        typ: template.typ || "ausgabe",
-        app_modus: template.app_modus,
-        bewohner_id: template.bewohner_id || null,
-        home_projekt_id: template.home_projekt_id || null,
-        budget_scope: template.budget_scope || "haushalt",
-        zahlungskonto_id: template.zahlungskonto_id || null,
-        wiederholen: false,
-        intervall: null,
-        naechstes_datum: null,
-        ende_datum: null,
-        ursprung_template_id: template.id,
-      },
-      { onConflict: "ursprung_template_id,datum", ignoreDuplicates: false }
-    )
+    .insert(insertPayload)
     .select("*")
     .single();
 
-  if (error) throw error;
+  if (error) {
+    if (error.code === "23505") {
+      return findOccurrenceForTemplateMonth({
+        supabase,
+        templateId: template.id,
+        year,
+        month,
+      });
+    }
+    throw error;
+  }
+
+  if (data && typeof onCreatedOccurrence === "function") {
+    await onCreatedOccurrence(data);
+  }
   return data || null;
 };
 
@@ -322,7 +337,8 @@ export const propagateTemplateSplitToOccurrences = async ({
   let occurrenceQuery = supabase
     .from("budget_posten")
     .select("id")
-    .eq("ursprung_template_id", templateId);
+    .eq("ursprung_template_id", templateId)
+    .is("archived_at", null);
 
   if (Array.isArray(occurrenceIds) && occurrenceIds.length > 0) {
     occurrenceQuery = occurrenceQuery.in("id", occurrenceIds);
@@ -425,6 +441,7 @@ export const ensureRecurringBudgetEntries = async ({
   userId,
   householdId,
   appModi = ["home", "beides"],
+  onCreatedOccurrences = null,
 }) => {
   const today = getLocalDateString();
 
@@ -433,6 +450,7 @@ export const ensureRecurringBudgetEntries = async ({
     .select("*")
     .eq("user_id", userId)
     .eq("wiederholen", true)
+    .is("archived_at", null)
     .in("app_modus", appModi)
     .lte("naechstes_datum", today)
     .not("naechstes_datum", "is", null);
@@ -478,6 +496,7 @@ export const ensureRecurringBudgetEntries = async ({
 
   const zuVerarbeiten = [...newestByKey.values()];
   const zuFixende = (faellige || []).filter((entry) => newestByKey.get(dedupKey(entry))?.id !== entry.id);
+  const createdOccurrences = [];
 
   for (const entry of zuFixende) {
     const { error: fixError } = await supabase
@@ -503,36 +522,46 @@ export const ensureRecurringBudgetEntries = async ({
     let next = template.naechstes_datum;
 
     while (next <= today && (!template.ende_datum || next <= template.ende_datum)) {
-      const { error: upsertError } = await supabase.from("budget_posten").upsert(
-        {
-          user_id: template.user_id || userId,
-          beschreibung: template.beschreibung,
-          betrag: template.betrag,
-          kategorie: template.kategorie,
-          datum: next,
-          typ: template.typ || "ausgabe",
-          app_modus: template.app_modus,
-          bewohner_id: template.bewohner_id || null,
-          home_projekt_id: template.home_projekt_id || null,
-          budget_scope: template.budget_scope || "haushalt",
-          zahlungskonto_id: template.zahlungskonto_id || null,
-          wiederholen: false,
-          intervall: null,
-          naechstes_datum: null,
-          ende_datum: null,
-          ursprung_template_id: template.id,
-        },
+      const occurrencePayload = {
+        user_id: template.user_id || userId,
+        beschreibung: template.beschreibung,
+        betrag: template.betrag,
+        kategorie: template.kategorie,
+        datum: next,
+        typ: template.typ || "ausgabe",
+        app_modus: template.app_modus,
+        bewohner_id: template.bewohner_id || null,
+        home_projekt_id: template.home_projekt_id || null,
+        budget_scope: template.budget_scope || "haushalt",
+        zahlungskonto_id: template.zahlungskonto_id || null,
+        wiederholen: false,
+        intervall: null,
+        naechstes_datum: null,
+        ende_datum: null,
+        ursprung_template_id: template.id,
+      };
+
+      const { data: insertedOccurrences, error: upsertError } = await supabase.from("budget_posten").upsert(
+        occurrencePayload,
         { onConflict: "ursprung_template_id,datum", ignoreDuplicates: true },
-      );
+      ).select("id, beschreibung, datum, household_id");
       if (upsertError) throw upsertError;
+      const insertedOccurrence = Array.isArray(insertedOccurrences) ? insertedOccurrences[0] : null;
+      if (insertedOccurrence?.id) createdOccurrences.push(insertedOccurrence);
 
       if (householdId && splitSigMap[template.id]) {
-        const { data: occurrence, error: occurrenceError } = await supabase
-          .from("budget_posten")
-          .select("id")
-          .eq("ursprung_template_id", template.id)
-          .eq("datum", next)
-          .maybeSingle();
+        let occurrence = insertedOccurrence;
+        let occurrenceError = null;
+
+        if (!occurrence?.id) {
+          ({ data: occurrence, error: occurrenceError } = await supabase
+            .from("budget_posten")
+            .select("id")
+            .eq("ursprung_template_id", template.id)
+            .eq("datum", next)
+            .is("archived_at", null)
+            .maybeSingle());
+        }
 
         if (occurrenceError) {
           console.error("[budgetRecurring] Occurrence-Laden fehlgeschlagen:", occurrenceError);
@@ -567,4 +596,10 @@ export const ensureRecurringBudgetEntries = async ({
       if (updateError) throw updateError;
     }
   }
+
+  if (createdOccurrences.length > 0 && typeof onCreatedOccurrences === "function") {
+    await onCreatedOccurrences(createdOccurrences);
+  }
+
+  return createdOccurrences;
 };

@@ -40,6 +40,8 @@ const OBERGRUPPE_TO_MODUL = {
   papierprodukte: "vorraete",
   tiernahrung: "vorraete",
   babybedarf: "vorraete",
+  medikamente: "medikamente",
+  apothekenbedarf: "medikamente",
   // Inventar (langlebige Gegenstaende ohne Wartungsbedarf)
   moebel: "inventar",
   dekoration: "inventar",
@@ -108,6 +110,17 @@ const OBERGRUPPEN_KEYWORDS = {
   papierprodukte: [
     "kuechenrolle", "kuchenpapier", "servietten", "alufolie", "frischhaltefolie",
     "backpapier", "gefrierbeutel", "muelltueten",
+  ],
+  medikamente: [
+    "tabletten", "kapseln", "tropfen", "nasenspray", "hustensaft", "schmerzgel",
+    "ibuprofen", "paracetamol", "aspirin", "diclofenac", "cetirizin", "loratadin",
+    "pantoprazol", "omeprazol", "loperamid", "desloratadin", "bepanthen",
+    "voltaren", "nurofen", "mexalen", "thomapyrin", "wick", "sinupret",
+    "neosynephrin", "otrivin", "hexal", "ratiopharm",
+  ],
+  apothekenbedarf: [
+    "apotheke", "arznei", "arzneimittel", "medikament", "pflaster", "verband",
+    "wundspray", "desinfektion", "fieberthermometer", "inhalator",
   ],
   moebel: [
     "stuhl", "tisch", "sofa", "couch", "regal", "schrank", "bett", "kommode",
@@ -210,9 +223,12 @@ const HAENDLER_HINTS = {
   rewe: ["lebensmittel", "getraenke", "koerperpflege"],
   edeka: ["lebensmittel", "getraenke"],
   penny: ["lebensmittel", "getraenke"],
-  dm: ["koerperpflege", "hygieneartikel", "haushaltsreiniger", "babybedarf"],
-  bipa: ["koerperpflege", "hygieneartikel"],
-  rossmann: ["koerperpflege", "hygieneartikel", "haushaltsreiniger"],
+  dm: ["koerperpflege", "hygieneartikel", "haushaltsreiniger", "babybedarf", "medikamente"],
+  bipa: ["koerperpflege", "hygieneartikel", "medikamente", "apothekenbedarf"],
+  rossmann: ["koerperpflege", "hygieneartikel", "haushaltsreiniger", "medikamente"],
+  apotheke: ["medikamente", "apothekenbedarf"],
+  shopapotheke: ["medikamente", "apothekenbedarf"],
+  docmorris: ["medikamente", "apothekenbedarf"],
   mueller: ["koerperpflege", "hygieneartikel", "dekoration"],
   obi: ["werkzeug_klein", "beleuchtung", "smart_home_geraet"],
   hornbach: ["werkzeug_klein", "gartengeraet_elektrisch", "beleuchtung"],
@@ -459,6 +475,10 @@ function istTankHaendler(haendler) {
 function ermittleBudgetKategorieVorschlag(haendler, positionen) {
   const hatTankPosition = (positionen || []).some((p) => istTankPosition(p));
   if (hatTankPosition || istTankHaendler(haendler)) return "Tanken";
+  const hatLebensmittelOderGetraenke = (positionen || []).some((p) =>
+    ["lebensmittel", "getraenke"].includes(String(p?.obergruppe || "").toLowerCase()),
+  );
+  if (hatLebensmittelOderGetraenke) return "Lebensmittel & Getränke";
   return null;
 }
 
@@ -895,7 +915,7 @@ export async function starteAnalyse(file, modus, { kiClient, session, locale = "
 
     if (!hasText || !text?.trim()) {
       throw new Error(
-        "Dieses PDF enth?lt keinen lesbaren Text. Bitte mache ein Foto der Rechnung und lade es als Bild hoch."
+        "Dieses PDF enthält keinen lesbaren Text. Bitte nutze den Rechnungsscanner, damit die PDF-Seiten per OCR gelesen werden."
       );
     }
 

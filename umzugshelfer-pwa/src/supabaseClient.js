@@ -29,6 +29,8 @@ const SHARED_TABLES = new Set([
   "home_rezepte",
   "home_rezept_zutaten",
   "home_rezept_import_jobs",
+  "home_medikamente",
+  "home_medikament_beipackzettel_analysen",
   "home_einkauf_korrekturen",
   "home_geraete",
   "home_wartungen",
@@ -37,6 +39,7 @@ const SHARED_TABLES = new Set([
   "home_budget_categories",
   "home_sparziele",
   "home_finanzkonten",
+  "home_verlauf",
   "budget_split_groups",
   "budget_split_shares",
   "budget_settlements",
@@ -52,6 +55,16 @@ const SHARED_TABLES = new Set([
   "home_buch_verleihverlauf",
   "home_buch_importe",
   "home_buch_import_kandidaten",
+  "home_fahrzeuge",
+  "home_fahrzeug_tankvorgaenge",
+  "home_fahrzeug_kilometerstaende",
+  "home_fahrzeug_tank_importe",
+  "home_fahrzeug_services",
+  "home_fahrzeug_service_positionen",
+  "home_fahrzeug_reifen",
+  "home_fahrzeug_ausgaben",
+  "home_fahrzeug_aufgaben",
+  "home_fahrzeug_teile",
 ]);
 
 let activeHouseholdId =

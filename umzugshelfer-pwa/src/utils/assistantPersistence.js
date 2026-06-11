@@ -169,6 +169,59 @@ export const renameAssistantThread = async (threadId, userId, title) => {
   }
 };
 
+export const clearAssistantThreadHistory = async (
+  threadId,
+  userId,
+  title = "Neuer Chat",
+) => {
+  if (!threadId || !userId) return;
+
+  const updatedAt = new Date().toISOString();
+  const state = getLocalThreadState();
+  state.messages[threadId] = [];
+  state.receipts[threadId] = [];
+  state.threads = state.threads.map((thread) =>
+    thread.id === threadId ? { ...thread, title, updated_at: updatedAt } : thread,
+  );
+  setLocalThreadState(state);
+
+  const runDbStep = async (label, query) => {
+    try {
+      const { error } = await query;
+      if (error) throw error;
+    } catch (error) {
+      if (isMissingRelationError(error)) return;
+      console.warn(`${label} konnte nicht geloescht werden`, error);
+      throw error;
+    }
+  };
+
+  await runDbStep(
+    "ai_action_receipts",
+    supabase
+      .from("ai_action_receipts")
+      .delete()
+      .eq("thread_id", threadId)
+      .eq("user_id", userId),
+  );
+  await runDbStep(
+    "ai_chat_messages",
+    supabase
+      .from("ai_chat_messages")
+      .delete()
+      .eq("thread_id", threadId)
+      .eq("user_id", userId),
+  );
+  await runDbStep(
+    "ai_chat_thread",
+    supabase
+      .from("ai_chat_threads")
+      .update({ title, updated_at: updatedAt })
+      .eq("id", threadId)
+      .eq("user_id", userId),
+  );
+};
+
 export const loadAssistantMessages = async (threadId) => {
   if (!threadId) return [];
   try {

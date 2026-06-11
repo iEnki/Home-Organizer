@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { lazy, Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { sanitizeMobileNavFavorites } from "./config/mobileNavConfig";
 import {
@@ -26,57 +26,59 @@ import Topbar  from "./components/layout/Topbar";
 import MobileBottomNav from "./components/layout/MobileBottomNav";
 import MobileMoreSheet from "./components/layout/MobileMoreSheet";
 import MobileSearchSheet from "./components/layout/MobileSearchSheet";
-import GlobalAssistantLauncher from "./components/assistant/GlobalAssistantLauncher";
-
-// ── Home Organizer Komponenten ─────────────────────────────────────────────────
-import HomeDashboard          from "./components/home/HomeDashboard";
-import HomeRechnungScannen   from "./components/home/HomeRechnungScannen";
-import HomeInventar         from "./components/home/HomeInventar";
-import HomeGlobalSuche      from "./components/home/HomeGlobalSuche";
-import HomeVorraete         from "./components/home/HomeVorraete";
-import HomeEinkaufliste     from "./components/home/HomeEinkaufliste";
-import HomeHaushaltsaufgaben from "./components/home/HomeHaushaltsaufgaben";
-import HomeBewohner         from "./components/home/HomeBewohner";
-import HomeGeraete          from "./components/home/HomeGeraete";
-import HomeBudget           from "./components/home/HomeBudget";
-import HomeProjekte         from "./components/home/HomeProjekte";
 import HomeOnboarding       from "./components/home/HomeOnboarding";
 import TourPromptModal      from "./components/home/tour/TourPromptModal";
-import HomeVerlauf          from "./components/home/HomeVerlauf";
-import HomeWissen           from "./components/home/HomeWissen";
-import HomeDokumente        from "./components/home/HomeDokumente";
-import HomeKochbuch         from "./components/home/HomeKochbuch";
+import ForcedPasswordChangeModal from "./components/ForcedPasswordChangeModal";
+const GlobalAssistantLauncher = lazy(() => import("./components/assistant/GlobalAssistantLauncher"));
+
+// ── Home Organizer Komponenten ─────────────────────────────────────────────────
+const HomeDashboard = lazy(() => import("./components/home/HomeDashboard"));
+const HomeRechnungScannen = lazy(() => import("./components/home/HomeRechnungScannen"));
+const HomeInventar = lazy(() => import("./components/home/HomeInventar"));
+const HomeGlobalSuche = lazy(() => import("./components/home/HomeGlobalSuche"));
+const HomeVorraete = lazy(() => import("./components/home/HomeVorraete"));
+const HomeHeimapotheke = lazy(() => import("./components/home/HomeHeimapotheke"));
+const HomeEinkaufliste = lazy(() => import("./components/home/HomeEinkaufliste"));
+const HomeHaushaltsaufgaben = lazy(() => import("./components/home/HomeHaushaltsaufgaben"));
+const HomeBewohner = lazy(() => import("./components/home/HomeBewohner"));
+const HomeGeraete = lazy(() => import("./components/home/HomeGeraete"));
+const HomeKfz = lazy(() => import("./components/home/HomeKfz"));
+const HomeBudget = lazy(() => import("./components/home/HomeBudget"));
+const HomeProjekte = lazy(() => import("./components/home/HomeProjekte"));
+const HomeVerlauf = lazy(() => import("./components/home/HomeVerlauf"));
+const HomeWissen = lazy(() => import("./components/home/HomeWissen"));
+const HomeDokumente = lazy(() => import("./components/home/HomeDokumente"));
+const HomeKochbuch = lazy(() => import("./components/home/HomeKochbuch"));
 
 // ── Umzugsplaner Komponenten ───────────────────────────────────────────────────
-import Dashboard            from "./components/Dashboard";
-import KontaktManager       from "./components/KontaktManager";
-import BudgetTracker        from "./components/BudgetTracker";
-import TodoListenManager    from "./components/TodoListenManager";
-import PacklisteManager     from "./components/PacklisteManager";
-import Materialplaner       from "./components/Materialplaner";
-import BedarfsrechnerPage   from "./components/BedarfsrechnerPage";
-import UmzugsplanerSeite    from "./components/UmzugsplanerSeite";
-import HomePage             from "./components/LoginPage";
-import RegisterPage         from "./components/RegisterPage";
-import UmzugsZeitstrahl     from "./components/UmzugsZeitstrahl";
-import DokumentenManager    from "./components/DokumentenManager";
-import UpdatePasswordPage   from "./components/UpdatePasswordPage";
-import ForcedPasswordChangeModal from "./components/ForcedPasswordChangeModal";
-import KostenVergleich      from "./components/KostenVergleich";
-import UserProfile          from "./components/UserProfile";
-import KalenderUebersicht   from "./components/KalenderUebersicht";
-import JoinHouseholdPage    from "./components/JoinHouseholdPage";
+const Dashboard = lazy(() => import("./components/Dashboard"));
+const KontaktManager = lazy(() => import("./components/KontaktManager"));
+const BudgetTracker = lazy(() => import("./components/BudgetTracker"));
+const TodoListenManager = lazy(() => import("./components/TodoListenManager"));
+const PacklisteManager = lazy(() => import("./components/PacklisteManager"));
+const Materialplaner = lazy(() => import("./components/Materialplaner"));
+const BedarfsrechnerPage = lazy(() => import("./components/BedarfsrechnerPage"));
+const UmzugsplanerSeite = lazy(() => import("./components/UmzugsplanerSeite"));
+const HomePage = lazy(() => import("./components/LoginPage"));
+const RegisterPage = lazy(() => import("./components/RegisterPage"));
+const UmzugsZeitstrahl = lazy(() => import("./components/UmzugsZeitstrahl"));
+const DokumentenManager = lazy(() => import("./components/DokumentenManager"));
+const UpdatePasswordPage = lazy(() => import("./components/UpdatePasswordPage"));
+const KostenVergleich = lazy(() => import("./components/KostenVergleich"));
+const UserProfile = lazy(() => import("./components/UserProfile"));
+const KalenderUebersicht = lazy(() => import("./components/KalenderUebersicht"));
+const JoinHouseholdPage = lazy(() => import("./components/JoinHouseholdPage"));
 
 // ── Feature-Landing-Pages (öffentlich) ────────────────────────────────────────
-import TodoListenFeaturePage      from "./components/featurepages/TodoListenFeaturePage";
-import PacklisteFeaturePage       from "./components/featurepages/PacklisteFeaturePage";
-import BudgetTrackerFeaturePage   from "./components/featurepages/BudgetTrackerFeaturePage";
-import KontaktManagerFeaturePage  from "./components/featurepages/KontaktManagerFeaturePage";
-import TransportFeaturePage       from "./components/featurepages/TransportFeaturePage";
-import RenovierungsplanerFeaturePage from "./components/featurepages/RenovierungsplanerFeaturePage";
-import ZeitstrahlFeaturePage      from "./components/featurepages/ZeitstrahlFeaturePage";
-import KiAssistentenFeaturePage   from "./components/featurepages/KiAssistentenFeaturePage";
-import QrCodeFeaturePage          from "./components/featurepages/QrCodeFeaturePage";
+const TodoListenFeaturePage = lazy(() => import("./components/featurepages/TodoListenFeaturePage"));
+const PacklisteFeaturePage = lazy(() => import("./components/featurepages/PacklisteFeaturePage"));
+const BudgetTrackerFeaturePage = lazy(() => import("./components/featurepages/BudgetTrackerFeaturePage"));
+const KontaktManagerFeaturePage = lazy(() => import("./components/featurepages/KontaktManagerFeaturePage"));
+const TransportFeaturePage = lazy(() => import("./components/featurepages/TransportFeaturePage"));
+const RenovierungsplanerFeaturePage = lazy(() => import("./components/featurepages/RenovierungsplanerFeaturePage"));
+const ZeitstrahlFeaturePage = lazy(() => import("./components/featurepages/ZeitstrahlFeaturePage"));
+const KiAssistentenFeaturePage = lazy(() => import("./components/featurepages/KiAssistentenFeaturePage"));
+const QrCodeFeaturePage = lazy(() => import("./components/featurepages/QrCodeFeaturePage"));
 
 // ── Route → Seitentitel Mapping ────────────────────────────────────────────────
 const ROUTE_TITLE_KEYS = {
@@ -97,10 +99,12 @@ const ROUTE_TITLE_KEYS = {
   "/home/inventar":     "nav:routes.inventory",
   "/home/suche":        "nav:routes.search",
   "/home/vorraete":     "nav:routes.stock",
+  "/home/heimapotheke": "nav:routes.medicineCabinet",
   "/home/einkaufliste": "nav:routes.shopping",
   "/home/aufgaben":     "nav:routes.tasks",
   "/home/bewohner":     "nav:routes.residents",
   "/home/geraete":      "nav:routes.devices",
+  "/home/kfz":          "nav:routes.vehicles",
   "/home/budget":       "nav:routes.budget",
   "/home/projekte":     "nav:routes.projects",
   "/home/verlauf":      "nav:routes.history",
@@ -113,6 +117,23 @@ const ROUTE_TITLE_KEYS = {
 // ── Modus-bewusster Redirect nach Login ────────────────────────────────────────
 // Liest appMode synchron aus dem Context (bereits aus localStorage initialisiert),
 // sodass Home-Organizer-Nutzer direkt zu /home weitergeleitet werden.
+export const UMZUG_ROUTE_PREFIXES = [
+  "/dashboard",
+  "/budget",
+  "/kontakte",
+  "/todos",
+  "/packliste",
+  "/materialplaner",
+  "/bedarfsrechner",
+  "/umzugsplaner",
+  "/zeitstrahl",
+  "/dokumente",
+  "/kostenvergleich",
+];
+
+export const isUmzugRoutePath = (pathname = "") =>
+  UMZUG_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+
 const SmartRedirect = () => {
   const { appMode, modusGeladen } = useAppMode();
   // Warten bis Modus aus Supabase geladen — verhindert Flash auf /dashboard bei gecleared localStorage
@@ -145,15 +166,13 @@ const HomeModusSyncer = ({ session, householdContext }) => {
     }
 
     const data = householdContext;
-    const umzugPfade = ["/dashboard", "/packliste", "/todo", "/budget",
-      "/contacts", "/dokumente", "/rechner", "/planung", "/zeitstrahl"];
     setIsAdmin(!!data?.is_admin);
 
     if (modusGeladen) {
       // Bereits geladen: appMode nicht überschreiben, nur umzug_deaktiviert-Flag prüfen
       if (data?.umzug_deaktiviert === true) {
         deaktiviereUmzug();
-        if (umzugPfade.some((p) => location.pathname.startsWith(p))) {
+        if (isUmzugRoutePath(location.pathname)) {
           navigate("/home", { replace: true });
         }
       } else if (data?.umzug_deaktiviert === false && umzugDeaktiviert) {
@@ -168,7 +187,7 @@ const HomeModusSyncer = ({ session, householdContext }) => {
       // Umzugsplaner dauerhaft deaktiviert → immer Home-Modus
       deaktiviereUmzug();
       markOnboardingGezeigt();
-      if (umzugPfade.some((p) => location.pathname.startsWith(p))) {
+      if (isUmzugRoutePath(location.pathname)) {
         navigate("/home", { replace: true });
       }
     } else if (data?.app_modus === "home") {
@@ -183,7 +202,20 @@ const HomeModusSyncer = ({ session, householdContext }) => {
       markOnboardingGezeigt();
     }
     setModusGeladen(true);
-  }, [userId, householdContext]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    userId,
+    householdContext,
+    setModusGeladen,
+    modusGeladen,
+    deaktiviereUmzug,
+    location.pathname,
+    navigate,
+    umzugDeaktiviert,
+    clearUmzugDeaktiviert,
+    markOnboardingGezeigt,
+    switchToHome,
+    switchToUmzug,
+  ]);
 
   // Bei Modus-Änderung in Supabase persistieren —
   // aber erst nachdem der Modus aus Supabase geladen wurde (modusGeladen),
@@ -309,17 +341,21 @@ const AuthenticatedShell = ({
       try {
         const ergebnisse = [];
         if (appMode === "home") {
-          const [objRes, vorratRes, rezeptRes, geraetRes, todoRes] = await Promise.all([
+          const [objRes, vorratRes, medikamentRes, rezeptRes, geraetRes, fahrzeugRes, todoRes] = await Promise.all([
             supabase.from("home_objekte").select("id, name, status").eq("user_id", userId).ilike("name", `%${q}%`).limit(3),
             supabase.from("home_vorraete").select("id, name, kategorie").eq("user_id", userId).ilike("name", `%${q}%`).limit(3),
+            supabase.from("home_medikamente").select("id, name, wirkstoff, kategorie").eq("user_id", userId).ilike("name", `%${q}%`).limit(3),
             supabase.from("home_rezepte").select("id, titel, quelle_plattform").eq("user_id", userId).ilike("titel", `%${q}%`).limit(3),
             supabase.from("home_geraete").select("id, name, hersteller").eq("user_id", userId).ilike("name", `%${q}%`).limit(3),
+            supabase.from("home_fahrzeuge").select("id, name, kennzeichen").eq("user_id", userId).ilike("name", `%${q}%`).limit(3),
             supabase.from("todo_aufgaben").select("id, beschreibung, kategorie").eq("user_id", userId).in("app_modus", ["home", "beides"]).ilike("beschreibung", `%${q}%`).limit(3),
           ]);
           (objRes.data    || []).forEach((o) => ergebnisse.push({ modul: t("nav:searchModules.inventory"), text: o.name,        sub: o.status,      link: "/home/inventar" }));
           (vorratRes.data || []).forEach((v) => ergebnisse.push({ modul: t("nav:searchModules.stock"),     text: v.name,        sub: v.kategorie,   link: "/home/vorraete" }));
+          (medikamentRes.data || []).forEach((m) => ergebnisse.push({ modul: t("nav:searchModules.medicine"), text: m.name, sub: m.wirkstoff || m.kategorie, link: "/home/heimapotheke" }));
           (rezeptRes.data || []).forEach((r) => ergebnisse.push({ modul: t("nav:searchModules.recipe"), text: r.titel, sub: r.quelle_plattform, link: "/home/kochbuch" }));
           (geraetRes.data || []).forEach((g) => ergebnisse.push({ modul: t("nav:searchModules.device"),    text: g.name,        sub: g.hersteller,  link: "/home/geraete" }));
+          (fahrzeugRes.data || []).forEach((f) => ergebnisse.push({ modul: t("nav:searchModules.vehicle"), text: f.name, sub: f.kennzeichen, link: "/home/kfz" }));
           (todoRes.data   || []).forEach((row) => ergebnisse.push({ modul: t("nav:searchModules.task"),     text: row.beschreibung,sub: row.kategorie,   link: "/home/aufgaben" }));
         } else {
           const [kontakteRes, todosRes, kistenRes, dokRes, kistenInhaltRes] = await Promise.all([
@@ -369,7 +405,9 @@ const AuthenticatedShell = ({
 
   const titleKey =
     location.pathname === "/home/vorraete" ? "nav:routes.stock" :
+    location.pathname === "/home/heimapotheke" ? "nav:routes.medicineCabinet" :
     location.pathname === "/home/geraete" ? "nav:routes.devices" :
+    location.pathname === "/home/kfz" ? "nav:routes.vehicles" :
     ROUTE_TITLE_KEYS[location.pathname] ?? "";
   const pageTitle = titleKey ? t(titleKey) : "";
 
@@ -573,7 +611,7 @@ function App() {
 
     loadUserConfig();
     return () => { cancelled = true; };
-  }, [session?.user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [session?.user?.id]);
 
   // ── Lade-Screen ──────────────────────────────────────────────────────────────
   const loadingScreen = (
@@ -617,6 +655,7 @@ function App() {
           session={session}
           blockOnboarding={passwordFlagLoading || passwordChangeRequired}
         >
+          <Suspense fallback={loadingScreen}>
           <Routes>
             {/* ── Öffentliche Routen (ohne Shell) ─────────────────────────────── */}
             <Route path="/login"           element={<HomePage setSession={setSession} />} />
@@ -663,10 +702,12 @@ function App() {
               <Route path="/home/inventar"     element={<HomeInventar session={session} />} />
               <Route path="/home/suche"        element={<HomeGlobalSuche session={session} />} />
               <Route path="/home/vorraete"     element={<HomeVorraete session={session} />} />
+              <Route path="/home/heimapotheke" element={<HomeHeimapotheke session={session} />} />
               <Route path="/home/einkaufliste" element={<HomeEinkaufliste session={session} />} />
               <Route path="/home/aufgaben"     element={<HomeHaushaltsaufgaben session={session} />} />
               <Route path="/home/bewohner"     element={<HomeBewohner session={session} />} />
               <Route path="/home/geraete"      element={<HomeGeraete session={session} />} />
+              <Route path="/home/kfz"          element={<HomeKfz session={session} />} />
               <Route path="/home/budget"       element={<HomeBudget session={session} />} />
               <Route path="/home/projekte"     element={<HomeProjekte session={session} />} />
               <Route path="/home/verlauf"      element={<HomeVerlauf session={session} />} />
@@ -684,6 +725,7 @@ function App() {
             {/* ── Fallback ─────────────────────────────────────────────────────── */}
             <Route path="*" element={session ? <SmartRedirect /> : <Navigate to="/" replace />} />
           </Routes>
+          </Suspense>
         </OnboardingGate>
         </TourProvider>
       </AppModeProvider>

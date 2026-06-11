@@ -15,10 +15,36 @@ const isInvoiceDocument = (doc) => {
   return kategorie === "rechnung" || INVOICE_TYPES.has(dokumentTyp);
 };
 
+const isAllocationSchemaError = (error) => {
+  const message = String(error?.message || error?.details || error?.hint || "");
+  return (
+    /budget_settlement_allocations/i.test(message) ||
+    error?.code === "PGRST200" ||
+    error?.code === "PGRST201" ||
+    /relationship.*schema cache/i.test(message)
+  );
+};
+
 const deleteByIds = async (supabase, table, ids) => {
   if (!ids?.length) return null;
   const { error } = await supabase.from(table).delete().in("id", ids);
   if (error) throw new Error(`${table} konnte nicht geloescht werden: ${error.message}`);
+  return ids.length;
+};
+
+const archiveBudgetByIds = async (supabase, ids, archivedByUserId = null) => {
+  if (!ids?.length) return null;
+  const { error } = await supabase
+    .from("budget_posten")
+    .update({
+      archived_at: new Date().toISOString(),
+      archived_reason: "invoice_cascade_allocated_delete",
+      archived_by_user_id: archivedByUserId || null,
+      wiederholen: false,
+      naechstes_datum: null,
+    })
+    .in("id", ids);
+  if (error) throw new Error(`budget_posten konnte nicht archiviert werden: ${error.message}`);
   return ids.length;
 };
 
@@ -31,6 +57,11 @@ const findAllocatedBudgetIds = async (supabase, budgetIds = []) => {
     .in("budget_posten_id", budgetIds);
 
   if (error) {
+    if (isAllocationSchemaError(error)) {
+      throw new Error(
+        "Ausgleich-Schema unvollstaendig: budget_settlement_allocations fehlt oder ist nicht korrekt mit budget_split_shares verknuepft. Die Kaskadenloeschung wurde gestoppt, damit keine allokierten Ausgleiche verloren gehen.",
+      );
+    }
     throw new Error(`Split-Status konnte nicht geprueft werden: ${error.message}`);
   }
 
@@ -43,7 +74,7 @@ const findAllocatedBudgetIds = async (supabase, budgetIds = []) => {
     .map((group) => group.budget_posten_id);
 };
 
-export async function deleteInvoiceCascade({ supabase, dokumentId, fallbackStoragePfad = null }) {
+export async function deleteInvoiceCascade({ supabase, dokumentId, fallbackStoragePfad = null, archivedByUserId = null }) {
   if (!dokumentId) {
     throw new Error("Dokument-ID fehlt.");
   }
@@ -104,12 +135,9 @@ export async function deleteInvoiceCascade({ supabase, dokumentId, fallbackStora
   const rechnungIds = uniqueIds([...rechnungIdsFromLinks, ...rechnungIdsFallback]);
   const invoiceDoc = invoiceByType || rechnungIds.length > 0 || rechnungIdsFromLinks.length > 0;
 
-  if (invoiceDoc) {
-    const allocierteBudgetIds = await findAllocatedBudgetIds(supabase, budgetIds);
-    if (allocierteBudgetIds.length > 0) {
-      throw new Error("Mindestens eine verknuepfte Budget-Buchung hat bereits allokierte Ausgleiche. Die Kaskadenloeschung wurde vor dem Entfernen der Datei gestoppt.");
-    }
-  }
+  const allocatedBudgetIds = invoiceDoc ? await findAllocatedBudgetIds(supabase, budgetIds) : [];
+  const allocatedBudgetIdSet = new Set(allocatedBudgetIds);
+  const deletableBudgetIds = budgetIds.filter((budgetId) => !allocatedBudgetIdSet.has(budgetId));
 
   if (storagePfad) {
     const { error: storageErr } = await supabase.storage
@@ -121,7 +149,8 @@ export async function deleteInvoiceCascade({ supabase, dokumentId, fallbackStora
   }
 
   if (invoiceDoc) {
-    await deleteByIds(supabase, "budget_posten", budgetIds);
+    await archiveBudgetByIds(supabase, allocatedBudgetIds, archivedByUserId);
+    await deleteByIds(supabase, "budget_posten", deletableBudgetIds);
     await deleteByIds(supabase, "home_wissen", wissenIds);
     await deleteByIds(supabase, "rechnungen", rechnungIds);
   }
@@ -145,7 +174,8 @@ export async function deleteInvoiceCascade({ supabase, dokumentId, fallbackStora
   return {
     dokument: dokument.dateiname || "Dokument",
     invoiceDoc,
-    deletedBudget: budgetIds.length,
+    deletedBudget: deletableBudgetIds.length,
+    archivedBudget: allocatedBudgetIds.length,
     deletedWissen: wissenIds.length,
     deletedRechnungen: rechnungIds.length,
   };

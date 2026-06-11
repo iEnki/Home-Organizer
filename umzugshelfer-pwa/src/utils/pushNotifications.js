@@ -6,6 +6,7 @@ const TABLE_META = {
   home_lagerorte: { singular: "Lagerort", plural: "Lagerorte", url: "/home/inventar" },
   home_objekte: { singular: "Objekt", plural: "Objekte", url: "/home/inventar" },
   home_vorraete: { singular: "Vorrat", plural: "Vorraete", url: "/home/vorraete" },
+  home_medikamente: { singular: "Medikament", plural: "Medikamente", url: "/home/heimapotheke" },
   home_geraete: { singular: "Geraet", plural: "Geraete", url: "/home/geraete" },
   home_wartungen: { singular: "Wartung", plural: "Wartungen", url: "/home/geraete" },
   home_bewohner: { singular: "Bewohner", plural: "Bewohner", url: "/home/bewohner" },

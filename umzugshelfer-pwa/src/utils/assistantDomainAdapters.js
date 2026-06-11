@@ -9,6 +9,13 @@ import {
 import { buildShares, validateSplitConfig } from "./budgetSplits";
 import { applyShoppingBatch, prepareShoppingBatch } from "./einkaufslisteUtils";
 import { notifyHouseholdBatchEvent } from "./pushNotifications";
+import { buildInvoiceKnowledgeContent } from "./localizedKnowledge";
+import {
+  buildMedicationPayload,
+  findExistingMedication,
+  isMedicationAdviceRequest,
+  medicationAdviceRefusal,
+} from "./heimapotheke";
 
 const normalizeText = (value) => String(value || "").trim().toLowerCase();
 const normalizeJsonObject = (value) =>
@@ -24,6 +31,45 @@ const normalizeDate = (value) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return new Date().toISOString().split("T")[0];
   return date.toISOString().split("T")[0];
+};
+
+const buildManualInvoiceStoragePath = ({ userId, supplier, invoiceDate }) => {
+  const filename = `${supplier || "rechnung"} ${invoiceDate || normalizeDate()}.pdf`
+    .replace(/[\\/:*?"<>|]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+  return `${userId || "unknown"}/assistant-manual/${Date.now()}-${filename}`;
+};
+
+const normalizeInvoicePositions = (positions = [], category = null) => {
+  const seen = new Set();
+  return (Array.isArray(positions) ? positions : [])
+    .map((position) => {
+      const description = typeof position === "string"
+        ? position
+        : position?.beschreibung || position?.name || position?.titel || position?.original_text;
+      return String(description || "").replace(/\s+/g, " ").trim();
+    })
+    .filter((description) => {
+      if (!description) return false;
+      const key = normalizeText(description);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .map((description, index) => ({
+      pos_nr: index + 1,
+      beschreibung: description,
+      menge: null,
+      einheit: null,
+      einzelpreis: null,
+      gesamtpreis: null,
+      ust_satz: null,
+      klassifikation: {
+        source: "global_assistant",
+        ...(category ? { budget_kategorie: category } : {}),
+      },
+    }));
 };
 
 const loadHouseholdId = async (session) => {
@@ -42,6 +88,14 @@ const loadHouseholdId = async (session) => {
   const householdId = data?.household_id || null;
   if (!householdId) throw new Error("Kein aktiver Haushalt gefunden.");
   return householdId;
+};
+
+const rollbackCreatedRows = async (rows = []) => {
+  for (const row of rows.reverse()) {
+    try {
+      await supabase.from(row.table).delete().eq("id", row.id);
+    } catch {}
+  }
 };
 
 const loadBewohnerOverview = async () => {
@@ -190,6 +244,288 @@ export const applySupplyAiItems = async ({ session, items = [] }) => {
   return { count: receipts.length, receipts };
 };
 
+const normalizeMedicationAction = (action) => {
+  const normalized = normalizeText(action);
+  if (/beipackzettel|gebrauchsinformation/.test(normalized)) return "beipackzettel_oeffnen";
+  if (/lagerort|wo|liegt/.test(normalized)) return "lagerort_abfragen";
+  if (/ablauf|abgelaufen|laeuft|lauft/.test(normalized)) return "ablaufende_anzeigen";
+  if (/niedrig|mindestbestand|leer|aufgebraucht/.test(normalized)) return "niedrige_anzeigen";
+  if (/bestand.*(aendern|andern)|erhoehe|erhohe|reduzier|plus|minus|\+/.test(normalized)) return "bestand_aendern";
+  if (/such|find|liste|welche|anzeigen|zeige|bestand/.test(normalized)) return "suchen";
+  return normalized || "hinzufuegen";
+};
+
+const loadMedicationRowsForAssistant = async (session) => {
+  const userId = session?.user?.id;
+  const householdId = await loadHouseholdId(session);
+  const { data, error } = await supabase
+    .from("home_medikamente")
+    .select("id, user_id, household_id, name, wirkstoff, bestand, mindestbestand, ablaufdatum, lagerort, kategorie, beipackzettel_url, beipackzettel_dokument_id")
+    .or(householdId ? `user_id.eq.${userId},household_id.eq.${householdId}` : `user_id.eq.${userId}`)
+    .order("name");
+  if (error) throw error;
+  return { householdId, rows: data || [] };
+};
+
+const medicationMatchesQuery = (entry, query) => {
+  const needle = normalizeText(query);
+  if (!needle) return true;
+  return normalizeText([entry.name, entry.wirkstoff, entry.darreichungsform, entry.kategorie, entry.lagerort].filter(Boolean).join(" ")).includes(needle);
+};
+
+const formatMedicationLine = (entry) => {
+  const parts = [`${entry.name}${entry.wirkstoff ? ` (${entry.wirkstoff})` : ""}`];
+  parts.push(`Bestand ${Number(entry.bestand ?? 0).toLocaleString("de-DE")}`);
+  if (entry.lagerort) parts.push(`Lagerort: ${entry.lagerort}`);
+  if (entry.ablaufdatum) parts.push(`Ablauf: ${entry.ablaufdatum}`);
+  if (Number(entry.bestand ?? 0) <= Number(entry.mindestbestand ?? 0)) parts.push("niedrig");
+  if (entry.beipackzettel_dokument_id || entry.beipackzettel_url) parts.push("Beipackzettel vorhanden");
+  return `- ${parts.join(", ")}`;
+};
+
+export const prepareMedicationAssistantAction = async ({ session, items = [] }) => {
+  const item = items[0] || {};
+  const action = normalizeMedicationAction(item.aktion || item.action);
+  const name = item.name || item.medikament || item.query || "";
+
+  if (isMedicationAdviceRequest(`${action} ${name} ${item.notizen || ""}`)) {
+    return {
+      kind: "assistant_response",
+      domain: "medikamente",
+      text: medicationAdviceRefusal,
+    };
+  }
+
+  if (!["suchen", "lagerort_abfragen", "ablaufende_anzeigen", "niedrige_anzeigen", "beipackzettel_oeffnen"].includes(action)) {
+    return null;
+  }
+
+  const { rows } = await loadMedicationRowsForAssistant(session);
+  const matches = rows.filter((entry) => medicationMatchesQuery(entry, name));
+
+  if (action === "suchen") {
+    const list = (name ? matches : rows).slice(0, 12);
+    return {
+      kind: "assistant_response",
+      domain: "medikamente",
+      text: list.length
+        ? `Aktuell in der Heimapotheke:\n${list.map(formatMedicationLine).join("\n")}`
+        : (name ? `Ich finde kein Medikament zu "${name}" in der Heimapotheke.` : "In der Heimapotheke sind noch keine Medikamente gespeichert."),
+    };
+  }
+
+  if (action === "lagerort_abfragen") {
+    const match = matches[0];
+    return {
+      kind: "assistant_response",
+      domain: "medikamente",
+      text: match
+        ? `${match.name} liegt ${match.lagerort ? `hier: ${match.lagerort}` : "ohne gespeicherten Lagerort"}; Bestand: ${Number(match.bestand ?? 0).toLocaleString("de-DE")}.`
+        : `Ich finde kein Medikament zu "${name}" in der Heimapotheke.`,
+    };
+  }
+
+  if (action === "ablaufende_anzeigen") {
+    const today = new Date();
+    const soon = new Date();
+    soon.setDate(soon.getDate() + 60);
+    const expiring = rows
+      .filter((entry) => entry.ablaufdatum && new Date(entry.ablaufdatum) <= soon)
+      .sort((a, b) => String(a.ablaufdatum).localeCompare(String(b.ablaufdatum)));
+    return {
+      kind: "assistant_response",
+      domain: "medikamente",
+      text: expiring.length
+        ? `Diese Medikamente sind abgelaufen oder laufen bald ab:\n${expiring.slice(0, 12).map((entry) => {
+            const expired = new Date(entry.ablaufdatum) < today;
+            return `- ${entry.name}: ${entry.ablaufdatum}${expired ? " (abgelaufen)" : ""}`;
+          }).join("\n")}`
+        : "Es sind keine abgelaufenen oder bald ablaufenden Medikamente mit Ablaufdatum gespeichert.",
+    };
+  }
+
+  if (action === "niedrige_anzeigen") {
+    const low = rows.filter((entry) => Number(entry.bestand ?? 0) <= Number(entry.mindestbestand ?? 0));
+    return {
+      kind: "assistant_response",
+      domain: "medikamente",
+      text: low.length
+        ? `Diese Medikamente haben niedrigen Bestand:\n${low.slice(0, 12).map(formatMedicationLine).join("\n")}`
+        : "Es sind keine niedrigen Medikamentenbestände gespeichert.",
+    };
+  }
+
+  if (action === "beipackzettel_oeffnen") {
+    const match = matches[0];
+    if (!match) {
+      return {
+        kind: "assistant_response",
+        domain: "medikamente",
+        text: `Ich finde kein Medikament zu "${name}" in der Heimapotheke.`,
+      };
+    }
+    if (!match.beipackzettel_dokument_id && !match.beipackzettel_url) {
+      return {
+        kind: "assistant_response",
+        domain: "medikamente",
+        text: `Für ${match.name} ist kein Beipackzettel gespeichert.`,
+      };
+    }
+    const flow = {
+      type: "open_flow",
+      route: "/home/heimapotheke",
+      flow_key: "home_heimapotheke",
+      params: { query: match.name },
+      ui_state: {
+        prefillQuery: match.name,
+        focusMedicationId: match.id,
+        focusMedicationName: match.name,
+        openLeaflet: true,
+      },
+    };
+    return {
+      kind: "open_flow",
+      domain: "medikamente",
+      text: `Ich habe ${match.name} gefunden und kann den gespeicherten Beipackzettel öffnen.`,
+      flow,
+    };
+  }
+
+  return null;
+};
+
+export const applyMedicationAiItems = async ({ session, items = [] }) => {
+  const userId = session?.user?.id;
+  const householdId = await loadHouseholdId(session);
+  const receipts = [];
+
+  const { data: existingRows, error: existingError } = await supabase
+    .from("home_medikamente")
+    .select("*")
+    .eq("household_id", householdId);
+  if (existingError) throw existingError;
+  const existing = existingRows || [];
+
+  for (const item of items) {
+    const action = item.aktion || "hinzufuegen";
+    const name = item.name || item.medikament || item.query;
+    if (isMedicationAdviceRequest(`${action} ${name || ""} ${item.notizen || ""}`)) {
+      throw new Error(medicationAdviceRefusal);
+    }
+
+    if (["suchen", "lagerort_abfragen", "beipackzettel_oeffnen", "ablaufende_anzeigen", "niedrige_anzeigen"].includes(action)) {
+      receipts.push(
+        createReceipt({
+          householdId,
+          domain: "medikamente",
+          actionKind: "search",
+          table: "home_medikamente",
+          id: null,
+          summary: name || "Heimapotheke",
+          requestPayload: item,
+          resultPayload: { route: "/home/heimapotheke", query: name || "" },
+        }),
+      );
+      continue;
+    }
+
+    if (!name) {
+      throw new Error("Bitte gib den Namen des Medikaments an.");
+    }
+
+    const match = findExistingMedication(existing, item);
+    if (action === "bestand_aendern" && match) {
+      const delta = Number(item.bestand_delta ?? item.bestand ?? 0);
+      const nextBestand = Math.max(0, Number(match.bestand || 0) + delta);
+      const { data, error } = await supabase
+        .from("home_medikamente")
+        .update({
+          bestand: nextBestand,
+          lagerort: item.lagerort || match.lagerort || null,
+          notizen: item.notizen || match.notizen || null,
+        })
+        .eq("id", match.id)
+        .select("id, name, bestand")
+        .single();
+      if (error) throw error;
+      receipts.push(
+        createReceipt({
+          householdId,
+          domain: "medikamente",
+          actionKind: "update",
+          table: "home_medikamente",
+          id: data?.id,
+          summary: `${data?.name || name}: Bestand ${data?.bestand}`,
+          requestPayload: item,
+          resultPayload: data,
+        }),
+      );
+      continue;
+    }
+
+    if (match) {
+      const nextBestand = Number(match.bestand || 0) + Number(item.bestand || 1);
+      const { data, error } = await supabase
+        .from("home_medikamente")
+        .update({
+          ...buildMedicationPayload({ item: { ...match, ...item, bestand: nextBestand }, userId, householdId }),
+          bestand: nextBestand,
+        })
+        .eq("id", match.id)
+        .select("id, name, bestand")
+        .single();
+      if (error) throw error;
+      receipts.push(
+        createReceipt({
+          householdId,
+          domain: "medikamente",
+          actionKind: "update",
+          table: "home_medikamente",
+          id: data?.id,
+          summary: `${data?.name || name}: Bestand ${data?.bestand}`,
+          requestPayload: item,
+          resultPayload: data,
+        }),
+      );
+    } else {
+      const payload = buildMedicationPayload({ item: { ...item, name }, userId, householdId });
+      const { data, error } = await supabase
+        .from("home_medikamente")
+        .insert(payload)
+        .select("id, name")
+        .single();
+      if (error) throw error;
+      receipts.push(
+        createReceipt({
+          householdId,
+          domain: "medikamente",
+          table: "home_medikamente",
+          id: data?.id,
+          summary: data?.name || payload.name,
+          requestPayload: item,
+          resultPayload: payload,
+        }),
+      );
+    }
+  }
+
+  if (receipts.some((receipt) => receipt.action_kind !== "search")) {
+    await notifyHouseholdBatchEvent({
+      userId,
+      table: "home_medikamente",
+      action: "erstellt",
+      eintraege: receipts.map((receipt) => ({ datensatz_name: receipt.summary })),
+      url: "/home/heimapotheke",
+      tag: `assistant-medikamente-${Date.now()}`,
+      title: "Heimapotheke aktualisiert",
+      body: `${receipts.length} Aktionen wurden verarbeitet.`,
+      pushPolicy: "never",
+    });
+  }
+
+  return { count: receipts.length, receipts };
+};
+
 export const applyDeviceAiItems = async ({ session, items = [] }) => {
   const userId = session?.user?.id;
   const householdId = await loadHouseholdId(session);
@@ -208,6 +544,13 @@ export const applyDeviceAiItems = async ({ session, items = [] }) => {
       wartungsintervall_monate: item.wartungsintervall_monate || null,
       kategorie: item.kategorie || null,
       notizen: item.notizen || null,
+      ort_id: item.ort_id || null,
+      lagerort_id: item.lagerort_id || null,
+      status: item.status || "in_verwendung",
+      tags: Array.isArray(item.tags) ? item.tags : (item.tags ? [item.tags] : []),
+      bewohner_id: item.bewohner_id || null,
+      zugriffshaeufigkeit: item.zugriffshaeufigkeit || "selten",
+      menge: Math.max(parseInt(item.menge, 10) || 1, 1),
     };
     const { data, error } = await supabase
       .from("home_geraete")
@@ -683,15 +1026,21 @@ export const applyWartungAiItems = async ({ session, items = [] }) => {
   const receipts = [];
 
   for (const item of items) {
+    const explicitGeraetId = item.geraet_id || item.device_id || null;
     const geraetName = normalizeText(item.geraet_name);
     const geraet =
+      (explicitGeraetId && (geraete || []).find((g) => g.id === explicitGeraetId)) ||
       (geraete || []).find((g) => normalizeText(g.name) === geraetName) ||
       (geraete || []).find((g) => normalizeText(g.name).includes(geraetName)) ||
       null;
 
+    if (!geraet?.id) {
+      throw new Error("Bitte waehle ein vorhandenes Geraet aus. Wartungen koennen nicht ohne Geraet gespeichert werden.");
+    }
+
     const payload = {
       user_id: userId,
-      geraet_id: geraet?.id || null,
+      geraet_id: geraet.id,
       datum: normalizeDate(item.datum),
       typ: item.typ || "Wartung",
       beschreibung: item.beschreibung || null,
@@ -715,11 +1064,380 @@ export const applyWartungAiItems = async ({ session, items = [] }) => {
         domain: "wartungen",
         table: "home_wartungen",
         id: data?.id,
-        summary: `${item.geraet_name || "Geraet"}: ${payload.typ}`,
+        summary: `${geraet.name || item.geraet_name || "Geraet"}: ${payload.typ}`,
         requestPayload: item,
         resultPayload: payload,
       }),
     );
+  }
+
+  return { count: receipts.length, receipts };
+};
+
+export const applyManualInvoiceAssistantItems = async ({ session, items = [] }) => {
+  const userId = session?.user?.id;
+  const householdId = await loadHouseholdId(session);
+  const receipts = [];
+
+  for (const item of items) {
+    const createdRows = [];
+    const amount = Number(item.brutto ?? item.betrag ?? item.amount ?? 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new Error("Der Rechnungsbetrag muss groesser als 0 sein.");
+    }
+    const invoiceDate = normalizeDate(item.rechnungsdatum || item.datum || item.date);
+    const supplier = item.lieferant_name || item.firma || item.haendler || "Unbekannte Firma";
+    const description = item.beschreibung || item.zweck || "Manuelle Rechnung";
+    const category = item.kategorie || "Sonstiges";
+    const invoicePositions = normalizeInvoicePositions(item.positionen, category);
+    const storagePath = buildManualInvoiceStoragePath({ userId, supplier, invoiceDate });
+
+    try {
+      const documentPayload = {
+        user_id: userId,
+        household_id: householdId,
+        app_modus: "home",
+        dateiname: `${supplier} ${invoiceDate}.pdf`.replace(/[\\/:*?"<>|]/g, "-"),
+        beschreibung: description,
+        storage_pfad: storagePath,
+        datei_typ: null,
+        kategorie: "Rechnung",
+        dokument_typ: "rechnung",
+      };
+      const { data: documentData, error: documentError } = await supabase
+        .from("dokumente")
+        .insert(documentPayload)
+        .select("id")
+        .single();
+      if (documentError) throw documentError;
+      createdRows.push({ table: "dokumente", id: documentData.id });
+
+      const invoicePayload = {
+        household_id: householdId,
+        dokument_id: documentData.id,
+        lieferant_name: supplier,
+        rechnungsnummer: item.rechnungsnummer || null,
+        rechnungsdatum: invoiceDate,
+        waehrung: item.waehrung || "EUR",
+        brutto: Math.abs(amount),
+        raw_text: item.raw_text || null,
+        confidence: item.confidence ?? null,
+        extraktion: {
+          source: "global_assistant",
+          description,
+          category,
+        },
+      };
+      const { data: invoiceData, error: invoiceError } = await supabase
+        .from("rechnungen")
+        .insert(invoicePayload)
+        .select("id")
+        .single();
+      if (invoiceError) throw invoiceError;
+      createdRows.push({ table: "rechnungen", id: invoiceData.id });
+
+      let insertedPositions = [];
+      if (invoicePositions.length > 0) {
+        const { data: positionData, error: positionError } = await supabase
+          .from("rechnungs_positionen")
+          .insert(
+            invoicePositions.map((position) => ({
+              ...position,
+              household_id: householdId,
+              rechnung_id: invoiceData.id,
+            })),
+          )
+          .select("id, pos_nr, beschreibung, menge, einheit, einzelpreis, gesamtpreis, ust_satz, klassifikation");
+        if (positionError) throw positionError;
+        insertedPositions = positionData || [];
+        insertedPositions.forEach((position) => {
+          if (position?.id) createdRows.push({ table: "rechnungs_positionen", id: position.id });
+        });
+      }
+
+      const budgetPayload = {
+        user_id: userId,
+        household_id: householdId,
+        beschreibung: description,
+        betrag: Math.abs(amount),
+        datum: invoiceDate,
+        kategorie: category,
+        app_modus: "home",
+        typ: "ausgabe",
+        budget_scope: item.budget_scope === "privat" ? "privat" : "haushalt",
+        zahlungskonto_id: item.zahlungskonto_id || null,
+        bewohner_id: item.bewohner_id || null,
+      };
+      const { data: budgetData, error: budgetError } = await supabase
+        .from("budget_posten")
+        .insert(budgetPayload)
+        .select("id, beschreibung")
+        .single();
+      if (budgetError) throw budgetError;
+      createdRows.push({ table: "budget_posten", id: budgetData.id });
+
+      const invoiceSummary = {
+        kind: "invoice",
+        documentClass: "rechnung",
+        documentType: "rechnung",
+        merchant: supplier,
+        date: invoiceDate,
+        amount: Math.abs(amount),
+        currency: item.waehrung || "EUR",
+        headline: description,
+        items: insertedPositions.map((position) => ({
+          name: position.beschreibung,
+          beschreibung: position.beschreibung,
+          menge: position.menge,
+          einheit: position.einheit,
+          einzelpreis: position.einzelpreis,
+          gesamtpreis: position.gesamtpreis,
+          klassifikation: position.klassifikation || {},
+        })),
+      };
+      const knowledgeTitle = `Rechnung - ${supplier} - ${invoiceDate}`;
+      const { data: knowledgeData, error: knowledgeError } = await supabase
+        .from("home_wissen")
+        .insert({
+          user_id: userId,
+          household_id: householdId,
+          titel: knowledgeTitle,
+          inhalt: buildInvoiceKnowledgeContent(invoiceSummary, "de"),
+          kategorie: "Rechnungen & Belege",
+          tags: ["rechnung", supplier.toLowerCase().split(" ")[0]].filter(Boolean),
+          dokument_id: documentData.id,
+          rechnung_id: invoiceData.id,
+          herkunft: "auto_full",
+          summary: invoiceSummary,
+          localized_content: {
+            de: {
+              title: knowledgeTitle,
+              content: buildInvoiceKnowledgeContent(invoiceSummary, "de"),
+              headline: description,
+            },
+            "en-GB": {
+              title: knowledgeTitle,
+              content: buildInvoiceKnowledgeContent(invoiceSummary, "en-GB"),
+              headline: description,
+            },
+          },
+          source_locale: "de",
+        })
+        .select("id")
+        .single();
+      if (knowledgeError) throw knowledgeError;
+      createdRows.push({ table: "home_wissen", id: knowledgeData.id });
+
+      const { error: linkError } = await supabase.from("dokument_links").insert([
+        {
+          household_id: householdId,
+          dokument_id: documentData.id,
+          entity_type: "rechnung",
+          entity_id: invoiceData.id,
+          role: "original",
+        },
+        {
+          household_id: householdId,
+          dokument_id: documentData.id,
+          entity_type: "budget_posten",
+          entity_id: budgetData.id,
+          role: "expense",
+        },
+        {
+          household_id: householdId,
+          dokument_id: documentData.id,
+          entity_type: "home_wissen",
+          entity_id: knowledgeData.id,
+          role: "knowledge",
+        },
+      ]);
+      if (linkError) throw linkError;
+
+      receipts.push(
+        createReceipt({
+          householdId,
+          domain: "rechnung",
+          table: "rechnungen",
+          id: invoiceData.id,
+          summary: `${supplier}: ${Math.abs(amount)} ${item.waehrung || "EUR"}`,
+          requestPayload: item,
+          resultPayload: {
+            dokument_id: documentData.id,
+            rechnung_id: invoiceData.id,
+            budget_posten_id: budgetData.id,
+            wissen_id: knowledgeData.id,
+            rechnungs_positionen: insertedPositions.map((position) => position.id).filter(Boolean),
+          },
+        }),
+      );
+    } catch (error) {
+      await rollbackCreatedRows(createdRows);
+      throw error;
+    }
+  }
+
+  await notifyHouseholdBatchEvent({
+    userId,
+    table: "rechnungen",
+    action: "erstellt",
+    eintraege: receipts.map((receipt) => ({ datensatz_name: receipt.summary })),
+    url: "/home/budget",
+    tag: `assistant-invoice-${Date.now()}`,
+    title: "Neue Rechnung gespeichert",
+    body: `${receipts.length} ${receipts.length === 1 ? "Rechnung wurde" : "Rechnungen wurden"} gespeichert.`,
+  });
+
+  const budgetReceipts = receipts.filter((receipt) => receipt?.resultPayload?.budget_posten_id);
+  if (budgetReceipts.length > 0) {
+    await notifyHouseholdBatchEvent({
+      userId,
+      table: "budget_posten",
+      action: "erstellt",
+      eintraege: budgetReceipts.map((receipt) => ({
+        datensatz_name: receipt.summary,
+        options: { householdId: receipt.householdId },
+      })),
+      url: "/home/budget",
+      tag: `assistant-invoice-budget-history-${Date.now()}`,
+      history: true,
+      push: false,
+    });
+  }
+
+  return { count: receipts.length, receipts };
+};
+
+export const applySimpleHomeAssistantItems = async ({ session, domain, items = [] }) => {
+  const userId = session?.user?.id;
+  const householdId = await loadHouseholdId(session);
+  const receipts = [];
+
+  const insertOne = async ({ table, payload, select = "id, name", summaryField = "name" }) => {
+    const { data, error } = await supabase.from(table).insert(payload).select(select).single();
+    if (error) throw error;
+    receipts.push(
+      createReceipt({
+        householdId,
+        domain,
+        table,
+        id: data?.id,
+        summary: data?.[summaryField] || payload[summaryField] || payload.name || payload.titel || payload.beschreibung,
+        requestPayload: payload,
+        resultPayload: data || payload,
+      }),
+    );
+  };
+
+  for (const item of items) {
+    if (domain === "inventar_ort") {
+      await insertOne({
+        table: "home_orte",
+        payload: {
+          user_id: userId,
+          name: item.name || "Neuer Standort",
+          typ: item.typ || "Wohnung",
+          adresse: item.adresse || null,
+          notizen: item.notizen || null,
+        },
+      });
+    } else if (domain === "inventar_lagerort") {
+      let ortId = item.ort_id || null;
+      if (!ortId) {
+        const { data: firstOrt } = await supabase
+          .from("home_orte")
+          .select("id")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        ortId = firstOrt?.id || null;
+      }
+      if (!ortId) throw new Error("Bitte lege zuerst einen Standort an oder waehle einen Standort fuer den Lagerort.");
+      await insertOne({
+        table: "home_lagerorte",
+        payload: {
+          user_id: userId,
+          ort_id: ortId,
+          name: item.name || "Neuer Lagerort",
+          typ: item.typ || "Regal",
+          beschreibung: item.beschreibung || null,
+          qr_code_wert: item.qr_code_wert || null,
+        },
+      });
+    } else if (domain === "bewohner") {
+      await insertOne({
+        table: "home_bewohner",
+        payload: {
+          user_id: userId,
+          name: item.name || "Bewohner",
+          farbe: item.farbe || "#10B981",
+          emoji: item.emoji || ":)",
+        },
+      });
+    } else if (domain === "wissen") {
+      await insertOne({
+        table: "home_wissen",
+        payload: {
+          user_id: userId,
+          household_id: householdId,
+          titel: item.titel || "Wissenseintrag",
+          inhalt: item.inhalt || item.beschreibung || "",
+          kategorie: item.kategorie || "Allgemein",
+          tags: Array.isArray(item.tags) ? item.tags : [],
+          herkunft: "manuell",
+          summary: { manual_override: true },
+        },
+        select: "id, titel",
+        summaryField: "titel",
+      });
+    } else if (domain === "rezept") {
+      await insertOne({
+        table: "home_rezepte",
+        payload: {
+          user_id: userId,
+          household_id: householdId,
+          titel: item.titel || "Neues Rezept",
+          beschreibung: item.beschreibung || null,
+          portionen: item.portionen || 4,
+          tags: Array.isArray(item.tags) ? item.tags : [],
+          anleitung: Array.isArray(item.anleitung) ? item.anleitung : [],
+          import_typ: "manuell",
+          analyse_modus: "web",
+          status: "gespeichert",
+          sprache: item.sprache || "de",
+          ziel_locale: item.ziel_locale || "de",
+        },
+        select: "id, titel",
+        summaryField: "titel",
+      });
+    } else if (domain === "sparziel") {
+      await insertOne({
+        table: "home_sparziele",
+        payload: {
+          user_id: userId,
+          name: item.name || "Sparziel",
+          ziel_betrag: Number(item.ziel_betrag || item.betrag || 0),
+          aktueller_betrag: Number(item.aktueller_betrag || 0),
+          zieldatum: item.zieldatum || null,
+          farbe: item.farbe || "#10B981",
+          emoji: item.emoji || "Ziel",
+        },
+      });
+    } else if (domain === "finanzkonto") {
+      await insertOne({
+        table: "home_finanzkonten",
+        payload: {
+          user_id: userId,
+          created_by_user_id: userId,
+          household_id: householdId,
+          name: item.name || "Finanzkonto",
+          konto_typ: item.konto_typ || "haushaltskonto",
+          inhaber_typ: item.inhaber_typ || "household",
+          aktiv: true,
+          farbe: item.farbe || "#10B981",
+        },
+      });
+    }
   }
 
   return { count: receipts.length, receipts };
@@ -1001,6 +1719,11 @@ export const prepareAssistantAction = async ({
   items,
   context = {},
 }) => {
+  if (domain === "medikamente") {
+    const medicationAction = await prepareMedicationAssistantAction({ session, items });
+    if (medicationAction) return medicationAction;
+  }
+
   if (domain === "einkaufliste") {
     return prepareShoppingAssistantAction({
       session,
@@ -1036,6 +1759,8 @@ export const commitAssistantAction = async ({
       return applyInventoryAiItems({ session, items: preparedAction.items });
     case "vorraete":
       return applySupplyAiItems({ session, items: preparedAction.items });
+    case "medikamente":
+      return applyMedicationAiItems({ session, items: preparedAction.items });
     case "geraete":
       return applyDeviceAiItems({ session, items: preparedAction.items });
     case "projekte":
@@ -1063,6 +1788,20 @@ export const commitAssistantAction = async ({
     case "budget_settlement":
       return applyBudgetSettlementAiItems({
         session,
+        items: preparedAction.items,
+      });
+    case "rechnung":
+      return applyManualInvoiceAssistantItems({ session, items: preparedAction.items });
+    case "inventar_ort":
+    case "inventar_lagerort":
+    case "bewohner":
+    case "wissen":
+    case "rezept":
+    case "sparziel":
+    case "finanzkonto":
+      return applySimpleHomeAssistantItems({
+        session,
+        domain,
         items: preparedAction.items,
       });
     case "packliste":

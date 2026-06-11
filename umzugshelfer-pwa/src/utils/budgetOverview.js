@@ -101,6 +101,7 @@ export const getBudgetEntryMeta = (entry, ctx = {}) => {
   const verknuepfteRechnungen = ctx.budgetRechnungMap?.[entry?.id] || [];
   const splitGroup = ctx.splitGroupByPostenId?.[entry?.id] || null;
   const splitOrigin = splitGroup?.split_origin || null;
+  const splitMode = splitGroup?.split_mode || null;
   const scope = entry?.budget_scope || "haushalt";
   const anzeigeDatum = getProjectedDate(entry, ctx);
   const datumIstProjiziert =
@@ -121,6 +122,15 @@ export const getBudgetEntryMeta = (entry, ctx = {}) => {
     verknuepfteRechnungen,
     hatSplit: Boolean(splitGroup),
     splitGroup,
+    splitMode,
+    splitModeLabel:
+      splitMode === "fixed"
+        ? "Fest"
+        : splitMode === "percent"
+          ? "Prozent"
+          : splitMode === "equal"
+            ? "Gleichmaessig"
+            : null,
     splitOrigin,
     splitOriginLabel:
       splitOrigin === "template_default"

@@ -14,6 +14,22 @@ import { LocaleProvider } from "./contexts/LocaleContext";
 window.Buffer = Buffer;
 installUiAutoTranslation(i18n);
 
+// Keep the PWA viewport stable on mobile: no pinch zoom, no double-tap zoom,
+// while preserving normal vertical scrolling inside pages and modals.
+if (typeof window !== "undefined" && typeof document !== "undefined") {
+  let lastTouchEnd = 0;
+  document.addEventListener("gesturestart", (event) => event.preventDefault(), { passive: false });
+  document.addEventListener("gesturechange", (event) => event.preventDefault(), { passive: false });
+  document.addEventListener("touchmove", (event) => {
+    if (event.touches && event.touches.length > 1) event.preventDefault();
+  }, { passive: false });
+  document.addEventListener("touchend", (event) => {
+    const now = Date.now();
+    if (now - lastTouchEnd <= 300) event.preventDefault();
+    lastTouchEnd = now;
+  }, { passive: false });
+}
+
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>

@@ -16,6 +16,18 @@ const TABELLEN_META = {
   home_sparziele: { label: "Sparziele", emoji: "🎯" },
 };
 
+export const VERLAUF_FILTER_TABELLEN = [
+  "home_objekte",
+  "budget_posten",
+  "rechnungen",
+  "home_vorraete",
+  "home_geraete",
+  "todo_aufgaben",
+  "home_projekte",
+  "home_wissen",
+  "home_buecher",
+];
+
 const AKTIONS_META = {
   erstellt: { label: "erstellt" },
   geaendert: { label: "geändert" },

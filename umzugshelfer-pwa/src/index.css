@@ -35,7 +35,8 @@ html {
   height: 100%;
   width: 100%;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   transition: background-color 200ms ease, color 200ms ease;
@@ -46,8 +47,10 @@ body {
   min-height: 100%;
   width: 100%;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
   position: relative;
+  touch-action: manipulation;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
@@ -66,7 +69,8 @@ body {
   width: 100%;
   max-width: 100%;
   min-height: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
 }
 
 /* Dark Mode Ambient Glow */
@@ -161,6 +165,115 @@ code {
   }
 }
 
+/* KFZ cockpit: existing CRUD surfaces inherit the same translucent app shell
+   while focused dashboard components can still use their own stronger glass. */
+.kfz-modern .bg-light-card,
+.kfz-modern .bg-light-card-bg {
+  background-color: rgba(255, 255, 255, 0.76);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.kfz-modern .border-light-border {
+  border-color: rgba(148, 163, 184, 0.42);
+}
+
+.dark .kfz-modern .dark\:bg-canvas-2 {
+  background-color: rgba(7, 22, 29, 0.82);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.dark .kfz-modern .dark\:bg-canvas-3 {
+  background-color: rgba(14, 35, 43, 0.72);
+}
+
+.dark .kfz-modern .dark\:border-dark-border {
+  border-color: rgba(148, 210, 210, 0.13);
+}
+
+.kfz-modern select {
+  color-scheme: light;
+}
+
+.kfz-modern select option {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+.dark .kfz-modern select {
+  color-scheme: dark;
+  color: #e2e8f0;
+}
+
+.dark .kfz-modern select option {
+  background-color: #07161d;
+  color: #e2e8f0;
+}
+
+.dark .kfz-modern select option:checked {
+  background-color: #0f766e;
+  color: #f8fafc;
+}
+
+.kfz-modern article,
+.kfz-modern section,
+.kfz-modern nav {
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.kfz-hover-card {
+  isolation: isolate;
+}
+
+.kfz-card-sheen {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
+  opacity: 0;
+  background:
+    radial-gradient(520px circle at var(--kfz-pointer-x, 50%) var(--kfz-pointer-y, 0%),
+      rgba(34, 211, 238, 0.12),
+      transparent 42%);
+  transition: opacity 220ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .kfz-modern .kfz-hover-card:hover {
+    border-color: rgba(45, 212, 191, 0.28);
+    transform: translateY(-3px) scale(1.003) !important;
+    box-shadow:
+      0 22px 55px rgba(0, 0, 0, 0.32),
+      0 0 0 1px rgba(34, 211, 238, 0.12) !important;
+  }
+
+  .kfz-modern .kfz-hover-card:hover .kfz-card-sheen {
+    opacity: 1;
+  }
+
+  .kfz-modern article:hover,
+  .kfz-modern .rounded-card:hover {
+    border-color: rgba(45, 212, 191, 0.22);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kfz-modern *,
+  .kfz-modern *::before,
+  .kfz-modern *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .kfz-modern .kfz-hover-card:hover {
+    transform: none !important;
+  }
+}
+
 @media (min-width: 640px) {
   .topbar-safe-x {
     padding-left:  calc(1.5rem + var(--safe-area-left));
@@ -202,6 +315,20 @@ code {
 }
 
 @media (max-width: 767px) {
+  html,
+  body,
+  #root {
+    width: 100dvw;
+    min-width: 100dvw;
+    max-width: 100dvw;
+  }
+
+  html,
+  body {
+    min-height: 100dvh;
+    overscroll-behavior: none;
+  }
+
   body::before {
     background-position: center top, center top;
   }

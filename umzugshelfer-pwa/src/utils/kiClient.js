@@ -198,17 +198,34 @@ export function cleanKiJsonResponse(rawText, expectedType = "array") {
     cleaned = codeBlockMatch[1];
   }
 
-  if (expectedType === "array") {
-    const first = cleaned.indexOf("[");
-    const last = cleaned.lastIndexOf("]");
-    if (first !== -1 && last !== -1 && first < last) {
-      cleaned = cleaned.substring(first, last + 1);
-    }
-  } else {
-    const first = cleaned.indexOf("{");
-    const last = cleaned.lastIndexOf("}");
-    if (first !== -1 && last !== -1 && first < last) {
-      cleaned = cleaned.substring(first, last + 1);
+  const open = expectedType === "array" ? "[" : "{";
+  const close = expectedType === "array" ? "]" : "}";
+  const first = cleaned.indexOf(open);
+  if (first !== -1) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = first; i < cleaned.length; i += 1) {
+      const char = cleaned[i];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === "\"") {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+      if (char === open) depth += 1;
+      if (char === close) depth -= 1;
+      if (depth === 0) {
+        cleaned = cleaned.substring(first, i + 1);
+        break;
+      }
     }
   }
 

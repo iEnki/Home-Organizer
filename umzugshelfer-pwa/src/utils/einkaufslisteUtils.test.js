@@ -1,3 +1,5 @@
+import { createShoppingDraft } from "./einkaufslisteUtils";
+
 jest.mock("../supabaseClient", () => ({
   getActiveHouseholdId: jest.fn(),
   supabase: {},
@@ -7,8 +9,6 @@ jest.mock("./kiClient", () => ({
   cleanKiJsonResponse: jest.fn((value) => value),
   getKiClient: jest.fn(),
 }));
-
-import { createShoppingDraft } from "./einkaufslisteUtils";
 
 const draftFor = (text) =>
   createShoppingDraft({

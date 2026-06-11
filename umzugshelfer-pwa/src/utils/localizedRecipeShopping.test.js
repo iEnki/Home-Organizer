@@ -1,8 +1,3 @@
-jest.mock("./kiClient", () => ({
-  cleanKiJsonResponse: jest.fn((value) => value),
-  getKiClient: jest.fn(),
-}));
-
 import {
   resolveLocalizedRecipe,
   resolveLocalizedRecipeIngredients,
@@ -10,6 +5,11 @@ import {
   translateShoppingEntryIfMissing,
 } from "./localizedRecipeShopping";
 import { getKiClient } from "./kiClient";
+
+jest.mock("./kiClient", () => ({
+  cleanKiJsonResponse: jest.fn((value) => value),
+  getKiClient: jest.fn(),
+}));
 
 describe("localized recipe resolver", () => {
   test("uses cached target locale and falls back to base fields", () => {

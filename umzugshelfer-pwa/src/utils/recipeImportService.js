@@ -91,3 +91,15 @@ export async function fetchRecipeImportJob(jobId) {
   if (error) throw error;
   return data;
 }
+
+export async function fetchRecipeImportJobs({ householdId, limit = 50 }) {
+  if (!householdId) return [];
+  const { data, error } = await supabase
+    .from("home_rezept_import_jobs")
+    .select("*")
+    .eq("household_id", householdId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data || [];
+}

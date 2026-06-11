@@ -16,6 +16,21 @@ export const ASSISTANT_DOMAIN_CONFIG = {
     schema:
       '{"name":"Milch","bestand":2,"einheit":"Liter","kategorie":"Kuehlwaren","mindestmenge":1}',
   },
+  medikamente: {
+    title: "Heimapotheke bearbeiten",
+    summaryLabel: "Medikamente",
+    fields:
+      "aktion (hinzufuegen|bestand_aendern|suchen|lagerort_abfragen|beipackzettel_oeffnen|ablaufende_anzeigen), name, wirkstoff, darreichungsform, packungsgroesse, bestand, bestand_delta, mindestbestand, ablaufdatum, lagerort, kategorie, notizen",
+    schema:
+      '{"aktion":"hinzufuegen","name":"Ibuprofen","wirkstoff":"Ibuprofen","bestand":1,"lagerort":"Bad","kategorie":"Schmerzmittel"}',
+    buildPrompt: (text) => `Extrahiere Heimapotheke-Aktionen aus dem Text als JSON-Objekt {"items":[...]}.
+Erlaubte Aktionen: "hinzufuegen", "bestand_aendern", "suchen", "lagerort_abfragen", "beipackzettel_oeffnen", "ablaufende_anzeigen".
+Felder: aktion, name, wirkstoff, darreichungsform, packungsgroesse, bestand, bestand_delta, mindestbestand, ablaufdatum (YYYY-MM-DD), lagerort, kategorie, notizen.
+WICHTIG: Keine medizinische Beratung, Diagnose, Wechselwirkungs- oder Dosierungsempfehlung geben. Wenn danach gefragt wird, nur Organisationsdaten extrahieren.
+Beispiel: {"items":[{"aktion":"hinzufuegen","name":"Ibuprofen","bestand":1,"lagerort":"Bad","kategorie":"Schmerzmittel"}]}
+Text: "${text}"
+Antworte NUR mit dem JSON-Objekt.`,
+  },
   einkaufliste: {
     title: "Einkaufsliste vorbereiten",
     summaryLabel: "Einkaufsartikel",
@@ -56,6 +71,20 @@ Antworte NUR mit dem JSON-Objekt.`,
     buildPrompt: (text) => `Extrahiere Budget-Eintraege aus dem Text als JSON-Objekt {"items":[...]}.
 Felder: beschreibung (Pflicht), betrag (Zahl, Pflicht), typ ("ausgabe" oder "einnahme", default "ausgabe"), kategorie, datum (YYYY-MM-DD), budget_scope ("haushalt" oder "privat", DEFAULT IMMER "haushalt" ausser explizit als privat/persoenlich erwaehnt), bewohner_name (Name der Person falls privat), wiederholen (true/false), intervall ("Monatlich","Woechentlich","Jaehrlich" etc.), zahlungskonto_name.
 Beispiel: {"items":[{"beschreibung":"Strom","betrag":85,"typ":"ausgabe","kategorie":"Energie","budget_scope":"haushalt"}]}
+Text: "${text}"
+Antworte NUR mit dem JSON-Objekt.`,
+  },
+  rechnung: {
+    title: "Rechnung erfassen",
+    summaryLabel: "Rechnungen",
+    fields:
+      "lieferant_name, brutto, beschreibung, kategorie, rechnungsdatum (YYYY-MM-DD), waehrung (optional, default EUR)",
+    schema:
+      '{"lieferant_name":"Baumarkt","brutto":42.90,"beschreibung":"Schrauben und Farbe","kategorie":"Reparaturen","rechnungsdatum":"2026-05-07","waehrung":"EUR"}',
+    buildPrompt: (text) => `Extrahiere manuelle Rechnungen aus dem Text als JSON-Objekt {"items":[...]}.
+Felder: lieferant_name (Firma/Lieferant), brutto (Betrag als Zahl), beschreibung (wofuer), kategorie, rechnungsdatum (YYYY-MM-DD), waehrung (default "EUR").
+Wenn Informationen fehlen, lasse Felder leer/null. Erfinde keine Pflichtwerte.
+Beispiel: {"items":[{"lieferant_name":"Baumarkt","brutto":42.90,"beschreibung":"Schrauben und Farbe","kategorie":"Reparaturen","rechnungsdatum":"2026-05-07","waehrung":"EUR"}]}
 Text: "${text}"
 Antworte NUR mit dem JSON-Objekt.`,
   },
@@ -156,6 +185,8 @@ Antworte NUR mit dem JSON-Objekt.`,
 export const ASSISTANT_ROUTE_MAP = {
   rechnung_scannen: "/home/rechnung-scannen",
   dokumente_wissen: "/home/dokumente",
+  dokument_upload: "/home/dokumente",
+  rezept_import: "/home/kochbuch",
   buchscanner: "/home/inventar?tab=buecher",
   home_suche: "/home/suche",
   home_budget: "/home/budget",
@@ -163,6 +194,7 @@ export const ASSISTANT_ROUTE_MAP = {
   home_aufgaben: "/home/aufgaben",
   home_inventar: "/home/inventar",
   home_vorraete: "/home/vorraete",
+  home_heimapotheke: "/home/heimapotheke",
   home_geraete: "/home/geraete",
   home_projekte: "/home/projekte",
   umzug_todos: "/todos",

@@ -89,6 +89,7 @@ const loadSemanticContext = async (userId, householdId) => {
   const [
     objekteRes,
     vorraeteRes,
+    medikamenteRes,
     geraeteRes,
     lagerorteRes,
     buecherRes,
@@ -109,6 +110,11 @@ const loadSemanticContext = async (userId, householdId) => {
       .eq("user_id", userId)
       .limit(80),
     supabase
+      .from("home_medikamente")
+      .select("name, wirkstoff, bestand, mindestbestand, ablaufdatum, lagerort, kategorie, beipackzettel_url")
+      .or(householdId ? `user_id.eq.${userId},household_id.eq.${householdId}` : `user_id.eq.${userId}`)
+      .limit(120),
+    supabase
       .from("home_geraete")
       .select("name, hersteller, modell, naechste_wartung, kaufdatum, garantie_bis, kategorie")
       .eq("user_id", userId)
@@ -127,6 +133,7 @@ const loadSemanticContext = async (userId, householdId) => {
       .from("budget_posten")
       .select("beschreibung, betrag, datum, kategorie, typ, budget_scope")
       .eq("user_id", userId)
+      .is("archived_at", null)
       .order("datum", { ascending: false })
       .limit(240),
     supabase
@@ -166,6 +173,10 @@ const loadSemanticContext = async (userId, householdId) => {
     (vorraeteRes.data || []).length > 0 &&
       `## Vorrate\n${(vorraeteRes.data || [])
         .map((item) => `- ${item.name}: ${item.bestand} ${item.einheit || ""} (Min: ${item.mindestmenge || 0})`)
+        .join("\n")}`,
+    (medikamenteRes.data || []).length > 0 &&
+      `## Heimapotheke\n${(medikamenteRes.data || [])
+        .map((item) => `- ${item.name}${item.wirkstoff ? ` (${item.wirkstoff})` : ""}: Bestand ${item.bestand}, Min ${item.mindestbestand ?? 1}${item.lagerort ? `, Lagerort ${item.lagerort}` : ""}${item.ablaufdatum ? `, Ablauf ${item.ablaufdatum}` : ""}${item.beipackzettel_url ? ", Beipackzettel hinterlegt" : ""}`)
         .join("\n")}`,
     (geraeteRes.data || []).length > 0 &&
       `## Gerate\n${(geraeteRes.data || [])
@@ -232,7 +243,7 @@ export const answerSemanticHouseholdQuestion = async ({ userId, householdId, que
     messages: [
       {
         role: "system",
-        content: `Du bist ein praeziser Haushalts-Assistent. ${langInstruction} Antworte nur anhand des gelieferten Haushaltskontexts. Wenn Informationen fehlen, sage das klar. Antworte immer als JSON: {"answer":"...","quellen":["W1"]}.`,
+        content: `Du bist ein praeziser Haushalts-Assistent. ${langInstruction} Antworte nur anhand des gelieferten Haushaltskontexts. Wenn Informationen fehlen, sage das klar. Bei Medikamenten darfst du Lagerort, Bestand, Ablaufdatum und vorhandene Beipackzettel nennen, aber keine medizinische Beratung, Diagnose, Wechselwirkungs- oder Dosierungsempfehlung geben. Antworte immer als JSON: {"answer":"...","quellen":["W1"]}.`,
       },
       {
         role: "user",
@@ -268,8 +279,10 @@ export const classifyAssistantInput = async ({ userId, input, appMode, pathname,
 - "new appliance", "device", "manufacturer", "model", "purchase date" -> domain "geraete"
 - "inventory", "item", "object", "tool" -> domain "inventar"
 - "supplies", "food", "stock" -> domain "vorraete"
+- "medicine", "medication", "medicine cabinet", "leaflet" -> domain "medikamente"
 - "cost split", "split", "who paid", "shared expense" -> domain "budget_split"
 - "settlement", "owes", "pay back", "reimburse" -> domain "budget_settlement"
+- "add invoice", "record invoice", "receipt expense" -> domain "rechnung"
 - "simple budget entry", "expense", "income" -> domain "budget"
 - "task", "todo" (moving) -> domain "todos"; home task -> domain "aufgaben"
 - "where is", "what's missing", "which maintenance", "when did I last" -> semantic_search
@@ -292,6 +305,8 @@ Erlaubte domains fuer extract_records: ${domainKeys}
 Erlaubte open_flow keys: ${routeKeys}
 Klassifizierungsregeln:
 - Fragen wie "wo ist", "was fehlt", "welche Wartung", "wann habe ich zuletzt" -> semantic_search
+- Heimapotheke-Lesefragen wie "welche Medikamente habe ich", "wo liegt Ibuprofen", "was laeuft bald ab", "niedrige Bestaende" -> domain "medikamente" oder semantic_search, nicht open_flow
+- Heimapotheke nur als open_flow klassifizieren, wenn der Nutzer explizit oeffnen oder navigieren sagt
 - Rechnungsscan, Dokumentanalyse -> open_flow
 - "Buch hinzufuegen", "Buch gelesen", "habe Buch" -> domain "buecher"
 - "Buchscanner starten", "ISBN scannen" -> open_flow, key "buchscanner"
@@ -299,8 +314,11 @@ Klassifizierungsregeln:
 - Neues Geraet, Geraet erfassen, Hersteller/Modell/Kaufdatum erwaehnt -> domain "geraete"
 - Inventar, Gegenstand, Objekt, Werkzeug -> domain "inventar"
 - Vorraete, Lebensmittel, Bestand -> domain "vorraete"
+- Heimapotheke, Medikamente, Tabletten, Beipackzettel -> domain "medikamente"
+- Medizinische Beratung, Diagnose, Dosierung, Wechselwirkung -> keine Beratung geben; nur Organisationsaktion oder semantic_search zu gespeicherten Daten
 - Kostenaufteilung, "aufteilen", "split", "wer hat gezahlt/bezahlt", "gemeinsam bezahlt" -> domain "budget_split"
 - Ausgleich, "schuldet", "zurueckzahlen", "erstatten" -> domain "budget_settlement"
+- Manuelle Rechnung erfassen, "Rechnung hinzufuegen", "Beleg anlegen" -> domain "rechnung"; Rechnung scannen/OCR -> open_flow
 - Einfacher Budget-Eintrag ohne Aufteilung -> domain "budget"
 - Aufgabe, Todo (Umzug) -> domain "todos"; Heimaufgabe/Home-Task -> domain "aufgaben"${extraKeywords}
 Antwortformat (exakt dieses JSON-Schema):

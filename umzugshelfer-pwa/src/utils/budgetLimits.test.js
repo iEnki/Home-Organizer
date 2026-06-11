@@ -36,7 +36,7 @@ describe("budgetLimits", () => {
 
     expect(warnung.statusLabel).toBe("Warnung");
     expect(warnung.hintText).toBe("20 % verbleibend");
-    expect(ueberschritten.statusLabel).toBe("Ueberschritten");
+    expect(ueberschritten.statusLabel).toBe("Überschritten");
     expect(ueberschritten.summaryText).toBe("120.00 EUR von 100.00 EUR");
   });
 });
