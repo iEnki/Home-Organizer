@@ -33,7 +33,8 @@
     "groupSaved": "Rezeptgruppe gespeichert.",
     "groupSaveFailed": "Rezeptgruppe konnte nicht gespeichert werden.",
     "nutritionRecalculated": "Nährwerte wurden neu berechnet.",
-    "nutritionRecalculateFailed": "Nährwerte konnten nicht neu berechnet werden."
+    "nutritionRecalculateFailed": "Nährwerte konnten nicht neu berechnet werden.",
+    "noHousehold": "Kein aktiver Haushalt vorhanden."
   },
   "confirm": {
     "delete": "\"{{title}}\" loeschen?"
@@ -62,7 +63,60 @@
     "noGroup": "Ohne Gruppe",
     "saveGroup": "Gruppe speichern",
     "recalculateNutrition": "Nährwerte neu berechnen",
-    "recalculatingNutrition": "Nährwerte werden berechnet"
+    "recalculatingNutrition": "Nährwerte werden berechnet",
+    "planMeal": "Einplanen",
+    "cookMode": "Kochmodus"
+  },
+  "mealPlanner": {
+    "title": "Essensplan",
+    "tabs": {
+      "recipes": "Rezepte",
+      "planner": "Essensplan"
+    },
+    "slots": {
+      "breakfast": "Frühstück",
+      "lunch": "Mittagessen",
+      "dinner": "Abendessen",
+      "snack": "Snack"
+    },
+    "today": "Heute",
+    "loading": "Essensplan wird geladen...",
+    "empty": "Noch keine Mahlzeiten in dieser Woche geplant.",
+    "addTitle": "Rezept einplanen",
+    "editTitle": "Plan-Eintrag bearbeiten",
+    "recipe": "Rezept",
+    "selectRecipe": "Rezept auswählen",
+    "date": "Datum",
+    "slot": "Mahlzeit",
+    "servings": "Portionen",
+    "servingsShort": "{{count}} Port.",
+    "notes": "Notizen",
+    "repeat": "Wiederholung",
+    "repeatNone": "Keine",
+    "repeatWeekly": "Wöchentlich",
+    "repeatUntil": "Bis",
+    "repeatsWeekly": "wöchentlich",
+    "scope": "Änderung anwenden",
+    "scopeSingle": "Nur diesen Eintrag",
+    "scopeFuture": "Diesen und zukünftige Einträge",
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "saveChanges": "Änderungen speichern",
+    "saved": "Essensplan gespeichert.",
+    "deleted": "Eintrag entfernt.",
+    "loadFailed": "Essensplan konnte nicht geladen werden.",
+    "saveFailed": "Essensplan konnte nicht gespeichert werden.",
+    "deleteFailed": "Eintrag konnte nicht entfernt werden.",
+    "moveFailed": "Eintrag konnte nicht verschoben werden.",
+    "deleteSeriesConfirm": "Auch alle zukünftigen Wiederholungen entfernen?",
+    "drag": "Verschieben",
+    "unknownRecipe": "Unbekanntes Rezept",
+    "shoppingButton": "Einkaufsliste für Woche",
+    "shoppingBusy": "Vorschau wird erstellt...",
+    "shoppingEmpty": "Diese Woche sind keine Rezepte geplant.",
+    "shoppingCreated": "{{inserted}} Zutaten hinzugefügt, {{skipped}} übersprungen.",
+    "shoppingNoMissing": "Keine fehlenden Zutaten gefunden. {{skipped}} bereits vorhanden.",
+    "shoppingFailed": "Einkaufsliste konnte nicht erstellt werden."
   },
   "toolbar": {
     "searchRecipePlaceholder": "Rezept suchen...",
@@ -201,7 +255,9 @@
     "serverErrors": {
       "configMissing": "Supabase-Konfiguration oder Sitzung fehlt.",
       "importFailed": "Import fehlgeschlagen.",
-      "dailyLimit": "Tageslimit für Kochbuch-Importe erreicht.",
+      "dailyLimit": "Das heutige Importlimit ist erreicht. Du kannst morgen wieder Rezepte importieren oder ein Rezept manuell anlegen.",
+      "sourceUnavailable": "Dieses Video kann aktuell nicht importiert werden. Es ist moeglicherweise geloescht, privat, regional eingeschraenkt oder die Plattform blockiert den Zugriff vom Server.",
+      "finalizeTimeout": "Die Rezeptanalyse hat zu lange gedauert und wurde vom Server abgebrochen. Bitte versuche es erneut oder nutze ein kuerzeres Video.",
       "cookbookDisabled": "Kochbuch ist deaktiviert.",
       "openAiMissing": "OpenAI API-Key ist im Haushalt nicht konfiguriert.",
       "videoDisabled": "Videoimport ist deaktiviert.",
@@ -232,5 +288,76 @@
     "carbs": "Kohlenhydrate",
     "fat": "Fett",
     "estimatedPerServing": "Geschaetzt pro Portion"
+  },
+  "duplicates": {
+    "title": "Aehnliches Rezept existiert bereits",
+    "hint": "Pruefe kurz, ob du dieses Rezept schon gespeichert hast. Du kannst trotzdem speichern.",
+    "sharedIngredients": "{{count}} gleiche Zutaten",
+    "modalTitle": "Duplikat pruefen",
+    "cancel": "Abbrechen",
+    "saveAnyway": "Trotzdem speichern"
+  },
+  "shoppingPreview": {
+    "title": "Fehlende Zutaten pruefen",
+    "mealPlannerTitle": "Einkaufsliste fuer Woche pruefen",
+    "groups": {
+      "missing": "Fehlt",
+      "uncertain": "Unsicher",
+      "available": "Vorhanden",
+      "existing": "Schon auf der Einkaufsliste"
+    },
+    "selected": "{{selected}} von {{total}} ausgewaehlt",
+    "cancel": "Abbrechen",
+    "add": "Zur Einkaufsliste hinzufuegen",
+    "adding": "Wird hinzugefuegt...",
+    "empty": "Keine Zutaten fuer die Vorschau gefunden."
+  },
+  "imports": {
+    "button": "Importe",
+    "title": "Rezeptimporte",
+    "loadFailed": "Importe konnten nicht geladen werden.",
+    "retryFailed": "Import konnte nicht erneut gestartet werden.",
+    "empty": "Keine Importe in dieser Gruppe.",
+    "review": "Pruefen",
+    "retry": "Erneut versuchen",
+    "retrying": "Startet...",
+    "tabs": {
+      "active": "Aktiv",
+      "review": "Pruefen",
+      "failed": "Fehler",
+      "done": "Fertig"
+    }
+  },
+  "cookLog": {
+    "title": "Gekocht",
+    "add": "Eintrag",
+    "rating": "Bewertung",
+    "adjustments": "Anpassungen beim Kochen",
+    "nextTime": "Naechstes Mal",
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "saved": "Kochnotiz gespeichert.",
+    "saveFailed": "Kochnotiz konnte nicht gespeichert werden.",
+    "loadFailed": "Kochnotizen konnten nicht geladen werden.",
+    "deleteConfirm": "Kochnotiz loeschen?",
+    "deleteFailed": "Kochnotiz konnte nicht geloescht werden.",
+    "deleted": "Kochnotiz geloescht.",
+    "empty": "Noch keine Kochnotizen vorhanden."
+  },
+  "cookMode": {
+    "title": "Kochmodus",
+    "progress": "Schritt {{current}} von {{total}}",
+    "close": "Schliessen",
+    "finished": "Als gekocht speichern",
+    "previous": "Zurueck",
+    "next": "Weiter",
+    "noSteps": "Keine Zubereitungsschritte vorhanden."
+  },
+  "quality": {
+    "aiImport": "KI-Import",
+    "reviewOpen": "Review offen",
+    "source": "Quelle",
+    "nutritionEstimated": "Naehrwerte geschaetzt",
+    "uncertainAmounts": "Unsichere Mengen"
   }
 }

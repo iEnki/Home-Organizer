@@ -13,7 +13,7 @@
     "noInactive": "Keine inaktiven Kategorien.",
     "moveUp": "Kategorie nach oben",
     "moveDown": "Kategorie nach unten",
-    "managerHint": "Du kannst Kategorien anlegen, Farben ändern, sortieren, deaktivieren und reaktivieren. Umbenennen und Löschen bleiben bewusst gesperrt."
+    "managerHint": "Du kannst Kategorien anlegen, Farben ändern, sortieren und löschen. Bestehende Bezüge können vor dem Löschen auf eine andere Kategorie umgehängt werden."
   },
   "account": "Konto",
   "accounts": {
@@ -175,13 +175,16 @@
       "targetAmount": "Zielbetrag (€)*",
       "currentAmount": "Aktuell (€)",
       "targetDate": "Zieldatum",
+      "productLink": "Produktlink (optional)",
+      "productLinkPlaceholder": "https://shop.example.com/produkt",
       "color": "Farbe"
     },
     "remainingAmount": "Restbetrag",
     "progress": "Fortschritt",
     "deposit": "Einzahlen",
     "reached": "Ziel erreicht",
-    "delete": "Ziel loeschen",
+    "delete": "Ziel löschen",
+    "openProductLink": "Produktlink öffnen",
     "status": {
       "nearlyReached": "Fast erreicht",
       "reached": "Erreicht"
@@ -386,12 +389,12 @@
     "default": "Standard",
     "updatedAt": "Zuletzt aktualisiert {{date}}",
     "load": "Laden",
-    "overwrite": "Ueberschreiben",
+    "overwrite": "Überschreiben",
     "rename": "Umbenennen",
     "clearDefault": "Standard entfernen",
     "setDefault": "Als Standard setzen",
     "saveCurrentTitle": "Aktuelle Filter speichern",
-    "saveCurrentDescription": "Die aktuelle Budget-Uebersicht wird als neue persoenliche Ansicht gespeichert.",
+    "saveCurrentDescription": "Die aktuelle Budget-Übersicht wird als neue persönliche Ansicht gespeichert.",
     "empty": "Noch keine gespeicherten Budget-Ansichten vorhanden.",
     "actionFailed": "Aktion fehlgeschlagen."
   }

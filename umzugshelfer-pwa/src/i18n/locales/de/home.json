@@ -9,6 +9,10 @@
     "warnDevice_other": "{{count}} Gerätewartungen fällig",
     "warnTask_one": "{{count}} Aufgabe heute fällig",
     "warnTask_other": "{{count}} Aufgaben heute fällig",
+    "warnMedicineExpiry_one": "{{count}} Medikament läuft bald ab",
+    "warnMedicineExpiry_other": "{{count}} Medikamente laufen bald ab",
+    "warnMedicineLow_one": "{{count}} Medikament mit niedrigem Bestand",
+    "warnMedicineLow_other": "{{count}} Medikamente mit niedrigem Bestand",
     "noBudgetEntries": "Noch keine Buchungen diesen Monat.",
     "householdThisMonth": "Haushalt diesen Monat",
     "settlementTitle": "Ausgleich im Haushalt",
@@ -34,6 +38,8 @@
       "inventoryLocations_other": "{{count}} Standorte",
       "stock": "Vorräte",
       "stockUnit": "Artikel",
+      "medicineCabinet": "Heimapotheke",
+      "medicineUnit": "Medikamente",
       "shopping": "Einkaufsliste",
       "shoppingUnit": "offen",
       "devices": "Geräte",
@@ -353,6 +359,7 @@
     "sources": {
       "inventory": "Inventar",
       "supplies": "Vorräte",
+      "medicines": "Heimapotheke",
       "devices": "Geräte",
       "tasks": "Aufgaben",
       "documents": "Dokumente",
@@ -464,7 +471,19 @@
       "tasks": "Aufgaben",
       "maintenance": "Wartungen",
       "payments": "Zahlungen",
-      "milestones": "Meilensteine"
+      "milestones": "Meilensteine",
+      "meals": "Essensplan"
+    },
+    "meal": "Mahlzeit",
+    "mealTitle": "{{slot}}: {{recipe}}",
+    "mealUnknownRecipe": "Unbekanntes Rezept",
+    "mealServings": "{{count}} Portionen",
+    "openRecipe": "Rezept öffnen",
+    "mealSlots": {
+      "breakfast": "Frühstück",
+      "lunch": "Mittagessen",
+      "dinner": "Abendessen",
+      "snack": "Snack"
     },
     "priority": "Priorität: {{priority}}",
     "maintenanceTitle": "Wartung: {{name}}",

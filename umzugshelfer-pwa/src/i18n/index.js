@@ -18,6 +18,7 @@ import deAssistant from "./locales/de/assistant.json";
 import deTour from "./locales/de/tour.json";
 import deFeaturePages from "./locales/de/featurePages.json";
 import deProfile from "./locales/de/profile.json";
+import deKfz from "./locales/de/kfz.json";
 import enCommon from "./locales/en-GB/common.json";
 import enNav from "./locales/en-GB/nav.json";
 import enMeta from "./locales/en-GB/meta.json";
@@ -34,6 +35,7 @@ import enAssistant from "./locales/en-GB/assistant.json";
 import enTour from "./locales/en-GB/tour.json";
 import enFeaturePages from "./locales/en-GB/featurePages.json";
 import enProfile from "./locales/en-GB/profile.json";
+import enKfz from "./locales/en-GB/kfz.json";
 
 export const SUPPORTED_LOCALES = ["de", "en-GB"];
 export const DEFAULT_LOCALE = "de";
@@ -70,6 +72,7 @@ const resources = {
     tour: deTour,
     featurePages: deFeaturePages,
     profile: deProfile,
+    kfz: deKfz,
   },
   "en-GB": {
     common: enCommon,
@@ -88,6 +91,7 @@ const resources = {
     tour: enTour,
     featurePages: enFeaturePages,
     profile: enProfile,
+    kfz: enKfz,
   },
 };
 
@@ -108,6 +112,7 @@ export const I18N_NAMESPACES = [
   "tour",
   "featurePages",
   "profile",
+  "kfz",
 ];
 
 i18n

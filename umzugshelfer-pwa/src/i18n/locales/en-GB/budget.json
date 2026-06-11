@@ -13,7 +13,7 @@
     "noInactive": "No inactive categories.",
     "moveUp": "Move category up",
     "moveDown": "Move category down",
-    "managerHint": "You can create categories, change colours, sort, deactivate and reactivate them. Renaming and deleting stay locked intentionally."
+    "managerHint": "You can create categories, change colours, sort and delete categories. Existing references can be reassigned before deleting."
   },
   "account": "Account",
   "accounts": {
@@ -175,6 +175,8 @@
       "targetAmount": "Target amount (€)*",
       "currentAmount": "Current (€)",
       "targetDate": "Target date",
+      "productLink": "Product link (optional)",
+      "productLinkPlaceholder": "https://shop.example.com/product",
       "color": "Colour"
     },
     "remainingAmount": "Remaining amount",
@@ -182,6 +184,7 @@
     "deposit": "Deposit",
     "reached": "Goal reached",
     "delete": "Delete goal",
+    "openProductLink": "Open product link",
     "status": {
       "nearlyReached": "Nearly reached",
       "reached": "Reached"

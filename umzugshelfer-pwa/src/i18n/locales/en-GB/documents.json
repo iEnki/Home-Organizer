@@ -33,7 +33,10 @@
     "fileHint": "JPG, PNG, WEBP, HEIC or PDF (max. 20 MB)",
     "takePhoto": "Take photo",
     "uploadFile": "Upload file",
-    "analyse": "Analyse invoice"
+    "analyse": "Analyse invoice",
+    "pdfOcrRunning": "Scanned PDF pages are being read...",
+    "pdfOcrLimited": "The PDF has {{pages}} pages. The first {{limit}} pages will be analysed.",
+    "pdfOcrFailed": "The scanned PDF could not be read. Please upload a sharper PDF or individual photos."
   },
   "categories": {
     "Rechnung": "Invoice",
@@ -41,7 +44,6 @@
     "Handbuch": "Manual",
     "Garantie": "Guarantee",
     "Versicherung": "Insurance",
-    "Beh?rde": "Authority",
     "Beh?rde": "Authority",
     "Gesundheit": "Health",
     "Sonstiges": "Other"

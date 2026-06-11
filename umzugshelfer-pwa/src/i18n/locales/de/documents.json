@@ -33,7 +33,10 @@
     "fileHint": "JPG, PNG, WEBP, HEIC oder PDF (max. 20 MB)",
     "takePhoto": "Foto aufnehmen",
     "uploadFile": "Datei hochladen",
-    "analyse": "Rechnung analysieren"
+    "analyse": "Rechnung analysieren",
+    "pdfOcrRunning": "Gescannte PDF-Seiten werden gelesen...",
+    "pdfOcrLimited": "Das PDF hat {{pages}} Seiten. Es werden die ersten {{limit}} Seiten analysiert.",
+    "pdfOcrFailed": "Das gescannte PDF konnte nicht gelesen werden. Bitte lade ein schärferes PDF oder einzelne Fotos hoch."
   },
   "categories": {
     "Rechnung": "Rechnung",
@@ -41,7 +44,6 @@
     "Handbuch": "Handbuch",
     "Garantie": "Garantie",
     "Versicherung": "Versicherung",
-    "Beh?rde": "Behörde",
     "Beh?rde": "Behörde",
     "Gesundheit": "Gesundheit",
     "Sonstiges": "Sonstiges"

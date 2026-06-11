@@ -9,6 +9,10 @@
     "warnDevice_other": "{{count}} device maintenances due",
     "warnTask_one": "{{count}} task due today",
     "warnTask_other": "{{count}} tasks due today",
+    "warnMedicineExpiry_one": "{{count}} medicine expiring soon",
+    "warnMedicineExpiry_other": "{{count}} medicines expiring soon",
+    "warnMedicineLow_one": "{{count}} medicine with low stock",
+    "warnMedicineLow_other": "{{count}} medicines with low stock",
     "noBudgetEntries": "No entries this month.",
     "householdThisMonth": "Household this month",
     "settlementTitle": "Household settlement",
@@ -34,6 +38,8 @@
       "inventoryLocations_other": "{{count}} locations",
       "stock": "Supplies",
       "stockUnit": "items",
+      "medicineCabinet": "Medicine cabinet",
+      "medicineUnit": "medicines",
       "shopping": "Shopping list",
       "shoppingUnit": "open",
       "devices": "Devices",
@@ -353,6 +359,7 @@
     "sources": {
       "inventory": "Inventory",
       "supplies": "Supplies",
+      "medicines": "Medicine cabinet",
       "devices": "Devices",
       "tasks": "Tasks",
       "documents": "Documents",
@@ -464,7 +471,19 @@
       "tasks": "Tasks",
       "maintenance": "Maintenance",
       "payments": "Payments",
-      "milestones": "Milestones"
+      "milestones": "Milestones",
+      "meals": "Meal plan"
+    },
+    "meal": "Meal",
+    "mealTitle": "{{slot}}: {{recipe}}",
+    "mealUnknownRecipe": "Unknown recipe",
+    "mealServings": "{{count}} servings",
+    "openRecipe": "Open recipe",
+    "mealSlots": {
+      "breakfast": "Breakfast",
+      "lunch": "Lunch",
+      "dinner": "Dinner",
+      "snack": "Snack"
     },
     "priority": "Priority: {{priority}}",
     "maintenanceTitle": "Maintenance: {{name}}",

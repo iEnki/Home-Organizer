@@ -2,7 +2,8 @@ import {
   Home, CheckSquare, Package, DollarSign, ShoppingCart, Wrench,
   Users, FolderOpen, Search, BookOpen, History, ScanLine, FileText,
   LayoutDashboard, ListChecks, Archive, Paintbrush, Calculator,
-  CalendarClock, CalendarDays, UserCircle2, Menu, ChefHat,
+  CalendarClock, CalendarDays, UserCircle2, Menu, ChefHat, Pill,
+  Car,
 } from "lucide-react";
 
 export { Menu };
@@ -16,8 +17,10 @@ export const MOBILE_NAV_REGISTRY = {
     { key: "inventar", labelKey: "nav:items.inventory", label: "Inventar", path: "/home/inventar", icon: Package, favoriteEligible: true },
     { key: "budget", labelKey: "nav:items.budget", label: "Budget", path: "/home/budget", icon: DollarSign, favoriteEligible: true },
     { key: "vorraete", labelKey: "nav:items.stock", label: "Vorraete", path: "/home/vorraete", icon: ShoppingCart, favoriteEligible: true },
+    { key: "heimapotheke", labelKey: "nav:items.medicineCabinet", label: "Heimapotheke", path: "/home/heimapotheke", icon: Pill, favoriteEligible: true },
     { key: "einkauf", labelKey: "nav:items.shopping", label: "Einkauf", path: "/home/einkaufliste", icon: ShoppingCart, favoriteEligible: true },
     { key: "geraete", labelKey: "nav:items.devices", label: "Geraete", path: "/home/geraete", icon: Wrench, favoriteEligible: true },
+    { key: "kfz", labelKey: "nav:items.vehicles", label: "Kfz", path: "/home/kfz", icon: Car, favoriteEligible: true },
     { key: "dokumente", labelKey: "nav:items.documents", label: "Dokumente", path: "/home/dokumente", icon: FileText, favoriteEligible: true },
     { key: "projekte", labelKey: "nav:items.projects", label: "Projekte", path: "/home/projekte", icon: FolderOpen, favoriteEligible: true },
     { key: "rechnung", labelKey: "nav:items.scanInvoice", label: "Rechnung", path: "/home/rechnung-scannen", icon: ScanLine, favoriteEligible: true },
