@@ -124,6 +124,26 @@ env_set() {
   mv "$TMP" .env
 }
 
+ensure_recipe_parser_env() {
+  local UPDATED=false
+
+  if [[ -z "$(env_get "RECIPE_PARSER_INTERNAL_TOKEN")" ]]; then
+    env_set "RECIPE_PARSER_INTERNAL_TOKEN" "$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")"
+    UPDATED=true
+  fi
+  [[ -z "$(env_get "RECIPE_PARSER_URL")" ]] && env_set "RECIPE_PARSER_URL" "http://recipe-source-parser:8090" && UPDATED=true
+  [[ -z "$(env_get "RECIPE_PARSER_PORT")" ]] && env_set "RECIPE_PARSER_PORT" "8090" && UPDATED=true
+  [[ -z "$(env_get "WHISPER_DEVICE")" ]] && env_set "WHISPER_DEVICE" "auto" && UPDATED=true
+  [[ -z "$(env_get "WHISPER_MODEL")" ]] && env_set "WHISPER_MODEL" "small" && UPDATED=true
+  [[ -z "$(env_get "WHISPER_CPU_COMPUTE_TYPE")" ]] && env_set "WHISPER_CPU_COMPUTE_TYPE" "int8" && UPDATED=true
+  [[ -z "$(env_get "WHISPER_GPU_COMPUTE_TYPE")" ]] && env_set "WHISPER_GPU_COMPUTE_TYPE" "float16" && UPDATED=true
+  [[ -z "$(env_get "WHISPER_CPP_FALLBACK_ENABLED")" ]] && env_set "WHISPER_CPP_FALLBACK_ENABLED" "true" && UPDATED=true
+
+  if [[ "$UPDATED" == "true" ]]; then
+    success "Fehlende Kochbuch/Recipe-Parser-Werte in .env ergänzt."
+  fi
+}
+
 # Eingabe mit Vorschlag aus .env (leer = Vorschlag übernehmen)
 env_prompt() {
   local KEY="$1"
@@ -175,6 +195,10 @@ CURRENT_PORT="$(env_get "APP_PORT")"
 CURRENT_SUPABASE_URL="$(env_get "API_EXTERNAL_URL")"
 CURRENT_SMTP_HOST="$(env_get "SMTP_HOST")"
 CURRENT_SMTP_USER="$(env_get "SMTP_USER")"
+
+if [[ "$IS_VOLLSTACK" == "true" ]]; then
+  ensure_recipe_parser_env
+fi
 
 # ============================================================
 # Hauptmenü

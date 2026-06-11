@@ -67,6 +67,7 @@ const result = {
   LOGFLARE_PRIVATE_ACCESS_TOKEN: crypto.randomBytes(20).toString("hex"),
   S3_PROTOCOL_ACCESS_KEY_ID: crypto.randomBytes(10).toString("hex"),
   S3_PROTOCOL_ACCESS_KEY_SECRET: crypto.randomBytes(20).toString("hex"),
+  RECIPE_PARSER_INTERNAL_TOKEN: crypto.randomBytes(32).toString("hex"),
   ANON_KEY: anonKey,
   SERVICE_ROLE_KEY: serviceRoleKey,
   VAPID_PUBLIC_KEY: vapid.publicKey,
