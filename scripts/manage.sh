@@ -110,16 +110,10 @@ mit_spinner() {
 }
 
 deploy_edge_functions_to_volumes() {
-  DEPLOYED=0
-  while IFS= read -r fn_index; do
-    local fn_dir fn_name
-    fn_dir="$(dirname "$fn_index")"
-    fn_name="$(basename "$fn_dir")"
-    mkdir -p "volumes/functions/${fn_name}"
-    cp "$fn_index" "volumes/functions/${fn_name}/index.ts"
-    echo "    OK ${fn_name}"
-    DEPLOYED=$((DEPLOYED + 1))
-  done < <(find supabase/functions -mindepth 2 -maxdepth 2 -type f -name 'index.ts' 2>/dev/null | sort)
+  mkdir -p volumes/functions
+  cp -R supabase/functions/. volumes/functions/
+  DEPLOYED=$(find supabase/functions -mindepth 2 -maxdepth 2 -type f -name 'index.ts' 2>/dev/null | wc -l)
+  echo "    OK ${DEPLOYED} Edge Functions inklusive gemeinsamer Module"
 }
 
 run_sql_in_db_container() {

@@ -86,17 +86,10 @@ cd "$PROJECT_DIR"
 
 # Edge Functions dynamisch nach volumes/functions synchronisieren
 deploy_edge_functions_to_volumes() {
-  DEPLOYED=0
-  while IFS= read -r fn_index; do
-    local fn_dir
-    fn_dir="$(dirname "$fn_index")"
-    local fn_name
-    fn_name="$(basename "$fn_dir")"
-    mkdir -p "volumes/functions/${fn_name}"
-    cp "$fn_index" "volumes/functions/${fn_name}/index.ts"
-    echo "    OK ${fn_name}"
-    DEPLOYED=$((DEPLOYED + 1))
-  done < <(find supabase/functions -mindepth 2 -maxdepth 2 -type f -name 'index.ts' | sort)
+  mkdir -p volumes/functions
+  cp -R supabase/functions/. volumes/functions/
+  DEPLOYED=$(find supabase/functions -mindepth 2 -maxdepth 2 -type f -name 'index.ts' | wc -l)
+  echo "    OK ${DEPLOYED} Edge Functions inklusive gemeinsamer Module"
 }
 
 # ============================================================
@@ -322,13 +315,35 @@ if [[ "$MODE" == "update" ]]; then
   deploy_edge_functions_to_volumes
   [[ $DEPLOYED -gt 0 ]] && success "${DEPLOYED} Function(s) aktualisiert." || dim "    Keine Functions-Dateien gefunden."
 
+  if [[ "$IS_VOLLSTACK" == "true" && -f "scripts/hotfix_2026_06_11_recipe_images.sql" ]]; then
+    echo ""
+    info "Aktualisiere Kochbuch-Bildschema..."
+    docker exec -i supabase-db psql -X -v ON_ERROR_STOP=1 -U supabase_admin -d "${POSTGRES_DB:-postgres}" \
+      < scripts/hotfix_2026_06_11_recipe_images.sql
+    docker exec -i -e "PGPASSWORD=${POSTGRES_PASSWORD}" supabase-db \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 \
+      -U supabase_storage_admin -d "${POSTGRES_DB:-postgres}" \
+      < scripts/hotfix_2026_06_11_recipe_images_storage.sql
+    success "Kochbuch-Bildschema aktualisiert."
+  fi
+
   # App neu bauen
   echo ""
+  if [[ "$IS_VOLLSTACK" == "true" ]]; then
+    mit_spinner "Recipe-Parser wird gebaut" \
+      docker compose -f "$COMPOSE_FILE" build recipe-source-parser
+  fi
+
   mit_spinner "App-Container wird gebaut (kann 2-5 Min dauern)" \
     docker compose -f "$COMPOSE_FILE" build umzugsplaner-app
 
-  mit_spinner "Container werden neu gestartet" \
-    docker compose -f "$COMPOSE_FILE" up -d --force-recreate umzugsplaner-app
+  if [[ "$IS_VOLLSTACK" == "true" ]]; then
+    mit_spinner "Container werden neu gestartet" \
+      docker compose -f "$COMPOSE_FILE" up -d --force-recreate recipe-source-parser umzugsplaner-app
+  else
+    mit_spinner "Container werden neu gestartet" \
+      docker compose -f "$COMPOSE_FILE" up -d --force-recreate umzugsplaner-app
+  fi
 
   if [[ "$IS_VOLLSTACK" == "true" && $DEPLOYED -gt 0 ]]; then
     mit_spinner "Functions-Container wird neu gestartet" \

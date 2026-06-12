@@ -33,17 +33,11 @@ header()  { echo -e "\n${BOLD}${GREEN}$1${NC}"; echo "$(printf '=%.0s' {1..60})"
 cd "$PROJECT_DIR"
 
 deploy_edge_functions_to_volumes() {
-  local deployed=0
-  while IFS= read -r fn_index; do
-    local fn_dir
-    fn_dir="$(dirname "$fn_index")"
-    local fn_name
-    fn_name="$(basename "$fn_dir")"
-    mkdir -p "volumes/functions/${fn_name}"
-    cp "$fn_index" "volumes/functions/${fn_name}/index.ts"
-    echo "    OK volumes/functions/${fn_name}/index.ts"
-    deployed=$((deployed + 1))
-  done < <(find supabase/functions -mindepth 2 -maxdepth 2 -type f -name 'index.ts' | sort)
+  local deployed
+  mkdir -p volumes/functions
+  cp -R supabase/functions/. volumes/functions/
+  deployed=$(find supabase/functions -mindepth 2 -maxdepth 2 -type f -name 'index.ts' | wc -l)
+  echo "    OK ${deployed} Edge Functions inklusive gemeinsamer Module"
 
   if [[ $deployed -eq 0 ]]; then
     warn "Keine Edge Functions unter supabase/functions/*/index.ts gefunden."
