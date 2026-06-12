@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Search, Upload, List, LayoutGrid, X } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { formatMonatLabel } from "../../../utils/dokumentArchiv";
+import GlassSurface from "../../ui/GlassSurface";
 
 const KATEGORIEN = [
   "Rechnung", "Vertrag", "Handbuch", "Garantie",
@@ -82,10 +83,7 @@ export default function DokumentFilterBar({
       transition={{ type: "spring", stiffness: 360, damping: 32, delay: 0.08 }}
       className="sticky top-[72px] z-10 -mx-1 min-w-0 overflow-x-hidden px-1 py-1"
     >
-      <div
-        className="space-y-2 rounded-card border border-light-border dark:border-dark-border
-                   bg-light-card/95 dark:bg-canvas-2/95 backdrop-blur-sm px-4 py-3"
-      >
+      <GlassSurface interactive={false} className="space-y-2 px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <div data-tour="tour-dokumente-suche" className="relative basis-full w-full min-w-0 sm:flex-1 sm:basis-auto">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary pointer-events-none" />
@@ -333,7 +331,7 @@ export default function DokumentFilterBar({
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
+      </GlassSurface>
     </motion.div>
   );
 }

@@ -16,6 +16,7 @@ import {
 } from "../../../utils/budgetAccounts";
 import BudgetAccountBadge from "./BudgetAccountBadge";
 import { getHomeBudgetCategoryLabel } from "../../../utils/homeBudgetCategories";
+import GlassSurface from "../../ui/GlassSurface";
 
 const DETAIL_LABEL_CLS =
   "text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary";
@@ -76,10 +77,10 @@ export default function BudgetEntryRow({
   );
 
   return (
-    <div className="bg-light-card dark:bg-canvas-2">
+    <GlassSurface className="overflow-hidden rounded-card-sm">
       <button
         onClick={onToggle}
-        className="w-full px-3 py-3 text-left transition-colors hover:bg-light-hover/40 dark:hover:bg-canvas-3/40"
+        className="w-full px-3 py-3 text-left"
       >
         <div className="flex items-start gap-3">
           {selectionMode && (
@@ -340,6 +341,6 @@ export default function BudgetEntryRow({
           </div>
         </div>
       )}
-    </div>
+    </GlassSurface>
   );
 }

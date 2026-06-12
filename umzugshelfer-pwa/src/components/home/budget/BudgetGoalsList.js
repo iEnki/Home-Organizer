@@ -1,6 +1,7 @@
 import React from "react";
 import { Plus } from "lucide-react";
 import BudgetGoalRow from "./BudgetGoalRow";
+import GlassSurface from "../../ui/GlassSurface";
 
 export default function BudgetGoalsList({
   groups,
@@ -16,7 +17,7 @@ export default function BudgetGoalsList({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border px-4 py-3 shadow-elevation-1 dark:shadow-elevation-1">
+      <GlassSurface interactive={false} className="flex items-center justify-between gap-3 px-4 py-3">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <div className="h-3.5 w-0.5 rounded-full bg-primary-500" />
@@ -37,18 +38,18 @@ export default function BudgetGoalsList({
           <Plus size={14} />
           Sparziel
         </button>
-      </div>
+      </GlassSurface>
 
       {/* Empty state */}
       {nonEmptyGroups.length === 0 ? (
-        <div className="flex flex-col items-center rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 py-16 text-center animate-fade-in">
+        <GlassSurface interactive={false} className="flex flex-col items-center py-16 text-center">
           <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-light-bg dark:bg-canvas-3">
             <span className="text-2xl">🎯</span>
           </div>
           <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
             Noch keine Sparziele angelegt
           </p>
-        </div>
+        </GlassSurface>
       ) : (
         nonEmptyGroups.map((group) => (
           <section key={group.key} className="space-y-2">

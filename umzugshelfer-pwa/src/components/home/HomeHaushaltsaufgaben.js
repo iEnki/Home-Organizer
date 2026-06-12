@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRef, useImperativeHandle, forwardRef } from "react";
 import { CheckSquare, Plus, Trash2, Check, Loader2, RefreshCw, AlertCircle, Sparkles } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../../supabaseClient";
 import { getBewohnerDisplayName } from "../../utils/budgetAccounts";
@@ -12,6 +12,7 @@ import { TOUR_STEPS } from "./tour/tourSteps";
 import ModalShell from "../ui/ModalShell";
 import { applyHomeTaskAiItems } from "../../utils/assistantDomainAdapters";
 import { notifyHouseholdEvent } from "../../utils/pushNotifications";
+import GlassSurface, { glassPageVariants, glassSurfaceClass } from "../ui/GlassSurface";
 
 const KATEGORIEN = ["Reinigung", "Pflege", "Garten", "Einkauf", "Reparatur", "Wartung", "Organisation", "Sonstiges"];
 const PRIORITAETEN = ["Hoch", "Mittel", "Niedrig"];
@@ -147,6 +148,7 @@ const AufgabeForm = forwardRef(({ initial, onSpeichern, bewohner, onValidityChan
 });
 
 const HomeHaushaltsaufgaben = ({ session }) => {
+  const reducedMotion = useReducedMotion();
   const { t } = useTranslation(["home", "common"]);
   const userId = session?.user?.id;
   const { active: tourAktiv, schritt, setSchritt, beenden: tourBeenden } = useTour("aufgaben");
@@ -290,7 +292,7 @@ const HomeHaushaltsaufgaben = ({ session }) => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4">
+    <div className="home-glass-modern glass-module relative min-h-full min-w-0 max-w-full space-y-4 overflow-x-clip bg-transparent p-4 pb-28 md:p-6 lg:pb-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <CheckSquare size={22} className="text-primary-500" />
@@ -314,7 +316,7 @@ const HomeHaushaltsaufgaben = ({ session }) => {
 
       {fehler && <div className="p-3 rounded-card bg-red-500/10 border border-red-500/30 flex items-center gap-2 text-sm text-red-600 dark:text-red-400"><AlertCircle size={16} />{fehler}</div>}
 
-      <div data-tour="tour-aufgaben-filter" className="flex gap-2 flex-wrap">
+      <div data-tour="tour-aufgaben-filter" className={`${glassSurfaceClass} flex gap-2 flex-wrap p-3`}>
         <button onClick={() => setKategFilter("")} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${!kategFilter ? "bg-primary-500 text-white" : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"}`}>{t("home:householdTasks.all")}</button>
         {KATEGORIEN.map((k) => (
           <button key={k} onClick={() => setKategFilter(k)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${kategFilter === k ? "bg-primary-500 text-white" : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"}`}>{taskLabel(t, "categories", k)}</button>
@@ -322,7 +324,7 @@ const HomeHaushaltsaufgaben = ({ session }) => {
       </div>
 
       {bewohner.length > 0 && (
-        <div className="flex gap-2 flex-wrap">
+        <div className={`${glassSurfaceClass} flex gap-2 flex-wrap p-3`}>
           <button
             onClick={() => setBewohnerFilter("")}
             className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${!bewohnerFilter ? "bg-teal-500 text-white" : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"}`}
@@ -350,7 +352,7 @@ const HomeHaushaltsaufgaben = ({ session }) => {
           <button onClick={() => setModal({})} className="mt-3 flex items-center gap-1.5 mx-auto px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-pill text-sm"><Plus size={14} />{t("home:householdTasks.createFirst")}</button>
         </div>
       ) : (
-        <div data-tour="tour-aufgaben-liste" className="space-y-4">
+        <motion.div data-tour="tour-aufgaben-liste" variants={reducedMotion ? {} : glassPageVariants} initial="hidden" animate="show" className="space-y-4">
           {offen.length > 0 && (
             <div>
               <h2 className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider mb-2">{t("home:householdTasks.open")} ({offen.length})</h2>
@@ -359,14 +361,15 @@ const HomeHaushaltsaufgaben = ({ session }) => {
                 {offen.map((a) => {
                   const ueberfaellig = a.faelligkeitsdatum && a.faelligkeitsdatum.split("T")[0] < heute;
                   return (
-                    <motion.div
+                    <GlassSurface
+                      as="article"
                       key={a.id}
                       layout
-                      initial={{ opacity: 0, x: -10 }}
+                      initial={reducedMotion ? false : { opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: 24, transition: { duration: 0.18 } }}
                       transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-                      className={`flex items-start gap-3 bg-light-card dark:bg-canvas-2 rounded-card-sm border p-3 group ${ueberfaellig ? "border-red-500/40" : "border-light-border dark:border-dark-border"}`}
+                      className={`flex items-start gap-3 rounded-card-sm p-3 ${ueberfaellig ? "border-red-500/40" : ""}`}
                     >
                       <motion.button whileTap={{ scale: 1.35 }} onClick={() => toggleErledigt(a)} className="mt-0.5 w-5 h-5 rounded border-2 border-light-border dark:border-dark-border hover:border-primary-500 flex items-center justify-center flex-shrink-0 transition-colors">
                         <div className="w-2 h-2 rounded-sm" />
@@ -385,7 +388,7 @@ const HomeHaushaltsaufgaben = ({ session }) => {
                         <button onClick={() => setModal(a)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500"><AlertCircle size={12} /></button>
                         <button onClick={() => loesche(a.id)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500"><Trash2 size={12} /></button>
                       </div>
-                    </motion.div>
+                    </GlassSurface>
                   );
                 })}
                 </AnimatePresence>
@@ -398,19 +401,19 @@ const HomeHaushaltsaufgaben = ({ session }) => {
               <h2 className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider mb-2">{t("home:householdTasks.done")} ({erledigt.length})</h2>
               <div className="space-y-2">
                 {erledigt.slice(0, 5).map((a) => (
-                  <div key={a.id} className="flex items-center gap-3 bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border p-3 opacity-60 group">
+                  <GlassSurface key={a.id} as="article" className="flex items-center gap-3 rounded-card-sm p-3 opacity-60">
                     <button onClick={() => toggleErledigt(a)} className="w-5 h-5 rounded bg-primary-500 flex items-center justify-center flex-shrink-0">
                       <Check size={11} className="text-white" />
                     </button>
                     <p className="flex-1 text-sm text-light-text-main dark:text-dark-text-main line-through">{a.beschreibung}</p>
                     {a.bewohner_id && <BewohnerBadge bewohner={bewohner.find((b) => b.id === a.bewohner_id)} />}
                     <button onClick={() => loesche(a.id)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={12} /></button>
-                  </div>
+                  </GlassSurface>
                 ))}
               </div>
             </div>
           )}
-        </div>
+        </motion.div>
       )}
 
       {modal !== null && (
@@ -418,6 +421,7 @@ const HomeHaushaltsaufgaben = ({ session }) => {
           open
           title={modal.id ? t("home:householdTasks.edit") : t("home:householdTasks.new")}
           onClose={() => setModal(null)}
+          dialogClassName={`${glassSurfaceClass} !bg-white/85 dark:!bg-[#07161d]/92`}
           footer={
             <div className="flex gap-2">
               <button

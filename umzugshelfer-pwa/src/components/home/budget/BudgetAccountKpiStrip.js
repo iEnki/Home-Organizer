@@ -1,4 +1,5 @@
 import React from "react";
+import GlassSurface from "../../ui/GlassSurface";
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("de-AT", {
@@ -12,7 +13,7 @@ export default function BudgetAccountKpiStrip({ items }) {
   if (!items?.length) return null;
 
   return (
-    <section className="overflow-hidden rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2">
+    <GlassSurface className="overflow-hidden" interactive={false}>
       <div className="border-b border-light-border dark:border-dark-border px-4 py-3">
         <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
           Zahlungsquellen
@@ -24,7 +25,7 @@ export default function BudgetAccountKpiStrip({ items }) {
 
       <div className="flex gap-px overflow-x-auto bg-light-border dark:bg-dark-border scrollbar-hide">
         {items.map((item) => (
-          <div key={item.id} className="min-w-[150px] flex-1 bg-light-card dark:bg-canvas-2 px-3 py-3">
+          <div key={item.id} className="min-w-[150px] flex-1 bg-white/25 px-3 py-3 dark:bg-white/[0.025]">
             <div className="flex items-center gap-2">
               <span
                 className="h-2.5 w-2.5 rounded-full"
@@ -40,6 +41,6 @@ export default function BudgetAccountKpiStrip({ items }) {
           </div>
         ))}
       </div>
-    </section>
+    </GlassSurface>
   );
 }

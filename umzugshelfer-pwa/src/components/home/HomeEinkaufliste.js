@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   AlertCircle,
   AlertTriangle,
@@ -51,6 +51,7 @@ import {
   resolveLocalizedShoppingEntry,
   translateShoppingEntriesIfMissing,
 } from "../../utils/localizedRecipeShopping";
+import GlassSurface, { glassCollapseVariants, glassPageVariants, glassSurfaceClass } from "../ui/GlassSurface";
 
 const DEFAULT_EDIT_FORM = {
   id: null,
@@ -454,6 +455,7 @@ function EntryPreviewRow({
 }
 
 const HomeEinkaufliste = ({ session }) => {
+  const reducedMotion = useReducedMotion();
   const userId = session?.user?.id;
   const { locale } = useLocale();
   const activeLocale = normalizeContentLocale(locale);
@@ -1026,7 +1028,7 @@ const HomeEinkaufliste = ({ session }) => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4">
+    <div className="home-glass-modern glass-module relative min-h-full min-w-0 max-w-full space-y-4 overflow-x-clip bg-transparent p-4 pb-28 md:p-6 lg:pb-8">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-2xl bg-amber-500/15 text-amber-500 flex items-center justify-center">
@@ -1075,9 +1077,10 @@ const HomeEinkaufliste = ({ session }) => {
       )}
 
       <div className="grid gap-3">
-        <div
+        <GlassSurface
+          interactive={false}
           data-tour="tour-einkauf-suche"
-          className="flex items-center gap-3 rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 px-4 py-3"
+          className="flex items-center gap-3 px-4 py-3"
         >
           <Search size={17} className="text-light-text-secondary dark:text-dark-text-secondary" />
           <input
@@ -1086,7 +1089,7 @@ const HomeEinkaufliste = ({ session }) => {
             placeholder={t("home:shopping.searchPlaceholder", { defaultValue: "Search item, category or subcategory" })}
             className="w-full bg-transparent outline-none text-sm text-light-text-main dark:text-dark-text-main placeholder:text-light-text-secondary dark:placeholder:text-dark-text-secondary"
           />
-        </div>
+        </GlassSurface>
 
         {isMobile ? (
           <div className="grid grid-cols-2 gap-2">
@@ -1202,9 +1205,15 @@ const HomeEinkaufliste = ({ session }) => {
         </div>
       )}
 
-      <div data-tour="tour-einkauf-liste" className="space-y-4">
+      <motion.div
+        data-tour="tour-einkauf-liste"
+        variants={reducedMotion ? {} : glassPageVariants}
+        initial="hidden"
+        animate="show"
+        className="space-y-4"
+      >
         {gruppen.length === 0 && erledigteEintraege.length === 0 && (
-          <div className="rounded-card border border-dashed border-light-border dark:border-dark-border p-8 text-center bg-light-card dark:bg-canvas-2">
+          <GlassSurface interactive={false} className="border-dashed p-8 text-center">
             <ShoppingCart
               size={36}
               className="mx-auto mb-3 text-light-text-secondary dark:text-dark-text-secondary opacity-50"
@@ -1212,7 +1221,7 @@ const HomeEinkaufliste = ({ session }) => {
             <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
               {t("home:shopping.emptyFilter", { defaultValue: "No entries for the current filter." })}
             </p>
-          </div>
+          </GlassSurface>
         )}
 
         {gruppen.map((gruppe) => (
@@ -1234,13 +1243,14 @@ const HomeEinkaufliste = ({ session }) => {
 
             <AnimatePresence mode="popLayout">
               {gruppe.items.map((entry) => (
-                <motion.div
+                <GlassSurface
+                  as="article"
                   key={entry.id}
                   layout
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={reducedMotion ? false : { opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
-                  className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 p-3"
+                  className="p-3"
                 >
                   <div className="flex items-start gap-3">
                     <button
@@ -1297,14 +1307,14 @@ const HomeEinkaufliste = ({ session }) => {
                       </div>
                     </div>
                   </div>
-                </motion.div>
+                </GlassSurface>
               ))}
             </AnimatePresence>
           </section>
         ))}
 
         {erledigteEintraege.length > 0 && (
-          <section className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 overflow-hidden">
+          <GlassSurface as="section" className="overflow-hidden">
             <button
               onClick={() => setShowCompleted((current) => !current)}
               className="w-full flex items-center justify-between px-4 py-3 text-left"
@@ -1320,7 +1330,16 @@ const HomeEinkaufliste = ({ session }) => {
               {showCompleted ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
             </button>
 
+            <AnimatePresence initial={false}>
             {showCompleted && (
+              <motion.div
+                key="completed"
+                variants={reducedMotion ? {} : glassCollapseVariants}
+                initial="hidden"
+                animate="show"
+                exit="exit"
+                className="overflow-hidden"
+              >
               <div className="px-3 pb-3 space-y-2">
                 {erledigteEintraege.map((entry) => (
                   <div
@@ -1362,14 +1381,16 @@ const HomeEinkaufliste = ({ session }) => {
                   </div>
                 ))}
               </div>
+              </motion.div>
             )}
-          </section>
+            </AnimatePresence>
+          </GlassSurface>
         )}
-      </div>
+      </motion.div>
 
       {createModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 pb-safe flex items-center justify-center">
-          <div className="w-full max-w-2xl rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border shadow-elevation-3 overflow-hidden">
+          <div className={`${glassSurfaceClass} w-full max-w-2xl overflow-hidden`}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-light-border dark:border-dark-border">
               <div>
                 <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
@@ -1441,7 +1462,7 @@ const HomeEinkaufliste = ({ session }) => {
 
       {previewState && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 pb-safe flex items-center justify-center">
-          <div className="w-full max-w-3xl rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border shadow-elevation-3 overflow-hidden">
+          <div className={`${glassSurfaceClass} w-full max-w-3xl overflow-hidden`}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-light-border dark:border-dark-border">
               <div>
                 <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
@@ -1509,7 +1530,7 @@ const HomeEinkaufliste = ({ session }) => {
 
       {stockDecision && (
         <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm p-4 pb-safe flex items-center justify-center">
-          <div className="w-full max-w-md rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border shadow-elevation-3 overflow-hidden">
+          <div className={`${glassSurfaceClass} w-full max-w-md overflow-hidden`}>
             <div className="px-4 py-3 border-b border-light-border dark:border-dark-border">
               <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
                 Vorrat aktualisieren
@@ -1546,7 +1567,7 @@ const HomeEinkaufliste = ({ session }) => {
 
       {editForm.id && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 pb-safe flex items-center justify-center">
-          <div className="w-full max-w-lg rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border shadow-elevation-3 overflow-hidden">
+          <div className={`${glassSurfaceClass} w-full max-w-lg overflow-hidden`}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-light-border dark:border-dark-border">
               <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
                 {t("home:shopping.editItem", { defaultValue: "Edit shopping item" })}

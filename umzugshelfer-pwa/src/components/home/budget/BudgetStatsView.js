@@ -12,6 +12,7 @@ import {
 } from "chart.js";
 import { getHomeBudgetCategoryLabel } from "../../../utils/homeBudgetCategories";
 import { useCountUp } from "../../../hooks/useCountUp";
+import GlassSurface from "../../ui/GlassSurface";
 
 // ─── Chart.js Plugins ────────────────────────────────────────────────────────
 const peakGlowPlugin = {
@@ -219,20 +220,20 @@ function SectionHeader({ label, delay = 0 }) {
 
 function GlassCard({ children, delay = 0, className = "" }) {
   return (
-    <div
-      className={`relative overflow-hidden rounded-card border border-light-border dark:border-dark-border bg-light-card/80 dark:bg-canvas-2/80 backdrop-blur-sm shadow-elevation-1 dark:shadow-elevation-2 p-4 animate-fade-in ${className}`}
+    <GlassSurface
+      className={`relative overflow-hidden p-4 ${className}`}
       style={{ animationDelay: `${delay}ms`, animationFillMode: "both" }}
     >
       <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-primary-500/5 blur-2xl" />
       {children}
-    </div>
+    </GlassSurface>
   );
 }
 
 function KpiCard({ label, value, icon: Icon, accentFrom, accentTo, sub, delay = 0 }) {
   return (
-    <div
-      className="relative overflow-hidden rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border shadow-elevation-1 dark:shadow-elevation-2 p-4 group hover:shadow-elevation-2 dark:hover:shadow-glow-primary transition-shadow duration-300 animate-fade-in"
+    <GlassSurface
+      className="relative overflow-hidden p-4"
       style={{ animationDelay: `${delay}ms`, animationFillMode: "both" }}
     >
       <div className="absolute inset-x-0 top-0 h-[2px]" style={{ background: `linear-gradient(90deg, ${accentFrom}, ${accentTo})` }} />
@@ -242,7 +243,7 @@ function KpiCard({ label, value, icon: Icon, accentFrom, accentTo, sub, delay = 
       <p className="text-xl font-bold tabular-nums text-light-text-main dark:text-dark-text-main leading-tight truncate">{value}</p>
       {sub && <p className="mt-0.5 text-xs tabular-nums text-light-text-secondary dark:text-dark-text-secondary">{sub}</p>}
       <p className="mt-0.5 text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">{label}</p>
-    </div>
+    </GlassSurface>
   );
 }
 

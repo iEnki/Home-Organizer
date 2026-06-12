@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { motion, useReducedMotion } from "framer-motion";
 import { Loader2, AlertCircle, BookOpen, RefreshCw, ArrowLeftRight } from "lucide-react";
 import { supabase } from "../../../supabaseClient";
 import { logVerlauf } from "../../../utils/homeVerlauf";
@@ -11,6 +12,7 @@ import BuchVerleihModal from "./BuchVerleihModal";
 import BuchScannerModal from "./BuchScannerModal";
 import BuchScanUploadModal from "./BuchScanUploadModal";
 import BuchImportReviewModal from "./BuchImportReviewModal";
+import { glassPageVariants } from "../../ui/GlassSurface";
 
 export default function BuecherRegalTab({
   householdId,
@@ -21,6 +23,7 @@ export default function BuecherRegalTab({
   assistantFlow = null,
 }) {
   const { t } = useTranslation(["books"]);
+  const reducedMotion = useReducedMotion();
   const userId = session?.user?.id;
 
   const [buecher, setBuecher] = useState([]);
@@ -165,7 +168,12 @@ export default function BuecherRegalTab({
           </p>
         </div>
       ) : ansicht === "karten" ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+        <motion.div
+          variants={reducedMotion ? {} : glassPageVariants}
+          initial="hidden"
+          animate="show"
+          className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-6"
+        >
           {gefilterteSortiert.map((buch) => (
             <BuchKarte
               key={buch.id}
@@ -175,9 +183,14 @@ export default function BuecherRegalTab({
               onLoeschen={handleLoeschen}
             />
           ))}
-        </div>
+        </motion.div>
       ) : (
-        <div className="space-y-2">
+        <motion.div
+          variants={reducedMotion ? {} : glassPageVariants}
+          initial="hidden"
+          animate="show"
+          className="space-y-2"
+        >
           {gefilterteSortiert.map((buch, idx) => (
             <BuchZeile
               key={buch.id}
@@ -189,7 +202,7 @@ export default function BuecherRegalTab({
               onLoeschen={handleLoeschen}
             />
           ))}
-        </div>
+        </motion.div>
       )}
 
       {/* Statusleiste */}

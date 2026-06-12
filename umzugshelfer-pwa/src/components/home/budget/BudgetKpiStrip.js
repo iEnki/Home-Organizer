@@ -1,6 +1,7 @@
 import React from "react";
 import { Home, User, ReceiptText } from "lucide-react";
 import { useCountUp } from "../../../hooks/useCountUp";
+import GlassSurface from "../../ui/GlassSurface";
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("de-AT", {
@@ -12,8 +13,8 @@ const formatCurrency = (value) =>
 
 function KpiCard({ label, value, icon: Icon, accentFrom, accentTo, delay = 0 }) {
   return (
-    <div
-      className="relative overflow-hidden rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border shadow-elevation-1 dark:shadow-elevation-2 p-4 group hover:shadow-elevation-2 dark:hover:shadow-glow-primary transition-shadow duration-300 animate-fade-in"
+    <GlassSurface
+      className="relative overflow-hidden p-4"
       style={{ animationDelay: `${delay}ms`, animationFillMode: "both" }}
     >
       {/* Top gradient accent line */}
@@ -39,7 +40,7 @@ function KpiCard({ label, value, icon: Icon, accentFrom, accentTo, delay = 0 }) 
       <p className="mt-0.5 text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
         {label}
       </p>
-    </div>
+    </GlassSurface>
   );
 }
 

@@ -1,6 +1,7 @@
 import React from "react";
 import { ChevronRight, Plus } from "lucide-react";
 import { getBewohnerDisplayName } from "../../../utils/budgetAccounts";
+import GlassSurface from "../../ui/GlassSurface";
 
 export default function BudgetAccountsSection({
   konten,
@@ -9,8 +10,8 @@ export default function BudgetAccountsSection({
   onEdit,
 }) {
   return (
-    <section className="overflow-hidden rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2">
-      <div className="flex items-center justify-between gap-2 border-b border-light-border dark:border-dark-border px-4 py-3">
+    <section className="space-y-2">
+      <div className="flex items-center justify-between gap-2 px-1 py-2">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
             Konten im Haushalt
@@ -34,15 +35,16 @@ export default function BudgetAccountsSection({
           Noch keine Konten angelegt.
         </div>
       ) : (
-        <div className="divide-y divide-light-border dark:divide-dark-border">
+        <div className="space-y-2">
           {konten.map((konto) => {
             const inhaber = konto.inhaber_bewohner_id ? bewohnerById[konto.inhaber_bewohner_id] : null;
 
             return (
-              <button
+              <GlassSurface
+                as="button"
                 key={konto.id}
                 onClick={() => onEdit(konto)}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-light-hover/40 dark:hover:bg-canvas-3/40"
+                className="flex w-full items-center gap-3 rounded-card-sm px-4 py-3 text-left"
               >
                 <span
                   className="h-3 w-3 flex-shrink-0 rounded-full"
@@ -58,7 +60,7 @@ export default function BudgetAccountsSection({
                   </p>
                 </div>
                 <ChevronRight size={15} className="flex-shrink-0 text-light-text-secondary dark:text-dark-text-secondary" />
-              </button>
+              </GlassSurface>
             );
           })}
         </div>

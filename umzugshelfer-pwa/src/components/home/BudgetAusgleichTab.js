@@ -6,6 +6,7 @@ import { getBewohnerDisplayName } from "../../utils/budgetAccounts";
 import { centsToEuro, buildOpenPairBalances, buildOpenSaldoMap, buildSettlementSuggestions } from "../../utils/budgetLedger";
 import { formatGermanCurrency } from "../../utils/formatUtils";
 import { notifyHouseholdEvent } from "../../utils/pushNotifications";
+import GlassSurface from "../ui/GlassSurface";
 
 const currency = (value) => `${formatGermanCurrency(value)} €`;
 const INPUT_CLS = "w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500";
@@ -589,17 +590,16 @@ export default function BudgetAusgleichTab({
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-3">
-            {saldoRows.map((row, i) => {
+            {saldoRows.map((row) => {
               const positive = row.saldo >= 0;
               return (
-                <div
+                <GlassSurface
                   key={row.id}
-                  className={`relative overflow-hidden rounded-card border p-3 sm:p-4 animate-fade-in ${
+                  className={`relative overflow-hidden p-3 sm:p-4 ${
                     positive
-                      ? "border-primary-500/30 bg-primary-500/5 dark:bg-primary-500/8"
-                      : "border-red-500/30 bg-red-500/5 dark:bg-red-500/8"
+                      ? "border-primary-500/30"
+                      : "border-red-500/30"
                   }`}
-                  style={{ animationDelay: `${i * 60}ms`, animationFillMode: "both" }}
                 >
                   {/* Ambient glow blob */}
                   <div
@@ -620,7 +620,7 @@ export default function BudgetAusgleichTab({
                       {currency(Math.abs(row.saldo))}
                     </p>
                   </div>
-                </div>
+                </GlassSurface>
               );
             })}
           </div>
@@ -628,7 +628,7 @@ export default function BudgetAusgleichTab({
       </section>
 
       {/* ── Ausgleichs-Vorschläge ── */}
-      <section className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 overflow-hidden shadow-elevation-1 dark:shadow-elevation-1">
+      <GlassSurface interactive={false} className="overflow-hidden">
         <div className="flex items-center justify-between gap-3 p-4 border-b border-light-border dark:border-dark-border">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -671,7 +671,7 @@ export default function BudgetAusgleichTab({
                   suggestion.open_amount_cents > counterSuggestion.open_amount_cents;
 
                 return (
-              <div key={suggestion.id} className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1">
+              <GlassSurface key={suggestion.id} className="overflow-hidden">
                 <div className="flex flex-col gap-3 px-3 py-3 md:flex-row md:items-center md:justify-between">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">
@@ -718,7 +718,7 @@ export default function BudgetAusgleichTab({
                     ) : (
                       <div className="space-y-2">
                         {detailRows.map((row) => (
-                          <div key={row.share_id} className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 px-3 py-2">
+                          <GlassSurface key={row.share_id} className="px-3 py-2">
                             <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                               <div className="min-w-0">
                                 <p className="text-sm text-light-text-main dark:text-dark-text-main">
@@ -747,7 +747,7 @@ export default function BudgetAusgleichTab({
                                 </div>
                               </div>
                             </div>
-                          </div>
+                          </GlassSurface>
                         ))}
                         <div className="flex items-center justify-between rounded-card-sm border border-dashed border-light-border dark:border-dark-border px-3 py-2 text-xs text-light-text-secondary dark:text-dark-text-secondary">
                           <span>{t("budget:settlementTab.totalSuggestion")}</span>
@@ -759,16 +759,16 @@ export default function BudgetAusgleichTab({
                     )}
                   </div>
                 )}
-              </div>
+              </GlassSurface>
                 );
               })}
             </>
           )}
         </div>
-      </section>
+      </GlassSurface>
 
       {/* ── Ausgleich erfassen ── */}
-      <section className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 overflow-hidden shadow-elevation-1 dark:shadow-elevation-1">
+      <GlassSurface interactive={false} className="overflow-hidden">
         <div className="flex items-center gap-3 p-4 border-b border-light-border dark:border-dark-border">
           <div className="h-3.5 w-0.5 rounded-full bg-primary-500" />
           <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.record")}</h3>
@@ -826,10 +826,10 @@ export default function BudgetAusgleichTab({
             {t("budget:settlementTab.save")}
           </button>
         </div>
-      </section>
+      </GlassSurface>
 
       {/* ── Monatsabschluss ── */}
-      <section className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 overflow-hidden shadow-elevation-1 dark:shadow-elevation-1">
+      <GlassSurface interactive={false} className="overflow-hidden">
         <div className="flex flex-col gap-3 p-4 border-b border-light-border dark:border-dark-border sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -859,26 +859,26 @@ export default function BudgetAusgleichTab({
                 {t("budget:settlementTab.monthCloseInfo")}
               </div>
               <div className="grid gap-3 md:grid-cols-4">
-                <div className={`rounded-card-sm border px-3 py-3 ${summaryCardTone("carry")}`}>
+                <GlassSurface className={`px-3 py-3 ${summaryCardTone("carry")}`}>
                   <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.openFromPrevMonth")}</p>
                   <p className="text-lg font-semibold tabular-nums text-sky-300 dark:text-sky-200">{currency(centsToEuro(monthClose.opening_total_cents))}</p>
-                </div>
-                <div className={`rounded-card-sm border px-3 py-3 ${summaryCardTone("created")}`}>
+                </GlassSurface>
+                <GlassSurface className={`px-3 py-3 ${summaryCardTone("created")}`}>
                   <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.newThisMonth")}</p>
                   <p className="text-lg font-semibold tabular-nums text-amber-300 dark:text-amber-200">{currency(centsToEuro(monthClose.created_total_cents))}</p>
-                </div>
-                <div className={`rounded-card-sm border px-3 py-3 ${summaryCardTone("settled")}`}>
+                </GlassSurface>
+                <GlassSurface className={`px-3 py-3 ${summaryCardTone("settled")}`}>
                   <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.alreadySettled")}</p>
                   <p className="text-lg font-semibold tabular-nums text-emerald-400 dark:text-emerald-300">{currency(centsToEuro(monthClose.settled_total_cents))}</p>
-                </div>
-                <div className={`rounded-card-sm border px-3 py-3 ${summaryCardTone("open")}`}>
+                </GlassSurface>
+                <GlassSurface className={`px-3 py-3 ${summaryCardTone("open")}`}>
                   <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.remainingOpen")}</p>
                   <p className={`text-lg font-semibold tabular-nums ${debtAmountClass(centsToEuro(monthClose.closing_total_cents))}`}>{currency(centsToEuro(monthClose.closing_total_cents))}</p>
-                </div>
+                </GlassSurface>
               </div>
               <div className="space-y-2">
                 {monthCloseMembers.map((row) => (
-                  <div key={row.id} className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-3 space-y-2 md:space-y-0 md:grid md:gap-2 md:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))]">
+                  <GlassSurface key={row.id} className="px-3 py-3 space-y-2 md:space-y-0 md:grid md:gap-2 md:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))]">
                     <div className="text-sm font-medium text-light-text-main dark:text-dark-text-main">
                       {bewohnerById[row.member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[row.member_id] || { name: t("budget:settlementTab.unknown") })}
                     </div>
@@ -888,16 +888,16 @@ export default function BudgetAusgleichTab({
                       <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.settledLabel")} <span className={`font-medium tabular-nums ${settledAmountClass(centsToEuro(row.settled_in_month_cents))}`}>{currency(centsToEuro(row.settled_in_month_cents))}</span></div>
                       <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.openLabel")} <span className={`font-semibold tabular-nums ${saldoAmountClass(centsToEuro(row.closing_balance_cents))}`}>{currency(centsToEuro(row.closing_balance_cents))}</span></div>
                     </div>
-                  </div>
+                  </GlassSurface>
                 ))}
               </div>
             </>
           )}
         </div>
-      </section>
+      </GlassSurface>
 
       {/* ── Verlauf ── */}
-      <section className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 overflow-hidden shadow-elevation-1 dark:shadow-elevation-1">
+      <GlassSurface interactive={false} className="overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 p-4 border-b border-light-border dark:border-dark-border">
           <div className="flex items-center gap-2">
             <div className="h-3.5 w-0.5 rounded-full bg-primary-500" />
@@ -946,11 +946,10 @@ export default function BudgetAusgleichTab({
               {t("budget:settlementTab.emptyHistory")}
             </p>
           ) : (
-            historyRows.map((row, i) => (
-              <div
+            historyRows.map((row) => (
+              <GlassSurface
                 key={row.id}
-                className="flex items-center justify-between gap-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-3 animate-slide-in-up"
-                style={{ animationDelay: `${i * 40}ms`, animationFillMode: "both" }}
+                className="flex items-center justify-between gap-3 px-3 py-3"
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-light-text-main dark:text-dark-text-main truncate">
@@ -974,11 +973,11 @@ export default function BudgetAusgleichTab({
                     {deletingId === row.id ? <RefreshCw size={15} className="animate-spin" /> : <Trash2 size={15} />}
                   </button>
                 </div>
-              </div>
+              </GlassSurface>
             ))
           )}
         </div>
-      </section>
+      </GlassSurface>
     </div>
   );
 }

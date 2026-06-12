@@ -119,6 +119,7 @@ const TABLE_BY_TYPE = {
   tire: "home_fahrzeug_reifen",
   task: "home_fahrzeug_aufgaben",
   part: "home_fahrzeug_teile",
+  mileage: "home_fahrzeug_kilometerstaende",
 };
 
 const EMPTY = {
@@ -565,6 +566,19 @@ export default function HomeKfz({ session }) {
     if (updateError) throw updateError;
   };
 
+  const notifyKfzEvent = async ({ type, table, action, name, id }) => {
+    const targetTable = table || TABLE_BY_TYPE[type];
+    if (!targetTable) return;
+    await notifyHouseholdEvent({
+      userId,
+      table: targetTable,
+      action,
+      recordName: name || "Kfz-Eintrag",
+      recordId: id,
+      url: "/home/kfz",
+    });
+  };
+
   const submitForm = async (event) => {
     event.preventDefault();
     if (!modal) return;
@@ -682,7 +696,12 @@ export default function HomeKfz({ session }) {
       }
       setModal(null);
       try {
-        await notifyHouseholdEvent({ userId, table: TABLE_BY_TYPE[type], action: form.id ? "geaendert" : "erstellt", recordName: form.name || form.titel || form.beschreibung || form.typ || "Kfz-Eintrag", recordId: saved?.id, url: "/home/kfz" });
+        await notifyKfzEvent({
+          type,
+          action: form.id ? "geaendert" : "erstellt",
+          name: form.name || form.titel || form.beschreibung || form.typ,
+          id: saved?.id || (typeof saved === "string" ? saved : form.id),
+        });
       } catch (notificationError) {
         console.warn("Kfz-Benachrichtigung fehlgeschlagen:", notificationError);
       }
@@ -702,10 +721,11 @@ export default function HomeKfz({ session }) {
     setSaving(true);
     setError("");
     try {
+      let saved = null;
       if (kind === "mileage") {
         await recordVehicleMileage(form.fahrzeug_id, form.kilometerstand, form.datum, "manuell");
       } else if (kind === "expense") {
-        await saveKfzExpenseWithBudget({ expense: form, householdId, userId, mirrorToBudget: Boolean(form.mirrorToBudget) });
+        saved = await saveKfzExpenseWithBudget({ expense: form, householdId, userId, mirrorToBudget: Boolean(form.mirrorToBudget) });
       } else {
         const table = kind === "fuel" ? "home_fahrzeug_tankvorgaenge" : "home_fahrzeug_services";
         const tankstatus = form.tankstatus || "unbekannt";
@@ -720,8 +740,16 @@ export default function HomeKfz({ session }) {
           kilometerstand: intOrNull(form.kilometerstand), kosten: numberOrNull(form.kosten),
           werkstatt: form.werkstatt || null, created_by_user_id: userId,
         };
-        await saveRow(table, payload);
+        saved = await saveRow(table, payload);
       }
+      await notifyKfzEvent({
+        type: kind,
+        action: "erstellt",
+        name: kind === "mileage"
+          ? `${Number(form.kilometerstand || 0).toLocaleString("de-AT")} km`
+          : form.beschreibung || form.typ || form.tankstelle,
+        id: saved?.id || (typeof saved === "string" ? saved : null),
+      });
       setQuickOpen(false);
       await loadData();
     } catch (quickError) {
@@ -749,6 +777,7 @@ export default function HomeKfz({ session }) {
         }
         setModal(null);
         setPhotoGalleryOpen(false);
+        await notifyKfzEvent({ table, action: "geloescht", name: label, id });
         await loadData();
       } catch (vehicleDeleteError) {
         setError(vehicleDeleteError?.message || "Fahrzeug konnte nicht gelöscht werden.");
@@ -763,12 +792,16 @@ export default function HomeKfz({ session }) {
         p_service_id: id,
       });
       if (serviceDeleteError) setError(serviceDeleteError.message);
-      else await loadData();
+      else {
+        await notifyKfzEvent({ table, action: "geloescht", name: label, id });
+        await loadData();
+      }
       return;
     }
     const { error: deleteError } = await supabase.from(table).delete().eq("household_id", householdId).eq("id", id);
     if (deleteError) setError(deleteError.message);
     else {
+      await notifyKfzEvent({ table, action: "geloescht", name: label, id });
       await loadData();
     }
   };
@@ -782,7 +815,13 @@ export default function HomeKfz({ session }) {
     setSaving(true);
     setError("");
     try {
-      await resolveFuelImport({ importRow, vehicleId, userId });
+      const resolved = await resolveFuelImport({ importRow, vehicleId, userId });
+      await notifyKfzEvent({
+        type: "fuel",
+        action: "erstellt",
+        name: importRow.beschreibung || importRow.tankstelle || "Importierter Tankvorgang",
+        id: resolved?.id || (typeof resolved === "string" ? resolved : null),
+      });
       setFuelImportVehicleById((current) => {
         const next = { ...current };
         delete next[importRow.id];
@@ -940,7 +979,7 @@ export default function HomeKfz({ session }) {
   if (loading) return <div className="flex items-center gap-2 p-6 text-light-text-main dark:text-dark-text-main"><Loader2 className="animate-spin" size={18} /> Kfz-Modul wird geladen...</div>;
 
   return (
-    <div className="kfz-modern relative min-h-full min-w-0 max-w-full space-y-5 overflow-x-clip bg-transparent p-4 pb-28 text-light-text-main md:p-6 lg:pb-8 dark:text-dark-text-main">
+    <div className="kfz-modern glass-module relative min-h-full min-w-0 max-w-full space-y-5 overflow-x-clip bg-transparent p-4 pb-28 text-light-text-main md:p-6 lg:pb-8 dark:text-dark-text-main">
       <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-light-bg/35 via-light-bg/10 to-light-bg/45 dark:from-canvas-0/25 dark:via-transparent dark:to-canvas-0/55" />
       <motion.header
         initial={reducedMotion ? false : { opacity: 0, y: -8 }}

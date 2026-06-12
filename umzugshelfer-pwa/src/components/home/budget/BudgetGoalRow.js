@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Edit2, ExternalLink, PiggyBank, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import GlassSurface from "../../ui/GlassSurface";
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("de-AT", {
@@ -76,7 +77,6 @@ export default function BudgetGoalRow({
   onEdit,
   onDelete,
   onDeposit,
-  index = 0,
 }) {
   const { t } = useTranslation(["budget", "common"]);
   const tage = getDaysRemaining(ziel.zieldatum, today);
@@ -84,10 +84,7 @@ export default function BudgetGoalRow({
   const farbe = ziel.farbe || "#10B981";
 
   return (
-    <div
-      className="rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border p-4 animate-slide-in-up shadow-elevation-1 dark:shadow-elevation-1 hover:shadow-elevation-2 transition-shadow duration-300"
-      style={{ animationDelay: `${index * 80}ms`, animationFillMode: "both" }}
-    >
+    <GlassSurface className="p-4">
       <div className="flex items-center gap-4">
         {/* SVG Ring with percentage label */}
         <div className="relative shrink-0">
@@ -205,6 +202,6 @@ export default function BudgetGoalRow({
           </p>
         )}
       </div>
-    </div>
+    </GlassSurface>
   );
 }

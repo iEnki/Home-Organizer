@@ -7,6 +7,7 @@ import { starteAnalyse } from "../../utils/rechnungAnalyse";
 import { useToast } from "../../hooks/useToast";
 import { useLocale } from "../../contexts/LocaleContext";
 import RechnungReviewModal from "./RechnungReviewModal";
+import GlassSurface, { GlassModule } from "../ui/GlassSurface";
 
 const MODUS_LABEL = {
   chatgpt_vision: "ChatGPT Vision",
@@ -264,9 +265,9 @@ export default function HomeRechnungScannen({ session }) {
   }, []);
 
   return (
-    <div className="min-h-dvh bg-light-bg dark:bg-canvas-0 pb-24">
+    <GlassModule className="min-h-dvh space-y-0 p-0 md:p-0">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-light-card dark:bg-canvas-1 border-b border-light-border dark:border-canvas-3 px-4 py-3 flex items-center gap-3">
+      <GlassSurface interactive={false} className="sticky top-0 z-10 flex items-center gap-3 rounded-none border-x-0 border-t-0 px-4 py-3">
         <button
           onClick={() => window.history.back()}
           className="p-1.5 rounded-lg hover:bg-light-hover dark:hover:bg-canvas-2 text-light-text-main dark:text-dark-text-main transition-colors"
@@ -280,9 +281,9 @@ export default function HomeRechnungScannen({ session }) {
             {MODUS_LABEL[bildanalyseModus] || bildanalyseModus}
           </span>
         )}
-      </div>
+      </GlassSurface>
 
-      <div className="max-w-lg mx-auto px-4 pt-6">
+      <div className="mx-auto w-full max-w-3xl px-4 pt-6 md:px-6">
         {/* Schritt: Upload */}
         {schritt === "upload" && (
           <div className="space-y-5">
@@ -292,12 +293,12 @@ export default function HomeRechnungScannen({ session }) {
             </p>
 
             {/* Drag-&-Drop / Vorschau-Zone */}
-            <div
-              className={`rounded-card border-2 border-dashed transition-colors ${
+            <GlassSurface
+              className={`min-h-[180px] cursor-pointer flex flex-col items-center justify-center border-2 border-dashed p-6 ${
                 datei
                   ? "border-primary-500 bg-primary-500/5"
-                  : "border-light-border dark:border-canvas-3 bg-light-card dark:bg-canvas-1 hover:border-primary-400 dark:hover:border-canvas-4"
-              } flex flex-col items-center justify-center p-6 min-h-[180px] cursor-pointer`}
+                  : "border-light-border dark:border-white/10"
+              }`}
               onClick={() => dateiInputRef.current?.click()}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
@@ -360,7 +361,7 @@ export default function HomeRechnungScannen({ session }) {
                   </p>
                 </>
               )}
-            </div>
+            </GlassSurface>
 
             {/* Versteckte Inputs */}
             <input
@@ -447,6 +448,6 @@ export default function HomeRechnungScannen({ session }) {
           onGespeichert={handleReviewGespeichert}
         />
       )}
-    </div>
+    </GlassModule>
   );
 }

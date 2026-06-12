@@ -2,6 +2,7 @@ import React from "react";
 import { ChevronRight, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getBewohnerDisplayName } from "../../../utils/budgetAccounts";
+import GlassSurface from "../../ui/GlassSurface";
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("de-AT", {
@@ -22,8 +23,8 @@ export default function BudgetAccountsSummaryCard({
   const { t } = useTranslation(["budget"]);
 
   return (
-    <section className="overflow-hidden rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2">
-      <div className="flex items-center justify-between gap-2 border-b border-light-border dark:border-dark-border px-4 py-3">
+    <section className="space-y-2">
+      <div className="flex items-center justify-between gap-2 px-1 py-2">
         <div>
           <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
             {t("budget:accounts.paymentSources", { defaultValue: "Payment sources" })}
@@ -50,7 +51,7 @@ export default function BudgetAccountsSummaryCard({
           {t("budget:accounts.noActive")}
         </div>
       ) : (
-        <div className="divide-y divide-light-border dark:divide-dark-border">
+        <div className="space-y-2">
           {konten.map((konto) => {
             const inhaber = konto.inhaber_bewohner_id ? bewohnerById[konto.inhaber_bewohner_id] : null;
             const stats = kontoStatsById[konto.id] || { buchungen: 0, summe: 0 };
@@ -61,10 +62,11 @@ export default function BudgetAccountsSummaryCard({
                 : "";
 
             return (
-              <button
+              <GlassSurface
+                as="button"
                 key={konto.id}
                 onClick={() => onEdit(konto)}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-light-hover/40 dark:hover:bg-canvas-3/40"
+                className="flex w-full items-center gap-3 rounded-card-sm px-4 py-3 text-left"
               >
                 <span
                   className="h-3 w-3 flex-shrink-0 rounded-full"
@@ -91,7 +93,7 @@ export default function BudgetAccountsSummaryCard({
                 </div>
 
                 <ChevronRight size={15} className="flex-shrink-0 text-light-text-secondary dark:text-dark-text-secondary" />
-              </button>
+              </GlassSurface>
             );
           })}
         </div>

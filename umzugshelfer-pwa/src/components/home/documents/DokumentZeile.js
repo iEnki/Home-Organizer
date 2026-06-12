@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { FileText, File, Eye, Pencil, MoreVertical, BookOpen, Plus, Trash2, Loader2, Wallet } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { getDokDatum } from "../../../utils/dokumentArchiv";
+import GlassSurface from "../../ui/GlassSurface";
 
 const listItemVariants = {
   hidden: { opacity: 0, y: 8 },
@@ -148,14 +149,15 @@ export default function DokumentZeile({
   }, [menuOffen]);
 
   return (
-    <motion.div
+    <GlassSurface
+      as="article"
       data-dokument-id={dok.id}
       onClick={() => onVorschau?.(dok)}
       variants={reduced ? {} : listItemVariants}
-      className={`relative flex min-w-0 max-w-full items-center gap-3 pl-2.5 pr-3 py-2.5 cursor-pointer transition-all group border-l-2 first:rounded-t-card-sm last:rounded-b-card-sm
+      className={`relative flex min-w-0 max-w-full items-center gap-3 rounded-card-sm border-l-2 pl-2.5 pr-3 py-2.5 cursor-pointer
         ${isHighlighted
           ? "bg-primary-500/5 ring-1 ring-inset ring-primary-500/30 border-l-primary-500"
-          : "hover:bg-light-hover dark:hover:bg-canvas-3 border-l-transparent"
+          : "border-l-transparent"
         }
         ${menuOffen ? "z-[202]" : ""}`}
     >
@@ -292,6 +294,6 @@ export default function DokumentZeile({
           </AnimatePresence>
         </div>
       </div>
-    </motion.div>
+    </GlassSurface>
   );
 }

@@ -26,6 +26,7 @@ import SearchableSelect from "../ui/SearchableSelect";
 import RecipeCookLogPanel from "./RecipeCookLogPanel";
 import RecipeCookModeModal from "./RecipeCookModeModal";
 import RecipeQualityBadges from "./RecipeQualityBadges";
+import { getRecipeImageUrl } from "../../utils/recipeImages";
 
 export default function RecipeDetailView({
   recipe,
@@ -68,6 +69,7 @@ export default function RecipeDetailView({
     recipe.gesamtzeit_minuten ||
     (recipe.vorbereitungszeit_minuten || 0) + (recipe.kochzeit_minuten || 0) ||
     null;
+  const imageUrl = getRecipeImageUrl(recipe);
 
   const groupItems = [
     { value: "", label: t("detail.noGroup") },
@@ -104,11 +106,11 @@ export default function RecipeDetailView({
 
         {/* Hero image */}
         <div className="relative">
-          {recipe.thumbnail_url ? (
+          {imageUrl ? (
             <>
               <div className="aspect-[16/9] sm:aspect-[21/9] overflow-hidden rounded-t-card bg-canvas-3">
                 <img
-                  src={recipe.thumbnail_url}
+                  src={imageUrl}
                   alt=""
                   loading="lazy"
                   className="h-full w-full object-cover"

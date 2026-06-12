@@ -84,7 +84,7 @@ export default function DokumentArchivListe({
                     variants={reduced ? {} : listVariants}
                     initial="hidden"
                     animate="show"
-                    className="bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border divide-y divide-light-border dark:divide-dark-border overflow-visible"
+                    className="space-y-2 overflow-visible"
                   >
                     {doks.map((dok) => (
                       <DokumentZeile

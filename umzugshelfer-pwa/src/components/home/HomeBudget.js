@@ -27,6 +27,7 @@ import {
 import { sumScope } from "../../utils/budgetAggregation";
 import { syncInvoiceDate } from "../../utils/invoiceDateSync";
 import { syncFuelImports } from "../../utils/kfzFuelImports";
+import GlassSurface, { GlassModule } from "../ui/GlassSurface";
 import {
   computeBudgetOverviewKpis,
   groupBudgetEntries,
@@ -3793,7 +3794,7 @@ const HomeBudget = ({ session }) => {
 
 
   return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4 overflow-x-hidden">
+    <GlassModule>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
@@ -3890,7 +3891,7 @@ const HomeBudget = ({ session }) => {
 
           <BudgetAccountKpiStrip items={accountKpiItems} />
 
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 px-3 py-2">
+          <GlassSurface interactive={false} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
             <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
               {bulkSelectMode
                 ? `${selectedBudgetEntries.length} ausgewählt · ${selectedLinkedInvoices.filter((invoice) => invoice.rechnung_id).length} Rechnungen · ${selectedInvoicePositionCount} Positionen`
@@ -3923,13 +3924,13 @@ const HomeBudget = ({ session }) => {
                 {bulkSelectMode ? "Abbrechen" : "Auswählen"}
               </button>
             </div>
-          </div>
+          </GlassSurface>
 
           {gefilterteUebersichtPosten.length === 0 ? (
-            <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 py-12 text-center text-light-text-secondary dark:text-dark-text-secondary">
+            <GlassSurface interactive={false} className="py-12 text-center text-light-text-secondary dark:text-dark-text-secondary">
               <DollarSign size={40} className="mx-auto mb-3 opacity-30" />
               <p className="text-sm">Keine Einträge im gewählten Zeitraum</p>
-            </div>
+            </GlassSurface>
           ) : (
             <div className="space-y-3">
               {gruppierteUebersichtPosten.map((gruppe) => (
@@ -4623,7 +4624,7 @@ const HomeBudget = ({ session }) => {
 
       {rechnungsLoeschDialog && (
         <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm px-4 pt-4 pb-safe flex items-center justify-center">
-          <div className="w-full max-w-md rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 shadow-elevation-3">
+          <GlassSurface interactive={false} className="w-full max-w-md">
             <div className="p-4 border-b border-light-border dark:border-dark-border">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
                 Rechnung verknüpft
@@ -4673,7 +4674,7 @@ const HomeBudget = ({ session }) => {
                 {loeschenLaeuft ? "Bitte warten..." : "Komplett aus DB löschen"}
               </button>
             </div>
-          </div>
+          </GlassSurface>
         </div>
       )}
 
@@ -4750,7 +4751,7 @@ const HomeBudget = ({ session }) => {
 
       {einzahlenModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-safe">
-          <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-sm w-full border border-light-border dark:border-dark-border">
+          <GlassSurface interactive={false} className="max-w-sm w-full">
             <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
                 {einzahlenModal.emoji} Einzahlen
@@ -4788,7 +4789,7 @@ const HomeBudget = ({ session }) => {
                 </button>
               </div>
             </div>
-          </div>
+          </GlassSurface>
         </div>
       )}
 
@@ -4896,7 +4897,7 @@ const HomeBudget = ({ session }) => {
           }}
         />
       )}
-    </div>
+    </GlassModule>
   );
 };
 

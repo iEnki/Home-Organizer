@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import { motion, useReducedMotion } from "framer-motion";
 import { nutritionSummaryParts } from "../../utils/recipeNutrition";
 import RecipeQualityBadges from "./RecipeQualityBadges";
+import { getRecipeImageUrl } from "../../utils/recipeImages";
+import GlassSurface from "../ui/GlassSurface";
 
 export default function RecipeCard({ recipe, display, ingredients = [], onOpen, onToggleFavorite }) {
   const { t } = useTranslation("recipes");
@@ -15,14 +17,15 @@ export default function RecipeCard({ recipe, display, ingredients = [], onOpen, 
   const tags = display?.tags || recipe.tags || [];
   const visibleTags = tags.slice(0, 2);
   const nutritionParts = nutritionSummaryParts(recipe, t);
+  const imageUrl = getRecipeImageUrl(recipe);
 
   return (
-    <motion.button
+    <GlassSurface
+      as="button"
       type="button"
       onClick={() => onOpen(recipe)}
-      whileHover={reduced ? {} : { y: -3, transition: { type: "spring", stiffness: 400, damping: 25 } }}
       whileTap={reduced ? {} : { scale: 0.97 }}
-      className="group w-full overflow-hidden rounded-card border border-light-border bg-light-card text-left shadow-elevation-2 transition-[border-color,box-shadow] hover:border-primary-500/40 hover:shadow-glow-primary dark:border-dark-border dark:bg-canvas-2"
+      className="w-full overflow-hidden text-left"
     >
       {/* Thumbnail — compact 4:3 at all sizes */}
       <div className="relative aspect-[4/3] overflow-hidden bg-light-surface-2 dark:bg-canvas-3">
@@ -35,9 +38,9 @@ export default function RecipeCard({ recipe, display, ingredients = [], onOpen, 
             {recipe.quelle_plattform || recipe.import_typ || t("card.fallback")}
           </span>
         </div>
-        {recipe.thumbnail_url && (
+        {imageUrl && (
           <img
-            src={recipe.thumbnail_url}
+            src={imageUrl}
             alt=""
             loading="lazy"
             className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -133,6 +136,6 @@ export default function RecipeCard({ recipe, display, ingredients = [], onOpen, 
           )}
         </div>
       </div>
-    </motion.button>
+    </GlassSurface>
   );
 }

@@ -3,6 +3,7 @@ import { Search, Plus, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { STATUS_CONFIG } from "../../../utils/geraetStatus";
 import { getDeviceCategoryLabel } from "./GeraetForm";
+import GlassSurface from "../../ui/GlassSurface";
 
 const STATUS_CHIP_REIHENFOLGE = [
   { key: "wartung_faellig", label: "Wartung offen" },
@@ -46,7 +47,7 @@ export default function GeraetFilterBar({
 
   return (
     <div className="sticky top-[72px] z-10 -mx-1 min-w-0 overflow-x-hidden px-1 py-1 bg-light-bg/90 dark:bg-canvas-1/90 backdrop-blur-sm">
-      <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 px-4 py-3 space-y-2">
+      <GlassSurface interactive={false} className="px-4 py-3 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-0">
             <Search
@@ -204,7 +205,7 @@ export default function GeraetFilterBar({
             </button>
           </div>
         )}
-      </div>
+      </GlassSurface>
     </div>
   );
 }

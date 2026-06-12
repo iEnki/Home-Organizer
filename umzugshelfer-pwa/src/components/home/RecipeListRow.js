@@ -4,6 +4,8 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { nutritionSummaryParts } from "../../utils/recipeNutrition";
 import RecipeQualityBadges from "./RecipeQualityBadges";
+import { getRecipeImageUrl } from "../../utils/recipeImages";
+import GlassSurface from "../ui/GlassSurface";
 
 export const listRowVariants = {
   hidden: { opacity: 0, x: -6 },
@@ -19,23 +21,25 @@ export default function RecipeListRow({ recipe, display, ingredients = [], onOpe
     null;
   const tags = display?.tags || recipe.tags || [];
   const nutritionParts = nutritionSummaryParts(recipe, t);
+  const imageUrl = getRecipeImageUrl(recipe);
 
   return (
-    <motion.button
+    <GlassSurface
+      as="button"
       type="button"
       onClick={() => onOpen(recipe)}
       variants={reduced ? {} : listRowVariants}
       whileTap={reduced ? {} : { scale: 0.99 }}
-      className="group flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors first:rounded-t-card-sm last:rounded-b-card-sm hover:bg-light-hover dark:hover:bg-canvas-3"
+      className="flex w-full items-center gap-3 rounded-card-sm px-3 py-2.5 text-left"
     >
       {/* Thumbnail */}
       <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-card-sm bg-light-surface-2 dark:bg-canvas-3 sm:h-14 sm:w-14">
         <div className="flex h-full w-full items-center justify-center">
           <ChefHat size={16} className="text-primary-500/50" />
         </div>
-        {recipe.thumbnail_url && (
+        {imageUrl && (
           <img
-            src={recipe.thumbnail_url}
+            src={imageUrl}
             alt=""
             loading="lazy"
             className="absolute inset-0 h-full w-full object-cover"
@@ -94,6 +98,6 @@ export default function RecipeListRow({ recipe, display, ingredients = [], onOpe
       >
         <Heart size={14} fill={recipe.favorisiert ? "currentColor" : "none"} />
       </motion.button>
-    </motion.button>
+    </GlassSurface>
   );
 }

@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import BudgetLimitRow from "./BudgetLimitRow";
+import GlassSurface from "../../ui/GlassSurface";
 
 export default function BudgetLimitsList({
   monatLabel,
@@ -21,7 +22,7 @@ export default function BudgetLimitsList({
   return (
     <section className="space-y-3">
       {/* Header card */}
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border px-4 py-3 shadow-elevation-1 dark:shadow-elevation-1">
+      <GlassSurface interactive={false} className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <div className="h-3.5 w-0.5 rounded-full bg-primary-500" />
@@ -61,15 +62,15 @@ export default function BudgetLimitsList({
             </span>
           )}
         </div>
-      </div>
+      </GlassSurface>
 
       {/* Limit cards list */}
       {rows.length === 0 ? (
-        <div className="flex flex-col items-center rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 py-14 text-center animate-fade-in">
+        <GlassSurface interactive={false} className="flex flex-col items-center py-14 text-center">
           <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
             {t("budget:limits.empty")}
           </p>
-        </div>
+        </GlassSurface>
       ) : (
         <div className="space-y-2">
           {rows.map((row, i) => (

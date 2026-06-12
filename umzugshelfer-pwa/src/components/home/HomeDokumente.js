@@ -18,6 +18,7 @@ import { syncInvoiceDate } from "../../utils/invoiceDateSync";
 import DokumentFilterBar from "./documents/DokumentFilterBar";
 import DokumentArchivListe from "./documents/DokumentArchivListe";
 import DokumentWissenAnalyseModal from "./documents/DokumentWissenAnalyseModal";
+import GlassSurface, { GlassModule } from "../ui/GlassSurface";
 
 // ── Konstanten ────────────────────────────────────────────────────────────────
 const KATEGORIEN = [
@@ -721,12 +722,14 @@ const DokumentKarte = ({
   };
 
   return (
-    <div
+    <GlassSurface
+      as="article"
       data-dokument-id={dok.id}
-      className={`relative p-4 rounded-card bg-light-card dark:bg-canvas-2 border shadow-elevation-2 overflow-hidden transition-[border-color,box-shadow] duration-200 ${
+      variants={cardVariants}
+      className={`relative p-4 overflow-hidden ${
         highlighted
           ? "border-primary-500 ring-2 ring-primary-500/30 shadow-glow-primary"
-          : "border-light-border dark:border-dark-border hover:border-primary-500/40 hover:shadow-elevation-3"
+          : ""
       }`}
     >
       <span className={`absolute left-0 top-0 bottom-0 w-[3px] ${katObj.accent} opacity-60`} aria-hidden="true" />
@@ -790,7 +793,7 @@ const DokumentKarte = ({
               setVorschauOffen((prev) => !prev);
               setZoom(1);
             }}
-            className="w-full flex items-center gap-2 rounded-card-sm border border-light-border dark:border-dark-border p-2 text-left hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors"
+            className="w-full flex items-center gap-2 rounded-card-sm border border-white/40 bg-white/25 p-2 text-left backdrop-blur-sm transition-colors hover:bg-white/40 dark:border-white/[0.08] dark:bg-white/[0.025] dark:hover:bg-white/[0.05]"
           >
             {laedt ? (
               <div className="w-14 h-14 rounded-card-sm border border-light-border dark:border-dark-border flex-shrink-0 flex items-center justify-center">
@@ -926,7 +929,7 @@ const DokumentKarte = ({
           </motion.button>
         </div>
       </div>
-    </div>
+    </GlassSurface>
   );
 };
 
@@ -1445,7 +1448,7 @@ const HomeDokumente = ({ session }) => {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="w-full min-w-0 max-w-5xl mx-auto px-4 lg:px-6 py-4 space-y-4 overflow-x-hidden">
+    <GlassModule>
 
       {/* Header */}
       <motion.div
@@ -1519,7 +1522,7 @@ const HomeDokumente = ({ session }) => {
           /* Karten-Skeleton */
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fade-in">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="p-4 rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border shadow-elevation-1">
+              <GlassSurface key={i} interactive={false} className="p-4">
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-card-sm bg-light-surface-2 dark:bg-canvas-3 animate-pulse flex-shrink-0" />
                   <div className="flex-1 space-y-2">
@@ -1535,7 +1538,7 @@ const HomeDokumente = ({ session }) => {
                   <div className="h-6 w-24 bg-light-surface-2 dark:bg-canvas-3 animate-pulse rounded-card-sm" />
                   <div className="h-6 w-20 bg-light-surface-2 dark:bg-canvas-3 animate-pulse rounded-card-sm" />
                 </div>
-              </div>
+              </GlassSurface>
             ))}
           </div>
         ) : (
@@ -1597,20 +1600,19 @@ const HomeDokumente = ({ session }) => {
           animate="show"
         >
           {sichtbareDokumente.map((dok) => (
-            <motion.div key={dok.id} variants={reduced ? {} : cardVariants}>
-              <DokumentKarte
-                dok={dok}
-                vorschauUrl={vorschauUrls[dok.id]}
-                onLoadVorschau={() => loadPreviewUrl(dok)}
-                onDownload={handleDownload}
-                onLoeschen={handleLoeschen}
-                onWissen={setWissenModalDok}
-                onZumBudget={oeffneBudgetModal}
-                onBearbeiten={setBearbeitenModalDok}
-                laedtDownload={laedtDownload}
-                highlighted={highlightedDokumentId === dok.id}
-              />
-            </motion.div>
+            <DokumentKarte
+              key={dok.id}
+              dok={dok}
+              vorschauUrl={vorschauUrls[dok.id]}
+              onLoadVorschau={() => loadPreviewUrl(dok)}
+              onDownload={handleDownload}
+              onLoeschen={handleLoeschen}
+              onWissen={setWissenModalDok}
+              onZumBudget={oeffneBudgetModal}
+              onBearbeiten={setBearbeitenModalDok}
+              laedtDownload={laedtDownload}
+              highlighted={highlightedDokumentId === dok.id}
+            />
           ))}
         </motion.div>
       )}
@@ -1687,7 +1689,7 @@ const HomeDokumente = ({ session }) => {
           onBeenden={tourBeenden}
         />
       )}
-    </div>
+    </GlassModule>
   );
 };
 

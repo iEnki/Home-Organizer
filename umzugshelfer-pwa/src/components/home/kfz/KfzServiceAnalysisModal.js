@@ -6,6 +6,7 @@ import { useLocale } from "../../../contexts/LocaleContext";
 import useViewport from "../../../hooks/useViewport";
 import { createKfzDocumentUrl } from "../../../utils/kfzData";
 import { formatKfzDisplayText } from "../../../utils/kfzPresentation";
+import { notifyHouseholdEvent } from "../../../utils/pushNotifications";
 import {
   analyzeKfzServiceDocument,
   calculatePositionDifference,
@@ -182,7 +183,7 @@ export default function KfzServiceAnalysisModal({
     setBusy(true);
     setError("");
     try {
-      await saveKfzServiceAnalysis({
+      const serviceId = await saveKfzServiceAnalysis({
         household_id: householdId,
         dokument_id: document.id,
         fahrzeug_id: form.fahrzeug_id,
@@ -216,6 +217,14 @@ export default function KfzServiceAnalysisModal({
           safety_notes: analysis.safety_notes,
           warnings: analysis.warnings,
         },
+      });
+      await notifyHouseholdEvent({
+        userId,
+        table: "home_fahrzeug_services",
+        action: "erstellt",
+        recordName: form.beschreibung || form.typ || "Kfz-Service",
+        recordId: serviceId,
+        url: "/home/kfz",
       });
       setDocument(null);
       await onSaved();

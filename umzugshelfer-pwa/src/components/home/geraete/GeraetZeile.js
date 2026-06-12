@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   Wrench, ChevronDown, FileText, MoreVertical,
   Link2, Unlink, CheckCircle, Pencil, Trash2, Eye, ExternalLink,
@@ -14,6 +15,7 @@ import {
 } from "../../../utils/geraetStatus";
 import { getBewohnerDisplayName } from "../../../utils/budgetAccounts";
 import { getDeviceCategoryLabel } from "./GeraetForm";
+import GlassSurface, { glassCollapseVariants } from "../../ui/GlassSurface";
 
 const STATUS_FARBE_KLASSEN = {
   red:   "bg-red-500/10 text-red-600 dark:text-red-400",
@@ -42,9 +44,9 @@ const STATUS_ACCENT_GRAD = {
 };
 
 const STATUS_RING = {
-  wartung_faellig:      "ring-1 ring-red-500/40 hover:ring-red-500/60",
-  gewaehrleistung_bald: "ring-1 ring-amber-500/30 hover:ring-amber-500/50",
-  garantie_bald:        "ring-1 ring-amber-400/30 hover:ring-amber-400/50",
+  wartung_faellig:      "ring-1 ring-red-500/40",
+  gewaehrleistung_bald: "ring-1 ring-amber-500/30",
+  garantie_bald:        "ring-1 ring-amber-400/30",
   kein_beleg:           "",
   ok:                   "",
 };
@@ -144,6 +146,7 @@ export default function GeraetZeile({
   bewohner = [],
 }) {
   const { t, i18n } = useTranslation(["home", "common"]);
+  const reducedMotion = useReducedMotion();
   const [menuOffen, setMenuOffen] = useState(false);
   const [menuPosition, setMenuPosition] = useState(null);
   const menuButtonRef = useRef(null);
@@ -188,14 +191,11 @@ export default function GeraetZeile({
   const statusCfg = STATUS_CONFIG[status] || {};
 
   return (
-    <div
+    <GlassSurface
+      as="article"
       data-geraet-id={g.id}
-      className={`relative flex min-w-0 max-w-full flex-col overflow-hidden rounded-card-sm
-        bg-light-card dark:bg-canvas-2
-        border border-light-border dark:border-dark-border
-        shadow-elevation-1 hover:shadow-elevation-2
+      className={`flex min-w-0 max-w-full flex-col overflow-hidden rounded-card-sm
         ${STATUS_RING[status] || ""}
-        transition-all duration-200
         ${menuOffen ? "z-[210]" : ""}
         ${isHighlighted ? "ring-1 ring-inset ring-primary-500/30" : ""}`}
     >
@@ -205,7 +205,7 @@ export default function GeraetZeile({
       {/* Kollabierte Card */}
       <div
         onClick={onToggle}
-        className="flex min-w-0 items-start gap-3 px-3 py-3 cursor-pointer hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors group"
+        className="flex min-w-0 items-start gap-3 px-3 py-3 cursor-pointer group"
       >
         {/* Kategorie-Icon mit Status-Farbe */}
         <div className={`w-9 h-9 rounded-card-sm flex items-center justify-center flex-shrink-0 ${STATUS_FARBE_KLASSEN[statusCfg.farbe] || "bg-canvas-3 text-dark-text-secondary"}`}>
@@ -342,8 +342,17 @@ export default function GeraetZeile({
       )}
 
       {/* Aufgeklapptes Panel */}
+      <AnimatePresence initial={false}>
       {isOffen && (
-        <div className="border-t border-light-border dark:border-dark-border px-4 pb-4 pt-3">
+        <motion.div
+          key="details"
+          variants={reducedMotion ? {} : glassCollapseVariants}
+          initial="hidden"
+          animate="show"
+          exit="exit"
+          className="overflow-hidden border-t border-light-border dark:border-dark-border"
+        >
+        <div className="px-4 pb-4 pt-3">
 
           {/* Sektion 1: Details */}
           <h4 className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-dark-text-secondary mb-1">
@@ -472,7 +481,9 @@ export default function GeraetZeile({
             </button>
           </div>
         </div>
+        </motion.div>
       )}
-    </div>
+      </AnimatePresence>
+    </GlassSurface>
   );
 }

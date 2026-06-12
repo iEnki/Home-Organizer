@@ -18,6 +18,7 @@ import ModalShell from "../ui/ModalShell";
 import { resolveLocalizedRecipe, resolveLocalizedRecipeIngredients } from "../../utils/localizedRecipeShopping";
 import { buildRecipeShoppingPreview, combinePlannerPreviewItems, insertSelectedPreviewItems } from "../../utils/recipeShoppingPreview";
 import RecipeShoppingPreviewModal from "./RecipeShoppingPreviewModal";
+import { getRecipeImageUrl } from "../../utils/recipeImages";
 
 export const MEAL_SLOTS = ["breakfast", "lunch", "dinner", "snack"];
 
@@ -132,9 +133,9 @@ function PlanItem({ entry, recipe, label, onEdit, onDelete, onOpen, dragDisabled
           <GripVertical size={12} />
         </button>
 
-        {recipe?.thumbnail_url ? (
+        {getRecipeImageUrl(recipe) ? (
           <img
-            src={recipe.thumbnail_url}
+            src={getRecipeImageUrl(recipe)}
             alt=""
             className="h-7 w-7 shrink-0 rounded-card-sm object-cover"
           />

@@ -3,6 +3,7 @@ import { BookMarked, Check, ChefHat, Pencil, Plus, Search, Trash2, X } from "luc
 import { AnimatePresence, motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import ModalShell from "../ui/ModalShell";
+import { getRecipeImageUrl } from "../../utils/recipeImages";
 
 const itemVariants = {
   hidden: { opacity: 0, x: -6 },
@@ -312,8 +313,8 @@ export default function RecipeListenModal({ open, onClose, recipes, supabase, us
                             onClick={() => handleAddRecipeToList(recipe)}
                             className="flex w-full items-center gap-2 rounded-card-sm px-2 py-1.5 text-left text-xs hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors"
                           >
-                            {recipe.thumbnail_url ? (
-                              <img src={recipe.thumbnail_url} alt="" className="h-7 w-7 flex-shrink-0 rounded object-cover" />
+                            {getRecipeImageUrl(recipe) ? (
+                              <img src={getRecipeImageUrl(recipe)} alt="" className="h-7 w-7 flex-shrink-0 rounded object-cover" />
                             ) : (
                               <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded bg-light-surface-2 dark:bg-canvas-3">
                                 <ChefHat size={11} className="text-primary-500/60" />
@@ -347,8 +348,8 @@ export default function RecipeListenModal({ open, onClose, recipes, supabase, us
                         layout
                         className="group flex items-center gap-2 rounded-card-sm px-2 py-1.5 hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors"
                       >
-                        {recipe.thumbnail_url ? (
-                          <img src={recipe.thumbnail_url} alt="" className="h-8 w-8 flex-shrink-0 rounded object-cover" />
+                        {getRecipeImageUrl(recipe) ? (
+                          <img src={getRecipeImageUrl(recipe)} alt="" className="h-8 w-8 flex-shrink-0 rounded object-cover" />
                         ) : (
                           <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-light-surface-2 dark:bg-canvas-3">
                             <ChefHat size={13} className="text-primary-500/60" />

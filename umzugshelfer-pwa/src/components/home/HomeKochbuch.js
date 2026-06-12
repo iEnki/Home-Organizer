@@ -18,6 +18,7 @@ import {
 import { findSimilarRecipes } from "../../utils/recipeDuplicateMatcher";
 import { buildRecipeShoppingPreview, insertSelectedPreviewItems } from "../../utils/recipeShoppingPreview";
 import { estimateRecipeNutritionIfMissing, hasRecipeNutrition } from "../../utils/recipeNutrition";
+import { removeRecipeImage, signRecipeImageUrl, signRecipeImageUrls } from "../../utils/recipeImages";
 import RecipeCard from "./RecipeCard";
 import RecipeListRow from "./RecipeListRow";
 import RecipeDetailView from "./RecipeDetailView";
@@ -31,6 +32,7 @@ import RecipeDuplicateWarning from "./RecipeDuplicateWarning";
 import RecipeImportHistoryModal from "./RecipeImportHistoryModal";
 import RecipeShoppingPreviewModal from "./RecipeShoppingPreviewModal";
 import ModalShell from "../ui/ModalShell";
+import { GlassModule } from "../ui/GlassSurface";
 
 const sectionVariants = {
   hidden: {},
@@ -188,10 +190,11 @@ export default function HomeKochbuch({ session }) {
           return acc;
         }, {});
       }
-      setRecipes(recipeRows || []);
+      const signedRecipes = await signRecipeImageUrls(supabase, recipeRows || []);
+      setRecipes(signedRecipes);
       setIngredientsByRecipe(ingredientsMap);
       if (rezeptId) {
-        setSelected((recipeRows || []).find((item) => item.id === rezeptId) || null);
+        setSelected(signedRecipes.find((item) => item.id === rezeptId) || null);
       }
     } catch (err) {
       toast.error(err.message || t("toast.loadFailed"));
@@ -217,9 +220,15 @@ export default function HomeKochbuch({ session }) {
       })
         .then((updatedRecipe) => {
           if (!updatedRecipe?.localized_content) return;
-          setRecipes((current) => current.map((item) => item.id === updatedRecipe.id ? updatedRecipe : item));
-          setSelected((current) => current?.id === updatedRecipe.id ? updatedRecipe : current);
-          setReviewRecipe((current) => current?.id === updatedRecipe.id ? updatedRecipe : current);
+          setRecipes((current) => current.map((item) => item.id === updatedRecipe.id
+            ? { ...updatedRecipe, thumbnail_signed_url: item.thumbnail_signed_url }
+            : item));
+          setSelected((current) => current?.id === updatedRecipe.id
+            ? { ...updatedRecipe, thumbnail_signed_url: current.thumbnail_signed_url }
+            : current);
+          setReviewRecipe((current) => current?.id === updatedRecipe.id
+            ? { ...updatedRecipe, thumbnail_signed_url: current.thumbnail_signed_url }
+            : current);
         })
         .catch((err) => console.warn("Rezeptuebersetzung fehlgeschlagen", err))
         .finally(() => {
@@ -383,8 +392,9 @@ export default function HomeKochbuch({ session }) {
     const { data: recipe } = await supabase.from("home_rezepte").select("*").eq("id", recipeId).maybeSingle();
     const { data: ingredients } = await supabase.from("home_rezept_zutaten").select("*").eq("rezept_id", recipeId).order("sortierung");
     if (recipe) {
+      const signedRecipe = await signRecipeImageUrl(supabase, recipe);
       setIngredientsByRecipe((prev) => ({ ...prev, [recipe.id]: ingredients || [] }));
-      setReviewRecipe(recipe);
+      setReviewRecipe(signedRecipe);
       setImportOpen(false);
       setImportHistoryOpen(false);
       await loadData();
@@ -547,7 +557,16 @@ export default function HomeKochbuch({ session }) {
 
   const deleteRecipe = async () => {
     if (!selected || !window.confirm(t("confirm.delete", { title: selected.titel }))) return;
-    await supabase.from("home_rezepte").delete().eq("id", selected.id);
+    const { error } = await supabase.from("home_rezepte").delete().eq("id", selected.id);
+    if (error) {
+      toast.error(error.message || t("toast.deleteFailed"));
+      return;
+    }
+    try {
+      await removeRecipeImage(supabase, selected);
+    } catch (imageError) {
+      console.warn("Rezeptbild konnte nach dem Loeschen nicht entfernt werden", imageError);
+    }
     await logVerlauf(supabase, userId, "home_rezepte", selected.titel, "geloescht");
     setSelected(null);
     navigate("/home/kochbuch");
@@ -714,7 +733,7 @@ export default function HomeKochbuch({ session }) {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 px-4 py-4 lg:px-6">
+    <GlassModule className="space-y-5">
       {/* Header */}
       <motion.div
         initial={reduced ? false : { opacity: 0, y: -12 }}
@@ -843,7 +862,7 @@ export default function HomeKochbuch({ session }) {
             variants={reduced ? {} : listContainerVariants}
             initial="hidden"
             animate="show"
-            className="overflow-hidden rounded-card border border-light-border bg-light-card divide-y divide-light-border dark:divide-dark-border dark:border-dark-border dark:bg-canvas-2"
+            className="space-y-2"
           >
             {sortiert.map((recipe) => (
               <RecipeListRow
@@ -865,7 +884,7 @@ export default function HomeKochbuch({ session }) {
                   variants={reduced ? {} : listContainerVariants}
                   initial="hidden"
                   animate="show"
-                  className="overflow-hidden rounded-card border border-light-border bg-light-card divide-y divide-light-border dark:divide-dark-border dark:border-dark-border dark:bg-canvas-2"
+                  className="space-y-2"
                 >
                   {gruppiert[key].map((recipe) => (
                     <RecipeListRow
@@ -987,6 +1006,6 @@ export default function HomeKochbuch({ session }) {
       {duplicateConfirmModal}
         </>
       )}
-    </div>
+    </GlassModule>
   );
 }

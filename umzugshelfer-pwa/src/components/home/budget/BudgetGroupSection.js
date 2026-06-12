@@ -21,7 +21,7 @@ export default function BudgetGroupSection({
         </div>
       )}
 
-      <div className="overflow-hidden rounded-card-sm border border-light-border dark:border-dark-border divide-y divide-light-border dark:divide-dark-border bg-light-card dark:bg-canvas-2">
+      <div className="space-y-2">
         {items.map(renderItem)}
       </div>
     </section>

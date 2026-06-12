@@ -25,6 +25,7 @@ import KostenAufteilungAuswahl from "./KostenAufteilungAuswahl";
 import ModalShell from "../ui/ModalShell";
 import { findExistingMedication } from "../../utils/heimapotheke";
 import { syncFuelImports } from "../../utils/kfzFuelImports";
+import GlassSurface from "../ui/GlassSurface";
 
 // ============================================================
 // Konstanten
@@ -1457,9 +1458,9 @@ export default function RechnungReviewModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[100] bg-canvas-0 overflow-y-auto">
+    <div className="fixed inset-0 z-[100] overflow-y-auto bg-canvas-0/70 backdrop-blur-sm">
       {/* Sticky Header */}
-      <div className="sticky top-0 z-10 bg-canvas-1 border-b border-canvas-3 px-4 py-3 flex items-center gap-3">
+      <GlassSurface interactive={false} className="sticky top-0 z-10 flex items-center gap-3 rounded-none border-x-0 border-t-0 px-4 py-3">
         <button
           onClick={onAbbrechen}
           className="p-1.5 rounded-lg hover:bg-canvas-2 text-dark-text-main transition-colors"
@@ -1482,7 +1483,7 @@ export default function RechnungReviewModal({
           )}
           Speichern
         </button>
-      </div>
+      </GlassSurface>
 
       <div className="max-w-lg mx-auto px-4 pt-5 pb-[calc(var(--mobile-bottom-offset)+1.25rem)] space-y-5">
         {/* Warnungen */}
@@ -1504,7 +1505,7 @@ export default function RechnungReviewModal({
         )}
 
         {/* Stammdaten */}
-        <div className="bg-canvas-1 rounded-card border border-canvas-3 p-4 space-y-3">
+        <GlassSurface interactive={false} className="p-4 space-y-3">
           <h3 className="text-sm font-semibold text-dark-text-main">Rechnungsdaten</h3>
           <InputFeld label="Haendler / Lieferant" value={haendler} onChange={setHaendler} placeholder="z.B. REWE, MediaMarkt" />
           <div className="grid grid-cols-2 gap-3">
@@ -1514,10 +1515,10 @@ export default function RechnungReviewModal({
           {hatPflichffehler && (
             <p className="text-xs text-accent-danger">Datum und Betrag sind Pflichtfelder.</p>
           )}
-        </div>
+        </GlassSurface>
 
         {/* Zusammenfassung */}
-        <div className="bg-canvas-1 rounded-card border border-canvas-3 p-4 space-y-3">
+        <GlassSurface interactive={false} className="p-4 space-y-3">
           <h3 className="text-sm font-semibold text-dark-text-main">Zusammenfassung</h3>
           <p className="text-xs text-dark-text-secondary">
             Wird in deiner Wissensdatenbank gespeichert. Du kannst den Text anpassen.
@@ -1531,10 +1532,10 @@ export default function RechnungReviewModal({
                        transition-colors resize-none"
             placeholder="Automatisch generierte Zusammenfassung..."
           />
-        </div>
+        </GlassSurface>
 
         {/* Modul-Auswahl */}
-        <div className="bg-canvas-1 rounded-card border border-canvas-3 p-4 space-y-3">
+        <GlassSurface interactive={false} className="p-4 space-y-3">
           <h3 className="text-sm font-semibold text-dark-text-main">In welche Module speichern?</h3>
           <div className="space-y-2">
             {Object.entries(MODUL_CONFIG).map(([key, cfg]) => (
@@ -1580,7 +1581,7 @@ export default function RechnungReviewModal({
               </label>
             ))}
           </div>
-        </div>
+        </GlassSurface>
 
         {/* Positionen */}
         {positionen.length > 0 && (

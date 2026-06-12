@@ -24,6 +24,7 @@ import { TOUR_STEPS } from "./tour/tourSteps";
 import useViewport from "../../hooks/useViewport";
 import { getLimitProgress, getLimitStatus } from "../../utils/budgetLimits";
 import { HOME_BUDGET_CATEGORY_COLORS } from "../../utils/homeBudgetCategories";
+import GlassSurface, { GlassModule } from "../ui/GlassSurface";
 
 // ── Animated count-up number ─────────────────────────────────────────────────
 const AnimatedNumber = ({ value }) => {
@@ -186,16 +187,16 @@ const SkeletonPulse = ({ className = "" }) => (
 );
 
 const SkeletonCard = () => (
-  <div className="p-4 rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border">
+  <GlassSurface interactive={false} className="p-4">
     <SkeletonPulse className="w-9 h-9 rounded-card-sm mb-3" />
     <SkeletonPulse className="h-7 w-12 rounded mb-1.5" />
     <SkeletonPulse className="h-2.5 w-16 rounded mb-1" />
     <SkeletonPulse className="h-2.5 w-20 rounded" />
-  </div>
+  </GlassSurface>
 );
 
 const SkeletonWidget = ({ className = "" }) => (
-  <div className={`p-4 rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border ${className}`}>
+  <GlassSurface interactive={false} className={`p-4 ${className}`}>
     <div className="flex items-center gap-2 mb-4">
       <SkeletonPulse className="w-5 h-5 rounded-full" />
       <SkeletonPulse className="h-4 w-32 rounded" />
@@ -203,7 +204,7 @@ const SkeletonWidget = ({ className = "" }) => (
     <SkeletonPulse className="h-8 w-24 rounded mb-2" />
     <SkeletonPulse className="h-2.5 w-full rounded mb-1.5" />
     <SkeletonPulse className="h-2.5 w-3/4 rounded" />
-  </div>
+  </GlassSurface>
 );
 
 const SectionHeader = ({ icon: Icon, label, iconClass = "text-primary-500" }) => (
@@ -631,7 +632,7 @@ const HomeDashboard = ({ session }) => {
   // ── Skeleton Loading State ────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="max-w-5xl mx-auto px-4 py-6 space-y-6 animate-fade-in">
+      <GlassModule className="home-dashboard-modern min-h-full space-y-6 p-4 pb-28 md:p-6 lg:pb-8 animate-fade-in">
         {/* Header skeleton */}
         <div className="flex items-center gap-3">
           <SkeletonPulse className="w-11 h-11 rounded-card-sm flex-shrink-0" />
@@ -653,7 +654,7 @@ const HomeDashboard = ({ session }) => {
         {/* Row B */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <SkeletonWidget />
-          <div className="p-4 rounded-card bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border space-y-3">
+          <GlassSurface interactive={false} className="p-4 space-y-3">
             <SkeletonPulse className="h-4 w-36 rounded mb-4" />
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3">
@@ -662,9 +663,9 @@ const HomeDashboard = ({ session }) => {
                 <SkeletonPulse className="h-3 w-10 rounded flex-shrink-0" />
               </div>
             ))}
-          </div>
+          </GlassSurface>
         </div>
-      </div>
+      </GlassModule>
     );
   }
 
@@ -680,11 +681,9 @@ const HomeDashboard = ({ session }) => {
   const hhRatio = budgetTotal > 0 ? budgetMonat.ausgabenHaushalt / budgetTotal : 0;
 
   return (
-    <motion.div
-      className="max-w-5xl mx-auto px-4 py-6 space-y-6"
+    <GlassModule
+      className="home-dashboard-modern min-h-full space-y-6 p-4 pb-28 md:p-6 lg:pb-8"
       variants={reduced ? {} : sectionVariants}
-      initial="hidden"
-      animate="show"
     >
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
@@ -743,14 +742,12 @@ const HomeDashboard = ({ session }) => {
             animate="show"
             className="grid grid-cols-2 gap-3"
           >
-            <motion.button
+            <GlassSurface
+              as="button"
               variants={reduced ? {} : cardVariants}
               whileTap={{ scale: 0.97 }}
               onClick={() => navigate("/home/aufgaben")}
-              className="p-3 rounded-card-sm cursor-pointer
-                         bg-light-card dark:bg-canvas-2
-                         border border-light-border dark:border-dark-border
-                         shadow-elevation-1 text-left"
+              className="p-3 cursor-pointer text-left"
             >
               <CheckSquare
                 size={18}
@@ -763,14 +760,11 @@ const HomeDashboard = ({ session }) => {
               <div className="text-xs font-medium text-light-text-main dark:text-dark-text-main mt-0.5">
                 Aufgaben heute
               </div>
-            </motion.button>
+            </GlassSurface>
 
-            <motion.div
+            <GlassSurface
               variants={reduced ? {} : cardVariants}
-              className="p-3 rounded-card-sm
-                         bg-light-card dark:bg-canvas-2
-                         border border-light-border dark:border-dark-border
-                         shadow-elevation-1"
+              className="p-3"
             >
               <Calendar size={18} className="text-secondary-500 mb-2" />
               {timeline[0] ? (
@@ -791,19 +785,16 @@ const HomeDashboard = ({ session }) => {
                   </div>
                 </>
               )}
-            </motion.div>
+            </GlassSurface>
           </motion.div>
 
           {/* ── Budget + Ausgleich – kombinierte Karte (immer sichtbar) ────── */}
-          <motion.div
+          <GlassSurface
             variants={reduced ? {} : cardVariants}
             initial="hidden"
             animate="show"
             data-tour="tour-dashboard-budget"
-            className="w-full rounded-card overflow-hidden
-                       bg-light-card dark:bg-canvas-2
-                       border border-light-border dark:border-dark-border
-                       shadow-elevation-2"
+            className="w-full overflow-hidden"
           >
             {/* ── Oberer Bereich: Budget ── */}
             <button
@@ -1062,13 +1053,14 @@ const HomeDashboard = ({ session }) => {
                 </div>
               </button>
             )}
-          </motion.div>
+          </GlassSurface>
 
           {/* ── Urgent Card (optional, nur wenn Modul Warnung hat) ──────────── */}
           {urgentKachel && (() => {
             const UrgentIcon = urgentKachel.icon;
             return (
-              <motion.button
+              <GlassSurface
+                as="button"
                 initial={{ opacity: 0, y: 18 }}
                 animate={{
                   opacity: 1,
@@ -1086,10 +1078,7 @@ const HomeDashboard = ({ session }) => {
                 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => navigate(urgentKachel.pfad)}
-                className="w-full p-4 rounded-card cursor-pointer
-                           bg-light-card dark:bg-canvas-2
-                           border border-red-500/30
-                           shadow-elevation-2 text-left relative"
+                className="w-full p-4 cursor-pointer border-red-500/30 text-left relative"
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className={`p-2 rounded-card-sm ${farbKlassen[urgentKachel.farbe]}`}>
@@ -1115,14 +1104,14 @@ const HomeDashboard = ({ session }) => {
                     {urgentKachel.unter}
                   </div>
                 )}
-              </motion.button>
+              </GlassSurface>
             );
           })()}
 
           {/* ── Haushalts-Übersichtskarte (Mobile) ──────────────────────── */}
-          <div
+          <GlassSurface
             data-tour="tour-dashboard-status"
-            className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-2 overflow-hidden"
+            className="overflow-hidden"
           >
             <div className="grid grid-cols-1 divide-y divide-light-border dark:divide-dark-border">
               {SEKTIONEN.map((sek) => (
@@ -1176,7 +1165,7 @@ const HomeDashboard = ({ session }) => {
                 </div>
               ))}
             </div>
-          </div>
+          </GlassSurface>
 
           {/* ── Horizontales Scroll-Row: Sekundär-Module ────────────────────── */}
           <div
@@ -1216,12 +1205,11 @@ const HomeDashboard = ({ session }) => {
 
           {/* ── Verlauf (kompakt, wenn vorhanden) ───────────────────────────── */}
           {verlauf.length > 0 && (
-            <motion.div
+            <GlassSurface
               variants={reduced ? {} : cardVariants}
               initial="hidden"
               animate="show"
-              className="p-4 rounded-card bg-light-card dark:bg-canvas-2
-                         border border-light-border dark:border-dark-border shadow-elevation-2"
+              className="p-4"
             >
               <SectionHeader icon={Clock} label={t("home:dashboard.recentActivity")} />
               <div className="space-y-2.5">
@@ -1244,7 +1232,7 @@ const HomeDashboard = ({ session }) => {
                   );
                 })}
               </div>
-            </motion.div>
+            </GlassSurface>
           )}
         </div>
       ) : (
@@ -1291,10 +1279,9 @@ const HomeDashboard = ({ session }) => {
 
           {/* ── Haushalts-Übersichtskarte (Desktop) ──────────────────────── */}
           <motion.section variants={reduced ? {} : sectionItemVariants} data-tour="tour-dashboard-status">
-            <div className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-2 overflow-hidden">
-              <div className="grid grid-cols-1 sm:grid-cols-3 divide-y divide-light-border dark:divide-dark-border sm:divide-y-0 sm:divide-x">
-                {SEKTIONEN.map((sek) => (
-                  <div key={sek.titel} className="relative flex flex-col">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {SEKTIONEN.map((sek) => (
+                  <GlassSurface key={sek.titel} className="relative flex flex-col overflow-hidden">
                     <div className={`absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r ${sek.grad}`} />
                     <div className="px-4 pt-4 pb-1.5">
                       <span className={`text-[10px] font-semibold uppercase tracking-wider ${sek.labelFarbe}`}>
@@ -1309,7 +1296,7 @@ const HomeDashboard = ({ session }) => {
                           data-tour={k.tourId || undefined}
                           onClick={() => navigate(k.pfad)}
                           whileTap={{ scale: 0.98 }}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors text-left group"
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-left group"
                         >
                           <div className="relative shrink-0">
                             <div className={`w-8 h-8 rounded-card-sm flex items-center justify-center group-hover:ring-2 group-hover:ring-primary-500/20 transition-all ${farbKlassen[k.farbe]}`}>
@@ -1342,27 +1329,24 @@ const HomeDashboard = ({ session }) => {
                       );
                     })}
                     <div className="pb-2" />
-                  </div>
-                ))}
-              </div>
+                  </GlassSurface>
+              ))}
             </div>
           </motion.section>
 
           {/* ── Budgetübersicht ───────────────────────────────────────────── */}
           <motion.section variants={reduced ? {} : sectionItemVariants}>
             <SectionHeader icon={TrendingUp} label="Budgetübersicht" />
-            <div className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-2 overflow-hidden">
-              <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-light-border dark:divide-dark-border">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
 
                 {/* Sektion 1: Budget */}
-                <div className="relative">
+                <GlassSurface className="relative overflow-hidden">
                   <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-primary-500 to-emerald-400" />
                   <motion.button
                     data-tour="tour-dashboard-budget"
-                    whileHover={reduced ? {} : { backgroundColor: "rgba(0,0,0,0.03)" }}
                     whileTap={{ scale: 0.99 }}
                     onClick={() => navigate("/home/budget")}
-                    className="w-full p-4 text-left group hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors"
+                    className="w-full p-4 text-left group"
                   >
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
@@ -1454,15 +1438,15 @@ const HomeDashboard = ({ session }) => {
                       </div>
                     )}
                   </motion.button>
-                </div>
+                </GlassSurface>
 
                 {/* Sektion 2: Ausgleich */}
-                <div className="relative">
+                <GlassSurface className="relative overflow-hidden">
                   <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-blue-500 to-sky-400" />
                   <motion.button
                     whileTap={{ scale: 0.99 }}
                     onClick={() => navigate("/home/budget?tab=ausgleich")}
-                    className="w-full p-4 text-left group hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors"
+                    className="w-full p-4 text-left group"
                   >
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
@@ -1493,16 +1477,16 @@ const HomeDashboard = ({ session }) => {
                       </p>
                     </div>
                   </motion.button>
-                </div>
+                </GlassSurface>
 
                 {/* Sektion 3: Ziele & Limits */}
-                <div className="relative flex flex-col">
+                <GlassSurface className="relative flex flex-col overflow-hidden">
                   <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-amber-500 to-yellow-400" />
 
                   {/* ── Sparziele ── */}
                   <button
                     onClick={() => navigate("/home/budget")}
-                    className="w-full p-4 pb-3 text-left group hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors"
+                    className="w-full p-4 pb-3 text-left group"
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
@@ -1554,7 +1538,7 @@ const HomeDashboard = ({ session }) => {
                   {budgetLimitRows.length > 0 && (
                     <button
                       onClick={() => navigate("/home/budget?tab=limits")}
-                      className="w-full p-4 pt-3 text-left group hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors"
+                      className="w-full p-4 pt-3 text-left group"
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
@@ -1619,9 +1603,8 @@ const HomeDashboard = ({ session }) => {
                       </div>
                     </button>
                   )}
-                </div>
+                </GlassSurface>
 
-              </div>
             </div>
           </motion.section>
 
@@ -1631,16 +1614,12 @@ const HomeDashboard = ({ session }) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
               {/* Projekte-Widget */}
-              <motion.button
+              <GlassSurface
+                as="button"
                 variants={cardVariants}
-                whileHover={reduced ? {} : { scale: 1.01, transition: { type: "spring", stiffness: 400, damping: 25 } }}
                 whileTap={{ scale: 0.99 }}
                 onClick={() => navigate("/home/projekte")}
-                className="p-4 rounded-card cursor-pointer
-                           bg-light-card dark:bg-canvas-2
-                           border border-light-border dark:border-dark-border shadow-elevation-2
-                           hover:border-primary-500/40 hover:shadow-glow-primary
-                           transition-[border-color,box-shadow] duration-200 text-left group"
+                className="p-4 cursor-pointer text-left"
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -1683,13 +1662,12 @@ const HomeDashboard = ({ session }) => {
                     ))}
                   </div>
                 )}
-              </motion.button>
+              </GlassSurface>
 
               {/* Nächste Ereignisse — vertikale Timeline */}
-              <motion.div
+              <GlassSurface
                 variants={cardVariants}
-                className="p-4 rounded-card bg-light-card dark:bg-canvas-2
-                           border border-light-border dark:border-dark-border shadow-elevation-2"
+                className="p-4"
               >
                 <div className="flex items-center gap-2 mb-4">
                   <Calendar size={15} className="text-primary-500" />
@@ -1770,17 +1748,16 @@ const HomeDashboard = ({ session }) => {
                     })}
                   </motion.div>
                 )}
-              </motion.div>
+              </GlassSurface>
             </div>
           </motion.section>
 
           {/* ── Aktivitäts-Feed ───────────────────────────────────────────── */}
           {verlauf.length > 0 && (
             <motion.section variants={reduced ? {} : sectionItemVariants}>
-              <motion.div
+              <GlassSurface
                 variants={cardVariants}
-                className="p-4 rounded-card bg-light-card dark:bg-canvas-2
-                           border border-light-border dark:border-dark-border shadow-elevation-2"
+                className="p-4"
               >
                 <SectionHeader icon={Clock} label={t("home:dashboard.recentActivity")} />
                 <motion.div
@@ -1821,7 +1798,7 @@ const HomeDashboard = ({ session }) => {
                     );
                   })}
                 </motion.div>
-              </motion.div>
+              </GlassSurface>
             </motion.section>
           )}
 
@@ -1835,20 +1812,13 @@ const HomeDashboard = ({ session }) => {
               className="grid grid-cols-2 sm:grid-cols-4 gap-3"
             >
               {SCHNELLZUGRIFF_ITEMS.map((item) => (
-                <motion.button
+                <GlassSurface
+                  as="button"
                   key={item.pfad}
                   variants={cardVariants}
-                  whileHover={reduced ? {} : {
-                    scale: 1.03,
-                    transition: { type: "spring", stiffness: 400, damping: 25 },
-                  }}
                   whileTap={{ scale: 0.97 }}
                   onClick={() => navigate(item.pfad)}
-                  className="flex items-center gap-3 p-3 rounded-card-sm cursor-pointer
-                             bg-light-card dark:bg-canvas-2
-                             border border-light-border dark:border-dark-border shadow-elevation-1
-                             hover:border-primary-500/40 hover:bg-light-hover dark:hover:bg-canvas-3
-                             transition-colors duration-200 text-left group"
+                  className="flex items-center gap-3 p-3 cursor-pointer text-left"
                 >
                   <div className={`w-9 h-9 rounded-card-sm flex items-center justify-center
                                    text-xl flex-shrink-0 ${item.color}`}>
@@ -1863,7 +1833,7 @@ const HomeDashboard = ({ session }) => {
                                opacity-0 group-hover:opacity-100 flex-shrink-0
                                transition-opacity duration-150"
                   />
-                </motion.button>
+                </GlassSurface>
               ))}
             </motion.div>
           </motion.section>
@@ -1878,7 +1848,7 @@ const HomeDashboard = ({ session }) => {
           onBeenden={tourBeenden}
         />
       )}
-    </motion.div>
+    </GlassModule>
   );
 };
 

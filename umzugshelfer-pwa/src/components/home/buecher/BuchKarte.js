@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BookOpen, Edit2, ArrowRightLeft, Trash2, MoreVertical } from "lucide-react";
 import { getBuchCoverUrl } from "../../../utils/buchCoverUtils";
+import GlassSurface from "../../ui/GlassSurface";
 
 const STATUS_CONFIG = {
   im_regal:   { dot: "bg-primary-500",        badge: "border-primary-500/30 bg-primary-500/15 text-primary-500" },
@@ -27,9 +28,9 @@ export default function BuchKarte({ buch, onBearbeiten, onVerleihen, onLoeschen,
   };
 
   return (
-    <div
-      className="group relative rounded-card overflow-hidden bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border shadow-elevation-1 hover:shadow-elevation-2 hover:border-secondary-500/30 transition-all duration-300 cursor-pointer animate-slide-in-up"
-      style={{ animationDelay: `${index * 50}ms`, animationFillMode: "both" }}
+    <GlassSurface
+      as="article"
+      className="cursor-pointer overflow-hidden"
       onClick={() => onBearbeiten(buch)}
     >
       {/* Cover */}
@@ -102,6 +103,6 @@ export default function BuchKarte({ buch, onBearbeiten, onVerleihen, onLoeschen,
           </>
         )}
       </div>
-    </div>
+    </GlassSurface>
   );
 }

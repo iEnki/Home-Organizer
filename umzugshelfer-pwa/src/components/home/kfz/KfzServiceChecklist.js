@@ -18,6 +18,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { createKfzDocumentUrl } from "../../../utils/kfzData";
 import { formatKfzDisplayText } from "../../../utils/kfzPresentation";
+import GlassSurface from "../../ui/GlassSurface";
 
 export const SERVICE_CATEGORY_ORDER = [
   "arbeit",
@@ -237,11 +238,10 @@ export function KfzServiceCard({
   };
 
   return (
-    <motion.article
+    <GlassSurface
+      as="article"
       layout
-      whileHover={reducedMotion ? undefined : { y: -3 }}
-      transition={{ duration: 0.2 }}
-      className="group min-w-0 overflow-hidden rounded-card border border-light-border bg-light-card shadow-sm transition-shadow hover:shadow-card dark:border-white/10 dark:bg-canvas-2"
+      className="min-w-0 overflow-hidden"
     >
       <div className="relative p-4 md:p-5">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary-500/60 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
@@ -305,6 +305,6 @@ export function KfzServiceCard({
       <button type="button" onClick={onToggle} className="flex min-h-10 w-full items-center justify-center gap-2 border-t border-light-border/70 text-xs font-semibold text-light-text-secondary transition hover:bg-primary-500/[0.04] dark:border-white/[0.08] dark:text-dark-text-secondary">
         {expanded ? t("serviceChecklist.collapse") : t("serviceChecklist.expand")} <ChevronDown size={14} className={expanded ? "rotate-180" : ""} />
       </button>
-    </motion.article>
+    </GlassSurface>
   );
 }

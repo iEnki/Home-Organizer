@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   AlertCircle,
   ArrowRightLeft,
@@ -22,6 +23,7 @@ import {
   resolveBookMatches,
 } from "../../../utils/bookSearch";
 import BuchTrefferReviewModal from "./BuchTrefferReviewModal";
+import GlassSurface, { glassCollapseVariants } from "../../ui/GlassSurface";
 
 const STATUS_CONFIG = {
   im_regal:   { dot: "bg-primary-500",        badge: "border-primary-500/30 bg-primary-500/15 text-primary-500" },
@@ -33,6 +35,7 @@ const STATUS_CONFIG = {
 
 export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen, onAktualisiert, index = 0 }) {
   const { t } = useTranslation(["books"]);
+  const reducedMotion = useReducedMotion();
   const [offen, setOffen] = useState(false);
   const [beschreibungOffen, setBeschreibungOffen] = useState(false);
   const [refreshLaden, setRefreshLaden] = useState(false);
@@ -125,13 +128,10 @@ export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen,
 
   return (
     <>
-      <div
-        className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 overflow-hidden shadow-elevation-1 hover:shadow-elevation-2 hover:border-secondary-500/30 transition-all duration-300 animate-slide-in-up"
-        style={{ animationDelay: `${index * 50}ms`, animationFillMode: "both" }}
-      >
+      <GlassSurface as="article" className="overflow-hidden rounded-card-sm">
         <button
           onClick={() => setOffen((prev) => !prev)}
-          className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-light-bg dark:hover:bg-canvas-1 transition-colors"
+          className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
         >
           <div className="flex items-center gap-3 min-w-0">
             {/* Cover thumbnail */}
@@ -167,8 +167,17 @@ export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen,
           </div>
         </button>
 
+        <AnimatePresence initial={false}>
         {offen && (
-          <div className="px-4 pb-4 pt-1 border-t border-light-border dark:border-dark-border space-y-3">
+          <motion.div
+            key="details"
+            variants={reducedMotion ? {} : glassCollapseVariants}
+            initial="hidden"
+            animate="show"
+            exit="exit"
+            className="overflow-hidden border-t border-light-border dark:border-dark-border"
+          >
+          <div className="px-4 pb-4 pt-1 space-y-3">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
               {buch.verlag && (
                 <div>
@@ -328,8 +337,10 @@ export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen,
               </button>
             </div>
           </div>
+          </motion.div>
         )}
-      </div>
+        </AnimatePresence>
+      </GlassSurface>
 
       <BuchTrefferReviewModal
         offen={refreshStatus === "review" && refreshTreffer.length > 0}

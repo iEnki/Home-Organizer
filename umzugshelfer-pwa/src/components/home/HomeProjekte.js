@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { FolderOpen, Plus, Edit2, Trash2, X, Loader2, AlertCircle, ChevronDown, ChevronRight, CheckSquare, Square, Leaf, Sun, Wind, Snowflake, Sparkles } from "lucide-react";
 import KiHomeAssistent from "./KiHomeAssistent";
 import { supabase } from "../../supabaseClient";
@@ -8,6 +9,11 @@ import { useTour } from "./tour/useTour";
 import { TOUR_STEPS } from "./tour/tourSteps";
 import { applyProjectAiItems } from "../../utils/assistantDomainAdapters";
 import { useTranslation } from "react-i18next";
+import GlassSurface, {
+  glassCollapseVariants,
+  glassPageVariants,
+  glassSurfaceClass,
+} from "../ui/GlassSurface";
 
 const TYPEN = ["Reorganisation", "Reparatur", "Saisonwechsel", "Renovierung", "Dekoration", "Anschaffung", "Sonstiges"];
 
@@ -79,7 +85,7 @@ const SAISON_TEMPLATES = {
 
 const SaisonWahlModal = ({ onWaehle, onAbbrechen, t }) => (
   <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
-    <div className="mobile-modal-dialog bg-light-card dark:bg-canvas-2 rounded-2xl shadow-2xl max-w-sm w-full border border-light-border dark:border-dark-border">
+    <div className={`${glassSurfaceClass} mobile-modal-dialog max-w-sm w-full rounded-2xl`}>
       <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
         <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">{t("home:projectsPage.seasonTemplate")}</h3>
         <button onClick={onAbbrechen} className="p-1 text-light-text-secondary dark:text-dark-text-secondary"><X size={18} /></button>
@@ -167,6 +173,7 @@ const ProjektForm = ({ initial, onSpeichern, onAbbrechen, t }) => {
 };
 
 const HomeProjekte = ({ session }) => {
+  const reducedMotion = useReducedMotion();
   const { t } = useTranslation(["home", "common"]);
   const userId = session?.user?.id;
   const { active: tourAktiv, schritt, setSchritt, beenden: tourBeenden } = useTour("projekte");
@@ -281,7 +288,7 @@ const HomeProjekte = ({ session }) => {
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 size={32} className="animate-spin text-light-text-secondary dark:text-dark-text-secondary" /></div>;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4">
+    <div className="home-glass-modern glass-module relative min-h-full min-w-0 max-w-full space-y-4 overflow-x-clip bg-transparent p-4 pb-28 md:p-6 lg:pb-8">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <FolderOpen size={22} className="text-purple-500" />
@@ -303,7 +310,7 @@ const HomeProjekte = ({ session }) => {
       {fehler && <div className="p-3 rounded-card bg-red-500/10 border border-red-500/30 flex items-center gap-2 text-sm text-red-600 dark:text-red-400"><AlertCircle size={16} />{fehler}</div>}
 
       {/* Status-Filter */}
-      <div data-tour="tour-projekte-status" className="flex gap-2 flex-wrap">
+      <div data-tour="tour-projekte-status" className={`${glassSurfaceClass} flex gap-2 flex-wrap p-3`}>
         <button onClick={() => setStatusFilter("")} className={`px-3 py-1.5 rounded-pill text-xs font-medium transition-colors ${!statusFilter ? "bg-purple-500 text-white" : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"}`}>{t("home:projectsPage.all")}</button>
         {STATUS_OPTIONEN.map((s) => (
           <button key={s} onClick={() => setStatusFilter(s)} className={`px-3 py-1.5 rounded-pill text-xs font-medium transition-colors ${statusFilter === s ? "bg-purple-500 text-white" : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"}`}>{t(`home:projectsPage.statuses.${s}`)}</button>
@@ -317,7 +324,7 @@ const HomeProjekte = ({ session }) => {
           <button onClick={() => setModal({})} className="mt-3 flex items-center gap-1.5 mx-auto px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-pill text-sm"><Plus size={14} />{t("home:projectsPage.createFirst")}</button>
         </div>
       ) : (
-        <div data-tour="tour-projekte-liste" className="space-y-3">
+        <motion.div data-tour="tour-projekte-liste" variants={reducedMotion ? {} : glassPageVariants} initial="hidden" animate="show" className="grid grid-cols-1 gap-3 xl:grid-cols-2">
           {gefiltertProjekte.map((p) => {
             const projektTodos = todos.filter((t) => t.id && t.home_projekt_id === p.id);
             const erledigtCount = projektTodos.filter((t) => t.erledigt).length;
@@ -325,7 +332,7 @@ const HomeProjekte = ({ session }) => {
             const fortschritt = projektTodos.length > 0 ? Math.round((erledigtCount / projektTodos.length) * 100) : null;
 
             return (
-              <div key={p.id} className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border overflow-hidden">
+              <GlassSurface key={p.id} as="article" className="min-w-0 overflow-hidden">
                 {/* Projekt-Header */}
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-2">
@@ -371,8 +378,17 @@ const HomeProjekte = ({ session }) => {
                 </div>
 
                 {/* Aufgaben-Sektion (ausgeklappt) */}
+                <AnimatePresence initial={false}>
                 {isExpanded && (
-                  <div className="border-t border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 p-3">
+                  <motion.div
+                    key="tasks"
+                    variants={reducedMotion ? {} : glassCollapseVariants}
+                    initial="hidden"
+                    animate="show"
+                    exit="exit"
+                    className="overflow-hidden border-t border-light-border dark:border-dark-border"
+                  >
+                  <div className="bg-light-bg/55 p-3 dark:bg-canvas-1/55">
                     <div className="space-y-1 mb-3">
                       {projektTodos.length === 0 && (
                         <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("home:projectsPage.noTasks")}</p>
@@ -401,11 +417,13 @@ const HomeProjekte = ({ session }) => {
                       </button>
                     </div>
                   </div>
+                  </motion.div>
                 )}
-              </div>
+                </AnimatePresence>
+              </GlassSurface>
             );
           })}
-        </div>
+        </motion.div>
       )}
 
       {kiOffen && (
@@ -436,7 +454,7 @@ const HomeProjekte = ({ session }) => {
 
       {modal !== null && (
         <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
-          <div className="mobile-modal-dialog bg-light-card dark:bg-canvas-2 rounded-2xl shadow-2xl max-w-md w-full border border-light-border dark:border-dark-border flex min-h-0 flex-col">
+          <div className={`${glassSurfaceClass} mobile-modal-dialog max-w-md w-full rounded-2xl flex min-h-0 flex-col`}>
             <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border sticky top-0 bg-light-card dark:bg-canvas-2">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
                 {modal.id

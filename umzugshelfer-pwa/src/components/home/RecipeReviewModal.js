@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import ModalShell from "../ui/ModalShell";
 import RecipeFormModal from "./RecipeFormModal";
 import RecipeDuplicateWarning from "./RecipeDuplicateWarning";
+import { getRecipeImageUrl } from "../../utils/recipeImages";
 
 export default function RecipeReviewModal({ open, recipe, display, ingredients, duplicateMatches = [], onClose, onSave }) {
   const { t } = useTranslation("recipes");
@@ -15,6 +16,7 @@ export default function RecipeReviewModal({ open, recipe, display, ingredients, 
   }, [recipe]);
 
   if (!recipe) return null;
+  const imageUrl = getRecipeImageUrl(recipe);
 
   return (
     <>
@@ -34,7 +36,7 @@ export default function RecipeReviewModal({ open, recipe, display, ingredients, 
         )}
       >
         <div className="space-y-5">
-          {recipe.thumbnail_url && <img src={recipe.thumbnail_url} alt="" className="max-h-64 w-full rounded-card-sm object-cover" />}
+          {imageUrl && <img src={imageUrl} alt="" className="max-h-64 w-full rounded-card-sm object-cover" />}
           <div>
             <h2 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">{display?.title || recipe.titel}</h2>
             {recipe.gruppe && (

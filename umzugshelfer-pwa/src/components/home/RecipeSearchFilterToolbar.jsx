@@ -3,6 +3,7 @@ import { BookMarked, LayoutGrid, List, Search, Wheat, X } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import SearchableSelect from "../ui/SearchableSelect";
+import GlassSurface from "../ui/GlassSurface";
 
 export default function RecipeSearchFilterToolbar({
   searchValue = "",
@@ -61,11 +62,12 @@ export default function RecipeSearchFilterToolbar({
   ];
 
   return (
-    <motion.div
+    <GlassSurface
+      interactive={false}
       initial={reduced ? false : { opacity: 0, y: -6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: "spring", stiffness: 360, damping: 32, delay: 0.06 }}
-      className="rounded-card border border-light-border bg-light-card dark:border-dark-border dark:bg-canvas-2"
+      className="overflow-hidden"
     >
       <div className="space-y-3 px-4 py-3">
         <div className="flex items-center gap-2">
@@ -277,6 +279,6 @@ export default function RecipeSearchFilterToolbar({
           )}
         </div>
       </div>
-    </motion.div>
+    </GlassSurface>
   );
 }

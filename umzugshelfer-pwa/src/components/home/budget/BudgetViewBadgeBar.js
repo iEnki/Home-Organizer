@@ -1,5 +1,6 @@
 import React from "react";
 import { Bookmark, Star } from "lucide-react";
+import GlassSurface from "../../ui/GlassSurface";
 
 export default function BudgetViewBadgeBar({
   activeView,
@@ -7,7 +8,7 @@ export default function BudgetViewBadgeBar({
   onOpenViews,
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 px-3 py-2">
+    <GlassSurface interactive={false} className="flex flex-wrap items-center gap-2 px-3 py-2">
       <span className="inline-flex items-center gap-2 text-sm text-light-text-main dark:text-dark-text-main min-w-0">
         <Bookmark size={14} className="text-primary-500 shrink-0" />
         <span className="text-light-text-secondary dark:text-dark-text-secondary shrink-0">
@@ -33,6 +34,6 @@ export default function BudgetViewBadgeBar({
           Ansichten
         </button>
       )}
-    </div>
+    </GlassSurface>
   );
 }

@@ -8,6 +8,7 @@ import {
   X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import GlassSurface from "../../ui/GlassSurface";
 
 export default function BudgetFilterBar({
   suchbegriff,
@@ -30,7 +31,7 @@ export default function BudgetFilterBar({
       data-tour="tour-budget-uebersicht"
       className="sticky top-[72px] z-10 -mx-1 min-w-0 overflow-x-hidden px-1 py-1 bg-light-bg/90 dark:bg-canvas-1/90 backdrop-blur-sm"
     >
-      <div className="space-y-2 rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 px-4 py-3">
+      <GlassSurface interactive={false} className="space-y-2 px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative basis-full w-full min-w-0 sm:flex-1 sm:basis-auto">
             <Search
@@ -151,7 +152,7 @@ export default function BudgetFilterBar({
             ))}
           </div>
         )}
-      </div>
+      </GlassSurface>
     </div>
   );
 }

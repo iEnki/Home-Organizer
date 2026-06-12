@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   Package, Plus, ChevronRight, ChevronDown, Trash2, Edit2, MoreVertical,
   QrCode, Tag, X, Loader2, Search, MapPin, Box, SlidersHorizontal,
@@ -28,6 +29,12 @@ import {
   heuteIso,
   berechneGeraetStatus,
 } from "../../utils/geraetStatus";
+import GlassSurface, {
+  glassCollapseVariants,
+  glassItemVariants,
+  glassPageVariants,
+  glassSurfaceClass,
+} from "../ui/GlassSurface";
 
 // --- BewohnerBadge ---
 const BewohnerBadge = ({ bewohner }) => {
@@ -265,6 +272,7 @@ const HomeInventar = ({ session }) => {
   const { t } = useTranslation(["home"]);
   const userId = session?.user?.id;
   const { isMobile } = useViewport();
+  const reducedMotion = useReducedMotion();
   const { active: tourAktiv, schritt, setSchritt, beenden: tourBeenden } = useTour("inventar");
   const location = useLocation();
   const navigate = useNavigate();
@@ -787,7 +795,10 @@ const HomeInventar = ({ session }) => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4 relative">
+    <div
+      data-testid="inventory-full-width"
+      className="inventory-modern glass-module relative min-h-full min-w-0 max-w-full space-y-4 overflow-x-clip bg-transparent p-4 pb-28 md:p-6 lg:pb-8"
+    >
       {/* Titel + Tab-Navigation */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
@@ -797,45 +808,52 @@ const HomeInventar = ({ session }) => {
       </div>
 
       {/* Tab-Switcher */}
-      <div className="flex border-b border-light-border dark:border-dark-border mb-4">
+      <div className={`${glassSurfaceClass} flex overflow-hidden p-1.5 mb-4`}>
         <button
           onClick={() => setBereich("objekte")}
-          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+          className={`relative flex min-h-10 items-center gap-1.5 rounded-card-sm px-4 py-2 text-sm font-medium transition-colors ${
             bereich === "objekte"
-              ? "border-primary-500 text-primary-500"
-              : "border-transparent text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
+              ? "text-primary-500"
+              : "text-light-text-secondary dark:text-dark-text-secondary hover:bg-white/50 hover:text-light-text-main dark:hover:bg-white/[0.05] dark:hover:text-dark-text-main"
           }`}
         >
+          {bereich === "objekte" && !reducedMotion ? <motion.span layoutId="inventory-active-tab" className="absolute inset-0 -z-10 rounded-card-sm border border-primary-500/20 bg-primary-500/10 shadow-glow-primary" /> : null}
           <Package size={14} />
           Objekte
         </button>
         <button
           onClick={() => setBereich("buecher")}
-          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+          className={`relative flex min-h-10 items-center gap-1.5 rounded-card-sm px-4 py-2 text-sm font-medium transition-colors ${
             bereich === "buecher"
-              ? "border-teal-500 text-teal-500"
-              : "border-transparent text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
+              ? "text-teal-500"
+              : "text-light-text-secondary dark:text-dark-text-secondary hover:bg-white/50 hover:text-light-text-main dark:hover:bg-white/[0.05] dark:hover:text-dark-text-main"
           }`}
         >
+          {bereich === "buecher" && !reducedMotion ? <motion.span layoutId="inventory-active-tab" className="absolute inset-0 -z-10 rounded-card-sm border border-teal-500/20 bg-teal-500/10 shadow-glow-primary" /> : null}
           <BookOpen size={14} />
           Bücherregal
         </button>
       </div>
 
       {/* Bücherregal-Bereich */}
-      {bereich === "buecher" && (
-        <BuecherRegalTab
-          householdId={householdId}
-          session={session}
-          orte={orte}
-          lagerorte={lagerorte}
-          kontakte={kontakte}
-          assistantFlow={location.state?.assistantFlow || null}
-        />
-      )}
+      <AnimatePresence mode="wait">
+        {bereich === "buecher" && (
+          <motion.div key="buecher" variants={reducedMotion ? {} : glassPageVariants} initial="hidden" animate="show" exit="exit">
+            <BuecherRegalTab
+              householdId={householdId}
+              session={session}
+              orte={orte}
+              lagerorte={lagerorte}
+              kontakte={kontakte}
+              assistantFlow={location.state?.assistantFlow || null}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Objekte-Bereich — nur rendern wenn aktiv */}
-      {bereich === "objekte" && (<>
+      <AnimatePresence mode="wait">
+      {bereich === "objekte" && (<motion.div key="objekte" variants={reducedMotion ? {} : glassPageVariants} initial="hidden" animate="show" exit="exit" className="space-y-4">
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
         <div className="flex items-center gap-2">
@@ -981,7 +999,7 @@ const HomeInventar = ({ session }) => {
                   return (
                     <div
                       key={`geraet-${obj.id}`}
-                      className="relative overflow-visible bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border shadow-elevation-1 animate-slide-in-up"
+                      className="relative overflow-visible animate-slide-in-up"
                       style={{ animationDelay: `${idx * 40}ms`, animationFillMode: "both" }}
                     >
                       <GeraetZeile
@@ -1007,10 +1025,9 @@ const HomeInventar = ({ session }) => {
                   );
                 }
                 return (
-                  <div
+                  <GlassSurface
                     key={`${obj.eintrag_typ}-${obj.id}`}
-                    className="relative overflow-hidden bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border shadow-elevation-1 animate-slide-in-up"
-                    style={{ animationDelay: `${idx * 40}ms`, animationFillMode: "both" }}
+                    className="overflow-hidden rounded-card-sm"
                   >
                     <div className={`absolute inset-x-0 top-0 h-0.5 ${statusCfg.accent}`} />
                     <div className="p-3 pt-3.5">
@@ -1087,7 +1104,7 @@ const HomeInventar = ({ session }) => {
                         </div>
                       )}
                     </div>
-                  </div>
+                  </GlassSurface>
                 );
               })}
             </div>
@@ -1177,7 +1194,7 @@ const HomeInventar = ({ session }) => {
       {!isMobile && <div className="flex gap-5">
         {/* Sidebar: Standorte */}
         <div className="w-64 flex-shrink-0">
-          <div className="bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border overflow-hidden shadow-elevation-1">
+          <div className={`${glassSurfaceClass} overflow-hidden`}>
             <div className="px-3 py-2.5 border-b border-light-border dark:border-dark-border flex items-center gap-2">
               <div className="w-1 h-3.5 rounded-pill bg-primary-500 shrink-0" />
               <h2 className="text-[10px] font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-widest">Standorte</h2>
@@ -1277,7 +1294,7 @@ const HomeInventar = ({ session }) => {
         {/* Hauptbereich: Objekte */}
         <div className="flex-1 min-w-0">
           {/* Filter */}
-          <div data-tour="tour-inventar-filter" className="space-y-2.5 mb-4">
+          <div data-tour="tour-inventar-filter" className={`${glassSurfaceClass} space-y-2.5 mb-4 p-3`}>
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary pointer-events-none" />
@@ -1428,7 +1445,13 @@ const HomeInventar = ({ session }) => {
                 })}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <motion.div
+                data-testid="inventory-object-grid"
+                variants={reducedMotion ? {} : glassPageVariants}
+                initial="hidden"
+                animate="show"
+                className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+              >
               {gefilterteObjekte.map((obj, idx) => {
                 const ort = orte.find((o) => o.id === obj.ort_id);
                 const lagerort = lagerorte.find((l) => l.id === obj.lagerort_id);
@@ -1436,10 +1459,9 @@ const HomeInventar = ({ session }) => {
                 const istGeraet = obj.eintrag_typ === "geraet";
                 if (istGeraet) {
                   return (
-                    <div
+                    <motion.div
                       key={`geraet-${obj.id}`}
-                      className="animate-slide-in-up"
-                      style={{ animationDelay: `${idx * 40}ms`, animationFillMode: "both" }}
+                      variants={reducedMotion ? {} : glassItemVariants}
                     >
                       <GeraetZeile
                         g={obj}
@@ -1460,16 +1482,15 @@ const HomeInventar = ({ session }) => {
                         lagerorte={lagerorte}
                         bewohner={bewohner}
                       />
-                    </div>
+                    </motion.div>
                   );
                 }
                 const katCfg = KATEGORIE_FARBE[obj.kategorie] ?? KAT_FARBE_DEFAULT;
                 const KatIcon = KATEGORIE_ICON_MAP[obj.kategorie] || null;
                 return (
-                  <div
+                  <GlassSurface
                     key={`${obj.eintrag_typ}-${obj.id}`}
-                    className="relative overflow-hidden rounded-card-sm bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border shadow-elevation-1 hover:shadow-elevation-2 transition-all duration-200 animate-slide-in-up"
-                    style={{ animationDelay: `${idx * 40}ms`, animationFillMode: "both" }}
+                    className="min-w-0 overflow-hidden rounded-card-sm"
                   >
                     {/* Kategorie-Farbstreifen links */}
                     <div className={`absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b ${katCfg.grad}`} />
@@ -1518,8 +1539,17 @@ const HomeInventar = ({ session }) => {
                     </button>
 
                     {/* Expanded Panel */}
+                    <AnimatePresence initial={false}>
                     {aufgeklapptKarten[obj.id] && (
-                      <div className="border-t border-light-border dark:border-dark-border pl-4 pr-3 pb-3 pt-2.5">
+                      <motion.div
+                        key="details"
+                        variants={reducedMotion ? {} : glassCollapseVariants}
+                        initial="hidden"
+                        animate="show"
+                        exit="exit"
+                        className="overflow-hidden border-t border-light-border dark:border-dark-border"
+                      >
+                      <div className="pl-4 pr-3 pb-3 pt-2.5">
                         {obj.beschreibung && (
                           <p className="text-xs text-dark-text-secondary mb-2.5 leading-relaxed">{obj.beschreibung}</p>
                         )}
@@ -1564,16 +1594,19 @@ const HomeInventar = ({ session }) => {
                           </button>
                         </div>
                       </div>
+                      </motion.div>
                     )}
-                  </div>
+                    </AnimatePresence>
+                  </GlassSurface>
                 );
               })}
-              </div>
+              </motion.div>
             </div>
           )}
         </div>
       </div>}
-      </>)}
+      </motion.div>)}
+      </AnimatePresence>
 
       {/* Modals */}
       {modal && (

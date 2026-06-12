@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Check, Edit2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getHomeBudgetCategoryLabel } from "../../../utils/homeBudgetCategories";
+import GlassSurface from "../../ui/GlassSurface";
 
 const progressGradient = (progress) => {
   if (progress > 90) return "linear-gradient(90deg, #F97316, #FB7185)";
@@ -17,15 +18,14 @@ export default function BudgetLimitRow({
   onChangeEdit,
   onSave,
   onCancel,
-  index = 0,
 }) {
   const { t, i18n } = useTranslation(["budget", "common"]);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const id = setTimeout(() => setMounted(true), 60 + index * 60);
+    const id = setTimeout(() => setMounted(true), 100);
     return () => clearTimeout(id);
-  }, [index]);
+  }, []);
 
   const categoryLabel = getHomeBudgetCategoryLabel(row.kategorie, i18n.language);
   const statusLabel = {
@@ -60,10 +60,7 @@ export default function BudgetLimitRow({
   const clampedProgress = Math.min(Number(row.progress || 0), 100);
 
   return (
-    <div
-      className="rounded-card-sm bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border p-4 space-y-3 animate-slide-in-up"
-      style={{ animationDelay: `${index * 60}ms`, animationFillMode: "both" }}
-    >
+    <GlassSurface className="p-4 space-y-3">
       {/* Header row */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
@@ -147,6 +144,6 @@ export default function BudgetLimitRow({
       {hintText && (
         <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{hintText}</p>
       )}
-    </div>
+    </GlassSurface>
   );
 }

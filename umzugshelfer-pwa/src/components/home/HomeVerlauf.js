@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { createVerlaufQuery } from "../../utils/homeVerlauf";
+import GlassSurface, { GlassModule } from "../ui/GlassSurface";
 import {
   VERLAUF_FILTER_TABELLEN,
   getVerlaufActionMeta,
@@ -79,7 +80,7 @@ const HomeVerlauf = ({ session }) => {
   const datumKeys = Object.keys(gruppen);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4">
+    <GlassModule>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <History size={22} className="text-indigo-500" />
@@ -160,9 +161,10 @@ const HomeVerlauf = ({ session }) => {
                 });
 
                 return (
-                  <div
+                  <GlassSurface
+                    as="article"
                     key={e.id}
-                    className="flex items-center gap-3 p-3 bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border shadow-elevation-2"
+                    className="flex items-center gap-3 rounded-card-sm p-3"
                   >
                     <div className={`p-2 rounded-card-sm ${tabMeta.bg} flex-shrink-0`}>
                       <TabIcon size={14} className={tabMeta.farbe} />
@@ -180,13 +182,13 @@ const HomeVerlauf = ({ session }) => {
                     <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary flex-shrink-0">
                       {uhrzeit}
                     </span>
-                  </div>
+                  </GlassSurface>
                 );
               })}
             </div>
           </div>
         ))}
-    </div>
+    </GlassModule>
   );
 };
 

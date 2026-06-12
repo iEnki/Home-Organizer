@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   AlertCircle,
   AlertTriangle,
@@ -20,6 +21,7 @@ import { TOUR_STEPS } from "./tour/tourSteps";
 import { applySupplyAiItems } from "../../utils/assistantDomainAdapters";
 import { applyShoppingBatch, prepareShoppingBatch } from "../../utils/einkaufslisteUtils";
 import { notifyHouseholdEvent } from "../../utils/pushNotifications";
+import GlassSurface, { glassPageVariants, glassSurfaceClass } from "../ui/GlassSurface";
 
 const KATEGORIEN = ["Haushalt", "Lebensmittel", "Hygiene", "Reinigung", "Technik", "Sonstiges"];
 const EINHEITEN = [
@@ -144,6 +146,7 @@ const VorratForm = ({ initial, onSpeichern, onAbbrechen }) => {
 
 const HomeVorraete = ({ session }) => {
   const { t } = useTranslation(["home", "common"]);
+  const reducedMotion = useReducedMotion();
   const userId = session?.user?.id;
   const toast = useToast();
   const { active: tourAktiv, schritt, setSchritt, beenden: tourBeenden } = useTour("vorraete");
@@ -297,7 +300,7 @@ const HomeVorraete = ({ session }) => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4">
+    <div className="home-glass-modern glass-module relative min-h-full min-w-0 max-w-full space-y-4 overflow-x-clip bg-transparent p-4 pb-28 md:p-6 lg:pb-8">
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
           <ShoppingCart size={22} className="text-primary-500" />
@@ -327,20 +330,20 @@ const HomeVorraete = ({ session }) => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+      <motion.div variants={reducedMotion ? {} : glassPageVariants} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
         {[
           { label: t("home:stockForm.status.restock"), count: rot.length, farbe: "red" },
           { label: t("home:stockForm.status.low"), count: vorraete.filter((v) => { const b = Number(v.bestand); const m = Number(v.mindestmenge); return b >= m && b < m * 1.2; }).length, farbe: "amber" },
           { label: t("home:stockForm.status.ok"), count: vorraete.filter((v) => Number(v.bestand) >= Number(v.mindestmenge) * 1.2).length, farbe: "green" },
         ].map((s) => (
-          <div key={s.label} className={`p-3 rounded-card border text-center ${s.farbe === "red" ? "bg-red-500/10 border-red-500/30" : s.farbe === "amber" ? "bg-amber-500/10 border-amber-500/30" : "bg-primary-500/10 border-primary-500/30"}`}>
+          <GlassSurface key={s.label} className={`p-3 text-center ${s.farbe === "red" ? "border-red-500/30" : s.farbe === "amber" ? "border-amber-500/30" : "border-primary-500/30"}`}>
             <div className={`text-2xl font-bold ${s.farbe === "red" ? "text-red-600 dark:text-red-400" : s.farbe === "amber" ? "text-amber-600 dark:text-amber-400" : "text-green-600 dark:text-green-400"}`}>{s.count}</div>
             <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{s.label}</div>
-          </div>
+          </GlassSurface>
         ))}
-      </div>
+      </motion.div>
 
-      <div data-tour="tour-vorraete-filter" className="flex gap-2 flex-wrap mb-4">
+      <div data-tour="tour-vorraete-filter" className={`${glassSurfaceClass} flex gap-2 flex-wrap mb-4 p-3`}>
         <button onClick={() => setKategFilter("")} className={`px-3 py-1.5 rounded-pill text-xs font-medium transition-colors ${!kategFilter ? "bg-primary-500 text-white" : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"}`}>{t("home:stockForm.all")}</button>
         {KATEGORIEN.map((k) => (
           <button key={k} onClick={() => setKategFilter(k)} className={`px-3 py-1.5 rounded-pill text-xs font-medium transition-colors ${kategFilter === k ? "bg-primary-500 text-white" : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"}`}>{t(`home:stockForm.categories.${k}`)}</button>
@@ -356,13 +359,13 @@ const HomeVorraete = ({ session }) => {
           </button>
         </div>
       ) : (
-        <div data-tour="tour-vorraete-liste" className="space-y-2">
+        <motion.div data-tour="tour-vorraete-liste" variants={reducedMotion ? {} : glassPageVariants} initial="hidden" animate="show" className="grid grid-cols-1 gap-3 xl:grid-cols-2 2xl:grid-cols-3">
           {gefiltertVorraete.map((v) => {
             const beinaheAbgelaufen = v.ablaufdatum && v.ablaufdatum <= inSiebenTagen && v.ablaufdatum >= heute;
             const abgelaufen = v.ablaufdatum && v.ablaufdatum < heute;
             const einheitLabel = unitLabel(v.einheit);
             return (
-              <div key={v.id} className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-3 flex items-center gap-3 group">
+              <GlassSurface key={v.id} className="flex min-w-0 items-center gap-3 p-3">
                 <div className={`w-3 h-3 rounded-full flex-shrink-0 ${ampelKlasse(v)}`} title={`${t("home:stockForm.form.current")}: ${v.bestand} ${einheitLabel}, ${t("home:stockForm.form.minimum")}: ${v.mindestmenge}`} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -384,15 +387,15 @@ const HomeVorraete = ({ session }) => {
                   <button onClick={() => setModal(v)} className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500"><Edit2 size={13} /></button>
                   <button onClick={() => loesche(v.id)} className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500"><Trash2 size={13} /></button>
                 </div>
-              </div>
+              </GlassSurface>
             );
           })}
-        </div>
+        </motion.div>
       )}
 
       {modal !== null && (
         <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
-          <div className="mobile-modal-dialog bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border flex min-h-0 flex-col">
+          <div className={`${glassSurfaceClass} mobile-modal-dialog max-w-md w-full flex min-h-0 flex-col`}>
             <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border sticky top-0 bg-light-card dark:bg-canvas-2">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">{modal.id ? t("home:stockForm.edit") : t("home:stockForm.new")}</h3>
               <button onClick={() => setModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary"><X size={18} /></button>

@@ -24,6 +24,7 @@ import DokumentVorschauModal from "./DokumentVorschauModal";
 import TourOverlay from "./tour/TourOverlay";
 import { TOUR_STEPS } from "./tour/tourSteps";
 import { useTour } from "./tour/useTour";
+import GlassSurface, { GlassModule } from "../ui/GlassSurface";
 
 const QUELLEN = [
   { key: "objekte", labelKey: "search.sources.inventory", icon: Package, farbe: "text-blue-500", pfad: "/home/inventar" },
@@ -216,10 +217,11 @@ const Schnellsuche = ({ session }) => {
                 </div>
                 <div className="space-y-1.5">
                   {items.map((item) => (
-                    <button
+                    <GlassSurface
+                      as="button"
                       key={item.id}
                       onClick={() => navigate(pfad)}
-                      className="w-full rounded-card border border-light-border bg-light-card p-3 text-left shadow-elevation-2 transition-colors hover:border-primary-500/50 dark:border-dark-border dark:bg-canvas-2"
+                      className="w-full p-3 text-left"
                     >
                       <div className="flex items-center gap-3">
                         <Icon size={14} className={`${farbe} flex-shrink-0`} />
@@ -232,7 +234,7 @@ const Schnellsuche = ({ session }) => {
                           </p>
                         </div>
                       </div>
-                    </button>
+                    </GlassSurface>
                   ))}
                 </div>
               </div>
@@ -384,9 +386,10 @@ const KiAssistent = ({ session }) => {
             {t("home:search.previousQuestions")}
           </p>
           {verlauf.slice(1).map((eintrag, index) => (
-            <div
+            <GlassSurface
+              as="article"
               key={`${eintrag.frage}-${index}`}
-              className="rounded-card border border-light-border bg-light-card p-3 shadow-elevation-2 dark:border-dark-border dark:bg-canvas-2"
+              className="p-3"
             >
               <p className="mb-1 text-xs font-medium text-light-text-main dark:text-dark-text-main">
                 ?? {eintrag.frage}
@@ -394,7 +397,7 @@ const KiAssistent = ({ session }) => {
               <p className="line-clamp-2 text-xs text-light-text-secondary dark:text-dark-text-secondary">
                 {eintrag.antwort}
               </p>
-            </div>
+            </GlassSurface>
           ))}
         </div>
       )}
@@ -447,7 +450,7 @@ const HomeGlobalSuche = ({ session }) => {
   }, [location.state]);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-4 px-4 py-4 lg:px-6">
+    <GlassModule>
       <div className="flex items-center gap-2">
         <Search size={22} className="text-primary-500" />
         <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">
@@ -455,7 +458,7 @@ const HomeGlobalSuche = ({ session }) => {
         </h1>
       </div>
 
-      <div data-tour="tour-suche-tabs" className="flex gap-1 rounded-card bg-light-border p-1 dark:bg-dark-border">
+      <GlassSurface interactive={false} data-tour="tour-suche-tabs" className="flex gap-1 p-1">
         <button
           onClick={() => setModus("schnell")}
           className={`flex flex-1 items-center justify-center gap-1.5 rounded-card-sm px-3 py-2 text-sm font-medium transition-colors ${
@@ -478,7 +481,7 @@ const HomeGlobalSuche = ({ session }) => {
           <Sparkles size={14} />
           {t("home:search.ai")}
         </button>
-      </div>
+      </GlassSurface>
 
       {modus === "schnell" ? <Schnellsuche session={session} /> : <KiAssistent session={session} />}
 
@@ -490,7 +493,7 @@ const HomeGlobalSuche = ({ session }) => {
           onBeenden={tourBeenden}
         />
       )}
-    </div>
+    </GlassModule>
   );
 };
 

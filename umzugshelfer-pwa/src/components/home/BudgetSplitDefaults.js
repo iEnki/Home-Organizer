@@ -10,6 +10,7 @@ import {
   getDefaultHomeBudgetCategories,
   getSelectableHomeBudgetCategoryNames,
 } from "../../utils/homeBudgetCategories";
+import GlassSurface from "../ui/GlassSurface";
 
 const INPUT_CLS = "w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500";
 
@@ -140,7 +141,7 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
   const bewohnerById = Object.fromEntries((bewohner || []).map(b => [b.id, b]));
 
   return (
-    <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2">
+    <GlassSurface interactive={false} className="overflow-hidden">
       <div className="flex items-center justify-between gap-3 p-4 border-b border-light-border dark:border-dark-border">
         <div>
           <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
@@ -176,7 +177,7 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
             const payer = bewohnerById[eintrag.payer_member_id];
             const teilnehmer = (eintrag.teilnehmer_ids || []).map(id => bewohnerById[id]).filter(Boolean);
             return (
-              <div key={eintrag.id} className="flex items-center justify-between gap-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-2">
+              <GlassSurface key={eintrag.id} className="flex items-center justify-between gap-3 px-3 py-2">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">
                     {eintrag.kategorie}
@@ -203,7 +204,7 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
                     <Trash2 size={14} />
                   </button>
                 </div>
-              </div>
+              </GlassSurface>
             );
           })
         )}
@@ -212,7 +213,7 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
       {/* Bearbeitungs-Modal */}
       {editModal && (
         <div className="mobile-modal-overlay fixed inset-0 z-[110] flex justify-center bg-black/60 backdrop-blur-sm">
-          <div className="mobile-modal-dialog bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border flex min-h-0 flex-col">
+          <GlassSurface interactive={false} className="mobile-modal-dialog max-w-md w-full flex min-h-0 flex-col">
             <div className="shrink-0 flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
                 {editModal.id ? t("budget:splitDefaults.editTitle") : t("budget:splitDefaults.newTitle")}
@@ -269,9 +270,9 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
                 {speichern ? t("budget:splitDefaults.saving") : t("budget:splitDefaults.save")}
               </button>
             </div>
-          </div>
+          </GlassSurface>
         </div>
       )}
-    </div>
+    </GlassSurface>
   );
 }

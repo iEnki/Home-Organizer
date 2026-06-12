@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Wrench, X, FileText, Link2, Loader2, AlertCircle, Sparkles, Plus, LayoutGrid, List } from "lucide-react";
@@ -21,9 +22,11 @@ import {
 import { applyDeviceAiItems } from "../../utils/assistantDomainAdapters";
 import { notifyHouseholdEvent } from "../../utils/pushNotifications";
 import { DEFAULT_GERAET_FORM, buildGeraetPayload, mapGeraetToForm } from "../../utils/geraeteForm";
+import { glassItemVariants, glassPageVariants, glassSurfaceClass } from "../ui/GlassSurface";
 
 const HomeGeraete = ({ session }) => {
   const { t, i18n } = useTranslation(["home", "common"]);
+  const reducedMotion = useReducedMotion();
   const userId = session?.user?.id;
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -317,7 +320,7 @@ const HomeGeraete = ({ session }) => {
 
   // --- Render ---
   return (
-    <div className="max-w-5xl mx-auto px-4 lg:px-6 py-4 space-y-4">
+    <div className="home-glass-modern glass-module relative min-h-full min-w-0 max-w-full space-y-4 overflow-x-clip bg-transparent p-4 pb-28 md:p-6 lg:pb-8">
 
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
@@ -327,7 +330,7 @@ const HomeGeraete = ({ session }) => {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {/* Ansicht-Toggle (nur Desktop) */}
-          <div className="hidden sm:flex items-center rounded-card-sm border border-light-border dark:border-dark-border overflow-hidden">
+          <div className={`${glassSurfaceClass} hidden sm:flex items-center overflow-hidden rounded-card-sm`}>
             <button
               onClick={() => toggleAnsicht("liste")}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs transition-colors ${ansicht === "liste" ? "bg-primary-500 text-white" : "text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"}`}
@@ -431,12 +434,11 @@ const HomeGeraete = ({ session }) => {
                   </span>
                 </div>
               )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {gruppe.items.map((g, idx) => (
-                  <div
+              <motion.div variants={reducedMotion ? {} : glassPageVariants} initial="hidden" animate="show" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                {gruppe.items.map((g) => (
+                  <motion.div
                     key={g.id}
-                    className="animate-slide-in-up"
-                    style={{ animationDelay: `${idx * 35}ms`, animationFillMode: "both" }}
+                    variants={reducedMotion ? {} : glassItemVariants}
                   >
                     <GeraetZeile
                       g={g}
@@ -458,9 +460,9 @@ const HomeGeraete = ({ session }) => {
                       lagerorte={lagerorte}
                       bewohner={bewohner}
                     />
-                  </div>
+                  </motion.div>
                 ))}
-              </div>
+              </motion.div>
             </section>
           ))}
         </div>
@@ -480,7 +482,7 @@ const HomeGeraete = ({ session }) => {
                   </span>
                 </div>
               )}
-              <div className="space-y-2">
+              <motion.div variants={reducedMotion ? {} : glassPageVariants} initial="hidden" animate="show" className="space-y-2">
                 {gruppe.items.map((g) => (
                   <GeraetZeile
                     key={g.id}
@@ -504,7 +506,7 @@ const HomeGeraete = ({ session }) => {
                     bewohner={bewohner}
                   />
                 ))}
-              </div>
+              </motion.div>
             </section>
           ))}
         </div>
@@ -513,7 +515,7 @@ const HomeGeraete = ({ session }) => {
       {/* Gerät-Formular-Modal */}
       {modal !== null && (
         <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
-          <div className="mobile-modal-dialog bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border flex min-h-0 flex-col">
+          <div className={`${glassSurfaceClass} mobile-modal-dialog max-w-md w-full flex min-h-0 flex-col`}>
             <div className="shrink-0 flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border sticky top-0 bg-light-card dark:bg-canvas-2 rounded-t-card">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
                 {formData.id ? t("home:devicesForm.edit") : t("home:devicesForm.new")}
@@ -580,7 +582,7 @@ const HomeGeraete = ({ session }) => {
       {/* Dokumenten-Picker-Modal */}
       {dokuModal !== null && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-safe">
-          <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-sm w-full border border-light-border dark:border-dark-border max-h-[80vh] flex flex-col">
+          <div className={`${glassSurfaceClass} max-w-sm w-full max-h-[80vh] flex flex-col`}>
             <div className="shrink-0 flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
               <h3 className="font-semibold text-sm text-light-text-main dark:text-dark-text-main">
                 {t("home:devicesForm.linkDocument", { defaultValue: "Link document" })}

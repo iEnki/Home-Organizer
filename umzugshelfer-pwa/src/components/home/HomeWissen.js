@@ -30,6 +30,7 @@ import {
   isManualKnowledgeEntry,
   resolveLocalizedKnowledge,
 } from "../../utils/localizedKnowledge";
+import GlassSurface, { GlassModule } from "../ui/GlassSurface";
 
 const KATEGORIEN = [
   "Versicherung",
@@ -561,7 +562,7 @@ const HomeWissen = ({ session }) => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4">
+    <GlassModule>
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -658,7 +659,7 @@ const HomeWissen = ({ session }) => {
               className={`px-3 py-1.5 rounded-pill text-xs font-medium whitespace-nowrap transition-colors shrink-0 ${
                 jahrFilter === "alle"
                   ? "bg-amber-500 text-white"
-                  : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:border-amber-500/40"
+                  : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"
               }`}
             >
               {t("home:wissen.filterAllYears")}
@@ -670,7 +671,7 @@ const HomeWissen = ({ session }) => {
                 className={`px-3 py-1.5 rounded-pill text-xs font-medium whitespace-nowrap transition-colors shrink-0 ${
                   jahrFilter === jahr
                     ? "bg-amber-500 text-white"
-                    : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:border-amber-500/40"
+                    : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"
                 }`}
               >
                 {jahr}
@@ -687,7 +688,7 @@ const HomeWissen = ({ session }) => {
               className={`px-3 py-1.5 rounded-pill text-xs font-medium whitespace-nowrap transition-colors shrink-0 ${
                 monatFilter === "alle"
                   ? "bg-amber-500/80 text-white"
-                  : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:border-amber-500/40"
+                  : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"
               }`}
             >
               {t("home:wissen.filterAllMonths")}
@@ -699,7 +700,7 @@ const HomeWissen = ({ session }) => {
                 className={`px-3 py-1.5 rounded-pill text-xs font-medium whitespace-nowrap transition-colors shrink-0 ${
                   monatFilter === key
                     ? "bg-amber-500/80 text-white"
-                    : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:border-amber-500/40"
+                    : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"
                 }`}
               >
                 {formatMonatLabel(key, t)}
@@ -716,7 +717,7 @@ const HomeWissen = ({ session }) => {
               className={`px-3 py-1.5 rounded-pill text-xs font-medium transition-colors ${
                 !kategFilter
                   ? "bg-amber-500 text-white"
-                  : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:border-amber-500/40"
+                  : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"
               }`}
             >
               {t("home:wissen.filterAll")} <span className="opacity-70 ml-0.5">({eintraege.length})</span>
@@ -728,7 +729,7 @@ const HomeWissen = ({ session }) => {
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-xs font-medium transition-colors ${
                   kategFilter === k
                     ? "bg-amber-500 text-white"
-                    : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main hover:border-amber-500/40"
+                    : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"
                 }`}
               >
                 <span className={`w-1.5 h-1.5 rounded-full ${getKategorieFarbe(k)} ${kategFilter === k ? "opacity-70" : ""}`} />
@@ -765,9 +766,10 @@ const HomeWissen = ({ session }) => {
           {gefiltertEintraege.map((e) => {
             const display = getDisplay(e);
             return (
-            <div
+            <GlassSurface
+              as="article"
               key={e.id}
-              className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border p-4 cursor-pointer hover:border-amber-500/40 transition-colors group"
+              className="p-4 cursor-pointer"
               onClick={() => toggleDetails(e)}
             >
               <div className="flex items-start justify-between gap-2 mb-1">
@@ -842,7 +844,7 @@ const HomeWissen = ({ session }) => {
                   </div>
                 )}
               </div>
-            </div>
+            </GlassSurface>
             );
           })}
         </div>
@@ -877,13 +879,13 @@ const HomeWissen = ({ session }) => {
 
                 {/* Einträge — nur wenn nicht eingeklappt */}
                 {!istEingeklappt && (
-                  <div className="bg-light-card dark:bg-canvas-2 rounded-card-sm border border-light-border dark:border-dark-border overflow-hidden divide-y divide-light-border dark:divide-dark-border">
+                  <div className="space-y-2">
                     {eintraegeFuerMonat.map((e) => {
                       const display = getDisplay(e);
                       return (
-                      <div key={e.id}>
+                      <GlassSurface as="article" key={e.id} className="overflow-hidden rounded-card-sm">
                         <div
-                          className="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors group"
+                          className="flex items-start gap-3 px-4 py-3 cursor-pointer group"
                           onClick={() => toggleDetails(e)}
                         >
                           <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${getKategorieFarbe(e.kategorie)}`} />
@@ -947,7 +949,7 @@ const HomeWissen = ({ session }) => {
                         </div>
 
                         {detailId === e.id && (
-                          <div className="px-4 pb-4 pt-3 border-t border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 space-y-3">
+                          <div className="space-y-3 border-t border-light-border/70 bg-white/20 px-4 pb-4 pt-3 dark:border-white/[0.08] dark:bg-white/[0.025]">
                             {renderDetailInhalt(e, true)}
                             {e.dokument_id && (
                               <button
@@ -960,7 +962,7 @@ const HomeWissen = ({ session }) => {
                             )}
                           </div>
                         )}
-                      </div>
+                      </GlassSurface>
                       );
                     })}
                   </div>
@@ -1042,7 +1044,7 @@ const HomeWissen = ({ session }) => {
           </div>
         </div>
       )}
-    </div>
+    </GlassModule>
   );
 };
 

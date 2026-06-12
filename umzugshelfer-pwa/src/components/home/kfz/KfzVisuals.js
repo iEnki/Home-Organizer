@@ -40,6 +40,13 @@ import useViewport from "../../../hooks/useViewport";
 import { loadVehiclePhotoUrl } from "../../../utils/kfzPhotos";
 import { formatKfzDisplayText } from "../../../utils/kfzPresentation";
 import ModalShell from "../../ui/ModalShell";
+import GlassSurface, {
+  glassItemVariants as itemVariants,
+  glassPageVariants as pageVariants,
+  glassSurfaceClass as glassPanelClass,
+} from "../../ui/GlassSurface";
+
+export { glassPanelClass, pageVariants };
 
 ChartJS.register(
   ArcElement,
@@ -54,19 +61,6 @@ ChartJS.register(
 );
 
 const palette = ["#10b981", "#22d3ee", "#f59e0b", "#8b5cf6", "#fb7185", "#38bdf8", "#64748b"];
-
-export const glassPanelClass = "rounded-card border border-white/45 bg-white/72 shadow-elevation-1 backdrop-blur-xl dark:border-white/[0.09] dark:bg-[#07161d]/78 dark:shadow-[0_18px_60px_rgba(0,0,0,.28)]";
-
-export const pageVariants = {
-  hidden: { opacity: 0, y: 10 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1], staggerChildren: 0.045 } },
-  exit: { opacity: 0, y: -6, transition: { duration: 0.16 } },
-};
-
-export const itemVariants = {
-  hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.32, ease: [0.22, 1, 0.36, 1] } },
-};
 
 const percentage = (value) => {
   if (value == null || !Number.isFinite(value)) return null;
@@ -108,24 +102,10 @@ const chartBase = {
 };
 
 function GlassPanel({ children, className = "", as = "section" }) {
-  const reduced = useReducedMotion();
-  const Component = motion[as] || motion.section;
-  const moveSheen = (event) => {
-    if (reduced) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    event.currentTarget.style.setProperty("--kfz-pointer-x", `${event.clientX - rect.left}px`);
-    event.currentTarget.style.setProperty("--kfz-pointer-y", `${event.clientY - rect.top}px`);
-  };
   return (
-    <Component
-      variants={itemVariants}
-      onMouseMove={moveSheen}
-      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-      className={`${glassPanelClass} kfz-hover-card group ${className}`}
-    >
-      <span className="kfz-card-sheen" aria-hidden="true" />
+    <GlassSurface as={as} className={className}>
       {children}
-    </Component>
+    </GlassSurface>
   );
 }
 

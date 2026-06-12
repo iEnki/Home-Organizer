@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   AlertTriangle,
   Bell,
@@ -41,6 +42,10 @@ import {
   sanitizeLeafletSummary,
   searchAustrianMedicines,
 } from "../../utils/heimapotheke";
+import GlassSurface, {
+  glassCollapseVariants,
+  glassPageVariants,
+} from "../ui/GlassSurface";
 
 // Constants
 
@@ -709,6 +714,7 @@ function MedicationPhotoScanner({ onCancel, onImport, saving }) {
 // Main Component
 
 export default function HomeHeimapotheke({ session }) {
+  const reducedMotion = useReducedMotion();
   const userId = session?.user?.id;
   const toast = useToast();
   const navigate = useNavigate();
@@ -1047,7 +1053,7 @@ export default function HomeHeimapotheke({ session }) {
   // Render
 
   return (
-    <div className="mx-auto max-w-7xl px-4 lg:px-6 py-4 space-y-4 overflow-x-hidden pb-24 min-h-[calc(100dvh-4.5rem)]">
+    <div className="home-glass-modern glass-module relative min-h-[calc(100dvh-4.5rem)] min-w-0 max-w-full space-y-4 overflow-x-clip bg-transparent p-4 pb-28 md:p-6 lg:pb-8">
       {/* Page header — hidden on mobile (topbar shows title + FAB handles action) */}
       <div className="hidden sm:flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -1081,7 +1087,7 @@ export default function HomeHeimapotheke({ session }) {
 
       <div className="space-y-4">
           {hasAlerts && (
-            <div className="grid grid-cols-3 gap-2 sm:gap-3 animate-fade-in">
+            <motion.div variants={reducedMotion ? {} : glassPageVariants} initial="hidden" animate="show" className="grid grid-cols-3 gap-2 sm:gap-3">
               {[
                 { key: "expired",  count: stats.expired,  icon: AlertTriangle, label: "Abgelaufen",    hex: "#FB7185" },
                 { key: "expiring", count: stats.expiring, icon: Bell,          label: "Läuft bald ab", hex: "#F59E0B" },
@@ -1089,10 +1095,11 @@ export default function HomeHeimapotheke({ session }) {
               ].map(({ key, count, icon: Icon, label, hex }) => {
                 const cfg = STATUS_CFG[key];
                 return (
-                  <button
+                  <GlassSurface
+                    as="button"
                     key={key}
                     onClick={() => setStatusFilter(statusFilter === key ? "" : key)}
-                    className={`relative overflow-hidden rounded-card-sm sm:rounded-card border p-2.5 sm:p-3.5 text-left transition-all hover:shadow-elevation-2 ${cfg.border} ${cfg.bg} ${statusFilter === key ? "ring-1 ring-primary-500/40" : ""}`}
+                    className={`overflow-hidden rounded-card-sm p-2.5 sm:rounded-card sm:p-3.5 text-left ${cfg.border} ${statusFilter === key ? "ring-1 ring-primary-500/40" : ""}`}
                   >
                     <div className={`pointer-events-none absolute -right-2 -top-2 h-10 w-10 sm:h-14 sm:w-14 rounded-full blur-xl ${cfg.glow}`} />
                     <div className="relative flex flex-col sm:flex-row sm:items-center sm:gap-3 gap-1">
@@ -1105,10 +1112,10 @@ export default function HomeHeimapotheke({ session }) {
                         <p className="text-[10px] sm:text-[11px] text-light-text-secondary dark:text-dark-text-secondary mt-0.5 leading-tight">{label}</p>
                       </div>
                     </div>
-                  </button>
+                  </GlassSurface>
                 );
               })}
-            </div>
+            </motion.div>
           )}
           {/* Mobile: sticky filter bar — HomeInventar pattern */}
           <div className="relative z-10 -mx-4 mb-3 px-4 py-3 bg-light-bg/95 dark:bg-canvas-1/95 backdrop-blur-md border-y border-light-border dark:border-dark-border space-y-2 lg:hidden">
@@ -1176,7 +1183,7 @@ export default function HomeHeimapotheke({ session }) {
           </div>
 
           {/* Desktop: filter card */}
-          <div className="hidden lg:block rounded-card border border-light-border dark:border-dark-border bg-light-card/80 dark:bg-canvas-2/80 backdrop-blur-sm shadow-elevation-1 p-4">
+          <GlassSurface interactive={false} className="hidden lg:block p-4">
             <SectionHeader label="Filter" icon={Search} />
             <div className="grid gap-2 grid-cols-[minmax(0,1fr)_160px_160px_140px]">
               <div className="relative">
@@ -1204,7 +1211,7 @@ export default function HomeHeimapotheke({ session }) {
                 <option value="ok">OK</option>
               </select>
             </div>
-          </div>
+          </GlassSurface>
           {/* Medication list — accordion cards */}
           <div className="space-y-2 pt-1 lg:pt-0">
             {loading ? (
@@ -1212,7 +1219,7 @@ export default function HomeHeimapotheke({ session }) {
                 <Loader2 size={24} className="animate-spin text-primary-500" />
               </div>
             ) : filtered.length === 0 ? (
-              <div className="flex flex-col items-center rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 py-14 text-center animate-fade-in shadow-elevation-1">
+              <GlassSurface interactive={false} className="flex flex-col items-center py-14 text-center">
                 <div className="relative mb-4">
                   <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-primary-500/30 bg-primary-500/5">
                     <Pill size={28} className="text-primary-500/60" />
@@ -1223,21 +1230,20 @@ export default function HomeHeimapotheke({ session }) {
                 <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
                   {query || category || locationFilter || statusFilter ? "Filter anpassen oder" : ""} neues Medikament hinzufügen
                 </p>
-              </div>
+              </GlassSurface>
             ) : (
-              filtered.map((entry, i) => {
+              filtered.map((entry) => {
                 const status = getMedicationStatus(entry);
                 const cfg = STATUS_CFG[status.key] || STATUS_CFG.ok;
                 const isSelected = selected?.id === entry.id;
                 const analysis = analysisByMedication[entry.id];
                 const leafletDoc = leafletDocs[entry.beipackzettel_dokument_id];
                 return (
-                  <div
+                  <GlassSurface
                     key={entry.id}
-                    className={`relative overflow-hidden rounded-card-sm border bg-light-card dark:bg-canvas-2 shadow-elevation-1 animate-slide-in-up transition-colors ${
+                    className={`overflow-hidden rounded-card-sm ${
                       isSelected ? "border-primary-500/50" : "border-light-border dark:border-dark-border"
                     }`}
-                    style={{ animationDelay: `${i * 40}ms`, animationFillMode: "both" }}
                   >
                     {/* Status accent stripe */}
                     <div className={`absolute inset-x-0 top-0 h-0.5 ${cfg.dot}`} />
@@ -1291,8 +1297,17 @@ export default function HomeHeimapotheke({ session }) {
                     </button>
 
                     {/* Expanded detail */}
+                    <AnimatePresence initial={false}>
                     {isSelected && (
-                      <div className="border-t border-light-border dark:border-dark-border px-3 pb-4 space-y-4">
+                      <motion.div
+                        key="details"
+                        variants={reducedMotion ? {} : glassCollapseVariants}
+                        initial="hidden"
+                        animate="show"
+                        exit="exit"
+                        className="overflow-hidden border-t border-light-border dark:border-dark-border"
+                      >
+                      <div className="px-3 pb-4 space-y-4">
                         {/* Actions */}
                         <div className="flex gap-2 pt-3">
                           <button
@@ -1422,8 +1437,10 @@ export default function HomeHeimapotheke({ session }) {
                           </div>
                         )}
                       </div>
+                      </motion.div>
                     )}
-                  </div>
+                    </AnimatePresence>
+                  </GlassSurface>
                 );
               })
             )}

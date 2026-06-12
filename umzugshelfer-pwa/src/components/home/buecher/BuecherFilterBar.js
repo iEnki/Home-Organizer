@@ -2,6 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Search, X, Plus, ScanLine, ScanBarcode, Camera, LayoutList, LayoutGrid } from "lucide-react";
 import { BUCH_STATUS, BUCH_SORTIERUNGEN } from "../../../utils/buecher";
+import GlassSurface from "../../ui/GlassSurface";
 
 export default function BuecherFilterBar({
   suche,
@@ -20,7 +21,7 @@ export default function BuecherFilterBar({
   const { t } = useTranslation(["books"]);
 
   return (
-    <div className="space-y-2.5 mb-4">
+    <GlassSurface interactive={false} className="space-y-2.5 mb-4 p-3">
       {/* Row 1: Search + Sort + Add */}
       <div className="flex gap-2">
         <div className="relative flex-1 min-w-0">
@@ -144,6 +145,6 @@ export default function BuecherFilterBar({
             </button>
           ))}
       </div>
-    </div>
+    </GlassSurface>
   );
 }
