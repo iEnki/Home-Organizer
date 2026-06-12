@@ -1,70 +1,108 @@
-# Getting Started with Create React App
+# Frontend Development
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+React frontend for the Home Organizer & Moving Planner PWA.
 
-## Available Scripts
+For product features and self-hosting, see the repository-level [German](../README.de.md) or [English](../README.en.md) documentation.
 
-In the project directory, you can run:
+## Stack
 
-### `npm start`
+- React 18 with Create React App
+- React Router 6
+- Tailwind CSS
+- Supabase JS
+- i18next with German and English (UK) locales
+- Chart.js and `react-chartjs-2`
+- Framer Motion
+- React PDF renderer
+- Jest and Testing Library
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## Requirements
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+- Node.js 20 recommended
+- npm
+- A reachable Supabase installation with the current database schema and Edge Functions
 
-### `npm test`
+## Environment
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Create `umzugshelfer-pwa/.env`:
 
-### `npm run build`
+```env
+REACT_APP_SUPABASE_URL=https://your-supabase.example.com
+REACT_APP_SUPABASE_ANON_KEY=your-anon-key
+REACT_APP_PASSWORD_RESET_REDIRECT_URL=http://localhost:3000/update-password
+REACT_APP_VAPID_PUBLIC_KEY=your-vapid-public-key
+GENERATE_SOURCEMAP=false
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+`REACT_APP_SUPABASE_URL` and `REACT_APP_SUPABASE_ANON_KEY` are required. Push notifications need the VAPID key. Do not place service-role keys or AI-provider secrets in frontend environment files.
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## Commands
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+```bash
+npm install
+npm start
+npm test
+npm run i18n:check
+npm run build
+```
 
-### `npm run eject`
+| Command | Purpose |
+| --- | --- |
+| `npm start` | Start the development server on `http://localhost:3000` |
+| `npm test -- --watchAll=false` | Run the Jest suite once |
+| `npm run i18n:check` | Compare locale keys and report untranslated UI literals |
+| `npm run build` | Create the production build in `build/` |
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+## Source Layout
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+```text
+src/
+|-- components/
+|   |-- home/          Home Organizer modules
+|   |-- layout/        Desktop and mobile application shell
+|   |-- assistant/     Global assistant UI
+|   `-- ui/            Shared UI primitives
+|-- contexts/          Session, household, locale, theme and tour state
+|-- hooks/             Reusable data and UI hooks
+|-- i18n/locales/      German and English (UK) JSON resources
+|-- utils/             Domain logic, statistics, imports and API helpers
+|-- App.js             Routes and authenticated application shell
+`-- supabaseClient.js  Browser Supabase client
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+Important domain areas include `components/home/kfz`, `components/home/budget`, `components/home/documents`, `components/home/geraete` and the recipe components under `components/home`.
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+## Backend Contract
 
-## Learn More
+The frontend expects:
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+- the schema from `../database_setup_complete.sql`;
+- household-scoped RLS policies;
+- configured storage buckets and document links;
+- the Edge Functions in `../supabase/functions`;
+- local OCR and recipe services for the corresponding fullstack features.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+Apply schema changes to both the dated migration under `../scripts` and the complete schema when adding database functionality.
 
-### Code Splitting
+## Internationalisation
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+UI text belongs in:
 
-### Analyzing the Bundle Size
+```text
+src/i18n/locales/de/
+src/i18n/locales/en-GB/
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+Keep namespace keys synchronized and run `npm run i18n:check` before shipping. German text uses proper umlauts (`Ä`, `Ö`, `Ü`, `ä`, `ö`, `ü`) rather than ASCII substitutions.
 
-### Making a Progressive Web App
+## Testing Notes
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+- Keep calculation-heavy domain logic in `src/utils` and cover it with unit tests.
+- Test household scoping and partial backend failures for data hooks.
+- Check responsive views without horizontal overflow.
+- Verify `prefers-reduced-motion` when adding animations.
+- Run a production build after dependency, routing or environment changes.
 
-### Advanced Configuration
+## Production
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+The root Docker configuration builds this directory and serves `build/` through Nginx. Use the repository management scripts for deployment and updates rather than running the CRA development server in production.
