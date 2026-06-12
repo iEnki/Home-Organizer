@@ -22,6 +22,14 @@ const TABLE_META = {
   home_wissen: { singular: "Wissenseintrag", plural: "Wissenseintraege", url: "/home/wissen" },
   dokumente: { singular: "Dokument", plural: "Dokumente", url: "/home/dokumente" },
   home_buecher: { singular: "Buch", plural: "Buecher", url: "/home/inventar?tab=buecher" },
+  home_fahrzeuge: { singular: "Fahrzeug", plural: "Fahrzeuge", url: "/home/kfz" },
+  home_fahrzeug_ausgaben: { singular: "Fahrzeugausgabe", plural: "Fahrzeugausgaben", url: "/home/kfz" },
+  home_fahrzeug_tankvorgaenge: { singular: "Tankvorgang", plural: "Tankvorgaenge", url: "/home/kfz" },
+  home_fahrzeug_services: { singular: "Kfz-Service", plural: "Kfz-Services", url: "/home/kfz" },
+  home_fahrzeug_reifen: { singular: "Reifensatz", plural: "Reifensaetze", url: "/home/kfz" },
+  home_fahrzeug_aufgaben: { singular: "Kfz-Aufgabe", plural: "Kfz-Aufgaben", url: "/home/kfz" },
+  home_fahrzeug_teile: { singular: "Ersatzteil", plural: "Ersatzteile", url: "/home/kfz" },
+  home_fahrzeug_kilometerstaende: { singular: "Kilometerstand", plural: "Kilometerstaende", url: "/home/kfz" },
 };
 
 const IMPORTANT_ACTIONS = new Set(["erstellt", "geloescht"]);
