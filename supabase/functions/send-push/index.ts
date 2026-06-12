@@ -1,34 +1,34 @@
-// Supabase Edge Function: send-push
-// Sendet eine Web-Push-Benachrichtigung an alle Subscriptions eines Nutzers.
-//
-// POST-Body: { user_id: string, title: string, body: string, url?: string, tag?: string }
-//
-// Benötigte Supabase-Secrets:
-//   VAPID_SUBJECT   = mailto:deine@email.de
-//   VAPID_PUBLIC_KEY  = <public key aus npx web-push generate-vapid-keys>
-//   VAPID_PRIVATE_KEY = <private key>
-
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-// @ts-ignore – web-push ist Deno-kompatibel via esm.sh
+// @ts-ignore web-push is Deno-compatible through esm.sh.
 import webpush from "https://esm.sh/web-push@3.6.7";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin":  "*",
+  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 
 const normalizeLocale = (value: unknown) => {
   const raw = String(value || "").trim().toLowerCase();
   return raw === "en" || raw === "en-gb" ? "en-GB" : "de";
 };
 
+const bearerToken = (req: Request) => {
+  const value = req.headers.get("authorization") || "";
+  return value.toLowerCase().startsWith("bearer ") ? value.slice(7).trim() : "";
+};
+
 const translatePushFallback = (value: string, locale: string) => {
   if (locale !== "en-GB") return value;
   const exact: Record<string, string> = {
-    "Umzugsplaner – Erinnerung": "Moving Planner - reminder",
+    "Umzugsplaner - Erinnerung": "Moving Planner - reminder",
     "Aufgaben-Erinnerung": "Task reminder",
     "Aufgabe bald faellig": "Task due soon",
-    "Aufgabe überfällig": "Task overdue",
     "Aufgabe ueberfaellig": "Task overdue",
     "Vorrat unter Mindestmenge": "Stock below minimum",
     "Vorrat laeuft bald ab": "Stock expiring soon",
@@ -47,121 +47,159 @@ const translatePushFallback = (value: string, locale: string) => {
     "Buch ueberfaellig": "Book overdue",
     "Buch-Rueckgabe faellig": "Book return due",
   };
-  const trimmed = value.trim();
-  if (exact[trimmed]) return exact[trimmed];
-  return value
-    .replace(/\bist bald faellig\b/g, "is due soon")
-    .replace(/\bist ueberfaellig\b/g, "is overdue")
-    .replace(/\bvon\b/g, "of")
-    .replace(/\bverbraucht\b/g, "used")
-    .replace(/\bArtikel offen\b/g, "open items");
+  return exact[value.trim()] || value;
 };
 
+async function isAuthorized(
+  admin: ReturnType<typeof createClient>,
+  token: string,
+  targetUserId: string,
+): Promise<boolean> {
+  if (!token) return false;
+  if (token === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) return true;
+
+  const authClient = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_ANON_KEY")!,
+    { global: { headers: { Authorization: `Bearer ${token}` } } },
+  );
+  const { data, error } = await authClient.auth.getUser();
+  const actorUserId = data?.user?.id;
+  if (error || !actorUserId) return false;
+  if (actorUserId === targetUserId) return true;
+
+  const { data: actorMemberships, error: actorError } = await admin
+    .from("household_members")
+    .select("household_id")
+    .eq("user_id", actorUserId);
+  if (actorError || !actorMemberships?.length) return false;
+
+  const householdIds = actorMemberships.map((row: any) => row.household_id);
+  const { data: sharedMembership, error: targetError } = await admin
+    .from("household_members")
+    .select("household_id")
+    .eq("user_id", targetUserId)
+    .in("household_id", householdIds)
+    .limit(1)
+    .maybeSingle();
+  return !targetError && Boolean(sharedMembership);
+}
+
 Deno.serve(async (req: Request) => {
-  // CORS preflight
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method !== "POST") return jsonResponse({ error: "Method not allowed." }, 405);
 
   try {
     const vapidSubject = Deno.env.get("VAPID_SUBJECT");
     const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY");
     const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
-
     if (!vapidSubject || !vapidPublicKey || !vapidPrivateKey) {
-      console.error("send-push Konfigurationsfehler: fehlende VAPID-Umgebungsvariablen");
-      return new Response(
-        JSON.stringify({ error: "VAPID-Konfiguration fehlt." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return jsonResponse({ error: "VAPID-Konfiguration fehlt.", sent: 0, failed: 0, removed: 0 }, 500);
     }
 
-    // VAPID konfigurieren
-    webpush.setVapidDetails(
-      vapidSubject,
-      vapidPublicKey,
-      vapidPrivateKey,
-    );
-
-    // Supabase Admin-Client (Service Role Key aus Env)
-    const supabase = createClient(
+    const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
-
-    const { user_id, title, body, url = "/", tag = "default", locale: requestedLocale } = await req.json();
+    const payload = await req.json();
+    const {
+      user_id,
+      title,
+      body,
+      url = "/",
+      tag = "default",
+      locale: requestedLocale,
+    } = payload || {};
 
     if (!user_id || !title || !body) {
-      return new Response(
-        JSON.stringify({ error: "user_id, title and body are required." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return jsonResponse({
+        error: "user_id, title and body are required.",
+        sent: 0,
+        failed: 0,
+        removed: 0,
+      }, 400);
+    }
+    if (!await isAuthorized(admin, bearerToken(req), String(user_id))) {
+      return jsonResponse({ error: "Forbidden.", sent: 0, failed: 0, removed: 0 }, 403);
     }
 
-    const { data: profile } = await supabase
+    const { data: profile } = await admin
       .from("user_profile")
       .select("locale")
       .eq("id", user_id)
       .maybeSingle();
     const locale = normalizeLocale(requestedLocale || profile?.locale);
 
-    // Subscriptions des Nutzers laden
-    const { data: subscriptions, error: dbError } = await supabase
+    const { data: subscriptions, error: dbError } = await admin
       .from("push_subscriptions")
       .select("id, endpoint, p256dh, auth")
       .eq("user_id", user_id);
-
     if (dbError) throw dbError;
     if (!subscriptions?.length) {
-      return new Response(
-        JSON.stringify({ sent: 0, message: locale === "en-GB" ? "No active subscriptions." : "Keine aktiven Subscriptions." }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return jsonResponse({
+        sent: 0,
+        failed: 0,
+        removed: 0,
+        errors: [],
+        message: locale === "en-GB" ? "No active subscriptions." : "Keine aktiven Subscriptions.",
+      });
     }
 
-    const payload = JSON.stringify({
+    webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+    const notificationPayload = JSON.stringify({
       title: translatePushFallback(String(title), locale),
       body: translatePushFallback(String(body), locale),
       url,
       tag,
       locale,
     });
-    const ungueltigeIds: string[] = [];
-    let gesendet = 0;
 
-    await Promise.all(
-      subscriptions.map(async (sub) => {
-        try {
-          await webpush.sendNotification(
-            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-            payload,
-          );
-          gesendet++;
-        } catch (err: any) {
-          // 404 / 410 = Subscription abgelaufen → aus DB löschen
-          if (err.statusCode === 404 || err.statusCode === 410) {
-            ungueltigeIds.push(sub.id);
-          } else {
-            console.error("Push-Fehler für Subscription", sub.id, err.message);
-          }
+    const invalidIds: string[] = [];
+    const errors: Array<{ subscription_id: string; status: number | null; message: string }> = [];
+    let sent = 0;
+
+    await Promise.all(subscriptions.map(async (subscription: any) => {
+      try {
+        await webpush.sendNotification({
+          endpoint: subscription.endpoint,
+          keys: { p256dh: subscription.p256dh, auth: subscription.auth },
+        }, notificationPayload);
+        sent += 1;
+      } catch (error: any) {
+        const status = Number(error?.statusCode) || null;
+        // Push services use 400 for malformed/expired subscription keys or
+        // endpoints. Retrying such a subscription cannot succeed.
+        if (status === 400 || status === 404 || status === 410) invalidIds.push(subscription.id);
+        else {
+          errors.push({
+            subscription_id: subscription.id,
+            status,
+            message: error?.message || "Unknown web-push error",
+          });
         }
-      }),
-    );
+      }
+    }));
 
-    // Abgelaufene Subscriptions bereinigen
-    if (ungueltigeIds.length > 0) {
-      await supabase.from("push_subscriptions").delete().in("id", ungueltigeIds);
+    if (invalidIds.length) {
+      const { error: cleanupError } = await admin.from("push_subscriptions").delete().in("id", invalidIds);
+      if (cleanupError) {
+        errors.push({ subscription_id: "cleanup", status: null, message: cleanupError.message });
+      }
     }
 
-    return new Response(
-      JSON.stringify({ sent: gesendet, removed: ungueltigeIds.length }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
-  } catch (err: any) {
-    console.error("send-push Fehler:", err);
-    return new Response(
-      JSON.stringify({ error: err.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return jsonResponse({
+      sent,
+      failed: Math.max(subscriptions.length - sent - invalidIds.length, 0),
+      removed: invalidIds.length,
+      errors,
+    });
+  } catch (error: any) {
+    console.error("send-push failed:", error);
+    return jsonResponse({
+      error: error?.message || "Unknown error",
+      sent: 0,
+      failed: 0,
+      removed: 0,
+    }, 500);
   }
 });

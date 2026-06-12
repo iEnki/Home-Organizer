@@ -2,6 +2,13 @@
 // Household-scope reminder checker for all users with active push subscriptions.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  dateThresholdKey,
+  dayDiff,
+  resolveOwnedRecipients as resolveOwnedRecipientsCore,
+  shoppingReminderDueDate,
+  zonedDateParts,
+} from "../_shared/reminder-core.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,18 +21,25 @@ type PushMessage = {
   body: string;
   url: string;
   tag: string;
+  reservation_id?: string;
+  success_update?: {
+    table: string;
+    idColumn: string;
+    id: string;
+    values: Record<string, unknown>;
+  };
 };
 
 type UserProfileReminder = {
   id: string;
   locale?: string | null;
+  timezone?: string | null;
   einkauf_reminder_aktiv?: boolean | null;
   einkauf_reminder_zeit: string | null;
   einkauf_reminder_letzter_versand: string | null;
   cospend_reminder_letzter_versand: string | null;
 };
 
-const DATE_THRESHOLDS = [30, 14, 7, 1, 0];
 const BUDGET_LIMIT_THRESHOLDS = [80, 100];
 const SUPPORTED_LOCALES = ["de", "en-GB"] as const;
 type SupportedLocale = typeof SUPPORTED_LOCALES[number];
@@ -34,19 +48,15 @@ const unique = (values: string[] = []) => [...new Set(values.filter(Boolean))];
 const isoDate = (date: Date) => date.toISOString().split("T")[0];
 const addDays = (date: Date, days: number) => new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
 
-function dayDiff(fromDate: string, toDate: string): number {
-  const [fy, fm, fd] = fromDate.split("-").map(Number);
-  const [ty, tm, td] = toDate.split("-").map(Number);
-  return Math.floor((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86400000);
-}
+const bearerToken = (req: Request) => {
+  const value = req.headers.get("authorization") || "";
+  return value.toLowerCase().startsWith("bearer ") ? value.slice(7).trim() : "";
+};
 
-const daysUntil = (dateStr: string, today: string) => dayDiff(today, dateStr);
-
-function dateThresholdKey(dateStr: string | null | undefined, today: string): string | null {
-  if (!dateStr) return null;
-  const days = daysUntil(String(dateStr).split("T")[0], today);
-  return DATE_THRESHOLDS.includes(days) ? `${days}d` : null;
-}
+const isServiceRoleRequest = (req: Request) => {
+  const token = bearerToken(req);
+  return Boolean(token) && token === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+};
 
 function dateThresholdLabel(key: string): string {
   if (key === "0d") return "heute";
@@ -131,6 +141,10 @@ function reminderText(locale: SupportedLocale) {
       vehicleServiceDue: "Vehicle service due",
       vehicleTyreDue: "Tyre reminder",
       vehicleTaskDue: "Vehicle task due",
+      vehicleMileageBody: (name: string, what: string, due: unknown, current: unknown) =>
+        `${name}: ${what} is due at ${due} km (current: ${current} km).`,
+      vehicleTyreWearBody: (name: string, tyre: string, depth: unknown, minimum: unknown) =>
+        `${name}: ${tyre} tread is ${depth} mm (minimum: ${minimum} mm).`,
       vehicleDateBody: (name: string, what: string, date: string, label: string) =>
         `${name}: ${what} is due ${label} (${date}).`,
     };
@@ -190,6 +204,10 @@ function reminderText(locale: SupportedLocale) {
     vehicleServiceDue: "Kfz-Service faellig",
     vehicleTyreDue: "Reifen-Erinnerung",
     vehicleTaskDue: "Kfz-Aufgabe faellig",
+    vehicleMileageBody: (name: string, what: string, due: unknown, current: unknown) =>
+      `${name}: ${what} ist bei ${due} km faellig (aktuell: ${current} km).`,
+    vehicleTyreWearBody: (name: string, tyre: string, depth: unknown, minimum: unknown) =>
+      `${name}: ${tyre} hat ${depth} mm Profil (Minimum: ${minimum} mm).`,
     vehicleDateBody: (name: string, what: string, date: string, label: string) =>
       `${name}: ${what} ist ${label} faellig (${date}).`,
   };
@@ -212,16 +230,7 @@ function resolveOwnedRecipients(
   recipientSet: Set<string>,
   recipients: string[],
 ): string[] {
-  const candidates = [
-    row?.erinnerung_empfaenger_user_id,
-    row?.created_by_user_id,
-    row?.user_id,
-  ].filter(Boolean);
-
-  for (const candidate of candidates) {
-    if (recipientSet.has(candidate)) return [candidate];
-  }
-  return recipients;
+  return resolveOwnedRecipientsCore(row, [...recipientSet].filter((id) => recipients.includes(id)));
 }
 
 async function queueReminder(
@@ -240,7 +249,21 @@ async function queueReminder(
   },
 ) {
   for (const recipientUserId of unique(recipientIds)) {
-    const { error } = await supabase.from("home_push_reminder_state").insert({
+    const staleBefore = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    await supabase
+      .from("home_push_reminder_state")
+      .delete()
+      .eq("household_id", householdId)
+      .eq("recipient_user_id", recipientUserId)
+      .eq("entity_type", identity.entityType)
+      .eq("entity_id", identity.entityId)
+      .eq("reminder_type", identity.reminderType)
+      .eq("reminder_key", identity.reminderKey)
+      .eq("period_key", identity.periodKey)
+      .eq("delivery_status", "pending")
+      .lt("reserved_at", staleBefore);
+
+    const { data, error } = await supabase.from("home_push_reminder_state").insert({
       household_id: householdId,
       recipient_user_id: recipientUserId,
       entity_type: identity.entityType,
@@ -249,11 +272,17 @@ async function queueReminder(
       reminder_key: identity.reminderKey,
       period_key: identity.periodKey,
       last_value: identity.value || {},
-    });
+      delivery_status: "pending",
+      reserved_at: new Date().toISOString(),
+    }).select("id").single();
 
     if (!error) {
       const resolvedPayload = typeof payload === "function" ? payload(recipientUserId) : payload;
-      target.push({ user_id: recipientUserId, ...resolvedPayload });
+      target.push({
+        user_id: recipientUserId,
+        ...resolvedPayload,
+        reservation_id: data?.id,
+      });
       continue;
     }
 
@@ -267,16 +296,43 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed." }), {
+      status: 405,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  if (!isServiceRoleRequest(req)) {
+    return new Response(JSON.stringify({ error: "Forbidden." }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  const now = new Date();
+  const requestBody = await req.json().catch(() => ({}));
+  const requestedNow = requestBody?.now ? new Date(requestBody.now) : new Date();
+  if (Number.isNaN(requestedNow.getTime())) {
+    return new Response(JSON.stringify({ error: "Invalid test timestamp." }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const now = requestedNow;
+  const onlyUserId = requestBody?.only_user_id ? String(requestBody.only_user_id) : null;
+  const moduleFilter = new Set(
+    Array.isArray(requestBody?.modules) ? requestBody.modules.map(String) : [],
+  );
+  const moduleEnabled = (name: string) => moduleFilter.size === 0 || moduleFilter.has(name);
   const today = isoDate(now);
-  const in15MinIso = new Date(now.getTime() + 15 * 60 * 1000).toISOString();
-  const before1MinIso = new Date(now.getTime() - 1 * 60 * 1000).toISOString();
+  // The documented cron interval is 30 minutes. Look backwards so a delayed
+  // invocation cannot permanently miss a reminder.
+  const in15MinIso = now.toISOString();
+  const before1MinIso = new Date(now.getTime() - 31 * 60 * 1000).toISOString();
   const in24hIso = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
   const in30Days = isoDate(addDays(now, 30));
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -290,7 +346,8 @@ Deno.serve(async (req: Request) => {
 
     if (subscriptionError) throw subscriptionError;
 
-    const subscribedUserIds = unique((subscriptionRows ?? []).map((row: any) => row.user_id));
+    let subscribedUserIds = unique((subscriptionRows ?? []).map((row: any) => row.user_id));
+    if (onlyUserId) subscribedUserIds = subscribedUserIds.filter((id) => id === onlyUserId);
     if (!subscribedUserIds.length) {
       return new Response(JSON.stringify({ checked: 0, requested: 0, sent: 0, failed: 0 }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -311,9 +368,13 @@ Deno.serve(async (req: Request) => {
       householdRecipients.get(row.household_id)!.push(row.user_id);
     }
 
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    const shoppingProfileUpdates: string[] = [];
-    const cospendProfileUpdates: string[] = [];
+    const moduleErrors: Array<{ household_id: string; source: string; error: string }> = [];
+    const querySources = [
+      "tasks_explicit", "inventory", "medicine", "devices", "kfz_vehicles",
+      "kfz_services", "kfz_tyres", "kfz_tasks", "projects", "profiles",
+      "shopping", "residents", "settlements", "books", "tasks_due",
+      "contracts", "insurance", "budget_limits", "budget_entries",
+    ];
 
     const householdMessages = await Promise.all(
       [...householdRecipients.entries()].map(async ([householdId, rawRecipients]) => {
@@ -353,7 +414,7 @@ Deno.serve(async (req: Request) => {
           supabase
             .from("home_vorraete")
             .select("id, name, bestand, mindestmenge, einheit, ablaufdatum, user_id")
-            .in("user_id", recipients)
+            .eq("household_id", householdId)
             .not("mindestmenge", "is", null)
             .gt("mindestmenge", 0),
           supabase
@@ -369,40 +430,34 @@ Deno.serve(async (req: Request) => {
             .or(`naechste_wartung.gte.${today},garantie_bis.gte.${today},gewaehrleistung_bis.gte.${today}`),
           supabase
             .from("home_fahrzeuge")
-            .select("id, name, kennzeichen, pickerl_termin, created_by_user_id")
+            .select("id, name, kennzeichen, kilometerstand, pickerl_termin, created_by_user_id")
             .eq("household_id", householdId)
             .gte("pickerl_termin", today)
             .lte("pickerl_termin", in30Days),
           supabase
             .from("home_fahrzeug_services")
-            .select("id, typ, naechste_faelligkeit_datum, created_by_user_id, home_fahrzeuge(id, name, kennzeichen)")
-            .eq("household_id", householdId)
-            .gte("naechste_faelligkeit_datum", today)
-            .lte("naechste_faelligkeit_datum", in30Days),
+            .select("id, typ, naechste_faelligkeit_datum, naechste_faelligkeit_km, created_by_user_id, home_fahrzeuge(id, name, kennzeichen, kilometerstand)")
+            .eq("household_id", householdId),
           supabase
             .from("home_fahrzeug_reifen")
-            .select("id, saison, naechster_wechsel, created_by_user_id, home_fahrzeuge(id, name, kennzeichen)")
-            .eq("household_id", householdId)
-            .gte("naechster_wechsel", today)
-            .lte("naechster_wechsel", in30Days),
+            .select("id, saison, profiltiefe, austausch_faellig_ab_mm, naechster_wechsel, created_by_user_id, home_fahrzeuge(id, name, kennzeichen, kilometerstand)")
+            .eq("household_id", householdId),
           supabase
             .from("home_fahrzeug_aufgaben")
-            .select("id, titel, faellig_am, created_by_user_id, home_fahrzeuge(id, name, kennzeichen)")
+            .select("id, titel, faellig_am, kilometerstand_faellig, created_by_user_id, home_fahrzeuge(id, name, kennzeichen, kilometerstand)")
             .eq("household_id", householdId)
-            .neq("status", "erledigt")
-            .gte("faellig_am", today)
-            .lte("faellig_am", in30Days),
+            .neq("status", "erledigt"),
           supabase
             .from("home_projekte")
             .select("id, name, deadline, status, user_id")
-            .in("user_id", recipients)
+            .eq("household_id", householdId)
             .not("deadline", "is", null)
             .neq("status", "abgeschlossen")
             .gte("deadline", today)
             .lte("deadline", in30Days),
           supabase
             .from("user_profile")
-            .select("id, locale, einkauf_reminder_aktiv, einkauf_reminder_zeit, einkauf_reminder_letzter_versand, cospend_reminder_letzter_versand")
+            .select("id, locale, timezone, einkauf_reminder_aktiv, einkauf_reminder_zeit, einkauf_reminder_letzter_versand, cospend_reminder_letzter_versand")
             .in("id", recipients),
           supabase
             .from("home_einkaufliste")
@@ -455,7 +510,26 @@ Deno.serve(async (req: Request) => {
             .eq("household_id", householdId)
             .gte("datum", monthStart)
             .lte("datum", monthEnd),
-        ]);
+        ].map(async (query, index) => {
+          try {
+            const result: any = await query;
+            if (result?.error) {
+              moduleErrors.push({
+                household_id: householdId,
+                source: querySources[index],
+                error: result.error.message || String(result.error),
+              });
+            }
+            return result || { data: null, error: null };
+          } catch (error) {
+            moduleErrors.push({
+              household_id: householdId,
+              source: querySources[index],
+              error: error instanceof Error ? error.message : String(error),
+            });
+            return { data: null, error };
+          }
+        }));
 
         const msgs: PushMessage[] = [];
         const localeByUser = new Map<string, SupportedLocale>();
@@ -470,33 +544,33 @@ Deno.serve(async (req: Request) => {
           if (row?.id && row?.linked_user_id) bewohnerUserMap.set(row.id, row.linked_user_id);
         }
 
-        const aufgabeDbUpdates: Array<() => Promise<unknown>> = [];
-
-        for (const task of dueTasks ?? []) {
-          if (
-            task.letzte_push_erinnerung_am &&
-            new Date(task.letzte_push_erinnerung_am) >= new Date(task.erinnerungs_datum)
-          ) continue;
-
+        for (const task of moduleEnabled("tasks") ? (dueTasks ?? []) : []) {
           const empfaenger = resolveAufgabeEmpfaenger(task, bewohnerUserMap, recipients);
-          empfaenger.forEach((userId) => {
+          await queueReminder(supabase, msgs, householdId, empfaenger, (userId) => {
             const tx = textsForUser(userId);
-            msgs.push({
-              user_id: userId,
+            return {
               title: tx.taskReminder,
               body: task.beschreibung,
               url: "/home/aufgaben",
               tag: `aufgabe-${task.id}`,
-            });
+              success_update: {
+                table: "todo_aufgaben",
+                idColumn: "id",
+                id: task.id,
+                values: { letzte_push_erinnerung_am: now.toISOString() },
+              },
+            };
+          }, {
+            entityType: "todo_aufgaben",
+            entityId: String(task.id),
+            reminderType: "explicit",
+            reminderKey: String(task.erinnerungs_datum),
+            periodKey: String(task.erinnerungs_datum),
+            value: { erinnerungs_datum: task.erinnerungs_datum },
           });
-          aufgabeDbUpdates.push(() =>
-            supabase.from("todo_aufgaben")
-              .update({ letzte_push_erinnerung_am: now.toISOString() })
-              .eq("id", task.id)
-          );
         }
 
-        for (const task of faelligeTasks ?? []) {
+        for (const task of moduleEnabled("tasks") ? (faelligeTasks ?? []) : []) {
           const faelligDate = (task.faelligkeitsdatum as string).split("T")[0];
           const isOverdue = faelligDate < today;
 
@@ -504,51 +578,62 @@ Deno.serve(async (req: Request) => {
             const hasActiveReminder = task.erinnerungs_datum &&
               task.erinnerungs_datum >= before1MinIso &&
               task.erinnerungs_datum <= in15MinIso;
-            if (hasActiveReminder || task.letzte_push_bald_faellig_fuer === faelligDate) continue;
+            if (hasActiveReminder) continue;
 
             const empfaenger = resolveAufgabeEmpfaenger(task, bewohnerUserMap, recipients);
-            empfaenger.forEach((userId) => {
+            await queueReminder(supabase, msgs, householdId, empfaenger, (userId) => {
               const tx = textsForUser(userId);
-              msgs.push({
-                user_id: userId,
+              return {
                 title: tx.taskDueSoon,
                 body: tx.taskDueSoonBody(task.beschreibung),
                 url: "/home/aufgaben",
                 tag: `aufgabe-due-soon-${task.id}`,
-              });
+                success_update: {
+                  table: "todo_aufgaben",
+                  idColumn: "id",
+                  id: task.id,
+                  values: {
+                    letzte_push_bald_faellig_am: now.toISOString(),
+                    letzte_push_bald_faellig_fuer: faelligDate,
+                  },
+                },
+              };
+            }, {
+              entityType: "todo_aufgaben",
+              entityId: String(task.id),
+              reminderType: "due_soon",
+              reminderKey: faelligDate,
+              periodKey: faelligDate,
+              value: { faelligkeitsdatum: task.faelligkeitsdatum },
             });
-            aufgabeDbUpdates.push(() =>
-              supabase.from("todo_aufgaben")
-                .update({
-                  letzte_push_bald_faellig_am: now.toISOString(),
-                  letzte_push_bald_faellig_fuer: faelligDate,
-                })
-                .eq("id", task.id)
-            );
           } else {
-            const last = task.letzte_push_ueberfaellig_am;
-            if (last && now.getTime() - new Date(last).getTime() < 7 * 24 * 60 * 60 * 1000) continue;
-
             const empfaenger = resolveAufgabeEmpfaenger(task, bewohnerUserMap, recipients);
-            empfaenger.forEach((userId) => {
+            await queueReminder(supabase, msgs, householdId, empfaenger, (userId) => {
               const tx = textsForUser(userId);
-              msgs.push({
-                user_id: userId,
+              return {
                 title: tx.taskOverdue,
                 body: tx.taskOverdueBody(task.beschreibung),
                 url: "/home/aufgaben",
                 tag: `aufgabe-overdue-${task.id}`,
-              });
+                success_update: {
+                  table: "todo_aufgaben",
+                  idColumn: "id",
+                  id: task.id,
+                  values: { letzte_push_ueberfaellig_am: now.toISOString() },
+                },
+              };
+            }, {
+              entityType: "todo_aufgaben",
+              entityId: String(task.id),
+            reminderType: "overdue",
+            reminderKey: faelligDate,
+            periodKey: `week-${Math.floor(Math.max(dayDiff(faelligDate, today), 0) / 7)}`,
+            value: { faelligkeitsdatum: task.faelligkeitsdatum },
             });
-            aufgabeDbUpdates.push(() =>
-              supabase.from("todo_aufgaben")
-                .update({ letzte_push_ueberfaellig_am: now.toISOString() })
-                .eq("id", task.id)
-            );
           }
         }
 
-        for (const row of (inventoryRows ?? []).filter((item: any) => Number(item.bestand) <= Number(item.mindestmenge))) {
+        for (const row of (moduleEnabled("inventory") ? (inventoryRows ?? []) : []).filter((item: any) => Number(item.bestand) <= Number(item.mindestmenge))) {
           const vorratEmpfaenger = resolveOwnedRecipients(row, recipientSet, recipients);
           await queueReminder(supabase, msgs, householdId, vorratEmpfaenger, (userId) => {
             const tx = textsForUser(userId);
@@ -568,7 +653,7 @@ Deno.serve(async (req: Request) => {
           });
         }
 
-        for (const row of (inventoryRows ?? []).filter((item: any) => item.ablaufdatum && item.ablaufdatum <= in30Days)) {
+        for (const row of (moduleEnabled("inventory") ? (inventoryRows ?? []) : []).filter((item: any) => item.ablaufdatum && item.ablaufdatum <= in30Days)) {
           const ablaufKey = dateThresholdKey(row.ablaufdatum, today);
           if (!ablaufKey) continue;
           const vorratEmpfaenger = resolveOwnedRecipients(row, recipientSet, recipients);
@@ -590,7 +675,7 @@ Deno.serve(async (req: Request) => {
           });
         }
 
-        for (const row of (medicationRows ?? []).filter((item: any) => Number(item.bestand) <= Number(item.mindestbestand))) {
+        for (const row of (moduleEnabled("medicine") ? (medicationRows ?? []) : []).filter((item: any) => Number(item.bestand) <= Number(item.mindestbestand))) {
           const medRecipients = resolveOwnedRecipients(row, recipientSet, recipients);
           await queueReminder(supabase, msgs, householdId, medRecipients, (userId) => {
             const tx = textsForUser(userId);
@@ -610,7 +695,7 @@ Deno.serve(async (req: Request) => {
           });
         }
 
-        for (const row of (medicationRows ?? []).filter((item: any) => item.ablaufdatum && item.ablaufdatum <= in30Days)) {
+        for (const row of (moduleEnabled("medicine") ? (medicationRows ?? []) : []).filter((item: any) => item.ablaufdatum && item.ablaufdatum <= in30Days)) {
           const ablaufKey = dateThresholdKey(row.ablaufdatum, today);
           if (!ablaufKey) continue;
           const medRecipients = resolveOwnedRecipients(row, recipientSet, recipients);
@@ -632,7 +717,7 @@ Deno.serve(async (req: Request) => {
           });
         }
 
-        for (const row of deviceRows ?? []) {
+        for (const row of moduleEnabled("devices") ? (deviceRows ?? []) : []) {
           const deviceRecipients = resolveOwnedRecipients(row, recipientSet, recipients);
           const deviceName = row.name || null;
           const checks = [
@@ -666,7 +751,7 @@ Deno.serve(async (req: Request) => {
           }
         }
 
-        for (const vehicle of vehicleRows ?? []) {
+        for (const vehicle of moduleEnabled("kfz") ? (vehicleRows ?? []) : []) {
           const thresholdKey = dateThresholdKey(vehicle.pickerl_termin, today);
           if (!thresholdKey) continue;
           const vehicleRecipients = resolveOwnedRecipients(vehicle, recipientSet, recipients);
@@ -689,34 +774,42 @@ Deno.serve(async (req: Request) => {
           });
         }
 
-        for (const service of vehicleServiceRows ?? []) {
+        for (const service of moduleEnabled("kfz") ? (vehicleServiceRows ?? []) : []) {
           const thresholdKey = dateThresholdKey(service.naechste_faelligkeit_datum, today);
-          if (!thresholdKey) continue;
+          const vehicle = Array.isArray(service.home_fahrzeuge) ? service.home_fahrzeuge[0] : service.home_fahrzeuge;
+          const mileageDue = Number(service.naechste_faelligkeit_km) > 0 &&
+            Number(vehicle?.kilometerstand) >= Number(service.naechste_faelligkeit_km);
+          if (!thresholdKey && !mileageDue) continue;
           const serviceRecipients = resolveOwnedRecipients(service, recipientSet, recipients);
           await queueReminder(supabase, msgs, householdId, serviceRecipients, (userId) => {
             const tx = textsForUser(userId);
-            const vehicle = Array.isArray(service.home_fahrzeuge) ? service.home_fahrzeuge[0] : service.home_fahrzeuge;
             const name = [vehicle?.name, vehicle?.kennzeichen].filter(Boolean).join(" - ") || tx.vehicleFallback;
             const what = service.typ || (localeForUser(userId) === "en-GB" ? "service" : "Service");
             return {
               title: tx.vehicleServiceDue,
-              body: tx.vehicleDateBody(name, what, service.naechste_faelligkeit_datum, dateThresholdLabelForLocale(thresholdKey, localeForUser(userId))),
+              body: mileageDue
+                ? tx.vehicleMileageBody(name, what, service.naechste_faelligkeit_km, vehicle?.kilometerstand)
+                : tx.vehicleDateBody(name, what, service.naechste_faelligkeit_datum, dateThresholdLabelForLocale(thresholdKey!, localeForUser(userId))),
               url: "/home/kfz",
-              tag: `kfz-service-${service.id}-${thresholdKey}`,
+              tag: `kfz-service-${service.id}-${mileageDue ? `km-${service.naechste_faelligkeit_km}` : thresholdKey}`,
             };
           }, {
             entityType: "home_fahrzeug_services",
             entityId: String(service.id),
-            reminderType: "service_date",
-            reminderKey: thresholdKey,
-            periodKey: String(service.naechste_faelligkeit_datum),
-            value: { date: service.naechste_faelligkeit_datum },
+            reminderType: mileageDue ? "service_mileage" : "service_date",
+            reminderKey: mileageDue ? `km-${service.naechste_faelligkeit_km}` : thresholdKey!,
+            periodKey: mileageDue ? String(service.naechste_faelligkeit_km) : String(service.naechste_faelligkeit_datum),
+            value: mileageDue
+              ? { due_mileage: service.naechste_faelligkeit_km, current_mileage: vehicle?.kilometerstand }
+              : { date: service.naechste_faelligkeit_datum },
           });
         }
 
-        for (const tyre of vehicleTireRows ?? []) {
+        for (const tyre of moduleEnabled("kfz") ? (vehicleTireRows ?? []) : []) {
           const thresholdKey = dateThresholdKey(tyre.naechster_wechsel, today);
-          if (!thresholdKey) continue;
+          const worn = tyre.profiltiefe != null && Number(tyre.profiltiefe) >= 0 &&
+            Number(tyre.profiltiefe) <= Number(tyre.austausch_faellig_ab_mm || 4);
+          if (!thresholdKey && !worn) continue;
           const tyreRecipients = resolveOwnedRecipients(tyre, recipientSet, recipients);
           await queueReminder(supabase, msgs, householdId, tyreRecipients, (userId) => {
             const tx = textsForUser(userId);
@@ -725,45 +818,55 @@ Deno.serve(async (req: Request) => {
             const what = tyre.saison || (localeForUser(userId) === "en-GB" ? "tyres" : "Reifen");
             return {
               title: tx.vehicleTyreDue,
-              body: tx.vehicleDateBody(name, what, tyre.naechster_wechsel, dateThresholdLabelForLocale(thresholdKey, localeForUser(userId))),
+              body: worn
+                ? tx.vehicleTyreWearBody(name, what, tyre.profiltiefe, tyre.austausch_faellig_ab_mm || 4)
+                : tx.vehicleDateBody(name, what, tyre.naechster_wechsel, dateThresholdLabelForLocale(thresholdKey!, localeForUser(userId))),
               url: "/home/kfz",
-              tag: `kfz-reifen-${tyre.id}-${thresholdKey}`,
+              tag: `kfz-reifen-${tyre.id}-${worn ? `profil-${tyre.profiltiefe}` : thresholdKey}`,
             };
           }, {
             entityType: "home_fahrzeug_reifen",
             entityId: String(tyre.id),
-            reminderType: "tyre_change",
-            reminderKey: thresholdKey,
-            periodKey: String(tyre.naechster_wechsel),
-            value: { date: tyre.naechster_wechsel },
+            reminderType: worn ? "tyre_wear" : "tyre_change",
+            reminderKey: worn ? `profile-${tyre.profiltiefe}` : thresholdKey!,
+            periodKey: worn ? String(tyre.austausch_faellig_ab_mm || 4) : String(tyre.naechster_wechsel),
+            value: worn
+              ? { profile: tyre.profiltiefe, minimum: tyre.austausch_faellig_ab_mm || 4 }
+              : { date: tyre.naechster_wechsel },
           });
         }
 
-        for (const task of vehicleTaskRows ?? []) {
+        for (const task of moduleEnabled("kfz") ? (vehicleTaskRows ?? []) : []) {
           const thresholdKey = dateThresholdKey(task.faellig_am, today);
-          if (!thresholdKey) continue;
+          const vehicle = Array.isArray(task.home_fahrzeuge) ? task.home_fahrzeuge[0] : task.home_fahrzeuge;
+          const mileageDue = Number(task.kilometerstand_faellig) > 0 &&
+            Number(vehicle?.kilometerstand) >= Number(task.kilometerstand_faellig);
+          if (!thresholdKey && !mileageDue) continue;
           const taskRecipients = resolveOwnedRecipients(task, recipientSet, recipients);
           await queueReminder(supabase, msgs, householdId, taskRecipients, (userId) => {
             const tx = textsForUser(userId);
-            const vehicle = Array.isArray(task.home_fahrzeuge) ? task.home_fahrzeuge[0] : task.home_fahrzeuge;
             const name = [vehicle?.name, vehicle?.kennzeichen].filter(Boolean).join(" - ") || tx.vehicleFallback;
             return {
               title: tx.vehicleTaskDue,
-              body: tx.vehicleDateBody(name, task.titel, task.faellig_am, dateThresholdLabelForLocale(thresholdKey, localeForUser(userId))),
+              body: mileageDue
+                ? tx.vehicleMileageBody(name, task.titel, task.kilometerstand_faellig, vehicle?.kilometerstand)
+                : tx.vehicleDateBody(name, task.titel, task.faellig_am, dateThresholdLabelForLocale(thresholdKey!, localeForUser(userId))),
               url: "/home/kfz",
-              tag: `kfz-aufgabe-${task.id}-${thresholdKey}`,
+              tag: `kfz-aufgabe-${task.id}-${mileageDue ? `km-${task.kilometerstand_faellig}` : thresholdKey}`,
             };
           }, {
             entityType: "home_fahrzeug_aufgaben",
             entityId: String(task.id),
-            reminderType: "task_date",
-            reminderKey: thresholdKey,
-            periodKey: String(task.faellig_am),
-            value: { date: task.faellig_am },
+            reminderType: mileageDue ? "task_mileage" : "task_date",
+            reminderKey: mileageDue ? `km-${task.kilometerstand_faellig}` : thresholdKey!,
+            periodKey: mileageDue ? String(task.kilometerstand_faellig) : String(task.faellig_am),
+            value: mileageDue
+              ? { due_mileage: task.kilometerstand_faellig, current_mileage: vehicle?.kilometerstand }
+              : { date: task.faellig_am },
           });
         }
 
-        for (const row of projectRows ?? []) {
+        for (const row of moduleEnabled("projects") ? (projectRows ?? []) : []) {
           const projektThresholdKey = dateThresholdKey(row.deadline, today);
           if (!projektThresholdKey) continue;
           const projektEmpfaenger = resolveOwnedRecipients(row, recipientSet, recipients);
@@ -785,7 +888,7 @@ Deno.serve(async (req: Request) => {
           });
         }
 
-        for (const contract of contractRows ?? []) {
+        for (const contract of moduleEnabled("contracts") ? (contractRows ?? []) : []) {
           const name = contract.partner || contract.vertragstitel || null;
           const checks = [
             { field: "kuendigbar_ab", type: "cancellation" },
@@ -817,7 +920,7 @@ Deno.serve(async (req: Request) => {
           }
         }
 
-        for (const policy of insuranceRows ?? []) {
+        for (const policy of moduleEnabled("insurance") ? (insuranceRows ?? []) : []) {
           const name = policy.versicherer || policy.versicherungsart || null;
           const checks = [
             { field: "end_date", type: "insurance_end" },
@@ -856,7 +959,7 @@ Deno.serve(async (req: Request) => {
           spendingByCategory.set(row.kategorie, current + Math.abs(Number(row.betrag) || 0));
         }
 
-        for (const limit of budgetLimits ?? []) {
+        for (const limit of moduleEnabled("budget") ? (budgetLimits ?? []) : []) {
           const limitEuro = Number(limit.limit_euro || 0);
           const spent = spendingByCategory.get(limit.kategorie) || 0;
           if (limitEuro <= 0 || spent <= 0) continue;
@@ -882,13 +985,16 @@ Deno.serve(async (req: Request) => {
           });
         }
 
-        for (const profile of (reminderProfiles ?? []) as UserProfileReminder[]) {
+        for (const profile of (moduleEnabled("shopping") ? (reminderProfiles ?? []) : []) as UserProfileReminder[]) {
           if (!profile.einkauf_reminder_aktiv || !profile.einkauf_reminder_zeit) continue;
-          if (profile.einkauf_reminder_letzter_versand === today) continue;
-
-          const [hours, minutes] = profile.einkauf_reminder_zeit.split(":").map((x) => Number(x));
-          const reminderMinutes = hours * 60 + minutes;
-          if (Math.abs(currentMinutes - reminderMinutes) > 15 || !openShoppingItems?.length) continue;
+          const localNow = zonedDateParts(now, profile.timezone || "Europe/Vienna");
+          const scheduledDate = shoppingReminderDueDate(
+            localNow.date,
+            localNow.minutes,
+            profile.einkauf_reminder_zeit,
+            profile.einkauf_reminder_letzter_versand,
+          );
+          if (!scheduledDate || !openShoppingItems?.length) continue;
 
           const preview = openShoppingItems.slice(0, 3).map((item: any) => item.name).join(", ");
           const restCount = openShoppingItems.length - 3;
@@ -901,12 +1007,16 @@ Deno.serve(async (req: Request) => {
             body: tx.shoppingBody(openShoppingItems.length, preview, rest),
             url: "/home/einkaufliste",
             tag: `einkauf-reminder-${householdId}`,
+            success_update: {
+              table: "user_profile",
+              idColumn: "id",
+              id: profile.id,
+              values: { einkauf_reminder_letzter_versand: scheduledDate },
+            },
           });
-
-          shoppingProfileUpdates.push(profile.id);
         }
 
-        if (!openLedgerError) {
+        if (moduleEnabled("settlements") && !openLedgerError) {
           const oldOpenRows = (openLedgerRows ?? []).filter((row: any) => Number(row?.age_days || 0) > 14);
           const cospendByUser = new Map<string, { totalCents: number; count: number }>();
 
@@ -937,17 +1047,25 @@ Deno.serve(async (req: Request) => {
               body: tx.cospendBody(openInfo.count, openInfo.totalCents),
               url: "/home/budget?tab=ausgleich",
               tag: `cospend-reminder-${householdId}`,
+              success_update: {
+                table: "user_profile",
+                idColumn: "id",
+                id: profile.id,
+                values: { cospend_reminder_letzter_versand: today },
+              },
             });
-
-            cospendProfileUpdates.push(profile.id);
           }
         }
 
-        for (const book of loanedBooks ?? []) {
+        for (const book of moduleEnabled("books") ? (loanedBooks ?? []) : []) {
           if (!book.rueckgabe_erwartet_am) continue;
           const overdue = book.rueckgabe_erwartet_am <= today;
           const thresholdKey = overdue ? "overdue" : dateThresholdKey(book.rueckgabe_erwartet_am, today);
           if (!thresholdKey) continue;
+          const reminderInterval = Math.max(Number(book.erinnerung_intervall_tage) || 7, 1);
+          const overduePeriod = Math.floor(
+            Math.max(dayDiff(book.rueckgabe_erwartet_am, today), 0) / reminderInterval,
+          );
 
           const empfaenger = resolveOwnedRecipients(book, recipientSet, recipients);
           await queueReminder(supabase, msgs, householdId, empfaenger, (userId) => {
@@ -966,13 +1084,9 @@ Deno.serve(async (req: Request) => {
             entityId: String(book.id),
             reminderType: "loan_return",
             reminderKey: thresholdKey,
-            periodKey: overdue ? today : String(book.rueckgabe_erwartet_am),
+            periodKey: overdue ? `overdue-${overduePeriod}` : String(book.rueckgabe_erwartet_am),
             value: { rueckgabe_erwartet_am: book.rueckgabe_erwartet_am },
           });
-        }
-
-        if (aufgabeDbUpdates.length > 0) {
-          await Promise.all(aufgabeDbUpdates.map((fn) => fn()));
         }
 
         return msgs;
@@ -981,63 +1095,108 @@ Deno.serve(async (req: Request) => {
 
     const messages = householdMessages.flat();
 
-    if (shoppingProfileUpdates.length > 0) {
-      await Promise.all(
-        unique(shoppingProfileUpdates).map((profileId) =>
-          supabase
-            .from("user_profile")
-            .update({ einkauf_reminder_letzter_versand: today })
-            .eq("id", profileId)
-        ),
-      );
-    }
-
-    if (cospendProfileUpdates.length > 0) {
-      await Promise.all(
-        unique(cospendProfileUpdates).map((profileId) =>
-          supabase
-            .from("user_profile")
-            .update({ cospend_reminder_letzter_versand: today })
-            .eq("id", profileId)
-        ),
-      );
-    }
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     let sent = 0;
     let failed = 0;
+    let released = 0;
+    const deliveryErrors: Array<{ user_id: string; tag: string; error: string }> = [];
     await Promise.all(
       messages.map(async (message) => {
         try {
+          const {
+            reservation_id: reservationId,
+            success_update: successUpdate,
+            ...pushPayload
+          } = message;
           const res = await fetch(`${supabaseUrl}/functions/v1/send-push`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "Authorization": `Bearer ${serviceKey}`,
             },
-            body: JSON.stringify(message),
+            body: JSON.stringify(pushPayload),
           });
 
           const data = await res.json().catch(() => ({}));
           const messageSent = Number(data?.sent || 0) > 0;
           if (res.ok && messageSent) {
             sent += 1;
+            if (reservationId) {
+              const { error: commitError } = await supabase
+                .from("home_push_reminder_state")
+                .update({
+                  delivery_status: "sent",
+                  last_sent_at: now.toISOString(),
+                })
+                .eq("id", reservationId);
+              if (commitError) {
+                deliveryErrors.push({
+                  user_id: message.user_id,
+                  tag: message.tag,
+                  error: `Reminder commit: ${commitError.message}`,
+                });
+              }
+            }
+            if (successUpdate) {
+              const { error: updateError } = await supabase
+                .from(successUpdate.table)
+                .update(successUpdate.values)
+                .eq(successUpdate.idColumn, successUpdate.id);
+              if (updateError) {
+                deliveryErrors.push({
+                  user_id: message.user_id,
+                  tag: message.tag,
+                  error: `Post-send update: ${updateError.message}`,
+                });
+              }
+            }
           } else {
             failed += 1;
-            if (!res.ok || data?.error) {
-              console.warn("send-push returned no delivery:", data?.error || data?.message || res.status);
+            if (reservationId) {
+              const { error: releaseError } = await supabase
+                .from("home_push_reminder_state")
+                .delete()
+                .eq("id", reservationId);
+              if (!releaseError) released += 1;
             }
+            deliveryErrors.push({
+              user_id: message.user_id,
+              tag: message.tag,
+              error: data?.error || data?.message || `HTTP ${res.status}`,
+            });
           }
         } catch (error) {
           failed += 1;
+          if (message.reservation_id) {
+            const { error: releaseError } = await supabase
+              .from("home_push_reminder_state")
+              .delete()
+              .eq("id", message.reservation_id);
+            if (!releaseError) released += 1;
+          }
+          deliveryErrors.push({
+            user_id: message.user_id,
+            tag: message.tag,
+            error: error instanceof Error ? error.message : String(error),
+          });
           console.error("send-push invocation failed:", error);
         }
       }),
     );
 
-    return new Response(JSON.stringify({ checked: messages.length, requested: messages.length, sent, failed }), {
+    return new Response(JSON.stringify({
+      checked: subscribedUserIds.length,
+      candidates: messages.length,
+      requested: messages.length,
+      sent,
+      failed,
+      released,
+      errors: deliveryErrors,
+      module_errors: moduleErrors,
+      filters: { only_user_id: onlyUserId, modules: [...moduleFilter] },
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {

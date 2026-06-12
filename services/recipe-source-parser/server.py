@@ -9,7 +9,7 @@ import threading
 import time
 from ipaddress import ip_address, ip_network
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import quote, urljoin, urlparse
 
 import extruct
 import requests
@@ -31,6 +31,13 @@ CPU_COMPUTE = os.getenv("WHISPER_CPU_COMPUTE_TYPE", "int8")
 GPU_COMPUTE = os.getenv("WHISPER_GPU_COMPUTE_TYPE", "float16")
 WHISPER_CPP_FALLBACK = os.getenv("WHISPER_CPP_FALLBACK_ENABLED", "true").lower() == "true"
 SOCIAL_DOMAINS = {"youtube.com", "youtu.be", "tiktok.com", "instagram.com"}
+RECIPE_IMAGE_BUCKET = "recipe-images"
+RECIPE_IMAGE_MAX_BYTES = 5 * 1024 * 1024
+RECIPE_IMAGE_MIME_EXTENSIONS = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+}
 PRIVATE_NETS = [
     ip_network("10.0.0.0/8"),
     ip_network("127.0.0.0/8"),
@@ -234,6 +241,231 @@ def extract_metadata(raw_url):
         "thumbnail_url": info.get("thumbnail"),
         "duration_seconds": info.get("duration"),
         "webpage_url": info.get("webpage_url"),
+    }
+
+
+def _append_image_candidate(candidates, value, base_url=None):
+    if isinstance(value, list):
+        for item in value:
+            _append_image_candidate(candidates, item, base_url)
+        return
+    if isinstance(value, dict):
+        for key in ("url", "contentUrl", "content_url", "@id"):
+            if value.get(key):
+                _append_image_candidate(candidates, value.get(key), base_url)
+        return
+    if not value:
+        return
+    candidate = str(value).strip()
+    if base_url:
+        candidate = urljoin(base_url, candidate)
+    if candidate.startswith(("http://", "https://")) and candidate not in candidates:
+        candidates.append(candidate)
+
+
+def extract_web_image_candidates(raw_url):
+    url = validate_url(raw_url)
+    res = requests.get(url, timeout=20, headers={"User-Agent": "HomeOrganizerRecipeBot/1.0"})
+    res.raise_for_status()
+    final_url = validate_url(res.url)
+    soup = BeautifulSoup(res.text, "html.parser")
+    candidates = []
+
+    for selector in (
+        {"property": "og:image"},
+        {"property": "og:image:url"},
+        {"name": "twitter:image"},
+        {"name": "twitter:image:src"},
+    ):
+        for tag in soup.find_all("meta", attrs=selector):
+            _append_image_candidate(candidates, tag.get("content"), final_url)
+
+    try:
+        data = extruct.extract(
+            res.text,
+            base_url=get_base_url(res.text, final_url),
+            syntaxes=["json-ld", "microdata", "opengraph"],
+            uniform=True,
+        )
+        for item in data.get("json-ld", []) + data.get("microdata", []):
+            if isinstance(item, dict):
+                _append_image_candidate(candidates, item.get("image"), final_url)
+        for item in data.get("opengraph", []):
+            if isinstance(item, dict):
+                _append_image_candidate(
+                    candidates,
+                    item.get("og:image") or item.get("image"),
+                    final_url,
+                )
+    except Exception:
+        pass
+    return candidates
+
+
+def recipe_image_candidates(recipe):
+    source_url = recipe.get("quelle_url")
+    platform = recipe.get("quelle_plattform") or (platform_from_url(source_url) if source_url else "web")
+    candidates = []
+    _append_image_candidate(candidates, recipe.get("thumbnail_url"))
+
+    if source_url:
+        if platform == "web":
+            for candidate in extract_web_image_candidates(source_url):
+                _append_image_candidate(candidates, candidate)
+        else:
+            metadata = extract_metadata(source_url)
+            _append_image_candidate(candidates, metadata.get("thumbnail_url"))
+    return candidates
+
+
+def download_recipe_image(raw_url, referer=None):
+    url = validate_url(raw_url)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (compatible; HomeOrganizerRecipeBot/1.0)",
+        "Accept": "image/webp,image/png,image/jpeg,*/*;q=0.5",
+    }
+    if referer:
+        headers["Referer"] = validate_url(referer)
+    with requests.get(
+        url,
+        timeout=(10, 30),
+        headers=headers,
+        stream=True,
+    ) as response:
+        response.raise_for_status()
+        validate_url(response.url)
+        content_type = response.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
+        if content_type not in RECIPE_IMAGE_MIME_EXTENSIONS:
+            raise RuntimeError(f"Unsupported recipe image MIME type: {content_type or 'unknown'}")
+        content_length = int(response.headers.get("Content-Length") or 0)
+        if content_length > RECIPE_IMAGE_MAX_BYTES:
+            raise RuntimeError("Recipe image exceeds 5 MB")
+
+        chunks = []
+        total = 0
+        for chunk in response.iter_content(64 * 1024):
+            if not chunk:
+                continue
+            total += len(chunk)
+            if total > RECIPE_IMAGE_MAX_BYTES:
+                raise RuntimeError("Recipe image exceeds 5 MB")
+            chunks.append(chunk)
+        if total == 0:
+            raise RuntimeError("Recipe image response was empty")
+        return b"".join(chunks), content_type
+
+
+def download_social_recipe_image(raw_url):
+    url = validate_url(raw_url)
+    with tempfile.TemporaryDirectory(prefix="recipe-image-", dir=TMP_ROOT) as tmp_dir:
+        output_template = str(Path(tmp_dir) / "cover.%(ext)s")
+        run([
+            "yt-dlp",
+            "--skip-download",
+            "--no-playlist",
+            "--write-thumbnail",
+            "--convert-thumbnails", "webp",
+            "-o", output_template,
+            url,
+        ], timeout=90)
+        images = sorted(Path(tmp_dir).glob("cover.*"))
+        if not images:
+            raise RuntimeError("yt-dlp returned no thumbnail")
+        image_path = images[0]
+        content = image_path.read_bytes()
+        if not content:
+            raise RuntimeError("yt-dlp thumbnail was empty")
+        if len(content) > RECIPE_IMAGE_MAX_BYTES:
+            raise RuntimeError("Recipe image exceeds 5 MB")
+        return content, "image/webp"
+
+
+def store_recipe_image(recipe, content, content_type, source_url):
+    recipe_id = str(recipe.get("id") or "").strip()
+    household_id = str(recipe.get("household_id") or "").strip()
+    extension = RECIPE_IMAGE_MIME_EXTENSIONS[content_type]
+    storage_path = f"{household_id}/{recipe_id}/cover.{extension}"
+    supabase_url = os.getenv("SUPABASE_URL", "").rstrip("/")
+    service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    if not supabase_url or not service_key:
+        raise RuntimeError("Supabase storage configuration is missing")
+
+    upload = requests.post(
+        f"{supabase_url}/storage/v1/object/{RECIPE_IMAGE_BUCKET}/{quote(storage_path, safe='/')}",
+        headers={
+            "apikey": service_key,
+            "Authorization": f"Bearer {service_key}",
+            "Content-Type": content_type,
+            "x-upsert": "true",
+        },
+        data=content,
+        timeout=30,
+    )
+    upload.raise_for_status()
+    patch = requests.patch(
+        f"{supabase_url}/rest/v1/home_rezepte",
+        params={"id": f"eq.{recipe_id}", "household_id": f"eq.{household_id}"},
+        headers={
+            "apikey": service_key,
+            "Authorization": f"Bearer {service_key}",
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal",
+        },
+        json={"thumbnail_storage_path": storage_path},
+        timeout=15,
+    )
+    patch.raise_for_status()
+    return {
+        "status": "stored",
+        "recipe_id": recipe_id,
+        "storage_path": storage_path,
+        "source_url": source_url,
+    }
+
+
+def persist_recipe_image(recipe):
+    recipe_id = str(recipe.get("id") or "").strip()
+    household_id = str(recipe.get("household_id") or "").strip()
+    if not recipe_id or not household_id:
+        raise RuntimeError("Recipe id and household id are required")
+    if recipe.get("thumbnail_storage_path"):
+        return {"status": "skipped", "reason": "already_stored", "recipe_id": recipe_id}
+
+    errors = []
+    source_url = recipe.get("quelle_url")
+    platform = recipe.get("quelle_plattform") or (platform_from_url(source_url) if source_url else "web")
+    if source_url and platform in {"youtube", "tiktok", "instagram"}:
+        try:
+            content, content_type = download_social_recipe_image(source_url)
+            return store_recipe_image(recipe, content, content_type, source_url)
+        except Exception as exc:
+            errors.append(f"yt-dlp thumbnail: {exc}")
+
+    try:
+        candidates = recipe_image_candidates(recipe)
+    except Exception as exc:
+        candidates = []
+        errors.append(f"image candidates: {exc}")
+    if not candidates:
+        return {
+            "status": "failed" if errors else "skipped",
+            "reason": "no_image_candidate" if not errors else None,
+            "recipe_id": recipe_id,
+            "error": errors[-1] if errors else None,
+        }
+
+    for candidate in candidates:
+        try:
+            content, content_type = download_recipe_image(candidate, recipe.get("quelle_url"))
+            return store_recipe_image(recipe, content, content_type, candidate)
+        except Exception as exc:
+            errors.append(f"{candidate}: {exc}")
+
+    return {
+        "status": "failed",
+        "recipe_id": recipe_id,
+        "error": errors[-1] if errors else "Image persistence failed",
+        "attempts": len(candidates),
     }
 
 
@@ -506,6 +738,13 @@ def health():
         "service": "recipe-source-parser",
         "ffmpeg": command_available("ffmpeg"),
         "yt_dlp": command_available("yt-dlp"),
+        "recipe_images": True,
+        "recipe_images_api_version": 2,
+        "recipe_image_routes": sorted(
+            rule.rule
+            for rule in app.url_map.iter_rules()
+            if rule.rule.startswith("/recipe-images/")
+        ),
     }
     if deep:
         device, compute_type = select_device()
@@ -532,3 +771,47 @@ def jobs():
 @app.get("/jobs/<job_id>")
 def job_status(job_id):
     return jsonify({"job_id": job_id, "status": "delegated_to_supabase"})
+
+
+@app.post("/recipe-images/persist")
+def persist_recipe_image_route():
+    payload = request.get_json(force=True, silent=True) or {}
+    recipe = payload.get("recipe") or payload
+    try:
+        result = persist_recipe_image(recipe)
+        return jsonify(result), 200 if result["status"] != "failed" else 422
+    except Exception as exc:
+        return jsonify({"status": "failed", "error": str(exc)}), 422
+
+
+@app.post("/recipe-images/backfill")
+def backfill_recipe_images_route():
+    payload = request.get_json(force=True, silent=True) or {}
+    limit = max(1, min(int(payload.get("limit") or 100), 1000))
+    supabase_url = os.getenv("SUPABASE_URL", "").rstrip("/")
+    service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    if not supabase_url or not service_key:
+        return jsonify({"error": "Supabase configuration is missing"}), 500
+
+    response = requests.get(
+        f"{supabase_url}/rest/v1/home_rezepte",
+        params={
+            "select": "id,household_id,quelle_url,quelle_plattform,thumbnail_url,thumbnail_storage_path",
+            "thumbnail_storage_path": "is.null",
+            "quelle_url": "not.is.null",
+            "order": "created_at.asc",
+            "limit": str(limit),
+        },
+        headers={"apikey": service_key, "Authorization": f"Bearer {service_key}"},
+        timeout=20,
+    )
+    response.raise_for_status()
+    recipes = response.json()
+    results = [persist_recipe_image(recipe) for recipe in recipes]
+    return jsonify({
+        "checked": len(results),
+        "stored": sum(result["status"] == "stored" for result in results),
+        "skipped": sum(result["status"] == "skipped" for result in results),
+        "failed": sum(result["status"] == "failed" for result in results),
+        "results": results,
+    })

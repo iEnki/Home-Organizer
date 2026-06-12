@@ -19,6 +19,25 @@ function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: jsonHeaders });
 }
 
+async function persistRecipeImage(recipe: Record<string, unknown>) {
+  const parserUrl = String(Deno.env.get("RECIPE_PARSER_URL") || "").replace(/\/$/, "");
+  const parserToken = Deno.env.get("RECIPE_PARSER_INTERNAL_TOKEN");
+  if (!parserUrl || !parserToken) return;
+
+  const response = await fetch(`${parserUrl}/recipe-images/persist`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${parserToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ recipe }),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Recipe image persistence failed (${response.status}): ${truncate(detail, 500)}`);
+  }
+}
+
 function truncate(value: unknown, max = 1200) {
   const text = String(value || "");
   return text.length > max ? `${text.slice(0, max)}...` : text;
@@ -871,6 +890,21 @@ Deno.serve(async (req: Request) => {
     .eq("id", jobId);
   if (finishError) {
     return jsonResponse({ error: finishError.message, job_id: jobId }, 500);
+  }
+
+  try {
+    await persistRecipeImage({
+      id: rezept.id,
+      household_id: job.household_id,
+      quelle_url: job.quelle_url,
+      quelle_plattform: job.quelle_plattform,
+      thumbnail_url: source.thumbnail_url || null,
+    });
+  } catch (imageError) {
+    console.warn("Recipe image could not be persisted", {
+      recipe_id: rezept.id,
+      error: imageError instanceof Error ? imageError.message : String(imageError),
+    });
   }
 
   return jsonResponse({ status: "review", job_id: jobId, rezept_id: rezept.id, warnings: recipeWarnings });
