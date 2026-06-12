@@ -1,123 +1,117 @@
-# Moving Planner & Home Organizer PWA
+# Moving Planner & Home Organizer
 
-A self-hosted Progressive Web App for moving, household management, documents, finances and shared organisation.
+A self-hosted Progressive Web App for move planning, household organisation, finances, documents and shared management.
 
-Demo: https://umzug.enkination.de/  
+[Deutsche Version](README.de.md)
+
+Demo: <https://umzug.enkination.de/><br>
 Demo login: `demo@demo.com` / `Demo1234`
-
-## Contents
-
-- [Overview](#overview)
-- [New Features](#new-features)
-- [Features](#features)
-- [Tech Stack](#tech-stack)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Database Setup](#database-setup)
-- [Configuration](#configuration)
-- [Updates and Maintenance](#updates-and-maintenance)
-- [Project Structure](#project-structure)
-- [Troubleshooting](#troubleshooting)
 
 ## Overview
 
-The app combines two workspaces:
+The application combines two workspaces:
 
-- **Moving Planner** for planning, organising and completing a move.
-- **Home Organizer** for everyday household management after the move.
+- **Moving Planner** for planning, completing and closing a move.
+- **Home Organizer** for ongoing household management.
 
-It is installable as a PWA, works on desktop and mobile devices and can be fully self-hosted. Supabase provides auth, database, storage, realtime features and Edge Functions. AI features can use OpenAI or a local Ollama server.
-
-## New Features
-
-- German and English UI with language selection in the profile
-- Localized PWA manifests for German and English (UK)
-- Per-user locale settings with localized date and number formatting
-- Global AI assistant with household context
-- More reliable push reminders and reminder state handling
-- Home budget with categories, limits, savings goals, recurring entries and settlement features
-- Invoice analysis with line items, date synchronization and budget assignment
-- Document archive with AI analysis, knowledge entries, contracts and insurance records
-- Book library with ISBN lookup, cover lookup and duplicate detection
-- Cookbook with manual recipes, web import, video import, local transcription, translation and shopping-list handover
-- Shopping list with AI classification, multilingual entries and transfer of completed grocery items into supplies
-- Guided tours and onboarding for Home Organizer modules
-- Household-level settings, invitations and multi-household support
+The app is responsive, installable as a PWA and fully self-hostable. Supabase provides authentication, PostgreSQL, storage, realtime and Edge Functions. AI features use OpenAI or Ollama according to the household configuration.
 
 ## Features
 
 ### Moving Planner
 
 - Dashboard with tasks, appointments and progress
-- Packing list with QR codes, photos, rooms, categories and AI support
-- To-do lists with priorities, due dates, phases and AI capture
-- Budget tracker for expenses, categories and partial payments
-- Calendar, contacts, documents and moving timeline
+- Packing lists with rooms, categories, photos, QR codes and AI support
+- To-do lists with priorities, due dates and moving phases
+- Budget, partial payments and cost comparison
+- Calendar, contacts, documents and timeline
 - Renovation and material planning
-- Calculators for paint, wallpaper, flooring, insulation, boxes, volume and transport costs
-- Cost comparison, scenarios and PDF/export features
+- Calculators for paint, wallpaper, flooring, insulation, boxes, volume and transport
+- PDF and calendar exports
 
 ### Home Organizer
 
-- Dashboard with quick access and household overview
-- Inventory with locations, QR codes, photos and search
-- Supplies with minimum quantities, categories and shopping list integration
-- Shopping list with batch capture, AI categorisation, recipe ingredients, translation cache and stock handover when groceries are checked off
-- Cookbook with recipe cards, review workflow, web/video import, quantity/macro/cost analysis, multilingual recipes and ingredient handover
-- Device management with maintenance planning
-- Residents, household tasks, projects and activity history
-- Finance manager with accounts, budgets, limits, goals, splits and statistics
-- Invoices, documents, contracts and insurance records
-- Knowledge base with manual and document-based entries
-- Book library with search, import, covers and duplicate checks
-- Global search across modules, including cookbook recipes
-- Step-by-step tours per module
+- Household dashboard with shortcuts and global search
+- Multiple households, members, invitations and separated data scopes
+- Inventory with locations, photos, QR codes and search
+- Supplies, minimum quantities and shopping-list handover
+- Shopping list with quick capture, AI categorisation and recipe ingredients
+- Medicine cabinet with stock, expiry dates, documents and leaflets
+- Device management with location, inventory links, documents and maintenance
+- Household tasks, projects, residents and activity history
 
-### Cross-Cutting
+### Budget, Invoices and Documents
 
-- Multi-household support with invitations and separated data scopes
-- Supabase Auth with password reset and optional email confirmation
-- Push notifications for reminders, deadlines, supplies and maintenance
-- Dark/light mode
+- Household and private accounts
+- Budgets, categories, limits, savings goals and recurring entries
+- Cost splitting and household settlement
+- Invoice scanner with PDF/image upload, OCR, line-item analysis and review
+- Links between invoices, budget entries and original documents
+- Document archive with AI analysis and knowledge entries
+- Contracts, insurance, deadlines and reminders
+
+### Vehicle Module
+
+- Multiple vehicles with master data, mileage history and photo galleries
+- Cover image, gallery view and central document links
+- Fuel entries with **full**, **partial** and **unknown** tank status
+- Full-tank consumption calculation including intermediate refuelling
+- Automatic detection of fuel receipts from the budget
+- Review inbox for receipts that cannot be assigned safely
+- Costs, services, tyres, tasks, parts, documents and reminders
+- AI analysis of service invoices, garage receipts and inspection reports
+- Structured service line items with categories, prices and confidence
+- TCO, cost per kilometre, consumption and vehicle comparison
+- Charts plus filtered CSV and PDF exports
+
+### Cookbook, Books and Knowledge
+
+- Manual recipes and imports from web pages or video sources
+- Local parser for metadata, subtitles, audio and transcription
+- Review, translation, quality checks, nutrition and costs
+- Meal planning, cooking mode and cooking logs
+- Ingredient handover to shopping lists and supplies
+- Book management with ISBN, cover and duplicate detection
+- Household knowledge from manual entries and document analysis
+
+### Platform Features
+
+- German and English (UK) UI
+- Dark and light themes
+- Responsive desktop and mobile navigation
 - Installable PWA for iOS, Android and desktop
-- OpenAI or Ollama as AI provider
-- Docker deployment as app-only or fullstack setup
+- Push notifications through Web Push and VAPID
+- Global AI assistant with household context
+- OpenAI or optional local Ollama
+- Household RLS for shared data
 
-## Tech Stack
+## Technology
 
 | Area | Technology |
 | --- | --- |
-| Frontend | React 18, Create React App, JavaScript |
-| Styling | Tailwind CSS |
-| Backend | Supabase, PostgreSQL, Auth, Storage, Edge Functions |
-| Internationalization | i18next, react-i18next |
-| Push | Web Push API, VAPID, Supabase Edge Functions |
-| AI | OpenAI API, optional Ollama |
-| Deployment | Docker, Docker Compose, Nginx |
+| Frontend | React 18, Create React App, React Router |
+| Styling and UI | Tailwind CSS, Framer Motion, Lucide |
+| Charts and PDF | Chart.js, React PDF Renderer |
+| Backend | Supabase, PostgreSQL, Auth, Storage, Realtime |
+| Server logic | Supabase Edge Functions with Deno |
+| Local services | FastAPI-based document OCR and recipe processing |
+| Internationalisation | i18next, German and English (UK) |
+| Operations | Docker, Docker Compose, Nginx |
 
 ## Requirements
 
-| Component | Minimum |
-| --- | --- |
-| CPU | 2 cores |
-| RAM | 4 GB, 8 GB recommended with Ollama |
-| Storage | 20 GB |
-| OS | Ubuntu 22.04, Debian 12 or newer |
+- Linux server, preferably Ubuntu 22.04 or Debian 12
+- Docker 24 or newer
+- Docker Compose 2.20 or newer
+- At least 2 CPU cores, 4 GB RAM and 20 GB storage
+- At least 8 GB RAM recommended for local Ollama
+- Domain and HTTPS for production, push and secure authentication
 
-Required software:
-
-```bash
-docker --version
-docker compose version
-node --version
-openssl version
-```
-
-Recommended versions: Docker 24+, Docker Compose 2.20+, Node.js 20.
+Node.js 20 is only needed for local frontend development and helper scripts.
 
 ## Installation
 
-### Recommended: Management Script
+### Management Script
 
 ```bash
 git clone https://github.com/iEnki/Home-Organizer.git
@@ -126,40 +120,37 @@ chmod +x scripts/manage_en.sh
 ./scripts/manage_en.sh
 ```
 
-Choose **[1] Installation** in the menu. The English management script is the recommended installation path because it combines installation, updates, backups, SMTP, Ollama, configuration and logs in one tool.
+Choose **Installation** in the menu:
 
-The installation supports two modes:
-
-| Mode | Description |
+| Mode | Includes |
 | --- | --- |
-| Fullstack | Installs Supabase, database, Edge Functions and the app together via Docker |
-| App-only | Installs only the React app and connects it to an existing Supabase instance |
+| Fullstack | App, Supabase, storage, Edge Functions, OCR and recipe services |
+| App-only | React app connected to an existing Supabase installation |
 
-The script generates keys, creates `.env`, configures VAPID and writes important credentials to `CREDENTIALS.txt`.
+The script also manages updates, backups, restore, SMTP, Ollama, URL/port configuration, status and logs.
 
-### Direct Installer
-
-You can also start the installer directly:
+Alternatively:
 
 ```bash
 chmod +x scripts/install.sh
 ./scripts/install.sh
 ```
 
-Use `manage_en.sh` for later operations.
+Generated `.env` and `CREDENTIALS.txt` files contain secrets and must never be published or committed.
 
-Important menu tasks:
+## Database
 
-- Installation and update
-- Uninstall
-- Backup and restore
-- SMTP configuration
-- Ollama configuration
-- App URL, port and invitation link settings
-- Status and logs
-- Docker cleanup
+For a fresh installation, apply the complete schema:
 
-### Local Development
+```bash
+docker exec -i supabase-db psql -U postgres -d postgres < database_setup_complete.sql
+```
+
+You can also run the file in the Supabase Studio SQL editor. The complete schema contains tables, indexes, triggers, RPCs, storage configuration and RLS policies.
+
+For existing installations, create a backup first and then use the dated migrations or the management-script update flow. The complete schema is intended for fresh installations.
+
+## Local Development
 
 ```bash
 cp env.example umzugshelfer-pwa/.env
@@ -168,98 +159,80 @@ npm install
 npm start
 ```
 
-The app runs at `http://localhost:3000`.
+The app runs at <http://localhost:3000> by default.
 
-## Database Setup
-
-After the first start, apply the database schema in Supabase.
-
-### Supabase Studio
-
-1. Open Studio, for example `http://localhost:8000`
-2. Sign in with the credentials from `.env` or `CREDENTIALS.txt`
-3. Open the SQL editor
-4. Run the contents of `database_setup_complete.sql`
-
-### Command Line
+Important checks:
 
 ```bash
-docker exec -i supabase-db psql -U postgres -d postgres < database_setup_complete.sql
+npm test -- --watchAll=false
+npm run i18n:check
+npm run build
 ```
 
 ## Configuration
 
-### Push Notifications
+### Frontend
 
-Push requires VAPID keys. `install.sh`, `manage.sh` and `manage_en.sh` generate them automatically.
+Minimum configuration:
 
-Enable push in the app:
+```env
+REACT_APP_SUPABASE_URL=https://supa.example.com
+REACT_APP_SUPABASE_ANON_KEY=<anon-key>
+REACT_APP_PASSWORD_RESET_REDIRECT_URL=https://app.example.com/update-password
+REACT_APP_VAPID_PUBLIC_KEY=<vapid-public-key>
+```
 
-1. Open the app over HTTPS
-2. Open the profile
-3. Enable push notifications
-4. Confirm the browser permission prompt
+Never expose a service-role key in the frontend.
 
-iOS requires the installed PWA on the home screen and at least iOS 16.4.
+### AI and Document Analysis
 
-### AI Provider
+The household configuration selects OpenAI or Ollama. API keys are used through the intended profile settings and server-side functions.
 
-OpenAI:
+Fullstack deployments also configure:
 
-- Add the API key in profile AI settings
-- Requests are proxied server-side through Supabase Edge Functions
+```env
+DOCUMENT_OCR_URL=http://document-ocr-service:8091
+DOCUMENT_OCR_INTERNAL_TOKEN=<random-secret>
+RECIPE_PARSER_URL=http://recipe-source-parser:8090
+RECIPE_PARSER_INTERNAL_TOKEN=<random-secret>
+```
 
-Ollama:
+These internal services must not be exposed publicly without protection.
+
+Ollama can be configured through the management menu or started directly:
 
 ```bash
 docker compose -f docker-compose.full.yml --profile ollama up -d
 docker exec ollama ollama pull llama3.2
 ```
 
-Then select the Ollama URL and model in the app.
+### Push Notifications
 
-### SMTP
+The installer generates VAPID keys. To enable push:
 
-For email confirmation, invitations and password reset:
+1. Open the app over HTTPS.
+2. Enable push in the profile.
+3. Accept the browser permission.
+
+iOS requires an installed PWA and at least iOS 16.4.
+
+### SMTP and Invitations
+
+For email confirmation, password reset and household invitations:
 
 ```env
 SMTP_ADMIN_EMAIL=no-reply@example.com
-SMTP_HOST=smtp.mailgun.org
+SMTP_HOST=smtp.example.com
 SMTP_PORT=587
-SMTP_USER=postmaster@example.com
-SMTP_PASS=your-smtp-password
-SMTP_SENDER_NAME=Moving Planner
+SMTP_USER=<user>
+SMTP_PASS=<password>
+SMTP_SENDER_NAME=Home Organizer
+RESEND_API_KEY=
 ```
 
-Restart the auth container afterwards:
+Use `scripts/manage_en.sh` to maintain this configuration.
 
-```bash
-docker compose -f docker-compose.full.yml restart supabase-auth
-```
-
-### Nginx Reverse Proxy
-
-HTTPS is recommended for production:
-
-```nginx
-server {
-    listen 443 ssl;
-    server_name move.example.com;
-
-    ssl_certificate     /etc/letsencrypt/live/move.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/move.example.com/privkey.pem;
-
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-## Updates and Maintenance
+## Updates and Backups
 
 Recommended:
 
@@ -267,7 +240,9 @@ Recommended:
 ./scripts/manage_en.sh
 ```
 
-Manual update:
+Create a fullstack backup before schema or version updates. The management script stores database, storage and configuration backups under `backups/`.
+
+Manual app rebuild:
 
 ```bash
 git pull
@@ -275,55 +250,53 @@ docker compose -f docker-compose.full.yml build --no-cache umzugsplaner-app
 docker compose -f docker-compose.full.yml up -d --force-recreate umzugsplaner-app
 ```
 
-Update Browserslist data explicitly:
-
-```bash
-./scripts/manage_en.sh maintenance browserslist
-```
-
-This updates `caniuse-lite` and runs a frontend build afterwards.
-
 ## Project Structure
 
 ```text
-umzughelfer/
-├── scripts/                    # Installation, update, backup, maintenance
-├── supabase/functions/          # Edge Functions
-├── umzugshelfer-pwa/            # React PWA
-│   ├── public/                  # Manifest, service worker, assets
-│   └── src/
-│       ├── components/          # App modules
-│       ├── contexts/            # App, theme, locale and household contexts
-│       ├── i18n/                # German and English translations
-│       ├── hooks/               # Reusable React hooks
-│       └── utils/               # Budget, AI, documents, push, formatting
-├── database_setup_complete.sql  # Complete database schema
-├── docker-compose.yml           # App-only setup
-├── docker-compose.full.yml      # Fullstack setup
-├── env.example                  # App-only example configuration
-└── .env.full.example            # Fullstack example configuration
+Home-Organizer/
+|-- scripts/                     Installation, updates and SQL migrations
+|-- services/
+|   |-- document-ocr-service/    Local PDF/image OCR
+|   `-- recipe-source-parser/    Web/video recipe processing
+|-- supabase/functions/          Edge Functions
+|-- umzugshelfer-pwa/            React PWA
+|   |-- public/                  PWA files and assets
+|   `-- src/                     Components, hooks, i18n and utilities
+|-- database_setup_complete.sql  Complete schema for fresh installations
+|-- docker-compose.yml           App-only deployment
+|-- docker-compose.full.yml      Complete stack
+|-- env.example                  App-only example
+`-- .env.full.example            Fullstack example
 ```
 
 ## Troubleshooting
 
-View logs:
-
 ```bash
-docker compose -f docker-compose.full.yml logs -f
-docker compose -f docker-compose.full.yml logs -f supabase-db
-docker compose -f docker-compose.full.yml logs -f supabase-auth
-docker compose -f docker-compose.full.yml logs -f supabase-edge-functions
-docker compose -f docker-compose.full.yml logs -f umzugsplaner-pwa-container
+docker compose -f docker-compose.full.yml ps
+docker compose -f docker-compose.full.yml logs -f umzugsplaner-app
+docker compose -f docker-compose.full.yml logs -f functions
+docker compose -f docker-compose.full.yml logs -f db
+docker compose -f docker-compose.full.yml logs -f document-ocr-service
+docker compose -f docker-compose.full.yml logs -f recipe-source-parser
 ```
 
-Common issues:
+Common causes:
 
-- **Push does not work:** Check HTTPS, browser permission, VAPID keys and Edge Function environment variables.
-- **Emails are not sent:** Check SMTP values in `.env` and restart `supabase-auth`.
-- **Supabase Studio is unavailable:** Check container status and `supabase-analytics` logs.
-- **Ollama does not respond:** Test `docker exec ollama ollama list` and `curl http://localhost:11434/api/tags`.
-- **The app still shows old content:** Rebuild the app container and clear the browser/PWA cache.
+- **Outdated UI:** Rebuild the app and clear the browser/PWA cache.
+- **AI or OCR failure:** Check provider configuration, Edge Function logs and internal service tokens.
+- **Push failure:** Check HTTPS, permission, VAPID values and `send-push`.
+- **Missing email:** Check SMTP/Resend configuration and auth logs.
+- **Empty modules or 401/403:** Check household membership, RLS and the database version.
+- **Supabase 502:** Inspect Kong, REST, Functions and target-service logs; a browser CORS message can merely be a consequence of the gateway error.
+
+## Security
+
+- Keep `.env`, `CREDENTIALS.txt`, database dumps and storage backups private.
+- Only use the public anon key in the browser.
+- Protect service-role, SMTP, VAPID private and internal service keys.
+- Publish production deployments over HTTPS only.
+- Create tested backups before updates.
 
 ## License
 
-MIT. See `umzugshelfer-pwa/LICENSE`.
+MIT, see [`umzugshelfer-pwa/LICENSE`](umzugshelfer-pwa/LICENSE).

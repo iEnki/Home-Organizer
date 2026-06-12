@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS public.user_profile (
   password_change_required boolean NOT NULL DEFAULT false,
   mobile_nav_config jsonb NOT NULL DEFAULT '{"home":["aufgaben","inventar","budget"],"umzug":["todos","packliste","budget"]}'::jsonb,
   locale           text NOT NULL DEFAULT 'de' CONSTRAINT user_profile_locale_supported CHECK (locale IN ('de', 'en-GB')),
+  timezone         text NOT NULL DEFAULT 'Europe/Vienna',
   created_at       timestamptz DEFAULT NOW(),
   updated_at       timestamptz DEFAULT NOW()
 );
@@ -1867,7 +1868,8 @@ ALTER TABLE public.user_profile
 ALTER TABLE public.user_profile
   ADD COLUMN IF NOT EXISTS einkauf_reminder_aktiv        boolean DEFAULT false,
   ADD COLUMN IF NOT EXISTS einkauf_reminder_zeit         text,
-  ADD COLUMN IF NOT EXISTS einkauf_reminder_letzter_versand date;
+  ADD COLUMN IF NOT EXISTS einkauf_reminder_letzter_versand date,
+  ADD COLUMN IF NOT EXISTS timezone text NOT NULL DEFAULT 'Europe/Vienna';
 
 -- user_profile: Umzugsplaner dauerhaft deaktivieren
 ALTER TABLE public.user_profile
@@ -4546,9 +4548,16 @@ CREATE TABLE IF NOT EXISTS public.home_push_reminder_state (
   period_key text NOT NULL,
   last_value jsonb NOT NULL DEFAULT '{}'::jsonb,
   last_sent_at timestamptz NOT NULL DEFAULT now(),
+  delivery_status text NOT NULL DEFAULT 'sent'
+    CHECK (delivery_status IN ('pending', 'sent')),
+  reserved_at timestamptz NOT NULL DEFAULT now(),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.home_push_reminder_state
+  ADD COLUMN IF NOT EXISTS delivery_status text NOT NULL DEFAULT 'sent',
+  ADD COLUMN IF NOT EXISTS reserved_at timestamptz NOT NULL DEFAULT now();
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_home_push_reminder_state_unique
   ON public.home_push_reminder_state (
@@ -4564,6 +4573,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_home_push_reminder_state_unique
 CREATE INDEX IF NOT EXISTS idx_home_push_reminder_state_household_sent
   ON public.home_push_reminder_state (household_id, last_sent_at DESC);
 
+CREATE INDEX IF NOT EXISTS idx_home_push_reminder_state_pending
+  ON public.home_push_reminder_state (delivery_status, reserved_at)
+  WHERE delivery_status = 'pending';
+
 DROP TRIGGER IF EXISTS set_home_push_reminder_state_updated_at ON public.home_push_reminder_state;
 CREATE TRIGGER set_home_push_reminder_state_updated_at
   BEFORE UPDATE ON public.home_push_reminder_state
@@ -4572,9 +4585,8 @@ CREATE TRIGGER set_home_push_reminder_state_updated_at
 ALTER TABLE public.home_push_reminder_state ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS home_push_reminder_state_household_member_access ON public.home_push_reminder_state;
-CREATE POLICY home_push_reminder_state_household_member_access ON public.home_push_reminder_state FOR ALL
-  USING (public.is_household_member(household_id))
-  WITH CHECK (public.is_household_member(household_id));
+-- No authenticated-client policy: only service-role reminder workers may mutate
+-- delivery reservations and dedupe state.
 
 CREATE INDEX IF NOT EXISTS idx_home_geraete_garantie_bis
   ON public.home_geraete (household_id, garantie_bis);
@@ -4604,6 +4616,7 @@ CREATE TABLE IF NOT EXISTS public.home_rezepte (
   quelle_titel text,
   quelle_uploader text,
   thumbnail_url text,
+  thumbnail_storage_path text,
   video_dauer_sekunden integer,
 
   import_typ text NOT NULL DEFAULT 'manuell',
@@ -4758,6 +4771,9 @@ ALTER TABLE public.home_wissen
 
 ALTER TABLE public.home_rezepte
   ADD COLUMN IF NOT EXISTS gruppe text;
+
+ALTER TABLE public.home_rezepte
+  ADD COLUMN IF NOT EXISTS thumbnail_storage_path text;
 
 ALTER TABLE public.home_einkaufliste
   ADD COLUMN IF NOT EXISTS localized_content jsonb NOT NULL DEFAULT '{}'::jsonb;
@@ -4919,6 +4935,9 @@ CREATE INDEX IF NOT EXISTS idx_home_rezepte_quelle_plattform ON public.home_reze
 CREATE INDEX IF NOT EXISTS idx_home_rezepte_created_at ON public.home_rezepte(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_home_rezepte_tags ON public.home_rezepte USING gin(tags);
 CREATE INDEX IF NOT EXISTS idx_home_rezepte_gruppe ON public.home_rezepte(gruppe);
+CREATE INDEX IF NOT EXISTS idx_home_rezepte_thumbnail_storage_path
+  ON public.home_rezepte(thumbnail_storage_path)
+  WHERE thumbnail_storage_path IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_home_rezept_zutaten_rezept_id ON public.home_rezept_zutaten(rezept_id);
 CREATE INDEX IF NOT EXISTS idx_home_rezept_zutaten_household_id ON public.home_rezept_zutaten(household_id);
 CREATE INDEX IF NOT EXISTS idx_home_rezept_zutaten_normalized_name ON public.home_rezept_zutaten(normalized_name);
@@ -4983,6 +5002,68 @@ CREATE POLICY home_rezept_import_jobs_household_update ON public.home_rezept_imp
 DROP POLICY IF EXISTS home_rezept_import_jobs_household_delete ON public.home_rezept_import_jobs;
 CREATE POLICY home_rezept_import_jobs_household_delete ON public.home_rezept_import_jobs
   FOR DELETE USING (public.is_household_member(household_id));
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'recipe-images', 'recipe-images', false, 5242880,
+  ARRAY['image/jpeg', 'image/png', 'image/webp']
+)
+ON CONFLICT (id) DO UPDATE
+SET public = EXCLUDED.public,
+    file_size_limit = EXCLUDED.file_size_limit,
+    allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+DROP POLICY IF EXISTS recipe_images_household_select ON storage.objects;
+CREATE POLICY recipe_images_household_select ON storage.objects FOR SELECT TO authenticated
+USING (
+  bucket_id = 'recipe-images'
+  AND EXISTS (
+    SELECT 1 FROM public.household_members hm
+    WHERE hm.user_id = (SELECT auth.uid())
+      AND hm.household_id::text = (storage.foldername(name))[1]
+  )
+);
+
+DROP POLICY IF EXISTS recipe_images_household_insert ON storage.objects;
+CREATE POLICY recipe_images_household_insert ON storage.objects FOR INSERT TO authenticated
+WITH CHECK (
+  bucket_id = 'recipe-images'
+  AND EXISTS (
+    SELECT 1 FROM public.household_members hm
+    WHERE hm.user_id = (SELECT auth.uid())
+      AND hm.household_id::text = (storage.foldername(name))[1]
+  )
+);
+
+DROP POLICY IF EXISTS recipe_images_household_update ON storage.objects;
+CREATE POLICY recipe_images_household_update ON storage.objects FOR UPDATE TO authenticated
+USING (
+  bucket_id = 'recipe-images'
+  AND EXISTS (
+    SELECT 1 FROM public.household_members hm
+    WHERE hm.user_id = (SELECT auth.uid())
+      AND hm.household_id::text = (storage.foldername(name))[1]
+  )
+)
+WITH CHECK (
+  bucket_id = 'recipe-images'
+  AND EXISTS (
+    SELECT 1 FROM public.household_members hm
+    WHERE hm.user_id = (SELECT auth.uid())
+      AND hm.household_id::text = (storage.foldername(name))[1]
+  )
+);
+
+DROP POLICY IF EXISTS recipe_images_household_delete ON storage.objects;
+CREATE POLICY recipe_images_household_delete ON storage.objects FOR DELETE TO authenticated
+USING (
+  bucket_id = 'recipe-images'
+  AND EXISTS (
+    SELECT 1 FROM public.household_members hm
+    WHERE hm.user_id = (SELECT auth.uid())
+      AND hm.household_id::text = (storage.foldername(name))[1]
+  )
+);
 
 SELECT pg_notify('pgrst', 'reload schema');
 

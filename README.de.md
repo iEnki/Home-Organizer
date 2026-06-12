@@ -1,123 +1,117 @@
-# Umzugsplaner & Home Organizer PWA
+# Umzugsplaner & Home Organizer
 
-Eine self-hosted Progressive Web App für Umzug, Haushalt, Dokumente, Finanzen und gemeinsame Organisation.
+Eine selbst gehostete Progressive Web App für Umzugsplanung, Haushaltsorganisation, Finanzen, Dokumente und gemeinsame Verwaltung.
 
-Demo: https://umzug.enkination.de/  
+[English version](README.en.md)
+
+Demo: <https://umzug.enkination.de/><br>
 Demo-Login: `demo@demo.com` / `Demo1234`
-
-## Inhalt
-
-- [Überblick](#überblick)
-- [Neue Features](#neue-features)
-- [Funktionen](#funktionen)
-- [Technologie-Stack](#technologie-stack)
-- [Voraussetzungen](#voraussetzungen)
-- [Installation](#installation)
-- [Datenbank einrichten](#datenbank-einrichten)
-- [Konfiguration](#konfiguration)
-- [Updates und Wartung](#updates-und-wartung)
-- [Projektstruktur](#projektstruktur)
-- [Troubleshooting](#troubleshooting)
 
 ## Überblick
 
-Die App vereint zwei Arbeitsbereiche:
+Die Anwendung verbindet zwei Bereiche:
 
-- **Umzugsmodus** für die Planung, Organisation und Durchführung eines Umzugs.
-- **Home Organizer** für den dauerhaften Haushaltsbetrieb nach dem Umzug.
+- **Umzugsmodus** für Planung, Durchführung und Abschluss eines Umzugs.
+- **Home Organizer** für den dauerhaften Betrieb eines Haushalts.
 
-Sie ist als PWA installierbar, läuft auf Desktop und Mobilgeräten und kann vollständig selbst gehostet werden. Supabase stellt Auth, Datenbank, Storage, Realtime und Edge Functions bereit. KI-Funktionen laufen wahlweise über OpenAI oder einen lokalen Ollama-Server.
+Die App ist für Desktop und Mobilgeräte optimiert, als PWA installierbar und vollständig selbst hostbar. Supabase stellt Authentifizierung, PostgreSQL, Storage, Realtime und Edge Functions bereit. KI-Funktionen verwenden je nach Haushaltskonfiguration OpenAI oder Ollama.
 
-## Neue Features
-
-- Deutsche und englische Oberfläche mit Sprachwahl im Profil
-- Lokalisierte PWA-Manifeste für Deutsch und Englisch (UK)
-- Benutzerbezogene Locale-Einstellung und formatierte Datums-/Zahlenwerte
-- Globaler KI-Assistent mit Haushaltskontext
-- Verbesserte Push-Erinnerungen mit stabilerer Zustandsverwaltung
-- Home-Budget mit Kategorien, Limits, Sparzielen, wiederkehrenden Buchungen und Ausgleich
-- Rechnungsanalyse mit Positionen, Datumssynchronisation und Budgetzuordnung
-- Dokumentenarchiv mit KI-Analyse, Wissenseinträgen, Verträgen und Versicherungen
-- Bücherverwaltung mit ISBN-/Cover-Suche und Duplikaterkennung
-- Geführte Touren und Onboarding für Home-Organizer-Module
-- Kochbuch mit manuellem Rezept, Web-Import, Video-Import, lokaler Transkription, Übersetzung und Einkaufsliste
-- Einkaufsliste mit KI-Klassifizierung, mehrsprachigen Einträgen und Übernahme erledigter Lebensmittel in die Vorräte
-- Haushaltsweite Einstellungen, Einladungen und Multi-Haushalt-Unterstützung
-
-## Funktionen
+## Funktionsumfang
 
 ### Umzugsmodus
 
 - Dashboard mit Aufgaben, Terminen und Fortschritt
-- Packliste mit QR-Codes, Fotos, Räumen, Kategorien und KI-Unterstützung
-- To-do-Listen mit Prioritäten, Fälligkeiten, Phasen und KI-Erfassung
-- Budget Tracker für Ausgaben, Kategorien und Teilzahlungen
+- Packlisten mit Räumen, Kategorien, Fotos, QR-Codes und KI-Unterstützung
+- To-do-Listen mit Prioritäten, Fälligkeiten und Umzugsphasen
+- Budget, Teilzahlungen und Kostenvergleich
 - Kalender, Kontakte, Dokumente und Zeitstrahl
 - Renovierungs- und Materialplanung
-- Bedarfsrechner für Farbe, Tapete, Boden, Dämmstoff, Kartons, Volumen und Transportkosten
-- Kostenvergleich, Szenarien und PDF-/Exportfunktionen
+- Rechner für Farbe, Tapete, Boden, Dämmstoff, Kartons, Volumen und Transport
+- PDF- und Kalenderexporte
 
 ### Home Organizer
 
-- Dashboard mit Schnellzugriff und Haushaltsübersicht
-- Inventar mit Standorten, QR-Codes, Fotos und Suche
-- Vorräte mit Mindestmengen, Kategorien und Einkaufslisten-Anbindung
-- Einkaufsliste mit Batch-Erfassung, KI-Kategorisierung, Rezeptzutaten, Übersetzungscache und Vorratsübernahme beim Abhaken
-- Kochbuch mit Rezeptkarten, Review-Workflow, Web-/Video-Import, Mengen-/Makro-/Kostenanalyse, mehrsprachigen Rezepten und Zutatenübernahme
-- Geräteverwaltung mit Wartungsplanung
-- Bewohner, Haushaltsaufgaben, Projekte und Verlauf
-- Finanzmanager mit Konten, Budgets, Limits, Zielen, Splits und Statistiken
-- Rechnungen, Dokumente, Verträge und Versicherungen
-- Wissensdatenbank mit manuellen und dokumentbasierten Einträgen
-- Bücherregal mit Suche, Import, Covern und Duplikatprüfung
-- Globale Suche über Module hinweg, inklusive Kochbuch-Rezepten
-- Schritt-für-Schritt-Touren pro Modul
+- Haushaltsdashboard mit Schnellzugriffen und globaler Suche
+- Mehrere Haushalte, Mitglieder, Einladungen und getrennte Datenbereiche
+- Inventar mit Standorten, Fotos, QR-Codes und Suche
+- Vorräte, Mindestmengen und Übergabe an die Einkaufsliste
+- Einkaufsliste mit Schnellerfassung, KI-Kategorisierung und Rezeptzutaten
+- Heimapotheke mit Beständen, Ablaufdaten, Dokumenten und Beipackzetteln
+- Geräteverwaltung mit Standort, Inventarbezug, Dokumenten und Wartung
+- Haushaltsaufgaben, Projekte, Bewohner und Aktivitätsverlauf
 
-### Übergreifend
+### Budget, Rechnungen und Dokumente
 
-- Multi-Haushalt mit Einladungen und getrennten Datenbereichen
-- Supabase Auth mit Passwort-Reset und optionaler E-Mail-Bestätigung
-- Push-Benachrichtigungen für Erinnerungen, Fristen, Vorräte und Wartung
-- Dark/Light Mode
+- Haushalts- und Privatkonten
+- Budgets, Kategorien, Limits, Sparziele und wiederkehrende Buchungen
+- Kostenaufteilung und Haushaltsausgleich
+- Rechnungsscanner mit PDF-/Bild-Upload, OCR, Positionsanalyse und Review
+- Verknüpfung von Rechnungen, Budgetposten und Originaldokumenten
+- Dokumentenarchiv mit KI-Analyse und Wissenseinträgen
+- Verträge, Versicherungen, Fristen und Erinnerungen
+
+### KFZ-Modul
+
+- Mehrere Fahrzeuge mit Stammdaten, Kilometerständen und Fotogalerie
+- Titelbild, Galerieansicht und zentrale Dokumentverknüpfung
+- Tankungen mit den Statuswerten **voll**, **teilweise** und **unbekannt**
+- Volltankbasierte Verbrauchsberechnung mit einbezogenen Zwischentankungen
+- Automatische Erkennung von Tankbelegen aus dem Budget
+- Prüfliste für nicht eindeutig zuordenbare Tankbelege
+- Kosten, Services, Reifen, Aufgaben, Teile, Dokumente und Erinnerungen
+- KI-Analyse von Service-Rechnungen, Werkstattbelegen und Pickerl-Berichten
+- Strukturierte Servicepositionen mit Kategorien, Preisen und Konfidenzen
+- TCO, Kosten pro Kilometer, Verbrauch und Fahrzeugvergleich
+- Diagramme sowie gefilterter CSV- und PDF-Export
+
+### Kochbuch, Bücher und Wissen
+
+- Manuelle Rezepte sowie Import aus Webseiten und Videoquellen
+- Lokaler Parser für Metadaten, Untertitel, Audio und Transkription
+- Review, Übersetzung, Qualitätsprüfung, Nährwerte und Kosten
+- Wochen-/Essensplanung, Kochmodus und Kochprotokolle
+- Übergabe von Zutaten an Einkaufsliste und Vorräte
+- Bücherverwaltung mit ISBN-, Cover- und Duplikaterkennung
+- Haushaltswissen aus manuellen Einträgen und Dokumentanalysen
+
+### Plattformfunktionen
+
+- Deutsche und englische Oberfläche (UK)
+- Dark Mode und Light Mode
+- Responsive Desktop- und Mobilnavigation
 - Installierbare PWA für iOS, Android und Desktop
-- OpenAI oder Ollama als KI-Provider
-- Docker-Deployment als App-only oder Fullstack
+- Push-Benachrichtigungen über Web Push und VAPID
+- Globaler KI-Assistent mit Haushaltskontext
+- OpenAI oder optional lokales Ollama
+- Household-RLS für gemeinsam verwaltete Daten
 
-## Technologie-Stack
+## Technologie
 
 | Bereich | Technologie |
 | --- | --- |
-| Frontend | React 18, Create React App, JavaScript |
-| Styling | Tailwind CSS |
-| Backend | Supabase, PostgreSQL, Auth, Storage, Edge Functions |
-| Internationalisierung | i18next, react-i18next |
-| Push | Web Push API, VAPID, Supabase Edge Functions |
-| KI | OpenAI API, optional Ollama |
-| Deployment | Docker, Docker Compose, Nginx |
+| Frontend | React 18, Create React App, React Router |
+| Styling und UI | Tailwind CSS, Framer Motion, Lucide |
+| Diagramme und PDF | Chart.js, React PDF Renderer |
+| Backend | Supabase, PostgreSQL, Auth, Storage, Realtime |
+| Serverlogik | Supabase Edge Functions mit Deno |
+| Lokale Dienste | FastAPI-basierte Dokument-OCR und Rezeptverarbeitung |
+| Internationalisierung | i18next, Deutsch und Englisch (UK) |
+| Betrieb | Docker, Docker Compose, Nginx |
 
 ## Voraussetzungen
 
-| Komponente | Minimum |
-| --- | --- |
-| CPU | 2 Kerne |
-| RAM | 4 GB, mit Ollama empfohlen 8 GB |
-| Speicher | 20 GB |
-| OS | Ubuntu 22.04, Debian 12 oder neuer |
+- Linux-Server, empfohlen Ubuntu 22.04 oder Debian 12
+- Docker 24 oder neuer
+- Docker Compose 2.20 oder neuer
+- Mindestens 2 CPU-Kerne, 4 GB RAM und 20 GB Speicher
+- Für lokales Ollama werden mindestens 8 GB RAM empfohlen
+- Domain und HTTPS für produktiven Betrieb, Push und sichere Anmeldung
 
-Benötigte Software:
-
-```bash
-docker --version
-docker compose version
-node --version
-openssl version
-```
-
-Empfohlene Versionen: Docker 24+, Docker Compose 2.20+, Node.js 20.
+Node.js 20 wird nur für lokale Frontend-Entwicklung und Hilfsskripte benötigt.
 
 ## Installation
 
-### Empfohlen: Verwaltungsskript
+### Verwaltungsskript
 
 ```bash
 git clone https://github.com/iEnki/Home-Organizer.git
@@ -126,40 +120,37 @@ chmod +x scripts/manage.sh
 ./scripts/manage.sh
 ```
 
-Wähle im Menü **[1] Installation**. Das Verwaltungsskript ist die empfohlene Installationsvariante, weil es Installation, Updates, Backups, SMTP, Ollama, Konfiguration und Logs in einem Werkzeug bündelt.
+Im Menü **Installation** wählen. Verfügbar sind:
 
-Die Installation unterstützt zwei Modi:
-
-| Modus | Beschreibung |
+| Modus | Inhalt |
 | --- | --- |
-| Fullstack | Installiert Supabase, Datenbank, Edge Functions und App gemeinsam per Docker |
-| App-only | Installiert nur die React-App und verbindet sie mit einer vorhandenen Supabase-Instanz |
+| Fullstack | App, Supabase, Storage, Edge Functions, OCR- und Rezeptdienst |
+| App-only | React-App mit Verbindung zu einer vorhandenen Supabase-Instanz |
 
-Das Skript generiert Keys, erstellt `.env`, richtet VAPID-Konfiguration ein und schreibt wichtige Zugangsdaten in `CREDENTIALS.txt`.
+Das Skript unterstützt außerdem Updates, Backups, Wiederherstellung, SMTP, Ollama, URL-/Port-Konfiguration, Status und Logs.
 
-### Direkter Installer
-
-Alternativ kann die Installation direkt gestartet werden:
+Alternativ:
 
 ```bash
 chmod +x scripts/install.sh
 ./scripts/install.sh
 ```
 
-Für spätere Verwaltung trotzdem `manage.sh` verwenden.
+Die erzeugten Dateien `.env` und `CREDENTIALS.txt` enthalten Geheimnisse und dürfen nicht veröffentlicht oder eingecheckt werden.
 
-Wichtige Aufgaben im Menü:
+## Datenbank
 
-- Installation und Update
-- Deinstallation
-- Backup und Wiederherstellung
-- SMTP-Konfiguration
-- Ollama-Konfiguration
-- App-URL, Port und Einladungslinks anpassen
-- Status und Logs anzeigen
-- Docker bereinigen
+Für eine neue Installation den vollständigen Stand ausführen:
 
-### Lokale Entwicklung
+```bash
+docker exec -i supabase-db psql -U postgres -d postgres < database_setup_complete.sql
+```
+
+Alternativ kann die Datei im SQL-Editor von Supabase Studio ausgeführt werden. Das Komplettschema enthält Tabellen, Indizes, Trigger, RPCs, Storage-Konfiguration und RLS-Richtlinien.
+
+Für bestehende Installationen zuerst ein Backup erstellen und anschließend die datierten Migrationen beziehungsweise den Update-Ablauf des Verwaltungsskripts verwenden. Das vollständige Schema ist für Neuinstallationen gedacht.
+
+## Lokale Entwicklung
 
 ```bash
 cp env.example umzugshelfer-pwa/.env
@@ -168,98 +159,80 @@ npm install
 npm start
 ```
 
-Die App läuft danach unter `http://localhost:3000`.
+Die App läuft standardmäßig unter <http://localhost:3000>.
 
-## Datenbank einrichten
-
-Nach dem ersten Start muss das Schema in Supabase eingespielt werden.
-
-### Supabase Studio
-
-1. Studio öffnen, z. B. `http://localhost:8000`
-2. Mit den Daten aus `.env` oder `CREDENTIALS.txt` anmelden
-3. SQL Editor öffnen
-4. Inhalt von `database_setup_complete.sql` ausführen
-
-### Kommandozeile
+Wichtige Befehle:
 
 ```bash
-docker exec -i supabase-db psql -U postgres -d postgres < database_setup_complete.sql
+npm test -- --watchAll=false
+npm run i18n:check
+npm run build
 ```
 
 ## Konfiguration
 
-### Push-Benachrichtigungen
+### Frontend
 
-Für Push werden VAPID-Schlüssel benötigt. `install.sh` und `manage.sh` erzeugen diese automatisch.
+Mindestens erforderlich:
 
-Aktivierung in der App:
+```env
+REACT_APP_SUPABASE_URL=https://supa.meine-domain.de
+REACT_APP_SUPABASE_ANON_KEY=<anon-key>
+REACT_APP_PASSWORD_RESET_REDIRECT_URL=https://app.meine-domain.de/update-password
+REACT_APP_VAPID_PUBLIC_KEY=<vapid-public-key>
+```
 
-1. App per HTTPS öffnen
-2. Profil öffnen
-3. Push-Benachrichtigungen aktivieren
-4. Browser-Berechtigung bestätigen
+Ein Service-Role-Key gehört niemals in das Frontend.
 
-iOS benötigt die installierte PWA auf dem Home-Bildschirm und mindestens iOS 16.4.
+### KI und Dokumentanalyse
 
-### KI-Provider
+Die Haushaltskonfiguration entscheidet zwischen OpenAI und Ollama. API-Schlüssel werden über die vorgesehenen Profileinstellungen und serverseitigen Funktionen verwendet.
 
-OpenAI:
+Der Fullstack-Betrieb konfiguriert zusätzlich:
 
-- API-Key im Profil unter KI-Einstellungen hinterlegen
-- Anfragen laufen serverseitig über Supabase Edge Functions
+```env
+DOCUMENT_OCR_URL=http://document-ocr-service:8091
+DOCUMENT_OCR_INTERNAL_TOKEN=<zufälliges-geheimnis>
+RECIPE_PARSER_URL=http://recipe-source-parser:8090
+RECIPE_PARSER_INTERNAL_TOKEN=<zufälliges-geheimnis>
+```
 
-Ollama:
+Diese internen Dienste dürfen nicht ungeschützt öffentlich erreichbar sein.
+
+Ollama kann über das Verwaltungsmenü oder direkt gestartet werden:
 
 ```bash
 docker compose -f docker-compose.full.yml --profile ollama up -d
 docker exec ollama ollama pull llama3.2
 ```
 
-Danach in der App die Ollama-URL und das Modell auswählen.
+### Push-Benachrichtigungen
 
-### SMTP
+VAPID-Schlüssel werden vom Installer erzeugt. Für Push:
 
-Für E-Mail-Bestätigung, Einladungen und Passwort-Reset:
+1. App per HTTPS öffnen.
+2. Im Profil Push aktivieren.
+3. Browser-Berechtigung bestätigen.
+
+Unter iOS ist eine installierte PWA und mindestens iOS 16.4 erforderlich.
+
+### SMTP und Einladungen
+
+Für E-Mail-Bestätigung, Passwort-Reset und Haushaltseinladungen:
 
 ```env
 SMTP_ADMIN_EMAIL=no-reply@meine-domain.de
-SMTP_HOST=smtp.mailgun.org
+SMTP_HOST=smtp.example.com
 SMTP_PORT=587
-SMTP_USER=postmaster@meine-domain.de
-SMTP_PASS=dein-smtp-passwort
-SMTP_SENDER_NAME=Umzughelfer
+SMTP_USER=<benutzer>
+SMTP_PASS=<passwort>
+SMTP_SENDER_NAME=Home Organizer
+RESEND_API_KEY=
 ```
 
-Danach den Auth-Container neu starten:
+Die Konfiguration kann über `scripts/manage.sh` gepflegt werden.
 
-```bash
-docker compose -f docker-compose.full.yml restart supabase-auth
-```
-
-### Nginx Reverse Proxy
-
-Für Produktion wird HTTPS empfohlen:
-
-```nginx
-server {
-    listen 443 ssl;
-    server_name umzug.meine-domain.de;
-
-    ssl_certificate     /etc/letsencrypt/live/umzug.meine-domain.de/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/umzug.meine-domain.de/privkey.pem;
-
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-## Updates und Wartung
+## Updates und Backups
 
 Empfohlen:
 
@@ -267,7 +240,9 @@ Empfohlen:
 ./scripts/manage.sh
 ```
 
-Manuell:
+Vor Schema- oder Versionsupdates ein Fullstack-Backup erstellen. Das Verwaltungsskript sichert Datenbank, Storage und Konfiguration unter `backups/`.
+
+Ein manueller App-Neubau:
 
 ```bash
 git pull
@@ -275,55 +250,53 @@ docker compose -f docker-compose.full.yml build --no-cache umzugsplaner-app
 docker compose -f docker-compose.full.yml up -d --force-recreate umzugsplaner-app
 ```
 
-Browserslist gezielt aktualisieren:
-
-```bash
-./scripts/manage.sh maintenance browserslist
-```
-
-Dieser Befehl aktualisiert `caniuse-lite` und führt anschließend einen Frontend-Build aus.
-
 ## Projektstruktur
 
 ```text
-umzughelfer/
-├── scripts/                    # Installation, Update, Backup, Wartung
-├── supabase/functions/          # Edge Functions
-├── umzugshelfer-pwa/            # React-PWA
-│   ├── public/                  # Manifest, Service Worker, Assets
-│   └── src/
-│       ├── components/          # App-Module
-│       ├── contexts/            # App-, Theme-, Locale- und Haushaltskontext
-│       ├── i18n/                # Deutsche und englische Übersetzungen
-│       ├── hooks/               # Wiederverwendbare React Hooks
-│       └── utils/               # Budget, KI, Dokumente, Push, Formatierung
-├── database_setup_complete.sql  # Komplettes Datenbankschema
-├── docker-compose.yml           # App-only Setup
-├── docker-compose.full.yml      # Fullstack Setup
-├── env.example                  # App-only Beispielkonfiguration
-└── .env.full.example            # Fullstack Beispielkonfiguration
+Home-Organizer/
+|-- scripts/                     Installation, Updates und SQL-Migrationen
+|-- services/
+|   |-- document-ocr-service/    Lokale PDF-/Bild-OCR
+|   `-- recipe-source-parser/    Web-/Video-Rezeptverarbeitung
+|-- supabase/functions/          Edge Functions
+|-- umzugshelfer-pwa/            React-PWA
+|   |-- public/                  PWA-Dateien und Assets
+|   `-- src/                     Komponenten, Hooks, i18n und Utilities
+|-- database_setup_complete.sql  Komplettschema für Neuinstallationen
+|-- docker-compose.yml           App-only
+|-- docker-compose.full.yml      Vollständiger Stack
+|-- env.example                  App-only-Beispiel
+`-- .env.full.example            Fullstack-Beispiel
 ```
 
-## Troubleshooting
-
-Logs anzeigen:
+## Fehlerdiagnose
 
 ```bash
-docker compose -f docker-compose.full.yml logs -f
-docker compose -f docker-compose.full.yml logs -f supabase-db
-docker compose -f docker-compose.full.yml logs -f supabase-auth
-docker compose -f docker-compose.full.yml logs -f supabase-edge-functions
-docker compose -f docker-compose.full.yml logs -f umzugsplaner-pwa-container
+docker compose -f docker-compose.full.yml ps
+docker compose -f docker-compose.full.yml logs -f umzugsplaner-app
+docker compose -f docker-compose.full.yml logs -f functions
+docker compose -f docker-compose.full.yml logs -f db
+docker compose -f docker-compose.full.yml logs -f document-ocr-service
+docker compose -f docker-compose.full.yml logs -f recipe-source-parser
 ```
 
-Häufige Probleme:
+Typische Ursachen:
 
-- **Push funktioniert nicht:** HTTPS, Browser-Berechtigung, VAPID-Keys und Edge-Function-Umgebung prüfen.
-- **E-Mails kommen nicht an:** SMTP-Werte in `.env` prüfen und `supabase-auth` neu starten.
-- **Supabase Studio nicht erreichbar:** Containerstatus und Logs von `supabase-analytics` prüfen.
-- **Ollama antwortet nicht:** `docker exec ollama ollama list` und `curl http://localhost:11434/api/tags` testen.
-- **App zeigt alte Inhalte:** App-Container neu bauen und Browser/PWA-Cache leeren.
+- **Alte Oberfläche:** App neu bauen und Browser-/PWA-Cache löschen.
+- **KI- oder OCR-Fehler:** Provider-Konfiguration, Edge-Function-Logs und interne Service-Tokens prüfen.
+- **Push funktioniert nicht:** HTTPS, Berechtigung, VAPID-Werte und `send-push` prüfen.
+- **E-Mail fehlt:** SMTP-/Resend-Konfiguration und Auth-Logs prüfen.
+- **Leere Module oder 401/403:** Haushalt, Mitgliedschaft, RLS und aktuellen Datenbankstand prüfen.
+- **502 bei Supabase:** Kong-, REST-, Functions- und Zieldienst-Logs prüfen; die Browser-CORS-Meldung kann nur eine Folge des Gateway-Fehlers sein.
+
+## Sicherheit
+
+- `.env`, `CREDENTIALS.txt`, Datenbank-Dumps und Storage-Backups geheim halten.
+- Ausschließlich den öffentlichen Anon-Key im Browser verwenden.
+- Service-Role-, SMTP-, VAPID-Private- und interne Service-Schlüssel regelmäßig sichern.
+- Produktion nur über HTTPS veröffentlichen.
+- Vor Updates getestete Backups erstellen.
 
 ## Lizenz
 
-MIT. Siehe `umzugshelfer-pwa/LICENSE`.
+MIT, siehe [`umzugshelfer-pwa/LICENSE`](umzugshelfer-pwa/LICENSE).

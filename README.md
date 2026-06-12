@@ -1,35 +1,26 @@
-# Home Organizer & Moving Planner PWA
+# Home Organizer & Moving Planner
 
-Self-hosted Progressive Web App for planning a move and managing a household after the move.
+Self-hosted Progressive Web App for organising a move and managing everyday household life.
 
-Demo: https://umzug.enkination.de/  
+[Deutsch](README.de.md) | [English](README.en.md)
+
+Demo: <https://umzug.enkination.de/><br>
 Demo login: `demo@demo.com` / `Demo1234`
 
-## Documentation
+## What It Includes
 
-- [Deutsch](README.de.md)
-- [English](README.en.md)
+- **Moving Planner:** tasks, packing lists with QR codes, calendar, contacts, documents, budgets, renovation planning, calculators and exports.
+- **Home Organizer:** inventory, supplies, shopping lists, medicine cabinet, devices, vehicle management, household tasks, projects and activity history.
+- **Finance and documents:** household budgets, accounts, savings goals, invoice scanning, OCR, document archive, contracts and insurance.
+- **Knowledge and food:** cookbook, meal planning, web/video recipe import, shopping-list handover, books and a household knowledge base.
+- **Vehicle cockpit:** fuel, costs, services, tyres, documents, reminders, vehicle photos, statistics, CSV/PDF export and AI-assisted service-document analysis.
+- **Shared platform:** multiple households, invitations, role-based data access, German and English (UK), push notifications, dark/light themes and an optional AI assistant.
 
-## Short Description
+## Technology
 
-The app combines two working modes in one installable PWA:
+React 18, Tailwind CSS, Supabase/PostgreSQL, Supabase Edge Functions, Docker Compose, Chart.js, Framer Motion, Web Push, OpenAI and optional Ollama.
 
-- **Moving Planner** for packing lists, QR-coded boxes, tasks, appointments, budgets, renovation planning and moving calculators.
-- **Home Organizer** for inventory, documents, invoices, contracts, insurance, supplies, shopping lists, cookbook recipes, devices, tasks, projects, household members, budgets, books and knowledge management.
-
-Recent versions add bilingual UI support for German and English (UK), localized PWA manifests, a global AI assistant, improved push reminders, invoice and document intelligence, a cookbook with web/video recipe import, recipe-aware shopping lists and stock handover, household-level settings and many Home Organizer modules.
-
-## Highlights
-
-- AI-assisted cookbook for manual recipes, web pages and video sources.
-- Local parser service for metadata, subtitles, audio extraction and transcription; temporary media files are cleaned up automatically.
-- Saved recipes and shopping-list entries are translated on demand and cached per locale.
-- Recipe ingredients can be transferred to the shopping list; completed grocery items can be added to supplies.
-- Global Home Organizer search includes cookbook recipes.
-
-## Tech Stack
-
-React 18, Tailwind CSS, Supabase, PostgreSQL, Supabase Edge Functions, Docker, Web Push, OpenAI API and optional Ollama.
+The fullstack deployment also includes local services for document OCR and recipe-source processing.
 
 ## Quick Start
 
@@ -40,6 +31,20 @@ chmod +x scripts/manage.sh
 ./scripts/manage.sh
 ```
 
-After installation, run `database_setup_complete.sql` in the Supabase SQL editor, create the first user account and set up the first household.
+Choose installation mode in the menu:
 
-For the full installation guide, use the language-specific documentation above.
+- **Fullstack:** app, Supabase, storage, Edge Functions, OCR and recipe services.
+- **App-only:** frontend connected to an existing Supabase project.
+
+For a fresh database, apply [`database_setup_complete.sql`](database_setup_complete.sql). Never commit the generated `.env` or `CREDENTIALS.txt`.
+
+## Documentation
+
+- [German installation and feature guide](README.de.md)
+- [English installation and feature guide](README.en.md)
+- [Frontend development guide](umzugshelfer-pwa/README.md)
+- [Extended installation notes](INSTALL.md)
+
+## License
+
+MIT, see [`umzugshelfer-pwa/LICENSE`](umzugshelfer-pwa/LICENSE).
