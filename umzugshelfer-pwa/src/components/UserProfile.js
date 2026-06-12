@@ -562,11 +562,16 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
 
   const handleReminderSpeichern = async () => {
     setReminderStatus(null);
+    if (einkaufReminderAktiv && !/^([01]\d|2[0-3]):[0-5]\d$/.test(einkaufReminderZeit)) {
+      setReminderStatus("fehler");
+      return;
+    }
     const { error } = await supabase
       .from("user_profile")
       .update({
         einkauf_reminder_aktiv: einkaufReminderAktiv,
         einkauf_reminder_zeit:  einkaufReminderAktiv ? einkaufReminderZeit : null,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Vienna",
       })
       .eq("id", userId);
     setReminderStatus(error ? "fehler" : "ok");

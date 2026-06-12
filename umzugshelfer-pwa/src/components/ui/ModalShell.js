@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { XCircle } from "lucide-react";
+import { glassSurfaceClass } from "./GlassSurface";
 
 // ── ModalShell ────────────────────────────────────────────────────────────────
 // Wiederverwendbare Modal-Hülle mit:
@@ -50,7 +51,7 @@ export default function ModalShell({
       onClick={closeOnBackdrop ? onClose : undefined}
     >
       <div
-        className={`mobile-modal-dialog bg-light-card-bg dark:bg-canvas-2 w-full ${maxWidthClass} max-h-[90vh] rounded-card shadow-elevation-3 border border-light-border dark:border-dark-border flex min-h-0 flex-col overflow-hidden ${dialogClassName}`}
+        className={`${glassSurfaceClass} mobile-modal-dialog w-full ${maxWidthClass} max-h-[90vh] flex min-h-0 flex-col overflow-hidden ${dialogClassName}`}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (

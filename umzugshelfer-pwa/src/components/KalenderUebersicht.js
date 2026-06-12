@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
@@ -16,6 +17,7 @@ import {
   X, ChevronLeft, ChevronRight, LayoutList, LayoutGrid,
 } from "lucide-react";
 import useViewport from "../hooks/useViewport";
+import GlassSurface, { glassPageVariants, glassSurfaceClass } from "./ui/GlassSurface";
 
 // ── Design-Konfiguration je Ereignistyp ─────────────────────────────────────
 const EVENT_CFG = {
@@ -92,7 +94,7 @@ function MonthView({ datum, events, onEventClick }) {
   const WOCHENTAGE_KURZ = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
   return (
-    <div className="rounded-card-sm overflow-hidden border border-light-border dark:border-dark-border animate-fade-in">
+    <GlassSurface interactive={false} className="overflow-hidden rounded-card-sm">
       {/* Wochentag-Header */}
       <div className="grid grid-cols-7 bg-light-surface-1 dark:bg-canvas-3 border-b border-light-border dark:border-dark-border">
         {WOCHENTAGE_KURZ.map((d) => (
@@ -156,7 +158,7 @@ function MonthView({ datum, events, onEventClick }) {
           );
         })}
       </div>
-    </div>
+    </GlassSurface>
   );
 }
 
@@ -231,11 +233,11 @@ function AgendaView({ datum, events, onEventClick }) {
                 const cfg  = EVENT_CFG[ev.typ] || EVENT_CFG.aufgabe;
                 const Icon = EVENT_ICONS[ev.typ] || CalendarDays;
                 return (
-                  <button
+                  <GlassSurface
+                    as="button"
                     key={ev.id}
                     onClick={() => onEventClick(ev)}
-                    className={`w-full text-left rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 p-3 transition-all group
-                      hover:border-primary-500/30 ${cfg.glow}`}
+                    className="w-full rounded-card-sm p-3 text-left"
                     style={{ animationDelay: `${gi * 50 + i * 35}ms` }}
                   >
                     <div className="flex items-start gap-3">
@@ -265,7 +267,7 @@ function AgendaView({ datum, events, onEventClick }) {
                         {ev.typ}
                       </div>
                     </div>
-                  </button>
+                  </GlassSurface>
                 );
               })}
             </div>
@@ -287,7 +289,7 @@ function EventModal({ event, onClose, onOpenLink }) {
       onClick={onClose}
     >
       <div
-        className="relative bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 w-full max-w-sm overflow-hidden"
+        className={`${glassSurfaceClass} relative w-full max-w-sm overflow-hidden`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Gradient top-border */}
@@ -352,6 +354,7 @@ function EventModal({ event, onClose, onOpenLink }) {
 // ── Hauptkomponente ──────────────────────────────────────────────────────────
 const KalenderUebersicht = ({ session }) => {
   const { t }   = useTranslation(["home"]);
+  const reducedMotion = useReducedMotion();
   const userId  = session?.user?.id;
   const { appMode } = useAppMode();
   const { isMobile } = useViewport();
@@ -519,7 +522,7 @@ const KalenderUebersicht = ({ session }) => {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4">
+    <div className="home-glass-modern glass-module relative min-h-full min-w-0 max-w-full space-y-4 overflow-x-clip bg-transparent p-4 pb-28 md:p-6 lg:pb-8">
 
       {/* Seitentitel */}
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -535,7 +538,7 @@ const KalenderUebersicht = ({ session }) => {
         </div>
 
         {/* Ansicht-Toggle */}
-        <div className="flex items-center gap-1 rounded-card-sm border border-light-border dark:border-dark-border bg-light-surface-1 dark:bg-canvas-3 p-1">
+        <div className={`${glassSurfaceClass} flex items-center gap-1 rounded-card-sm p-1`}>
           {VIEWS.map(({ key, label, Icon }) => (
             <button
               key={key}
@@ -553,7 +556,7 @@ const KalenderUebersicht = ({ session }) => {
       </div>
 
       {/* Kalender-Hauptkarte */}
-      <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 shadow-elevation-2 overflow-hidden">
+      <GlassSurface interactive={false} className="overflow-hidden">
 
         {/* Navigation */}
         <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-light-border dark:border-dark-border">
@@ -620,13 +623,23 @@ const KalenderUebersicht = ({ session }) => {
                 {t("home:calendar.loading")}
               </span>
             </div>
-          ) : ansicht === "month" ? (
-            <MonthView datum={datum} events={events} onEventClick={setSelectedEvent} />
           ) : (
-            <AgendaView datum={datum} events={events} onEventClick={setSelectedEvent} />
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={ansicht}
+                variants={reducedMotion ? {} : glassPageVariants}
+                initial="hidden"
+                animate="show"
+                exit="exit"
+              >
+                {ansicht === "month"
+                  ? <MonthView datum={datum} events={events} onEventClick={setSelectedEvent} />
+                  : <AgendaView datum={datum} events={events} onEventClick={setSelectedEvent} />}
+              </motion.div>
+            </AnimatePresence>
           )}
         </div>
-      </div>
+      </GlassSurface>
 
       {/* Event-Detail-Modal */}
       {selectedEvent && (
