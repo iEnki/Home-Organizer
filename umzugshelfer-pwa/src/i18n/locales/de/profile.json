@@ -198,7 +198,7 @@
       "permissionHint": "Bitte erteile die Berechtigung in den Browser-Einstellungen.",
       "shoppingReminder": "Einkaufsliste-Erinnerung",
       "shoppingReminderDesc": "Täglich erinnern, wenn unerledigte Einkäufe in der Liste vorhanden sind",
-      "timeUtc": "Uhrzeit (UTC):"
+      "timeUtc": "Lokale Uhrzeit:"
     },
     "tours": {
       "statusLabel": "Status:",

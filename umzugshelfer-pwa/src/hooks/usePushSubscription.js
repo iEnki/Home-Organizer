@@ -3,6 +3,7 @@ import {
   subscribeToPush,
   unsubscribeFromPush,
   getAktiveSubscription,
+  listenForPushSubscriptionChanges,
 } from "../serviceWorkerRegistration";
 
 export default function usePushSubscription(userId) {
@@ -68,6 +69,10 @@ export default function usePushSubscription(userId) {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [isSupported, refresh, userId]);
+
+  useEffect(() => (
+    listenForPushSubscriptionChanges(userId, () => refresh())
+  ), [refresh, userId]);
 
   const aktivieren = useCallback(async () => {
     if (!userId) return;

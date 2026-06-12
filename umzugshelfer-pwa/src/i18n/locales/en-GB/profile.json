@@ -198,7 +198,7 @@
       "permissionHint": "Please grant permission in your browser settings.",
       "shoppingReminder": "Shopping list reminder",
       "shoppingReminderDesc": "Remind me daily when there are unfinished items in the shopping list",
-      "timeUtc": "Time (UTC):"
+      "timeUtc": "Local time:"
     },
     "tours": {
       "statusLabel": "Status:",

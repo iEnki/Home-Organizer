@@ -18,6 +18,18 @@ function urlBase64ToUint8Array(base64String) {
   return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
 }
 
+function uint8ArraysEqual(left, right) {
+  if (!left || !right || left.byteLength !== right.byteLength) return false;
+  const a = new Uint8Array(left);
+  const b = new Uint8Array(right);
+  return a.every((value, index) => value === b[index]);
+}
+
+function subscriptionUsesCurrentVapidKey(subscription) {
+  const currentKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+  return uint8ArraysEqual(subscription?.options?.applicationServerKey, currentKey);
+}
+
 async function upsertSubscription(userId, subscription) {
   if (!userId || !subscription) return;
 
@@ -67,9 +79,10 @@ export async function registerServiceWorker() {
 
   try {
     const existingRegistration = await navigator.serviceWorker.getRegistration("/");
-    if (existingRegistration) return existingRegistration;
-
-    return await navigator.serviceWorker.register("/service-worker.js", { scope: "/" });
+    const registration = existingRegistration ||
+      await navigator.serviceWorker.register("/service-worker.js", { scope: "/" });
+    registration.update().catch(() => {});
+    return registration;
   } catch (error) {
     console.error("[SW] Registrierung fehlgeschlagen:", error);
     return null;
@@ -96,11 +109,21 @@ export async function subscribeToPush(userId) {
   }
 
   const registration = await ensureServiceWorkerReady();
-  const existingSubscription = await registration.pushManager.getSubscription();
+  let existingSubscription = await registration.pushManager.getSubscription();
 
-  if (existingSubscription) {
+  if (existingSubscription && subscriptionUsesCurrentVapidKey(existingSubscription)) {
     await upsertSubscription(userId, existingSubscription);
     return existingSubscription;
+  }
+  if (existingSubscription) {
+    const staleEndpoint = existingSubscription.endpoint;
+    await existingSubscription.unsubscribe();
+    await supabase
+      .from("push_subscriptions")
+      .delete()
+      .eq("user_id", userId)
+      .eq("endpoint", staleEndpoint);
+    existingSubscription = null;
   }
 
   const subscription = await registration.pushManager.subscribe({
@@ -136,9 +159,42 @@ export async function getAktiveSubscription(userId) {
   const registration = await ensureServiceWorkerReady();
   const subscription = await registration.pushManager.getSubscription();
 
+  if (
+    subscription &&
+    VAPID_PUBLIC_KEY &&
+    !subscriptionUsesCurrentVapidKey(subscription)
+  ) {
+    await subscription.unsubscribe();
+    await supabase
+      .from("push_subscriptions")
+      .delete()
+      .eq("user_id", userId)
+      .eq("endpoint", subscription.endpoint);
+    return null;
+  }
+
   if (subscription && userId && Notification.permission === "granted") {
     await upsertSubscription(userId, subscription);
   }
 
   return subscription;
+}
+
+export function listenForPushSubscriptionChanges(userId, onChanged) {
+  if (!("serviceWorker" in navigator) || !userId) return () => {};
+
+  const handleMessage = async (event) => {
+    if (event.data?.type !== "PUSH_SUBSCRIPTION_CHANGED") return;
+    try {
+      const registration = await ensureServiceWorkerReady();
+      const subscription = await registration.pushManager.getSubscription();
+      if (subscription) await upsertSubscription(userId, subscription);
+      onChanged?.(subscription);
+    } catch (error) {
+      console.warn("[Push] Erneuerte Subscription konnte nicht gespeichert werden.", error);
+    }
+  };
+
+  navigator.serviceWorker.addEventListener("message", handleMessage);
+  return () => navigator.serviceWorker.removeEventListener("message", handleMessage);
 }

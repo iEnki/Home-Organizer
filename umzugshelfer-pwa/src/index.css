@@ -192,6 +192,60 @@ code {
   border-color: rgba(148, 210, 210, 0.13);
 }
 
+.inventory-modern .bg-light-card,
+.inventory-modern .bg-light-card-bg,
+.home-glass-modern .bg-light-card,
+.home-glass-modern .bg-light-card-bg {
+  background-color: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.inventory-modern .border-light-border,
+.home-glass-modern .border-light-border {
+  border-color: rgba(148, 163, 184, 0.42);
+}
+
+.dark .inventory-modern .dark\:bg-canvas-2,
+.dark .home-glass-modern .dark\:bg-canvas-2 {
+  background-color: rgba(7, 22, 29, 0.78);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.dark .inventory-modern .dark\:bg-canvas-3,
+.dark .home-glass-modern .dark\:bg-canvas-3 {
+  background-color: rgba(14, 35, 43, 0.68);
+}
+
+.dark .inventory-modern .dark\:border-dark-border,
+.dark .home-glass-modern .dark\:border-dark-border {
+  border-color: rgba(148, 210, 210, 0.13);
+}
+
+.inventory-modern select,
+.home-glass-modern select {
+  color-scheme: light;
+}
+
+.inventory-modern select option,
+.home-glass-modern select option {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+.dark .inventory-modern select,
+.dark .home-glass-modern select {
+  color-scheme: dark;
+  color: #e2e8f0;
+}
+
+.dark .inventory-modern select option,
+.dark .home-glass-modern select option {
+  background-color: #07161d;
+  color: #e2e8f0;
+}
+
 .kfz-modern select {
   color-scheme: light;
 }
@@ -216,17 +270,23 @@ code {
   color: #f8fafc;
 }
 
-.kfz-modern article,
-.kfz-modern section,
-.kfz-modern nav {
+.glass-module article,
+.glass-module section,
+.glass-module nav {
   transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
-.kfz-hover-card {
+.glass-hover-card {
   isolation: isolate;
+  position: relative;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
 }
 
-.kfz-card-sheen {
+.glass-card-sheen {
   position: absolute;
   inset: 0;
   z-index: -1;
@@ -234,42 +294,93 @@ code {
   border-radius: inherit;
   opacity: 0;
   background:
-    radial-gradient(520px circle at var(--kfz-pointer-x, 50%) var(--kfz-pointer-y, 0%),
+    radial-gradient(520px circle at var(--glass-pointer-x, 50%) var(--glass-pointer-y, 0%),
       rgba(34, 211, 238, 0.12),
       transparent 42%);
   transition: opacity 220ms ease;
 }
 
+.auto-glass-cards .bg-light-card:is(.rounded-card, .rounded-card-sm) {
+  isolation: isolate;
+  position: relative;
+  background-color: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.dark .auto-glass-cards .dark\:bg-canvas-2:is(.rounded-card, .rounded-card-sm) {
+  background-color: rgba(7, 22, 29, 0.78);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.auto-glass-cards .bg-light-card:is(.rounded-card, .rounded-card-sm)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
+  opacity: 0;
+  background:
+    radial-gradient(520px circle at var(--glass-pointer-x, 50%) var(--glass-pointer-y, 0%),
+      rgba(34, 211, 238, 0.12),
+      transparent 42%);
+  transition: opacity 220ms ease;
+}
+
+.auto-glass-cards .fixed .bg-light-card:is(.rounded-card, .rounded-card-sm)::before,
+.auto-glass-cards .mobile-modal-dialog::before {
+  display: none;
+}
+
 @media (hover: hover) and (pointer: fine) {
-  .kfz-modern .kfz-hover-card:hover {
-    border-color: rgba(45, 212, 191, 0.28);
+  .glass-module .glass-hover-card:hover {
+    border-color: rgba(45, 212, 191, 0.28) !important;
     transform: translateY(-3px) scale(1.003) !important;
     box-shadow:
       0 22px 55px rgba(0, 0, 0, 0.32),
       0 0 0 1px rgba(34, 211, 238, 0.12) !important;
   }
 
-  .kfz-modern .kfz-hover-card:hover .kfz-card-sheen {
+  .glass-module .glass-hover-card:hover .glass-card-sheen {
     opacity: 1;
   }
 
-  .kfz-modern article:hover,
-  .kfz-modern .rounded-card:hover {
-    border-color: rgba(45, 212, 191, 0.22);
+  .auto-glass-cards .bg-light-card:is(.rounded-card, .rounded-card-sm):hover {
+    border-color: rgba(45, 212, 191, 0.28) !important;
+    transform: translateY(-3px) scale(1.003) !important;
+    box-shadow:
+      0 22px 55px rgba(0, 0, 0, 0.32),
+      0 0 0 1px rgba(34, 211, 238, 0.12) !important;
+  }
+
+  .auto-glass-cards .bg-light-card:is(.rounded-card, .rounded-card-sm):hover::before {
+    opacity: 1;
+  }
+
+  .auto-glass-cards .fixed .bg-light-card:is(.rounded-card, .rounded-card-sm):hover,
+  .auto-glass-cards .mobile-modal-dialog:hover {
+    transform: none !important;
+    box-shadow: inherit !important;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .kfz-modern *,
-  .kfz-modern *::before,
-  .kfz-modern *::after {
+  .glass-module *,
+  .glass-module *::before,
+  .glass-module *::after {
     scroll-behavior: auto !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 
-  .kfz-modern .kfz-hover-card:hover {
+  .glass-module .glass-hover-card:hover {
+    transform: none !important;
+  }
+
+  .auto-glass-cards .bg-light-card:is(.rounded-card, .rounded-card-sm):hover {
     transform: none !important;
   }
 }
