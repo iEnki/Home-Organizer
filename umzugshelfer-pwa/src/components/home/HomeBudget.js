@@ -1982,10 +1982,8 @@ const HomeBudget = ({ session }) => {
       return;
     }
     const willOpen = !expandedRows[entry.id];
-    setExpandedRows((prev) => ({
-      ...prev,
-      [entry.id]: !prev[entry.id],
-    }));
+    // Akkordeon: beim Aufklappen schließen sich alle anderen Zeilen
+    setExpandedRows(willOpen ? { [entry.id]: true } : {});
     if (willOpen) {
       aktualisiereBudgetRechnungsLinks();
     }

@@ -25,6 +25,7 @@ import useViewport from "../../hooks/useViewport";
 import { getLimitProgress, getLimitStatus } from "../../utils/budgetLimits";
 import { HOME_BUDGET_CATEGORY_COLORS } from "../../utils/homeBudgetCategories";
 import GlassSurface, { GlassModule } from "../ui/GlassSurface";
+import AnimatedGreeting from "../ui/AnimatedGreeting";
 
 // ── Animated count-up number ─────────────────────────────────────────────────
 const AnimatedNumber = ({ value }) => {
@@ -109,6 +110,15 @@ const getGreeting = () => {
   if (h < 12) return "Guten Morgen";
   if (h < 18) return "Guten Tag";
   return "Guten Abend";
+};
+
+// Persönliche Anrede: Vorname aus den User-Metadaten, sonst E-Mail-Präfix
+const getVorname = (session) => {
+  const name =
+    session?.user?.user_metadata?.full_name ||
+    session?.user?.email?.split("@")[0] ||
+    "";
+  return name.split(" ")[0];
 };
 
 const heuteLang = () =>
@@ -697,11 +707,10 @@ const HomeDashboard = ({ session }) => {
           <Home size={22} className="text-primary-500" />
         </div>
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold leading-tight
-                         bg-gradient-to-r from-light-text-main to-primary-600
-                         dark:from-dark-text-main dark:to-primary-400
-                         bg-clip-text text-transparent">
-            {getGreeting()}
+          <h1 className="text-2xl font-bold leading-tight">
+            <AnimatedGreeting
+              text={getVorname(session) ? `${getGreeting()}, ${getVorname(session)}` : getGreeting()}
+            />
           </h1>
           <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5 truncate">
             {heuteLang()} · {t("home:dashboard.subtitle")}

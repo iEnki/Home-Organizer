@@ -29,7 +29,7 @@ export default function BudgetFilterBar({
   return (
     <div
       data-tour="tour-budget-uebersicht"
-      className="sticky top-[72px] z-10 -mx-1 min-w-0 overflow-x-hidden px-1 py-1 bg-light-bg/90 dark:bg-canvas-1/90 backdrop-blur-sm"
+      className="sticky top-[72px] z-10 -mx-1 min-w-0 overflow-x-hidden px-1 py-1"
     >
       <GlassSurface interactive={false} className="space-y-2 px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">

@@ -890,7 +890,7 @@ const HomeInventar = ({ session }) => {
         <>
           <div
             data-tour="tour-inventar-filter"
-            className="sticky top-[72px] z-20 -mx-4 px-4 py-3 bg-light-bg/95 dark:bg-canvas-1/95 backdrop-blur border-y border-light-border dark:border-dark-border space-y-2"
+            className="sticky top-[72px] z-20 -mx-4 px-4 py-3 bg-light-bg/55 dark:bg-canvas-1/45 glass-chrome border-y border-light-border/70 dark:border-white/[0.08] space-y-2"
           >
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary" />

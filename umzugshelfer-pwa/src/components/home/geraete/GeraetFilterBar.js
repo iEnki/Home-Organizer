@@ -46,7 +46,7 @@ export default function GeraetFilterBar({
   const gesamtAnzahl = Object.values(statusZaehlung).reduce((summe, anzahl) => summe + anzahl, 0);
 
   return (
-    <div className="sticky top-[72px] z-10 -mx-1 min-w-0 overflow-x-hidden px-1 py-1 bg-light-bg/90 dark:bg-canvas-1/90 backdrop-blur-sm">
+    <div className="sticky top-[72px] z-10 -mx-1 min-w-0 overflow-x-hidden px-1 py-1">
       <GlassSurface interactive={false} className="px-4 py-3 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-0">

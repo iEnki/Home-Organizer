@@ -1118,7 +1118,7 @@ export default function HomeHeimapotheke({ session }) {
             </motion.div>
           )}
           {/* Mobile: sticky filter bar — HomeInventar pattern */}
-          <div className="relative z-10 -mx-4 mb-3 px-4 py-3 bg-light-bg/95 dark:bg-canvas-1/95 backdrop-blur-md border-y border-light-border dark:border-dark-border space-y-2 lg:hidden">
+          <div className="relative z-10 -mx-4 mb-3 px-4 py-3 bg-light-bg/55 dark:bg-canvas-1/45 glass-chrome border-y border-light-border/70 dark:border-white/[0.08] space-y-2 lg:hidden">
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary" />
