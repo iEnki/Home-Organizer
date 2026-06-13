@@ -1945,7 +1945,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-6 py-6 pb-24 lg:pb-8">
+    <div className="home-glass-modern glass-module auto-glass-cards max-w-7xl mx-auto px-4 lg:px-6 py-6 pb-24 lg:pb-8">
 
       {/* Mitglied entfernen — Bestätigungs-Modal */}
       {mitgliedZuEntfernen && (

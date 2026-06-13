@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-import { motion } from "framer-motion";
 import { useTheme } from "../../contexts/ThemeContext";
 
 // Emerald/Teal hue range to match app primary colors (#10B981, #06B6D4)
@@ -21,18 +20,25 @@ function createBeam(width, height) {
 
 const opacityMap = { subtle: 0.65, medium: 0.82, strong: 1.0 };
 
+// GPU-Budget: Der Canvas ist stark geblurrt, daher reicht eine sehr niedrige
+// interne Auflösung (RENDER_SCALE statt devicePixelRatio) und 30 FPS völlig.
+// Die Weichzeichnung kommt ausschließlich vom CSS-Blur des Canvas-Elements —
+// ein einzelner Compositor-Blur statt ctx.filter pro Beam-Draw.
+const RENDER_SCALE = 0.4;
+const FRAME_INTERVAL_MS = 33; // ~30 FPS
+const TOTAL_BEAMS = 16;
+
 export function BeamsBackground({ intensity = "strong" }) {
   const canvasRef = useRef(null);
   const beamsRef = useRef([]);
   const animationFrameRef = useRef(0);
-  const MINIMUM_BEAMS = 20;
   const { theme } = useTheme();
   const isDarkRef = useRef(theme === "dark");
 
   useEffect(() => {
     isDarkRef.current = theme === "dark";
     if (canvasRef.current) {
-      canvasRef.current.style.filter = `blur(${isDarkRef.current ? 15 : 8}px)`;
+      canvasRef.current.style.filter = `blur(${isDarkRef.current ? 24 : 12}px)`;
     }
   }, [theme]);
 
@@ -46,18 +52,17 @@ export function BeamsBackground({ intensity = "strong" }) {
     if (!ctx) return;
 
     const updateCanvasSize = () => {
-      const dpr = window.devicePixelRatio || 1;
       const w = window.innerWidth;
       const h = window.innerHeight;
 
-      canvas.width  = w * dpr;
-      canvas.height = h * dpr;
+      canvas.width  = Math.max(1, Math.round(w * RENDER_SCALE));
+      canvas.height = Math.max(1, Math.round(h * RENDER_SCALE));
       canvas.style.width  = `${w}px`;
       canvas.style.height = `${h}px`;
-      ctx.scale(dpr, dpr);
+      // Zeichenkoordinaten bleiben in CSS-Pixeln
+      ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
 
-      const totalBeams = Math.ceil(MINIMUM_BEAMS * 1.5);
-      beamsRef.current = Array.from({ length: totalBeams }, () => createBeam(w, h));
+      beamsRef.current = Array.from({ length: TOTAL_BEAMS }, () => createBeam(w, h));
     };
 
     updateCanvasSize();
@@ -102,33 +107,59 @@ export function BeamsBackground({ intensity = "strong" }) {
       ctx.restore();
     }
 
-    function animate() {
+    let lastFrameTs = 0;
+
+    function animate(ts) {
+      animationFrameRef.current = requestAnimationFrame(animate);
+
+      // Auf ~30 FPS drosseln
+      if (ts - lastFrameTs < FRAME_INTERVAL_MS) return;
+      // Zeitbasierte Bewegung, damit das Tempo unabhängig von der Framerate bleibt
+      const dt = lastFrameTs ? Math.min(ts - lastFrameTs, 100) : FRAME_INTERVAL_MS;
+      lastFrameTs = ts;
+      const step = dt / 16.67;
+
       const w = window.innerWidth;
       const h = window.innerHeight;
-
       ctx.clearRect(0, 0, w, h);
-      ctx.filter = `blur(${isDarkRef.current ? 35 : 18}px)`;
 
       const totalBeams = beamsRef.current.length;
       beamsRef.current.forEach((beam, index) => {
-        beam.y -= beam.speed;
-        beam.pulse += beam.pulseSpeed;
+        beam.y -= beam.speed * step;
+        beam.pulse += beam.pulseSpeed * step;
         if (beam.y + beam.length < -100) {
           resetBeam(beam, index, totalBeams);
         }
         drawBeam(beam);
       });
-
-      animationFrameRef.current = requestAnimationFrame(animate);
     }
 
-    animate();
+    const start = () => {
+      if (!animationFrameRef.current) {
+        lastFrameTs = 0;
+        animationFrameRef.current = requestAnimationFrame(animate);
+      }
+    };
+    const stop = () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = 0;
+      }
+    };
+
+    // Bei verstecktem Tab komplett pausieren
+    const onVisibilityChange = () => {
+      if (document.hidden) stop();
+      else start();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    start();
 
     return () => {
       window.removeEventListener("resize", updateCanvasSize);
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      stop();
     };
   }, [intensity]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -145,13 +176,18 @@ export function BeamsBackground({ intensity = "strong" }) {
     >
       <canvas
         ref={canvasRef}
-        style={{ position: "absolute", inset: 0, filter: "blur(15px)" }}
+        style={{ position: "absolute", inset: 0, filter: "blur(24px)" }}
       />
-      {/* Subtle pulsing depth overlay */}
-      <motion.div
-        style={{ position: "absolute", inset: 0, backdropFilter: "blur(40px)" }}
-        animate={{ opacity: [0.04, 0.12, 0.04] }}
-        transition={{ duration: 12, ease: "easeInOut", repeat: Infinity }}
+      {/* Statische Tiefen-Vignette — ersetzt das frühere animierte
+          backdrop-filter-Overlay (Vollbild-Blur pro Frame war der
+          teuerste GPU-Posten der App) */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "radial-gradient(120% 90% at 50% 10%, rgba(2,6,8,0) 55%, rgba(2,6,8,0.10) 100%)",
+        }}
       />
     </div>
   );

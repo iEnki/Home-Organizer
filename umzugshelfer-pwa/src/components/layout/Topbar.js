@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Search, Bell, Home, Truck, ChevronDown, Settings, LogOut, Crown, Users, Sparkles } from "lucide-react";
+import { Search, Bell, Home, ChevronDown, Settings, LogOut, Crown, Users, Sparkles } from "lucide-react";
 import ThemeSwitch from "../ThemeSwitch";
-import { useAppMode } from "../../contexts/AppModeContext";
+import SparklesText from "../ui/SparklesText";
 import { supabase } from "../../supabaseClient";
 
 /**
@@ -34,7 +34,6 @@ const Topbar = ({
   const [mitglieder, setMitglieder] = useState([]);
   const suchContainerRef = useRef(null);
   const avatarMenuRef = useRef(null);
-  const { appMode } = useAppMode();
 
   const userId   = session?.user?.id;
   const email   = session?.user?.email || "";
@@ -99,24 +98,24 @@ const Topbar = ({
 
   return (
     <header
-      className="sticky top-0 z-40 min-h-[72px]
-                 bg-light-surface-1/80 dark:bg-canvas-2/80 backdrop-blur-md
-                 border-b border-light-border dark:border-dark-border shrink-0"
+      className="glass-chrome sticky top-0 z-40 min-h-[72px]
+                 bg-white/45 dark:bg-canvas-1/40
+                 border-b border-light-border/70 dark:border-white/[0.08] shrink-0"
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
       <div className="flex items-center gap-3 topbar-safe-x h-[72px]">
       {/* Seitentitel + Modus-Badge */}
       <div className="flex items-center gap-2 shrink-0 min-w-0">
-        <h1 className="text-base sm:text-xl font-semibold text-light-text-main dark:text-dark-text-main truncate">
-          {pageTitle}
+        <h1 className="text-base sm:text-xl font-semibold truncate">
+          <SparklesText
+            key={pageTitle}
+            text={pageTitle}
+            underline
+            className="bg-gradient-to-r from-light-text-main to-primary-600
+                       dark:from-dark-text-main dark:to-primary-400
+                       bg-clip-text text-transparent"
+          />
         </h1>
-        <span className={`hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-pill text-[10px] font-semibold whitespace-nowrap
-          ${appMode === "home"
-            ? "bg-secondary-500/15 text-secondary-400 border border-secondary-500/30"
-            : "bg-primary-500/15 text-primary-400 border border-primary-500/30"}`}>
-          {appMode === "home" ? <Home size={9} /> : <Truck size={9} />}
-          {appMode === "home" ? t("app.name") : t("app.moveName")}
-        </span>
       </div>
 
       {/* Spacer */}

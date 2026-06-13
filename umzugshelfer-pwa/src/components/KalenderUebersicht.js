@@ -88,6 +88,9 @@ function MonthView({ datum, events, onEventClick }) {
   const gridEnd   = endOfWeek(endOfMonth(datum), { weekStartsOn: 1 });
   const days      = eachDayOfInterval({ start: gridStart, end: gridEnd });
 
+  // Tag, dessen Zelle aufgeklappt ist und alle Events zeigt ("+N"-Klick)
+  const [expandedDay, setExpandedDay] = useState(null);
+
   const eventsForDay = (day) =>
     events.filter((e) => isSameDay(new Date(e.start), day));
 
@@ -96,7 +99,7 @@ function MonthView({ datum, events, onEventClick }) {
   return (
     <GlassSurface interactive={false} className="overflow-hidden rounded-card-sm">
       {/* Wochentag-Header */}
-      <div className="grid grid-cols-7 bg-light-surface-1 dark:bg-canvas-3 border-b border-light-border dark:border-dark-border">
+      <div className="grid grid-cols-7 bg-light-surface-1/60 dark:bg-white/[0.03] border-b border-light-border dark:border-white/[0.08]">
         {WOCHENTAGE_KURZ.map((d) => (
           <div key={d} className="py-2 text-center text-[10px] font-semibold tracking-widest uppercase text-light-text-secondary dark:text-dark-text-secondary">
             {d}
@@ -104,22 +107,33 @@ function MonthView({ datum, events, onEventClick }) {
         ))}
       </div>
 
-      {/* Tag-Zellen */}
-      <div className="grid grid-cols-7">
+      {/* Tag-Zellen — transparent über dem Glas der Hauptkarte; key auf dem
+          Monat triggert die gestaffelte Einblendung bei jedem Monatswechsel */}
+      <div className="grid grid-cols-7" key={format(datum, "yyyy-MM")}>
         {days.map((day, i) => {
           const dayEvents = eventsForDay(day);
           const inMonth   = isSameMonth(day, datum);
           const today     = isTodayFn(day);
           const isWeekend = i % 7 >= 5;
+          const dayKey    = format(day, "yyyy-MM-dd");
+          const isExpanded = expandedDay === dayKey;
+          const visibleEvents = isExpanded ? dayEvents : dayEvents.slice(0, 2);
 
           return (
             <div
               key={i}
+              style={{ animationDelay: `${Math.min(i * 9, 380)}ms`, animationFillMode: "both" }}
               className={[
-                "min-h-[68px] sm:min-h-[80px] p-1 border-b border-r border-light-border/40 dark:border-dark-border/40",
+                "group/day min-h-[68px] sm:min-h-[80px] p-1 border-b border-r border-light-border/40 dark:border-white/[0.05]",
+                "animate-fade-in transition-colors duration-200",
                 i % 7 === 6 ? "border-r-0" : "",
-                !inMonth ? "bg-light-surface-1/50 dark:bg-canvas-1/50" : "bg-light-card dark:bg-canvas-2",
-                isWeekend && inMonth ? "bg-light-surface-1/30 dark:bg-canvas-2/60" : "",
+                !inMonth
+                  ? "bg-light-surface-1/40 dark:bg-black/[0.12]"
+                  : isWeekend
+                    ? "bg-light-surface-1/30 dark:bg-white/[0.025]"
+                    : "bg-transparent",
+                today ? "ring-1 ring-inset ring-primary-500/35 bg-primary-500/[0.05] dark:bg-primary-500/[0.06]" : "",
+                inMonth ? "hover:bg-primary-500/[0.04] dark:hover:bg-white/[0.05]" : "",
               ].join(" ")}
             >
               {/* Tageszahl */}
@@ -136,22 +150,29 @@ function MonthView({ datum, events, onEventClick }) {
 
               {/* Event-Pills */}
               <div className="space-y-0.5">
-                {dayEvents.slice(0, 2).map((ev) => {
+                {visibleEvents.map((ev) => {
                   const cfg = EVENT_CFG[ev.typ] || EVENT_CFG.aufgabe;
                   return (
                     <button
                       key={ev.id}
                       onClick={() => onEventClick(ev)}
-                      className={`w-full text-left rounded px-1.5 py-0.5 text-[9px] sm:text-[10px] font-semibold truncate transition-opacity hover:opacity-75 ${cfg.pill}`}
+                      className={`w-full text-left rounded px-1.5 py-0.5 text-[9px] sm:text-[10px] font-semibold truncate
+                                  transition-[transform,opacity,box-shadow] duration-150 ease-out
+                                  hover:-translate-y-px hover:opacity-90 hover:shadow-elevation-1 ${cfg.pill}`}
                     >
                       {ev.title}
                     </button>
                   );
                 })}
                 {dayEvents.length > 2 && (
-                  <p className="text-[9px] pl-1 text-light-text-secondary dark:text-dark-text-secondary">
-                    +{dayEvents.length - 2}
-                  </p>
+                  <button
+                    onClick={() => setExpandedDay(isExpanded ? null : dayKey)}
+                    className="w-full rounded px-1 py-0.5 text-left text-[9px] font-semibold
+                               text-light-text-secondary dark:text-dark-text-secondary
+                               hover:bg-primary-500/10 hover:text-primary-500 transition-colors"
+                  >
+                    {isExpanded ? "− weniger" : `+${dayEvents.length - 2} weitere`}
+                  </button>
                 )}
               </div>
             </div>

@@ -16,7 +16,7 @@ describe("GlassSurface", () => {
     );
 
     const surface = screen.getByTestId("surface");
-    expect(surface).toHaveClass("glass-surface", "glass-hover-card", "backdrop-blur-xl");
+    expect(surface).toHaveClass("glass-surface", "glass-hover-card", "rounded-card");
     expect(surface.querySelector(".glass-card-sheen")).toBeInTheDocument();
 
     surface.getBoundingClientRect = () => ({
@@ -50,7 +50,7 @@ describe("GlassSurface", () => {
   });
 
   test("exports the layout and collapse animation contracts", () => {
-    expect(glassSurfaceClass).toContain("dark:bg-[#07161d]/78");
+    expect(glassSurfaceClass).toContain("dark:bg-[#07161d]/30");
     expect(glassPageVariants.show.transition.staggerChildren).toBe(0.045);
     expect(glassCollapseVariants.show.height).toBe("auto");
     expect(glassCollapseVariants.exit.height).toBe(0);

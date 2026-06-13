@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Menu } from "lucide-react";
-import { MOBILE_NAV_REGISTRY } from "../../config/mobileNavConfig";
+import { MOBILE_NAV_REGISTRY, MOBILE_NAV_ACCENTS } from "../../config/mobileNavConfig";
 
 const isRouteActive = (activeRoute, path) => {
   if (path === "/home") return activeRoute === "/home";
@@ -20,17 +20,19 @@ const MobileBottomNav = ({ activeRoute, appMode, onNavigate, onOpenMore, mobileN
   return (
     <nav
       className="lg:hidden fixed bottom-0 inset-x-0 z-[90]
-                 border-t border-light-border dark:border-dark-border
-                 bg-light-card-bg/95 dark:bg-canvas-2/95 backdrop-blur-md"
+                 border-t border-light-border/70 dark:border-white/[0.08]
+                 bg-white/55 dark:bg-canvas-1/50 glass-chrome"
       style={{ paddingBottom: "var(--safe-area-bottom)" }}
       aria-label={t("nav:mobile.label")}
     >
-      <div className="h-16 mobile-nav-safe-x grid grid-cols-5 gap-1">
+      <div className="h-16 mobile-nav-safe-x grid grid-cols-5 gap-1 py-1.5">
         {items.map((item) => {
           const Icon = item.icon;
           const active = item.path ? isRouteActive(activeRoute, item.path) : false;
+          const accent = MOBILE_NAV_ACCENTS[item.path] || "16,185,129";
           const baseClass =
-            "flex flex-col items-center justify-center rounded-card-sm text-[11px] font-medium transition-colors";
+            "relative flex flex-col items-center justify-center rounded-card-sm text-[11px] font-medium " +
+            "transition-all duration-200 active:scale-95";
 
           return item.action === "more" ? (
             <button
@@ -45,13 +47,16 @@ const MobileBottomNav = ({ activeRoute, appMode, onNavigate, onOpenMore, mobileN
             <button
               key={item.key}
               onClick={() => onNavigate(item.path)}
+              style={{ "--nav-accent": accent }}
               className={`${baseClass} ${
                 active
-                  ? "text-primary-500 bg-primary-500/10"
+                  ? "mobile-nav-item-active"
                   : "text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
               }`}
             >
-              <Icon size={18} />
+              <span className="sidebar-item-icon flex items-center justify-center">
+                <Icon size={18} />
+              </span>
               <span className="mt-0.5">{t(item.labelKey, { defaultValue: item.label })}</span>
             </button>
           );

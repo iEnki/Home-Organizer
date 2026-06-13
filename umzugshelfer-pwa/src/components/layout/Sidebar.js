@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard, Users, DollarSign, ListChecks, Archive,
@@ -12,13 +12,16 @@ const COLLAPSED_W = 52;
 const EXPANDED_W  = 220;
 
 // ── Nav-Gruppen Umzugsmodus ──────────────────────────────────────────────────
+// accent: RGB-Triplett für die CSS-Variable --nav-accent (Gruppen-Farbkodierung)
 const umzugGruppen = [
   {
     label: null,
+    accent: "16,185,129", // Emerald
     items: [{ name: "Dashboard", path: "/dashboard", icon: LayoutDashboard }],
   },
   {
     label: "Planung",
+    accent: "34,211,238", // Cyan
     items: [
       { name: "Kontakte",  path: "/kontakte",  icon: Users },
       { name: "Budget",    path: "/budget",    icon: DollarSign },
@@ -28,6 +31,7 @@ const umzugGruppen = [
   },
   {
     label: "Werkzeuge",
+    accent: "167,139,250", // Violet
     items: [
       { name: "Materialplaner", path: "/materialplaner", icon: Paintbrush },
       { name: "Rechner",        path: "/bedarfsrechner", icon: Calculator },
@@ -42,10 +46,12 @@ const umzugGruppen = [
 const homeGruppen = [
   {
     label: null,
+    accent: "16,185,129", // Emerald
     items: [{ name: "Home", path: "/home", icon: LayoutDashboard }],
   },
   {
     label: "Haushalt",
+    accent: "34,211,238", // Cyan
     items: [
       { name: "Inventar", path: "/home/inventar",    icon: Package },
       { name: "Heimapotheke", path: "/home/heimapotheke", icon: Pill },
@@ -57,6 +63,7 @@ const homeGruppen = [
   },
   {
     label: "Organisation",
+    accent: "167,139,250", // Violet
     items: [
       { name: "Aufgaben", path: "/home/aufgaben",  icon: CheckSquare },
       { name: "Projekte", path: "/home/projekte",  icon: FolderOpen },
@@ -65,6 +72,7 @@ const homeGruppen = [
   },
   {
     label: "Finanzen",
+    accent: "251,146,60", // Orange
     items: [
       { name: "Budget",    path: "/home/budget",           icon: DollarSign },
       { name: "Rechnung",  path: "/home/rechnung-scannen", icon: ScanLine },
@@ -73,6 +81,7 @@ const homeGruppen = [
   },
   {
     label: "Wissen",
+    accent: "56,189,248", // Sky
     items: [
       { name: "Kochbuch", path: "/home/kochbuch", icon: ChefHat },
       { name: "Wissen",   path: "/home/wissen",   icon: BookOpen },
@@ -117,6 +126,24 @@ const Sidebar = ({ activeRoute, onNavigate, appMode, mobileNavigationEnabled = f
   const [mobileOpen,  setMobileOpen]  = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(true);
 
+  // Gleitender Hover-Indikator (Desktop): Position relativ zum Scroll-Container
+  const navScrollRef = useRef(null);
+  const [lamp, setLamp] = useState({ top: 0, height: 0, on: false, accent: "16,185,129" });
+
+  const moveLamp = (e, accent) => {
+    const nav = navScrollRef.current;
+    if (!nav) return;
+    const itemRect = e.currentTarget.getBoundingClientRect();
+    const navRect  = nav.getBoundingClientRect();
+    setLamp({
+      top:    itemRect.top - navRect.top + nav.scrollTop,
+      height: itemRect.height,
+      on:     true,
+      accent: accent || "16,185,129",
+    });
+  };
+  const hideLamp = () => setLamp((l) => ({ ...l, on: false }));
+
   const gruppen = appMode === "home" ? homeGruppen : umzugGruppen;
 
   const isActive = (path) => {
@@ -131,57 +158,93 @@ const Sidebar = ({ activeRoute, onNavigate, appMode, mobileNavigationEnabled = f
   };
 
   // ── Desktop NavList ────────────────────────────────────────────────────────
-  const DesktopNavList = () => (
-    <div className="flex flex-col h-full py-3 overflow-y-auto overflow-x-hidden scrollbar-thin">
-      {gruppen.map((gruppe, gi) => (
-        <React.Fragment key={gi}>
-          {gruppe.label && (
-            <div className="px-2 mt-3 mb-1">
-              <div className="h-px bg-light-border dark:bg-dark-border/60" />
-              {!isCollapsed && (
-                <p className="mt-1.5 px-1 text-[10px] font-semibold uppercase tracking-widest
-                              text-light-text-secondary/50 dark:text-dark-text-secondary/50 whitespace-nowrap">
+  // Als Render-Funktion (nicht als Komponente), damit Hover-State-Updates
+  // keinen Remount auslösen und die Lamp-Transition durchläuft.
+  const renderDesktopNav = () => {
+    let flatIndex = 0;
+    return (
+      <div
+        ref={navScrollRef}
+        onMouseLeave={hideLamp}
+        className="sidebar-scroll relative flex flex-col h-full py-3 overflow-y-auto overflow-x-hidden"
+      >
+        {/* Gleitender Hover-Indikator */}
+        <div
+          aria-hidden="true"
+          className={`sidebar-lamp ${lamp.on ? "opacity-100" : "opacity-0"}`}
+          style={{
+            transform: `translateY(${lamp.top}px)`,
+            height: lamp.height,
+            "--nav-accent": lamp.accent,
+          }}
+        />
+
+        {gruppen.map((gruppe, gi) => (
+          <React.Fragment key={gi}>
+            {gruppe.label && (
+              <div className="px-2 mt-3 mb-1">
+                <div className="h-px bg-gradient-to-r from-transparent via-light-border to-transparent dark:via-dark-border/70" />
+                <p
+                  className={`sidebar-group-label mt-1.5 px-1 text-[10px] font-semibold uppercase tracking-widest whitespace-nowrap
+                              text-light-text-secondary/50
+                              transition-[opacity,transform] duration-200 ease-out
+                              ${isCollapsed ? "opacity-0 -translate-x-2" : "opacity-100 translate-x-0"}`}
+                  style={{
+                    transitionDelay: isCollapsed ? "0ms" : `${Math.min(flatIndex * 18, 200)}ms`,
+                    "--nav-accent": gruppe.accent,
+                  }}
+                >
                   {gruppe.label}
                 </p>
-              )}
-            </div>
-          )}
+              </div>
+            )}
 
-          <div className="px-2 space-y-0.5 mt-0.5">
-            {gruppe.items.map((item) => {
-              const Icon     = item.icon;
-              const active   = isActive(item.path);
-              const labelKey = NAV_LABEL_KEYS_BY_PATH[item.path];
-              const label    = labelKey ? t(labelKey, { defaultValue: item.name }) : item.name;
-              return (
-                <button
-                  key={item.path}
-                  title={label}
-                  onClick={() => handleNavigate(item.path)}
-                  className={`w-full flex items-center gap-3 px-2 py-2 rounded-sidebar-tile
-                              transition-colors duration-150 overflow-hidden
-                              ${active
-                                ? "bg-primary-500/10 border border-primary-500/30 text-primary-600 dark:text-primary-400 shadow-sidebar-active"
-                                : "border border-transparent text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3 hover:text-light-text-main dark:hover:text-dark-text-main"
-                              }`}
-                >
-                  <Icon size={17} className="shrink-0" />
-                  <span
-                    className={`text-sm font-medium whitespace-nowrap leading-none
-                                transition-opacity duration-150
-                                ${isCollapsed ? "opacity-0 pointer-events-none" : "opacity-100"}`}
+            <div className="px-2 space-y-0.5 mt-0.5">
+              {gruppe.items.map((item) => {
+                const Icon     = item.icon;
+                const active   = isActive(item.path);
+                const labelKey = NAV_LABEL_KEYS_BY_PATH[item.path];
+                const label    = labelKey ? t(labelKey, { defaultValue: item.name }) : item.name;
+                const delay    = isCollapsed ? "0ms" : `${Math.min(flatIndex++ * 18, 220)}ms`;
+                return (
+                  <button
+                    key={item.path}
+                    title={label}
+                    onClick={() => handleNavigate(item.path)}
+                    onMouseEnter={(e) => moveLamp(e, gruppe.accent)}
+                    style={{ "--nav-accent": gruppe.accent }}
+                    className={`group/item sidebar-item relative z-10 w-full flex items-center gap-3 px-2 py-2 rounded-sidebar-tile
+                                transition-colors duration-200 overflow-hidden
+                                ${active
+                                  ? "sidebar-item-active border"
+                                  : "border border-transparent text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
+                                }`}
                   >
-                    {label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </React.Fragment>
-      ))}
-      <div className="flex-1 min-h-4" />
-    </div>
-  );
+                    <span
+                      className={`sidebar-item-icon shrink-0 flex items-center justify-center
+                                  transition-transform duration-200 ease-out
+                                  ${active ? "" : "group-hover/item:scale-110"}`}
+                    >
+                      <Icon size={17} />
+                    </span>
+                    <span
+                      className={`text-sm font-medium whitespace-nowrap leading-none
+                                  transition-[opacity,transform] duration-200 ease-out
+                                  ${isCollapsed ? "opacity-0 -translate-x-2 pointer-events-none" : "opacity-100 translate-x-0"}`}
+                      style={{ transitionDelay: delay }}
+                    >
+                      {label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </React.Fragment>
+        ))}
+        <div className="flex-1 min-h-4" />
+      </div>
+    );
+  };
 
   // ── Mobile NavList (immer expanded) ───────────────────────────────────────
   const MobileNavList = () => (
@@ -209,14 +272,17 @@ const Sidebar = ({ activeRoute, onNavigate, appMode, mobileNavigationEnabled = f
                 <button
                   key={item.path}
                   onClick={() => handleNavigate(item.path)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-sidebar-tile
+                  style={{ "--nav-accent": gruppe.accent }}
+                  className={`relative w-full flex items-center gap-3 px-3 py-2 rounded-sidebar-tile
                               transition-colors duration-150
                               ${active
-                                ? "bg-primary-500/10 border border-primary-500/30 text-primary-600 dark:text-primary-400"
+                                ? "sidebar-item-active border"
                                 : "border border-transparent text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
                               }`}
                 >
-                  <Icon size={17} className="shrink-0" />
+                  <span className="sidebar-item-icon shrink-0 flex items-center justify-center">
+                    <Icon size={17} />
+                  </span>
                   <span className="text-sm font-medium whitespace-nowrap leading-none">{label}</span>
                 </button>
               );
@@ -234,14 +300,15 @@ const Sidebar = ({ activeRoute, onNavigate, appMode, mobileNavigationEnabled = f
       <aside
         data-tour="tour-sidebar"
         style={{ width: isCollapsed ? COLLAPSED_W : EXPANDED_W }}
-        className="hidden lg:flex fixed inset-y-0 left-0 z-50 flex-col
-                   bg-light-card dark:bg-canvas-1
-                   border-r border-light-border dark:border-dark-border
-                   overflow-hidden transition-[width] duration-200 ease-out"
+        className={`sidebar-rail hidden lg:flex fixed inset-y-0 left-0 z-50 flex-col
+                    bg-white/50 dark:bg-canvas-1/45
+                    border-r border-light-border/70 dark:border-white/[0.08]
+                    overflow-hidden
+                    ${isCollapsed ? "" : "shadow-elevation-3 dark:border-r-primary-500/20"}`}
         onMouseEnter={() => setIsCollapsed(false)}
-        onMouseLeave={() => setIsCollapsed(true)}
+        onMouseLeave={() => { setIsCollapsed(true); hideLamp(); }}
       >
-        <DesktopNavList />
+        {renderDesktopNav()}
       </aside>
 
       {!mobileNavigationEnabled && (
