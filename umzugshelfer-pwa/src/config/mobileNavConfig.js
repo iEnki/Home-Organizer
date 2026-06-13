@@ -47,6 +47,42 @@ export const MOBILE_NAV_REGISTRY = {
   ],
 };
 
+// Akzentfarbe je Route als RGB-Triplett für --nav-accent —
+// gespiegelt von den Sidebar-Nav-Gruppen (Sidebar.js), damit Desktop
+// und Mobile dieselbe Farbkodierung zeigen.
+export const MOBILE_NAV_ACCENTS = {
+  // Home-Modus
+  "/home":                  "16,185,129", // Emerald
+  "/home/inventar":         "34,211,238", // Haushalt → Cyan
+  "/home/heimapotheke":     "34,211,238",
+  "/home/vorraete":         "34,211,238",
+  "/home/geraete":          "34,211,238",
+  "/home/kfz":              "34,211,238",
+  "/home/einkaufliste":     "34,211,238",
+  "/home/bewohner":         "34,211,238",
+  "/home/aufgaben":         "167,139,250", // Organisation → Violet
+  "/home/projekte":         "167,139,250",
+  "/kalender":              "167,139,250",
+  "/home/budget":           "251,146,60", // Finanzen → Orange
+  "/home/rechnung-scannen": "251,146,60",
+  "/home/dokumente":        "251,146,60",
+  "/home/kochbuch":         "56,189,248", // Wissen → Sky
+  "/home/wissen":           "56,189,248",
+  "/home/suche":            "56,189,248",
+  "/home/verlauf":          "56,189,248",
+  "/profil":                "16,185,129",
+  // Umzugsmodus
+  "/dashboard":             "16,185,129",
+  "/kontakte":              "34,211,238", // Planung → Cyan
+  "/budget":                "34,211,238",
+  "/todos":                 "34,211,238",
+  "/packliste":             "34,211,238",
+  "/materialplaner":        "167,139,250", // Werkzeuge → Violet
+  "/bedarfsrechner":        "167,139,250",
+  "/zeitstrahl":            "167,139,250",
+  "/dokumente":             "167,139,250",
+};
+
 export const DEFAULT_MOBILE_FAVORITES = {
   home: ["aufgaben", "inventar", "budget"],
   umzug: ["todos", "packliste", "budget"],

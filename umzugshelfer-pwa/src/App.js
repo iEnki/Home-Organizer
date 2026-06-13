@@ -403,12 +403,18 @@ const AuthenticatedShell = ({
     navigate("/");
   };
 
+  // Längster passender Routen-Präfix als Fallback, damit auch Unterseiten
+  // (z. B. /home/kochbuch/…) den Namen ihrer Seite im Header zeigen.
+  const prefixTitlePath = Object.keys(ROUTE_TITLE_KEYS)
+    .filter((p) => location.pathname.startsWith(`${p}/`))
+    .sort((a, b) => b.length - a.length)[0];
   const titleKey =
     location.pathname === "/home/vorraete" ? "nav:routes.stock" :
     location.pathname === "/home/heimapotheke" ? "nav:routes.medicineCabinet" :
     location.pathname === "/home/geraete" ? "nav:routes.devices" :
     location.pathname === "/home/kfz" ? "nav:routes.vehicles" :
-    ROUTE_TITLE_KEYS[location.pathname] ?? "";
+    ROUTE_TITLE_KEYS[location.pathname] ??
+    (prefixTitlePath ? ROUTE_TITLE_KEYS[prefixTitlePath] : "");
   const pageTitle = titleKey ? t(titleKey) : "";
 
   return (

@@ -19,8 +19,8 @@
 html.dark {
   /* Leicht reduziert damit die BeamsBackground-Animation hindurchscheint */
   --app-background-overlay: linear-gradient(
-    rgba(2, 6, 8, 0.32),
-    rgba(2, 6, 8, 0.32)
+    rgba(2, 6, 8, 0.22),
+    rgba(2, 6, 8, 0.22)
   );
 }
 
@@ -165,13 +165,209 @@ code {
   }
 }
 
+/* ── Desktop Sidebar ──────────────────────────────────────────────────────
+   Glass-Rail mit gleitendem Hover-Indikator ("Lamp"), animiertem
+   Active-Balken und atmosphärischem Glow passend zur App-Ästhetik. */
+.sidebar-rail {
+  --nav-accent: 16, 185, 129;
+  backdrop-filter: blur(12px) saturate(170%);
+  -webkit-backdrop-filter: blur(12px) saturate(170%);
+  transition:
+    width 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 300ms ease,
+    box-shadow 300ms ease;
+}
+
+/* Atmosphäre: Emerald-Glow oben, Cyan-Schimmer unten (nur Dark Mode) */
+.sidebar-rail::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(160px 200px at 30% -5%, rgba(16, 185, 129, 0.10), transparent 70%),
+    radial-gradient(140px 220px at 110% 45%, rgba(167, 139, 250, 0.06), transparent 70%),
+    radial-gradient(180px 260px at 50% 105%, rgba(56, 189, 248, 0.08), transparent 70%);
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+html.dark .sidebar-rail::before {
+  opacity: 1;
+}
+
+/* Scrollbar im Rail ausblenden */
+.sidebar-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.sidebar-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Gleitender Hover-Indikator: wandert per translateY zwischen den Items */
+.sidebar-lamp {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 0;
+  border-radius: 14px;
+  pointer-events: none;
+  background: rgba(241, 245, 249, 0.9);
+  transition:
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease;
+}
+html.dark .sidebar-lamp {
+  background: linear-gradient(
+    100deg,
+    rgba(var(--nav-accent, 16, 185, 129), 0.12),
+    rgba(var(--nav-accent, 16, 185, 129), 0.04)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 0 0 1px rgba(var(--nav-accent, 16, 185, 129), 0.12);
+}
+
+/* Gruppen-Akzentfarben: Icons + Labels werden über --nav-accent eingefärbt */
+.sidebar-item-icon {
+  color: color-mix(in srgb, rgb(var(--nav-accent, 16, 185, 129)) 68%, #334155);
+  transition: color 200ms ease, transform 200ms ease, filter 200ms ease;
+}
+html.dark .sidebar-item-icon {
+  color: rgba(var(--nav-accent, 16, 185, 129), 0.8);
+}
+.sidebar-item:hover .sidebar-item-icon {
+  color: color-mix(in srgb, rgb(var(--nav-accent, 16, 185, 129)) 85%, #1e293b);
+}
+html.dark .sidebar-item:hover .sidebar-item-icon {
+  color: rgb(var(--nav-accent, 16, 185, 129));
+}
+
+html.dark .sidebar-group-label {
+  color: rgba(var(--nav-accent, 148, 163, 184), 0.6);
+}
+
+/* Aktives Item: Gradient-Fläche, Glow und animierter Akzent-Balken links —
+   alles in der Akzentfarbe der jeweiligen Nav-Gruppe */
+.sidebar-item-active {
+  background: linear-gradient(
+    100deg,
+    rgba(var(--nav-accent, 16, 185, 129), 0.16),
+    rgba(var(--nav-accent, 16, 185, 129), 0.05)
+  );
+  border-color: rgba(var(--nav-accent, 16, 185, 129), 0.38);
+  color: color-mix(in srgb, rgb(var(--nav-accent, 16, 185, 129)) 60%, #0f172a);
+  box-shadow:
+    0 4px 14px rgba(var(--nav-accent, 16, 185, 129), 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+html.dark .sidebar-item-active {
+  color: color-mix(in srgb, rgb(var(--nav-accent, 16, 185, 129)) 70%, #ffffff);
+}
+.sidebar-item-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 22%;
+  bottom: 22%;
+  width: 3px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    180deg,
+    rgb(var(--nav-accent, 16, 185, 129)),
+    rgba(var(--nav-accent, 16, 185, 129), 0.55)
+  );
+  box-shadow: 0 0 8px rgba(var(--nav-accent, 16, 185, 129), 0.75);
+  animation: sidebar-bar-in 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sidebar-item-active .sidebar-item-icon {
+  color: rgb(var(--nav-accent, 16, 185, 129));
+  filter: drop-shadow(0 0 6px rgba(var(--nav-accent, 16, 185, 129), 0.55));
+}
+
+@keyframes sidebar-bar-in {
+  from { transform: scaleY(0); opacity: 0; }
+  to   { transform: scaleY(1); opacity: 1; }
+}
+
+/* ── AnimatedGreeting ─────────────────────────────────────────────────────
+   Farbverlauf pro Buchstabe via color-mix statt bg-clip-text auf dem Parent
+   (transformierte Kinder fallen sonst aus dem Background-Clipping heraus
+   und sind während der Animation unsichtbar). */
+.animated-greeting {
+  --greet-from: #1f2937;
+  --greet-to: #059669;
+}
+html.dark .animated-greeting {
+  --greet-from: #e2e8f0;
+  --greet-to: #34d399;
+}
+.greeting-letter {
+  color: color-mix(
+    in srgb,
+    var(--greet-to) calc(var(--greet-mix, 0) * 1%),
+    var(--greet-from)
+  );
+}
+
+/* ── Mobile Bottom-Nav ────────────────────────────────────────────────────
+   Gleiche Designsprache wie die Desktop-Sidebar: Gruppen-Akzentfarbe über
+   --nav-accent, Gradient-Fläche, Glow-Icon und animierter Indikator oben. */
+.mobile-nav-item-active {
+  background: linear-gradient(
+    180deg,
+    rgba(var(--nav-accent, 16, 185, 129), 0.16),
+    rgba(var(--nav-accent, 16, 185, 129), 0.04)
+  );
+  color: color-mix(in srgb, rgb(var(--nav-accent, 16, 185, 129)) 60%, #0f172a);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+html.dark .mobile-nav-item-active {
+  color: color-mix(in srgb, rgb(var(--nav-accent, 16, 185, 129)) 70%, #ffffff);
+}
+.mobile-nav-item-active::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 28px;
+  height: 3px;
+  border-radius: 0 0 9999px 9999px;
+  background: linear-gradient(
+    90deg,
+    rgba(var(--nav-accent, 16, 185, 129), 0.55),
+    rgb(var(--nav-accent, 16, 185, 129)),
+    rgba(var(--nav-accent, 16, 185, 129), 0.55)
+  );
+  box-shadow: 0 0 8px rgba(var(--nav-accent, 16, 185, 129), 0.75);
+  animation: mobile-nav-bar-in 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.mobile-nav-item-active .sidebar-item-icon {
+  color: rgb(var(--nav-accent, 16, 185, 129));
+  filter: drop-shadow(0 0 6px rgba(var(--nav-accent, 16, 185, 129), 0.55));
+  animation: mobile-nav-icon-pop 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes mobile-nav-bar-in {
+  from { transform: translateX(-50%) scaleX(0); opacity: 0; }
+  to   { transform: translateX(-50%) scaleX(1); opacity: 1; }
+}
+
+@keyframes mobile-nav-icon-pop {
+  0%   { transform: scale(0.85); }
+  60%  { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
 /* KFZ cockpit: existing CRUD surfaces inherit the same translucent app shell
    while focused dashboard components can still use their own stronger glass. */
 .kfz-modern .bg-light-card,
 .kfz-modern .bg-light-card-bg {
-  background-color: rgba(255, 255, 255, 0.76);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background-color: rgba(255, 255, 255, 0.42);
+  backdrop-filter: blur(7px) saturate(170%);
+  -webkit-backdrop-filter: blur(7px) saturate(170%);
 }
 
 .kfz-modern .border-light-border {
@@ -179,13 +375,13 @@ code {
 }
 
 .dark .kfz-modern .dark\:bg-canvas-2 {
-  background-color: rgba(7, 22, 29, 0.82);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background-color: rgba(7, 22, 29, 0.30);
+  backdrop-filter: blur(7px) saturate(170%);
+  -webkit-backdrop-filter: blur(7px) saturate(170%);
 }
 
 .dark .kfz-modern .dark\:bg-canvas-3 {
-  background-color: rgba(14, 35, 43, 0.72);
+  background-color: rgba(14, 35, 43, 0.28);
 }
 
 .dark .kfz-modern .dark\:border-dark-border {
@@ -196,9 +392,9 @@ code {
 .inventory-modern .bg-light-card-bg,
 .home-glass-modern .bg-light-card,
 .home-glass-modern .bg-light-card-bg {
-  background-color: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background-color: rgba(255, 255, 255, 0.42);
+  backdrop-filter: blur(7px) saturate(170%);
+  -webkit-backdrop-filter: blur(7px) saturate(170%);
 }
 
 .inventory-modern .border-light-border,
@@ -208,19 +404,36 @@ code {
 
 .dark .inventory-modern .dark\:bg-canvas-2,
 .dark .home-glass-modern .dark\:bg-canvas-2 {
-  background-color: rgba(7, 22, 29, 0.78);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background-color: rgba(7, 22, 29, 0.30);
+  backdrop-filter: blur(7px) saturate(170%);
+  -webkit-backdrop-filter: blur(7px) saturate(170%);
 }
 
 .dark .inventory-modern .dark\:bg-canvas-3,
 .dark .home-glass-modern .dark\:bg-canvas-3 {
-  background-color: rgba(14, 35, 43, 0.68);
+  background-color: rgba(14, 35, 43, 0.28);
 }
 
 .dark .inventory-modern .dark\:border-dark-border,
 .dark .home-glass-modern .dark\:border-dark-border {
   border-color: rgba(148, 210, 210, 0.13);
+}
+
+/* Innere Flächen (Inputs, Hinweiszeilen) mit bg-light-bg / dark:bg-canvas-1:
+   innerhalb der Glass-Scopes transluzent statt deckend — kein eigener Blur,
+   sie liegen ohnehin auf einer Glaskarte. */
+.kfz-modern .bg-light-bg,
+.inventory-modern .bg-light-bg,
+.home-glass-modern .bg-light-bg,
+.auto-glass-cards .bg-light-bg {
+  background-color: rgba(241, 245, 249, 0.5);
+}
+
+.dark .kfz-modern .dark\:bg-canvas-1,
+.dark .inventory-modern .dark\:bg-canvas-1,
+.dark .home-glass-modern .dark\:bg-canvas-1,
+.dark .auto-glass-cards .dark\:bg-canvas-1 {
+  background-color: rgba(4, 13, 17, 0.38);
 }
 
 .inventory-modern select,
@@ -276,6 +489,44 @@ code {
   transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
+/* Glass-Chrome für die App-Shell (Topbar): stärkerer Blur als Karten,
+   damit Text über scrollendem Inhalt lesbar bleibt, plus Specular-Unterkante. */
+.glass-chrome {
+  backdrop-filter: blur(12px) saturate(170%);
+  -webkit-backdrop-filter: blur(12px) saturate(170%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+html.dark .glass-chrome {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* Liquid-Glass-Basis für GlassSurface: transluzent, satte Hintergrundfarben,
+   Specular-Kante oben — Hintergrund bleibt erkennbar. */
+.glass-surface {
+  position: relative;
+  isolation: isolate;
+  backdrop-filter: blur(7px) saturate(170%);
+  -webkit-backdrop-filter: blur(7px) saturate(170%);
+}
+.glass-surface::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 1px 0 0 rgba(255, 255, 255, 0.25),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.06);
+}
+html.dark .glass-surface::after {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 1px 0 0 rgba(255, 255, 255, 0.05),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.02);
+}
+
 .glass-hover-card {
   isolation: isolate;
   position: relative;
@@ -303,15 +554,37 @@ code {
 .auto-glass-cards .bg-light-card:is(.rounded-card, .rounded-card-sm) {
   isolation: isolate;
   position: relative;
-  background-color: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background-color: rgba(255, 255, 255, 0.42);
+  backdrop-filter: blur(7px) saturate(170%);
+  -webkit-backdrop-filter: blur(7px) saturate(170%);
 }
 
 .dark .auto-glass-cards .dark\:bg-canvas-2:is(.rounded-card, .rounded-card-sm) {
-  background-color: rgba(7, 22, 29, 0.78);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background-color: rgba(7, 22, 29, 0.30);
+  backdrop-filter: blur(7px) saturate(170%);
+  -webkit-backdrop-filter: blur(7px) saturate(170%);
+}
+
+/* Liquid-Glass-Kante: Specular-Highlight oben + feiner Lichtsaum, wie bei
+   echtem Glas (iOS-Stil). Per ::after, damit Tailwind-Schatten erhalten bleiben. */
+.auto-glass-cards .bg-light-card:is(.rounded-card, .rounded-card-sm)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 1px 0 0 rgba(255, 255, 255, 0.25),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.06);
+}
+
+.dark .auto-glass-cards .dark\:bg-canvas-2:is(.rounded-card, .rounded-card-sm)::after {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 1px 0 0 rgba(255, 255, 255, 0.05),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.02);
 }
 
 .auto-glass-cards .bg-light-card:is(.rounded-card, .rounded-card-sm)::before {
