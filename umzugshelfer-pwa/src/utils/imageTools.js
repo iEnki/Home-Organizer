@@ -23,7 +23,7 @@ export function fileToBase64(file) {
  * PDFs und nicht-Bild-Dateien werden unverändert zurückgegeben.
  * HEIC-Unterstützung ist browserabhängig (Safari/iOS: nativ; Chrome/Firefox: nicht garantiert).
  */
-export async function compressImage(file, maxPx = 1200) {
+export async function compressImage(file, maxPx = 1200, quality = 0.85, forceReencode = false) {
   if (!file.type.startsWith("image/")) return file;
   return new Promise((resolve) => {
     const img = new Image();
@@ -31,8 +31,8 @@ export async function compressImage(file, maxPx = 1200) {
     img.onload = () => {
       URL.revokeObjectURL(url);
       let { width, height } = img;
-      if (width <= maxPx && height <= maxPx) { resolve(file); return; }
-      const ratio = Math.min(maxPx / width, maxPx / height);
+      if (width <= maxPx && height <= maxPx && !forceReencode) { resolve(file); return; }
+      const ratio = Math.min(1, maxPx / width, maxPx / height);
       const canvas = document.createElement("canvas");
       canvas.width = Math.round(width * ratio);
       canvas.height = Math.round(height * ratio);
@@ -42,7 +42,7 @@ export async function compressImage(file, maxPx = 1200) {
       canvas.toBlob((blob) => {
         if (!blob) { resolve(file); return; }
         resolve(new File([blob], file.name.replace(/\.\w+$/, ".jpg"), { type: "image/jpeg" }));
-      }, "image/jpeg", 0.85);
+      }, "image/jpeg", quality);
     };
     img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
     img.src = url;

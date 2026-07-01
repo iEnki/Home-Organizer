@@ -2,7 +2,7 @@ import { ensureTemplateOccurrenceForMonth } from "./budgetRecurring";
 
 const chain = (methods = {}) => {
   const builder = {};
-  ["select", "eq", "gte", "lt", "order", "limit", "insert"].forEach((method) => {
+  ["select", "eq", "is", "gte", "lt", "order", "limit", "insert"].forEach((method) => {
     builder[method] = jest.fn(() => builder);
   });
   Object.assign(builder, methods);

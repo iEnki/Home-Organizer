@@ -32,14 +32,22 @@ class FakeQuery {
   }
 
   eq(column, value) {
-    this.filters.push({ column, value });
+    this.filters.push({ column, operator: "eq", value });
+    return this;
+  }
+
+  is(column, value) {
+    this.filters.push({ column, operator: "is", value });
     return this;
   }
 
   matches(row) {
-    return this.filters.every(({ column, value }) => {
+    return this.filters.every(({ column, operator, value }) => {
       if (column === "klassifikation->>budget_kategorie") {
         return row.klassifikation?.budget_kategorie === value;
+      }
+      if (operator === "is" && value === null) {
+        return row[column] == null;
       }
       return row[column] === value;
     });

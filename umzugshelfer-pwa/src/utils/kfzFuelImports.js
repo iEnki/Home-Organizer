@@ -1,9 +1,28 @@
 import { supabase } from "../supabaseClient";
 
-const FUEL_TERMS = [
-  "adblue", "avia", "autogas", "benzin", "diesel", "e5", "e10", "eni", "esso",
-  "eurosuper", "jet tank", "kraftstoff", "lpg", "omv", "premium", "shell", "socar",
-  "super 95", "super95", "tank", "treibstoff",
+const FUEL_CATEGORY_KEYS = ["tanken", "fuel", "kraftstoff"];
+const FUEL_PRODUCT_PATTERNS = [
+  ["adblue", /\badblue\b/],
+  ["autogas", /\bautogas\b/],
+  ["benzin", /\bbenzin\b/],
+  ["diesel", /\bdiesel\b/],
+  ["eurosuper", /\beuro\s*super\b|\beurosuper\b/],
+  ["kraftstoff", /\bkraftstoff\b/],
+  ["lpg", /\blpg\b/],
+  ["super95", /\bsuper\s*95\b|\bsuper95\b/],
+  ["super_e5", /\bsuper\s*e5\b/],
+  ["super_e10", /\bsuper\s*e10\b/],
+  ["treibstoff", /\btreibstoff\b/],
+];
+const FUEL_MERCHANT_PATTERNS = [
+  ["avia", /\bavia\b/],
+  ["eni", /\beni\b/],
+  ["esso", /\besso\b/],
+  ["jet", /\bjet\b/],
+  ["omv", /\bomv\b/],
+  ["shell", /\bshell\b/],
+  ["socar", /\bsocar\b/],
+  ["tankstelle", /\btankstelle\b/],
 ];
 
 const normalizeText = (value) => String(value || "")
@@ -20,18 +39,60 @@ const numberOrNull = (value) => {
 };
 
 export function isFuelText(value) {
+  return detectFuelProductSignals(value).matched;
+}
+
+function detectFuelProductSignals(value) {
   const normalized = normalizeText(value);
-  return Boolean(normalized) && FUEL_TERMS.some((term) => normalized.includes(term));
+  if (!normalized) return { matched: false, signals: [] };
+  const signals = FUEL_PRODUCT_PATTERNS
+    .filter(([, pattern]) => pattern.test(normalized))
+    .map(([signal]) => signal);
+  return { matched: signals.length > 0, signals };
+}
+
+function detectFuelMerchantSignals(value) {
+  const normalized = normalizeText(value);
+  if (!normalized) return { matched: false, signals: [] };
+  const signals = FUEL_MERCHANT_PATTERNS
+    .filter(([, pattern]) => pattern.test(normalized))
+    .map(([signal]) => signal);
+  return { matched: signals.length > 0, signals };
+}
+
+function hasLitreUnit(position = {}) {
+  const unit = normalizeText(position.einheit);
+  return unit === "l" || unit.startsWith("liter") || unit.startsWith("litre");
 }
 
 export function isFuelBudgetCandidate({ budget, invoice, positions = [] }) {
-  const categoryMatch = ["tanken", "fuel", "kraftstoff"].includes(normalizeText(budget?.kategorie));
-  const positionMatch = positions.some((position) => isFuelText(position.beschreibung));
-  const merchantMatch = isFuelText(invoice?.lieferant_name);
+  const categoryMatch = FUEL_CATEGORY_KEYS.includes(normalizeText(budget?.kategorie));
+  const positionSignals = positions
+    .map((position) => ({
+      position,
+      detection: detectFuelProductSignals(position.beschreibung),
+    }))
+    .filter(({ detection }) => detection.matched);
+  const positionMatch = positionSignals.length > 0;
+  const positionWithLitres = positionSignals.some(({ position }) => hasLitreUnit(position));
+  const merchantDetection = detectFuelMerchantSignals(invoice?.lieferant_name || budget?.beschreibung);
+  const merchantMatch = merchantDetection.matched;
+  const matches = categoryMatch || positionWithLitres || (merchantMatch && positionMatch);
+  const autoImportAllowed = categoryMatch;
+  const manualReviewRequired = matches && !autoImportAllowed;
+  const detectionSignals = [
+    ...(categoryMatch ? ["category"] : []),
+    ...positionSignals.flatMap(({ detection }) => detection.signals.map((signal) => `position:${signal}`)),
+    ...merchantDetection.signals.map((signal) => `merchant:${signal}`),
+    ...(positionWithLitres ? ["position:litres"] : []),
+  ];
   return {
-    matches: categoryMatch || positionMatch || merchantMatch,
-    reason: categoryMatch ? "budget_category" : positionMatch ? "invoice_position" : merchantMatch ? "fuel_merchant" : null,
-    confidence: categoryMatch && (positionMatch || merchantMatch) ? 0.98 : categoryMatch ? 0.9 : positionMatch ? 0.86 : merchantMatch ? 0.72 : 0,
+    matches,
+    reason: categoryMatch ? "budget_category" : positionWithLitres ? "invoice_position" : merchantMatch && positionMatch ? "fuel_merchant" : null,
+    confidence: categoryMatch && (positionWithLitres || merchantMatch) ? 0.98 : categoryMatch ? 0.9 : positionWithLitres ? 0.82 : merchantMatch && positionMatch ? 0.7 : 0,
+    autoImportAllowed,
+    manualReviewRequired,
+    signals: [...new Set(detectionSignals)],
   };
 }
 
@@ -40,10 +101,7 @@ export function normalizeFuelCandidate({ budget, invoice = null, positions = [],
   if (!detection.matches) return null;
 
   const fuelPositions = positions.filter((position) => isFuelText(position.beschreibung));
-  const litrePositions = fuelPositions.filter((position) => {
-    const unit = normalizeText(position.einheit);
-    return unit === "l" || unit.startsWith("liter") || unit.startsWith("litre");
-  });
+  const litrePositions = fuelPositions.filter(hasLitreUnit);
   const liters = litrePositions.reduce((sum, position) => sum + (numberOrNull(position.menge) || 0), 0) || null;
   const positionTotal = fuelPositions.reduce((sum, position) => sum + (numberOrNull(position.gesamtpreis) || 0), 0) || null;
   const amount = numberOrNull(budget?.betrag) ?? numberOrNull(invoice?.brutto) ?? positionTotal ?? 0;
@@ -76,6 +134,9 @@ export function normalizeFuelCandidate({ budget, invoice = null, positions = [],
       beschreibung: budget.beschreibung || null,
       kategorie: budget.kategorie || null,
       source_updated_at: budget.updated_at || null,
+      detection_signals: detection.signals,
+      manual_review_required: detection.manualReviewRequired,
+      auto_import_allowed: detection.autoImportAllowed,
     },
   };
 }
@@ -185,7 +246,7 @@ async function createFuelEntryFromImport(importRow, vehicleId, userId) {
     created = true;
   }
 
-  const nextSnapshot = { ...snapshot, manual_review_required: false };
+  const nextSnapshot = { ...snapshot, manual_review_required: false, auto_import_allowed: true };
   const { data: updatedImport, error: updateError } = await supabase
     .from("home_fahrzeug_tank_importe")
     .update({
@@ -266,6 +327,9 @@ export async function syncFuelImports({ householdId, userId, includeInvoicePosit
     existing: 0,
     ignored: 0,
     repaired: 0,
+    invalidated: 0,
+    removedFalsePositives: 0,
+    needsManualReview: 0,
     archived: 0,
     foreignHousehold: 0,
     errors: [],
@@ -285,7 +349,7 @@ export async function syncFuelImports({ householdId, userId, includeInvoicePosit
     supabase.from("home_fahrzeug_tank_importe").select("*").eq("household_id", householdId),
     supabase.from("dokument_links").select("dokument_id, entity_id, entity_type").eq("household_id", householdId).eq("entity_type", "budget_posten"),
     supabase.from("rechnungen").select("id, dokument_id, lieferant_name, rechnungsdatum, brutto").eq("household_id", householdId),
-    supabase.from("home_fahrzeug_tankvorgaenge").select("id, budget_posten_id, rechnung_id, fahrzeug_id").eq("household_id", householdId),
+    supabase.from("home_fahrzeug_tankvorgaenge").select("id, budget_posten_id, rechnung_id, fahrzeug_id, quelle, tankstatus, verbrauch_bestaetigt").eq("household_id", householdId),
   ]);
   const responseError = [
     budgetsResponse, vehiclesResponse, importsResponse, linksResponse, invoicesResponse, fuelEntriesResponse,
@@ -313,7 +377,7 @@ export async function syncFuelImports({ householdId, userId, includeInvoicePosit
       .is("archived_at", null);
     if (foreignBudgetError) throw foreignBudgetError;
     report.foreignHousehold = (foreignBudgets || []).filter((budget) => (
-      isFuelBudgetCandidate({ budget }).matches || isFuelText(budget.beschreibung)
+      isFuelBudgetCandidate({ budget }).matches
     )).length;
   } catch (foreignBudgetError) {
     console.warn("Haushaltsfremde Budgetposten konnten nicht geprüft werden:", foreignBudgetError);
@@ -360,6 +424,48 @@ export async function syncFuelImports({ householdId, userId, includeInvoicePosit
     if (stalePendingIds.length) {
       const { error } = await supabase.from("home_fahrzeug_tank_importe").delete().in("id", stalePendingIds);
       if (error) report.errors.push({ stage: "cleanup", message: errorMessage(error) });
+    }
+
+    const budgetIds = new Set(budgets.map((budget) => budget.id));
+    const invalidImportRows = currentImports.filter((row) => (
+      ["imported", "ignored"].includes(row.status)
+      && budgetIds.has(row.budget_posten_id)
+      && !candidateBudgetIds.has(row.budget_posten_id)
+    ));
+    for (const row of invalidImportRows) {
+      const existingFuel = fuelByBudget.get(row.budget_posten_id)
+        || (row.rechnung_id ? fuelByInvoice.get(row.rechnung_id) : null);
+      const canRemoveFuel = existingFuel
+        && existingFuel.quelle === "budget"
+        && existingFuel.verbrauch_bestaetigt === false
+        && (!existingFuel.tankstatus || existingFuel.tankstatus === "unbekannt");
+      try {
+        if (canRemoveFuel) {
+          const { error: deleteFuelError } = await supabase
+            .from("home_fahrzeug_tankvorgaenge")
+            .delete()
+            .eq("household_id", householdId)
+            .eq("id", existingFuel.id);
+          if (deleteFuelError) throw deleteFuelError;
+          report.removedFalsePositives += 1;
+        } else if (existingFuel) {
+          report.needsManualReview += 1;
+        }
+        const { error: deleteImportError } = await supabase
+          .from("home_fahrzeug_tank_importe")
+          .delete()
+          .eq("household_id", householdId)
+          .eq("id", row.id);
+        if (deleteImportError) throw deleteImportError;
+        report.invalidated += 1;
+      } catch (cleanupError) {
+        report.errors.push({
+          budgetPostenId: row.budget_posten_id,
+          description: row.quell_snapshot?.tankstelle || row.quell_snapshot?.beschreibung,
+          stage: "invalidate",
+          message: errorMessage(cleanupError),
+        });
+      }
     }
   }
 
@@ -411,7 +517,7 @@ export async function syncFuelImports({ householdId, userId, includeInvoicePosit
 
   if (vehicles.length === 1) {
     for (let index = 0; index < rows.length; index += 1) {
-      if (rows[index].status === "pending" && !rows[index].quell_snapshot?.manual_review_required) {
+      if (rows[index].status === "pending" && rows[index].quell_snapshot?.auto_import_allowed === true) {
         try {
           const result = await createFuelEntryFromImport(rows[index], vehicles[0].id, userId);
           rows[index] = result.importRow;

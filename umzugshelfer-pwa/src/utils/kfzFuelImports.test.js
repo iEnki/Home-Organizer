@@ -12,14 +12,24 @@ import {
 describe("kfzFuelImports", () => {
   test("recognises fuel categories, merchants and invoice positions", () => {
     expect(isFuelText("Eurosuper 95")).toBe(true);
+    expect(isFuelText("Super E10")).toBe(true);
+    expect(isFuelText("Premium Diesel")).toBe(true);
     expect(isFuelBudgetCandidate({ budget: { kategorie: "Tanken" } })).toMatchObject({
       matches: true,
       reason: "budget_category",
+      autoImportAllowed: true,
+      manualReviewRequired: false,
     });
     expect(isFuelBudgetCandidate({
       budget: { kategorie: "Sonstiges" },
       invoice: { lieferant_name: "SOCAR Tankstelle" },
-    })).toMatchObject({ matches: true, reason: "fuel_merchant" });
+      positions: [{ beschreibung: "Super 95", menge: 32, einheit: "l" }],
+    })).toMatchObject({
+      matches: true,
+      reason: "invoice_position",
+      autoImportAllowed: false,
+      manualReviewRequired: true,
+    });
   });
 
   test("extracts litres, unit price, amount and fuel type", () => {
@@ -54,6 +64,8 @@ describe("kfzFuelImports", () => {
         preis_pro_liter: 1.3,
         kraftstoffart: "Super E10",
         betrag: 54.6,
+        auto_import_allowed: true,
+        manual_review_required: false,
       },
     });
   });
@@ -63,6 +75,75 @@ describe("kfzFuelImports", () => {
       budget: { id: "budget-2", kategorie: "Lebensmittel", beschreibung: "Supermarkt" },
       positions: [{ beschreibung: "Brot" }],
     })).toBeNull();
+  });
+
+  test("does not treat grocery or drugstore receipts as fuel because of generic words", () => {
+    expect(isFuelText("Premium Erdbeeren")).toBe(false);
+    expect(isFuelText("E5 Aktionscode")).toBe(false);
+    expect(isFuelText("Tank Top Baumwolle")).toBe(false);
+    expect(isFuelText("Butterecken 250g")).toBe(false);
+    expect(isFuelBudgetCandidate({
+      budget: {
+        id: "budget-hofer",
+        kategorie: "Lebensmittel & Getränke",
+        beschreibung: "Einkauf bei HOFER KG",
+      },
+      invoice: { lieferant_name: "HOFER KG" },
+      positions: [{ beschreibung: "Premium Erdbeeren", menge: 1, einheit: "Stk", gesamtpreis: 2.99 }],
+    })).toMatchObject({ matches: false, autoImportAllowed: false });
+    expect(normalizeFuelCandidate({
+      budget: {
+        id: "budget-dm",
+        kategorie: "Drogerie",
+        beschreibung: "dm drogerie markt GmbH",
+      },
+      invoice: { lieferant_name: "dm drogerie markt GmbH" },
+      positions: [{ beschreibung: "Duschgel", menge: 1, einheit: "Stk", gesamtpreis: 2.95 }],
+    })).toBeNull();
+  });
+
+  test("keeps category based fuel receipts eligible for automatic import", () => {
+    const result = normalizeFuelCandidate({
+      budget: {
+        id: "budget-socar",
+        datum: "2026-06-02",
+        betrag: 54.4,
+        beschreibung: "Einkauf bei SOCAR",
+        kategorie: "Tanken",
+      },
+      invoice: { id: "invoice-socar", lieferant_name: "SOCAR" },
+    });
+
+    expect(result).toMatchObject({
+      budget_posten_id: "budget-socar",
+      erkennungsgrund: "budget_category",
+      snapshot: {
+        auto_import_allowed: true,
+        manual_review_required: false,
+      },
+    });
+  });
+
+  test("requires manual review when fuel is detected only from invoice positions", () => {
+    const result = normalizeFuelCandidate({
+      budget: {
+        id: "budget-fuel-position",
+        betrag: 46.34,
+        beschreibung: "Unklare Rechnung",
+        kategorie: "Sonstiges",
+      },
+      invoice: { id: "invoice-fuel-position", lieferant_name: "SOCAR" },
+      positions: [{ beschreibung: "Super 95", menge: 26.27, einheit: "Liter", gesamtpreis: 46.34 }],
+    });
+
+    expect(result).toMatchObject({
+      erkennungsgrund: "invoice_position",
+      snapshot: {
+        liter: 26.27,
+        auto_import_allowed: false,
+        manual_review_required: true,
+      },
+    });
   });
 
   test("treats an imported row without an existing refuelling as pending repair", () => {

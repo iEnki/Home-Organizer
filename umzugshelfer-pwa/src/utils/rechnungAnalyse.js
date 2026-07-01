@@ -19,6 +19,7 @@
 
 import { cleanKiJsonResponse } from "./kiClient";
 import { compressImage, fileToBase64 } from "./imageTools";
+import { supabase } from "../supabaseClient";
 
 // ============================================================
 // Konstanten: Klassifizierungs-System
@@ -313,6 +314,123 @@ const KI_RECHNUNG_PROMPT_TEXT = `Du bist ein bilingualer Rechnungs-Analyse-Assis
 
 // fileToBase64 und compressImage kommen aus imageTools.js (gemeinsame Utility); re-export f?r Abw?rtskompatibilit?t
 export { fileToBase64 } from "./imageTools";
+
+export const VISION_FALLBACK_ERROR_CODES = new Set([
+  "vision_service_unavailable",
+  "vision_provider_timeout",
+  "vision_provider_unreachable",
+]);
+
+export function createVisionAnalysisError(message, { status = null, code = null, provider = null } = {}) {
+  const error = new Error(message);
+  error.status = status;
+  error.code = code;
+  error.provider = provider;
+  error.canFallbackToOcrRules = VISION_FALLBACK_ERROR_CODES.has(code);
+  return error;
+}
+
+function formatVisionProviderError({ provider, detail, status }) {
+  const providerLabel = provider === "ollama"
+    ? "Ollama"
+    : provider === "openai"
+      ? "OpenAI"
+      : "Der Vision-Anbieter";
+  const rawDetail = String(detail || "").trim();
+  const isNameResolution = /name resolution failed|getaddrinfo|enotfound|dns/i.test(rawDetail);
+
+  if (provider === "ollama") {
+    const reason = isNameResolution
+      ? "Die konfigurierte Ollama-Adresse konnte nicht aufgelöst werden."
+      : "Ollama Vision ist nicht erreichbar.";
+    return `${reason} Prüfe die Ollama-URL im Profil unter KI-Assistent. Die URL muss vom Supabase Edge Worker erreichbar sein; localhost, lokale Hostnamen oder nur intern erreichbare Adressen funktionieren dort meist nicht.`;
+  }
+
+  if (provider === "openai") {
+    const reason = isNameResolution
+      ? "OpenAI konnte vom Vision-Dienst nicht aufgelöst werden."
+      : "OpenAI Vision ist nicht erreichbar.";
+    return `${reason} Prüfe die API-Erreichbarkeit und versuche es erneut.`;
+  }
+
+  if (isNameResolution) {
+    return "Vision-Anbieter nicht erreichbar: Der konfigurierte Host konnte nicht aufgelöst werden.";
+  }
+
+  return rawDetail || `${providerLabel} ist nicht erreichbar (${status}).`;
+}
+
+export function normalizeVisionError({ status, payload = {}, fallbackLabel = "Vision-Analyse" }) {
+  const provider = payload?.provider || null;
+  const code = payload?.code || ([502, 503, 504].includes(status) ? "vision_service_unavailable" : null);
+  const detail = payload?.error?.message || payload?.error || payload?.message || "";
+  if (status === 409) {
+    return createVisionAnalysisError(detail || "Bildanalyse ist nicht konfiguriert.", { status, code: "vision_not_configured", provider });
+  }
+  if (code === "vision_provider_unreachable") {
+    return createVisionAnalysisError(
+      formatVisionProviderError({ provider, detail, status }),
+      { status, code, provider },
+    );
+  }
+  if (code === "vision_provider_timeout") {
+    return createVisionAnalysisError(
+      "Der Vision-Anbieter hat nicht rechtzeitig geantwortet. Bitte versuche es erneut.",
+      { status, code, provider },
+    );
+  }
+  if ([502, 503, 504].includes(status)) {
+    return createVisionAnalysisError(
+      detail || "Der Vision-Dienst ist gerade nicht erreichbar oder die Analyse hat zu lange gedauert. Bitte versuche es erneut.",
+      { status, code, provider },
+    );
+  }
+  return createVisionAnalysisError(detail || `${fallbackLabel} fehlgeschlagen (${status})`, { status, code, provider });
+}
+
+async function parseFunctionError(error) {
+  const response = error?.context;
+  if (response && (typeof response.json === "function" || typeof response.text === "function")) {
+    let payload = null;
+    const textSource = typeof response.clone === "function" ? response.clone() : response;
+    const text = typeof textSource.text === "function"
+      ? await textSource.text().catch(() => "")
+      : "";
+
+    if (text) {
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        payload = { error: text };
+      }
+    }
+
+    if (!payload && typeof response.json === "function") {
+      payload = await response.json().catch(() => null);
+    }
+
+    return {
+      status: response.status || error?.status || 503,
+      payload: payload && typeof payload === "object" ? payload : {},
+    };
+  }
+  return {
+    status: error?.status || 503,
+    payload: {
+      error: error?.message || "Vision-Dienst nicht erreichbar.",
+      code: error?.name === "FunctionsFetchError" ? "vision_service_unavailable" : undefined,
+    },
+  };
+}
+
+async function invokeKiVision(body, fallbackLabel) {
+  const { data, error } = await supabase.functions.invoke("ki-vision", { body });
+  if (error) {
+    const parsed = await parseFunctionError(error);
+    throw normalizeVisionError({ ...parsed, fallbackLabel });
+  }
+  return data || {};
+}
 
 /**
  * Normalisiert einen Zahlenwert aus KI-Antworten.
@@ -716,25 +834,17 @@ export async function extractTextFromFile(file) {
 /**
  * Analysiert ein Bild mit ChatGPT Vision (GPT-4o) via ki-vision Edge Function.
  */
-async function analyzeWithChatGptVision(base64, mimeType, session, locale = "de") {
-  const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
-  const res = await fetch(`${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/ki-vision`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${session.access_token}`,
-    },
-    body: JSON.stringify({
+export async function analyzeWithChatGptVision(base64, mimeType, _session, locale = "de") {
+  const json = await invokeKiVision(
+    {
       mode: "chatgpt_vision",
       file_base64: base64,
       mime_type: mimeType,
       prompt: KI_RECHNUNG_PROMPT_VISION,
       locale,
-    }),
-  });
-
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json?.error || `Vision-Analyse fehlgeschlagen (${res.status})`);
+    },
+    "Vision-Analyse",
+  );
 
   const rawText = json?.text ?? json?.choices?.[0]?.message?.content ?? "";
   const cleaned = cleanKiJsonResponse(rawText, "object");
@@ -760,25 +870,17 @@ async function analyzeWithChatGptVision(base64, mimeType, session, locale = "de"
 /**
  * Analysiert ein Bild mit Ollama Vision via ki-vision Edge Function.
  */
-async function analyzeWithOllamaVision(base64, mimeType, session, locale = "de") {
-  const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
-  const res = await fetch(`${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/ki-vision`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${session.access_token}`,
-    },
-    body: JSON.stringify({
+export async function analyzeWithOllamaVision(base64, mimeType, _session, locale = "de") {
+  const json = await invokeKiVision(
+    {
       mode: "ocr_ollama",
       file_base64: base64,
       mime_type: mimeType,
       prompt: KI_RECHNUNG_PROMPT_VISION,
       locale,
-    }),
-  });
-
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json?.error || `Ollama Vision fehlgeschlagen (${res.status})`);
+    },
+    "Ollama Vision",
+  );
 
   const rawText = json?.text ?? "";
   const cleaned = cleanKiJsonResponse(rawText, "object");
@@ -927,7 +1029,7 @@ export async function starteAnalyse(file, modus, { kiClient, session, locale = "
     }
   } else {
     // Bild: zuerst komprimieren
-    const compressedFile = await compressImage(file, 1200);
+    const compressedFile = await compressImage(file, 1100, 0.76, true);
     const base64 = await fileToBase64(compressedFile);
     const mimeType = compressedFile.type;
 
