@@ -10,12 +10,13 @@ import {
   useNavigate,
 } from "react-router-dom";
 import { supabase, setActiveHouseholdId } from "./supabaseClient";
-import { ThemeProvider } from "./contexts/ThemeContext";
+import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 import { AppModeProvider, useAppMode } from "./contexts/AppModeContext";
 import { TourProvider, useTourContext } from "./contexts/TourContext";
 import { useLocale } from "./contexts/LocaleContext";
 import { ToastProvider } from "./hooks/useToast";
 import useViewport from "./hooks/useViewport";
+import { usePageBackground } from "./hooks/usePageBackground";
 
 // ── UI Primitives ──────────────────────────────────────────────────────────────
 import BeamsBackground from "./components/ui/BeamsBackground";
@@ -27,6 +28,7 @@ import MobileBottomNav from "./components/layout/MobileBottomNav";
 import MobileMoreSheet from "./components/layout/MobileMoreSheet";
 import MobileSearchSheet from "./components/layout/MobileSearchSheet";
 import HomeOnboarding       from "./components/home/HomeOnboarding";
+import HomeInventar         from "./components/home/HomeInventar";
 import TourPromptModal      from "./components/home/tour/TourPromptModal";
 import ForcedPasswordChangeModal from "./components/ForcedPasswordChangeModal";
 const GlobalAssistantLauncher = lazy(() => import("./components/assistant/GlobalAssistantLauncher"));
@@ -34,7 +36,6 @@ const GlobalAssistantLauncher = lazy(() => import("./components/assistant/Global
 // ── Home Organizer Komponenten ─────────────────────────────────────────────────
 const HomeDashboard = lazy(() => import("./components/home/HomeDashboard"));
 const HomeRechnungScannen = lazy(() => import("./components/home/HomeRechnungScannen"));
-const HomeInventar = lazy(() => import("./components/home/HomeInventar"));
 const HomeGlobalSuche = lazy(() => import("./components/home/HomeGlobalSuche"));
 const HomeVorraete = lazy(() => import("./components/home/HomeVorraete"));
 const HomeHeimapotheke = lazy(() => import("./components/home/HomeHeimapotheke"));
@@ -264,6 +265,62 @@ const OnboardingGate = ({ session, blockOnboarding = false, children }) => {
 //   - User ist im Home-Modus
 //   - tour_state.intro_prompt_status === "pending"
 // Globaler Session-Dialog (außerhalb Routes) — bewusste Phase-1-Entscheidung.
+const isChunkLoadError = (error) => {
+  const message = String(error?.message || error || "");
+  return error?.name === "ChunkLoadError"
+    || /Loading chunk \d+ failed/i.test(message)
+    || /dynamically imported module/i.test(message)
+    || /importing a module script failed/i.test(message);
+};
+
+class ChunkLoadErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error) {
+    if (!isChunkLoadError(error) || typeof window === "undefined") return;
+    const reloadKey = "home-organizer:chunk-reload-attempted";
+    if (window.sessionStorage.getItem(reloadKey) === "1") return;
+    window.sessionStorage.setItem(reloadKey, "1");
+    Promise.resolve()
+      .then(async () => {
+        if ("caches" in window) {
+          const keys = await window.caches.keys();
+          await Promise.all(keys.map((key) => window.caches.delete(key)));
+        }
+      })
+      .catch(() => {})
+      .finally(() => window.location.reload());
+  }
+
+  render() {
+    const { error } = this.state;
+    if (!error) return this.props.children;
+    if (!isChunkLoadError(error)) throw error;
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center text-dark-text-main">
+        <h1 className="text-xl font-semibold">Aktualisierung erforderlich</h1>
+        <p className="mt-2 max-w-md text-sm text-dark-text-secondary">
+          Ein App-Teil konnte nicht geladen werden. Bitte lade die Seite neu, damit die aktuelle Version verwendet wird.
+        </p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="mt-5 inline-flex min-h-11 items-center justify-center rounded-card-sm bg-primary-500 px-4 text-sm font-semibold text-white"
+        >
+          Seite neu laden
+        </button>
+      </div>
+    );
+  }
+}
+
 const TourPromptGate = ({ session }) => {
   const { appMode, onboardingGezeigt, modusGeladen } = useAppMode();
   const ctx = useTourContext();
@@ -307,6 +364,8 @@ const AuthenticatedShell = ({
   const navigate = useNavigate();
   const { appMode, toggleMode } = useAppMode();
   const { isDesktop, mobileBottomOffsetPx } = useViewport();
+  const { theme } = useTheme();
+  usePageBackground(theme === "dark", isDesktop);
   const userId = session?.user?.id;
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -661,6 +720,7 @@ function App() {
           session={session}
           blockOnboarding={passwordFlagLoading || passwordChangeRequired}
         >
+          <ChunkLoadErrorBoundary>
           <Suspense fallback={loadingScreen}>
           <Routes>
             {/* ── Öffentliche Routen (ohne Shell) ─────────────────────────────── */}
@@ -732,6 +792,7 @@ function App() {
             <Route path="*" element={session ? <SmartRedirect /> : <Navigate to="/" replace />} />
           </Routes>
           </Suspense>
+          </ChunkLoadErrorBoundary>
         </OnboardingGate>
         </TourProvider>
       </AppModeProvider>

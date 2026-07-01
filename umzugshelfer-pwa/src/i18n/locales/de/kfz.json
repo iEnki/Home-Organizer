@@ -150,9 +150,12 @@
       "pending": "Zuordnung offen",
       "existing": "Bereits vorhanden",
       "ignored": "Ignoriert",
+      "invalidated": "Ungültig erkannt",
+      "removedFalsePositives": "Fehlimporte entfernt",
+      "needsManualReview": "Manuell prüfen",
       "errors": "Fehler"
     },
-    "reportDetails": "{{repaired}} verwaiste Importe repariert, {{archived}} archivierte und {{foreign}} haushaltsfremde Tankposten nicht importiert.",
+    "reportDetails": "{{repaired}} verwaiste Importe repariert, {{invalidated}} Fehlzuordnungen erkannt, {{removed}} unbestätigte Fehlimporte entfernt, {{review}} bestätigte Einträge zur Prüfung markiert, {{archived}} archivierte und {{foreign}} haushaltsfremde Tankposten nicht importiert.",
     "ignoredTitle": "Ignorierte Tankbelege",
     "ignoredCount_one": "Ein Beleg ist ausgeblendet.",
     "ignoredCount_other": "{{count}} Belege sind ausgeblendet.",

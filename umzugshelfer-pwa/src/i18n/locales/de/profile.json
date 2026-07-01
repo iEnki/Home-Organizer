@@ -169,11 +169,17 @@
       "testBtn": "Testen",
       "connected": "Verbunden",
       "notReachable": "Nicht erreichbar",
-      "ollamaNote": "Hinweis: Im Ollama-Modus wird die Spracheingabe über die Browser-Spracherkennung (Web Speech API) verarbeitet statt über Whisper."
+      "ollamaNote": "Hinweis: Im Ollama-Modus wird die Spracheingabe über die Browser-Spracherkennung (Web Speech API) verarbeitet statt über Whisper.",
+      "openaiModelSection": "OpenAI Modell",
+      "openaiModelRecommended": "gpt-4o-mini - empfohlen, günstig",
+      "openaiModelQuality": "gpt-4o - Qualität, kompatibel",
+      "openaiModelCustom": "Benutzerdefiniert",
+      "openaiModelCustomPlaceholder": "z. B. gpt-4o-mini",
+      "openaiModelHint": "Dieses Modell wird für den globalen KI-Assistenten verwendet. Custom-Modelle müssen Chat Completions unterstützen."
     },
     "imageAnalysis": {
       "intro": "Wähle den Modus für die KI-gestützte Rechnungserkennung. Diese Einstellung gilt für den gesamten Haushalt.",
-      "chatgptVisionDesc": "GPT-4o analysiert das Bild direkt",
+      "chatgptVisionDesc": "OpenAI Vision analysiert das Bild direkt",
       "ocrRegelnDesc": "Textextraktion, kein API-Key nötig",
       "ocrOllamaDesc": "OCR-Text wird an Ollama übergeben",
       "apiKeySection": "OpenAI API-Key (Bildanalyse)",
@@ -181,6 +187,8 @@
       "deleteKey": "Key löschen",
       "replaceKeyPlaceholder": "Neuen Key eingeben um zu ersetzen",
       "apiKeyNote": "Unabhängig von den KI-Einstellungen. Wird nur für die Rechnungsanalyse verwendet.",
+      "openaiModelSection": "OpenAI Vision-Modell",
+      "openaiModelHint": "Dieses Modell muss Bild-Input unterstützen. Es gilt nur für die Rechnungsscanner-Bildanalyse.",
       "ollamaModelSection": "Ollama Vision-Modell",
       "ollamaModelNote": "Separates Modell für die Bildanalyse (muss Vision-Fähigkeiten haben).",
       "saveSettings": "Einstellungen speichern"

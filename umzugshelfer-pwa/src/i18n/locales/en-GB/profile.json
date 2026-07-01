@@ -169,11 +169,17 @@
       "testBtn": "Test",
       "connected": "Connected",
       "notReachable": "Not reachable",
-      "ollamaNote": "Note: In Ollama mode, voice input is processed via the browser's Web Speech API instead of Whisper."
+      "ollamaNote": "Note: In Ollama mode, voice input is processed via the browser's Web Speech API instead of Whisper.",
+      "openaiModelSection": "OpenAI model",
+      "openaiModelRecommended": "gpt-4o-mini - recommended, low cost",
+      "openaiModelQuality": "gpt-4o - quality, compatible",
+      "openaiModelCustom": "Custom",
+      "openaiModelCustomPlaceholder": "e.g. gpt-4o-mini",
+      "openaiModelHint": "This model is used for the global AI assistant. Custom models must support Chat Completions."
     },
     "imageAnalysis": {
       "intro": "Choose the mode for AI-powered receipt recognition. This setting applies to the entire household.",
-      "chatgptVisionDesc": "GPT-4o analyses the image directly",
+      "chatgptVisionDesc": "OpenAI Vision analyses the image directly",
       "ocrRegelnDesc": "Text extraction, no API key required",
       "ocrOllamaDesc": "OCR text is passed to Ollama",
       "apiKeySection": "OpenAI API key (image analysis)",
@@ -181,6 +187,8 @@
       "deleteKey": "Delete key",
       "replaceKeyPlaceholder": "Enter new key to replace",
       "apiKeyNote": "Independent of the AI settings. Only used for receipt analysis.",
+      "openaiModelSection": "OpenAI vision model",
+      "openaiModelHint": "This model must support image input. It only applies to receipt-scanner image analysis.",
       "ollamaModelSection": "Ollama vision model",
       "ollamaModelNote": "A separate model for image analysis (must have vision capabilities).",
       "saveSettings": "Save settings"

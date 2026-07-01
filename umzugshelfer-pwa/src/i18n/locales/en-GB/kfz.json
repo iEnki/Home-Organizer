@@ -150,9 +150,12 @@
       "pending": "Needs assigning",
       "existing": "Already present",
       "ignored": "Ignored",
+      "invalidated": "Invalidated",
+      "removedFalsePositives": "False imports removed",
+      "needsManualReview": "Needs review",
       "errors": "Errors"
     },
-    "reportDetails": "{{repaired}} orphaned imports repaired; {{archived}} archived and {{foreign}} receipts from other households were not imported.",
+    "reportDetails": "{{repaired}} orphaned imports repaired; {{invalidated}} wrong matches invalidated; {{removed}} unconfirmed false imports removed; {{review}} confirmed entries marked for review; {{archived}} archived and {{foreign}} receipts from other households were not imported.",
     "ignoredTitle": "Ignored fuel receipts",
     "ignoredCount_one": "One receipt is hidden.",
     "ignoredCount_other": "{{count}} receipts are hidden.",
