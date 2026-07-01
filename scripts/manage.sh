@@ -281,7 +281,7 @@ check_supabase_studio_access() {
   echo ""
   header "Supabase Studio / Kong Diagnose"
 
-  local required=(supabase-kong supabase-studio supabase-meta supabase-db)
+  local required=(supabase-kong supabase-studio supabase-meta supabase-db supabase-edge-functions)
   local missing=false
   for container in "${required[@]}"; do
     if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$container"; then
@@ -342,7 +342,7 @@ check_supabase_studio_access() {
 
   if [[ "$missing" == "true" ]]; then
     warn "Mindestens ein Supabase-Container fehlt. Server-Check:"
-    echo "    docker compose -f ${COMPOSE_FILE} ps kong studio meta db"
+    echo "    docker compose -f ${COMPOSE_FILE} ps kong studio meta db functions"
   fi
 }
 
@@ -352,18 +352,60 @@ recipe_parser_image_exists() {
   docker image inspect umzughelfer-recipe-source-parser:latest >/dev/null 2>&1
 }
 
-restart_recipe_services() {
+container_is_running() {
+  [[ "$(docker inspect --format '{{.State.Running}}' "$1" 2>/dev/null || true)" == "true" ]]
+}
+
+print_edge_functions_diagnostics() {
+  echo ""
+  warn "Edge-Functions-Start fehlgeschlagen. Containerstatus und letzte Logs:"
+  docker compose -f "$COMPOSE_FILE" ps \
+    analytics recipe-source-parser document-ocr-service functions 2>/dev/null || true
+  echo ""
+  docker compose -f "$COMPOSE_FILE" logs --tail=80 functions 2>/dev/null || \
+    docker logs --tail=80 supabase-edge-functions 2>/dev/null || true
+}
+
+verify_edge_functions_running() {
   [[ "$IS_VOLLSTACK" != "true" ]] && return 0
-  if recipe_parser_image_exists; then
-    mit_spinner "Recipe-Parser + Functions werden neu gestartet" \
-      docker compose -f "$COMPOSE_FILE" up -d --force-recreate recipe-source-parser functions || \
-      warn "Recipe-Parser/Functions konnten nicht neu gestartet werden."
-  else
-    warn "Recipe-Parser-Image fehlt. Einmaliger Build ist erforderlich und kann 10-20 Minuten dauern."
-    mit_spinner "Recipe-Parser + Functions werden gebaut/gestartet" \
-      docker compose -f "$COMPOSE_FILE" up -d --build --force-recreate recipe-source-parser functions || \
-      warn "Recipe-Parser/Functions konnten nicht gebaut oder gestartet werden."
+  if container_is_running supabase-edge-functions; then
+    return 0
   fi
+  print_edge_functions_diagnostics
+  return 1
+}
+
+restart_edge_functions() {
+  [[ "$IS_VOLLSTACK" != "true" ]] && return 0
+
+  if ! mit_spinner "Abhaengige Dienste werden gestartet" \
+    docker compose -f "$COMPOSE_FILE" up -d analytics recipe-source-parser document-ocr-service; then
+    print_edge_functions_diagnostics
+    return 1
+  fi
+
+  local dependency container
+  for dependency in \
+    "Analytics:supabase-analytics" \
+    "Recipe-Parser:recipe-source-parser" \
+    "Document-OCR:document-ocr-service"; do
+    container="${dependency#*:}"
+    if ! container_is_running "$container"; then
+      warn "Abhaengiger Dienst ${dependency%%:*} (${container}) laeuft nicht."
+      print_edge_functions_diagnostics
+      return 1
+    fi
+  done
+
+  if ! mit_spinner "Functions-Container wird neu erstellt" \
+    docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate functions; then
+    print_edge_functions_diagnostics
+    return 1
+  fi
+
+  # Kurz warten, damit ein unmittelbar abstuerzender Runtime-Prozess erkannt wird.
+  sleep 3
+  verify_edge_functions_running
 }
 
 print_url_role_warnings() {
@@ -824,10 +866,13 @@ psql -U postgres -d postgres 2>&1
   info "Starte alle Container..."
   set +e; docker compose -f "$COMPOSE_FILE" up -d; set -e
 
-  # 9) Functions-Container neu starten, damit neue Functions geladen werden
+  # 9) Functions-Container neu erstellen, damit neue Functions geladen werden
   if [[ ${DEPLOYED:-0} -gt 0 ]]; then
-    info "Starte Functions-Container neu..."
-    docker compose -f "$COMPOSE_FILE" restart functions 2>/dev/null || true
+    if ! restart_edge_functions; then
+      warn "Wiederherstellung abgeschlossen, aber Edge Functions konnten nicht gestartet werden."
+      weiter
+      return 1
+    fi
   fi
 
   local APP_URL_NOW
@@ -895,9 +940,11 @@ modus_smtp() {
     DEPLOYED=0
     deploy_edge_functions_to_volumes
     if [[ $DEPLOYED -gt 0 ]]; then
-      info "Starte Functions-Container neu..."
-      restart_recipe_services
-      success "${DEPLOYED} Function(s) aktualisiert."
+      if restart_edge_functions; then
+        success "${DEPLOYED} Function(s) aktualisiert."
+      else
+        warn "SMTP wurde gespeichert, aber Edge Functions konnten nicht gestartet werden."
+      fi
     else
       warn "Keine Functions-Dateien gefunden."
     fi
@@ -1268,8 +1315,11 @@ modus_update() {
           read -p "  git pull ausführen? [J/n]: " DO_PULL
           if [[ "${DO_PULL,,}" != "n" ]]; then
             info "Führe git pull aus..."
-            git pull || warn "git pull fehlgeschlagen. Fahre trotzdem fort."
-            success "Repository aktualisiert."
+            if git pull; then
+              success "Repository aktualisiert."
+            else
+              warn "git pull fehlgeschlagen. Das Update wird mit dem lokalen Stand fortgesetzt."
+            fi
           fi
           AFTER_UPDATE_REF="$(git rev-parse HEAD 2>/dev/null || true)"
         else
@@ -1301,8 +1351,11 @@ modus_update() {
           weiter; continue
         }
 
-        if [[ "$IS_VOLLSTACK" == "true" ]]; then
-          restart_recipe_services
+        if [[ "$IS_VOLLSTACK" == "true" && $DEPLOYED -gt 0 ]]; then
+          restart_edge_functions || {
+            warn "Update abgebrochen: Edge Functions laufen nicht."
+            weiter; continue
+          }
           check_supabase_studio_access
         fi
 
@@ -1337,12 +1390,7 @@ modus_update() {
           weiter; continue
         }
 
-        if [[ "$IS_VOLLSTACK" == "true" ]]; then
-          ensure_fullstack_update_prereqs || { weiter; continue; }
-          reload_kong_if_needed "$KONG_RELOAD_REASON"
-          restart_recipe_services
-          check_supabase_studio_access
-        fi
+        [[ "$IS_VOLLSTACK" == "true" ]] && check_supabase_studio_access
 
         success "App erfolgreich neu gebaut und gestartet."
         APP_URL_NOW="$(env_get "SITE_URL")"
@@ -1363,7 +1411,10 @@ modus_update() {
         DEPLOYED=0; deploy_edge_functions_to_volumes
         if [[ $DEPLOYED -gt 0 ]]; then
           echo ""
-          restart_recipe_services
+          restart_edge_functions || {
+            warn "Functions-Deploy fehlgeschlagen."
+            weiter; continue
+          }
           success "${DEPLOYED} Function(s) deployt und Container neu gestartet."
           check_supabase_studio_access
         else
@@ -1431,6 +1482,10 @@ modus_update() {
           }
         fi
 
+        if [[ "$IS_VOLLSTACK" == "true" ]] && ! verify_edge_functions_running; then
+          warn "Image-Update unvollstaendig: Edge Functions laufen nicht."
+          weiter; continue
+        fi
         success "Docker-Images aktualisiert und Container neu gestartet."
         check_supabase_studio_access
         weiter
@@ -1481,7 +1536,10 @@ modus_update() {
         }
 
         echo ""
-        restart_recipe_services
+        restart_edge_functions || {
+          warn "Server-Sync fehlgeschlagen: Edge Functions laufen nicht."
+          weiter; continue
+        }
 
         echo ""
         success "Server-Sync komplett abgeschlossen."
@@ -1554,8 +1612,10 @@ modus_deinstall() {
         header "Edge Functions neu deployen"
         DEPLOYED=0; deploy_edge_functions_to_volumes
         if [[ $DEPLOYED -gt 0 ]]; then
-          info "Starte Functions-Container neu..."
-          restart_recipe_services
+          restart_edge_functions || {
+            warn "Functions-Deploy fehlgeschlagen."
+            weiter; continue
+          }
           success "${DEPLOYED} Function(s) deployt und Container neu gestartet."
         else
           warn "Keine Functions deployt."
@@ -2408,10 +2468,9 @@ modus_docker_cleanup() {
 }
 
 # ============================================================
-# HAUPTSCHLEIFE
+# LAUFZEITKONTEXT / HAUPTSCHLEIFE
 # ============================================================
-while true; do
-  # Auto-Erkennung bei jedem Schleifendurchlauf aktualisieren
+refresh_runtime_context() {
   COMPOSE_FILE="docker-compose.full.yml"
   [[ ! -f "docker-compose.full.yml" ]] && COMPOSE_FILE="docker-compose.yml"
   IS_VOLLSTACK=false
@@ -2427,6 +2486,18 @@ while true; do
     CURRENT_PORT="$(env_get "APP_PORT")"
     [[ "$IS_VOLLSTACK" == "true" ]] && ensure_recipe_parser_env
   fi
+}
+
+# Kompatibler Direkteinstieg fuer scripts/update.sh.
+if [[ "${1:-}" == "update" ]]; then
+  refresh_runtime_context
+  modus_update
+  exit 0
+fi
+
+while true; do
+  # Auto-Erkennung bei jedem Schleifendurchlauf aktualisieren
+  refresh_runtime_context
 
   clear
   echo ""
