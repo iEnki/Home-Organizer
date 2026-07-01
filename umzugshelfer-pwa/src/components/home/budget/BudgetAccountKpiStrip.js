@@ -23,9 +23,9 @@ export default function BudgetAccountKpiStrip({ items }) {
         </h3>
       </div>
 
-      <div className="flex gap-px overflow-x-auto bg-light-border dark:bg-dark-border scrollbar-hide">
+      <div className="flex gap-px overflow-x-auto bg-light-border/40 dark:bg-white/[0.06] scrollbar-hide">
         {items.map((item) => (
-          <div key={item.id} className="min-w-[150px] flex-1 bg-white/25 px-3 py-3 dark:bg-white/[0.025]">
+          <div key={item.id} className="min-w-[150px] flex-1 bg-white/20 px-3 py-3 dark:bg-white/[0.02]">
             <div className="flex items-center gap-2">
               <span
                 className="h-2.5 w-2.5 rounded-full"
