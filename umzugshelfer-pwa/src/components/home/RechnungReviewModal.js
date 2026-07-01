@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import {
   X, Check, AlertTriangle, ChevronDown, ChevronUp,
@@ -264,6 +265,14 @@ export default function RechnungReviewModal({
   const [splitVorgestrecktVon, setSplitVorgestrecktVon] = useState(null);
   const [splitTeilnehmer, setSplitTeilnehmer]   = useState([]);
   const [splitSpeichern, setSplitSpeichern]     = useState(false);
+
+  useEffect(() => {
+    const vorherigerOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = vorherigerOverflow;
+    };
+  }, []);
   const [splitValidierungsFehler, setSplitValidierungsFehler] = useState(null);
   const autoBewohnerErstellenRef = React.useRef(false);
   const bewohnerById = useMemo(
@@ -1320,7 +1329,7 @@ export default function RechnungReviewModal({
   const reviewNoetigCount = positionen.filter((p) => p.review_noetig).length;
 
   if (splitSchritt) {
-    return (
+    return createPortal(
       <ModalShell
         open
         title="Kostenaufteilung"
@@ -1453,14 +1462,20 @@ export default function RechnungReviewModal({
             </button>
           </div>
         </div>}
-      </ModalShell>
+      </ModalShell>,
+      document.body,
     );
   }
 
-  return (
-    <div className="fixed inset-0 z-[100] overflow-y-auto bg-canvas-0/70 backdrop-blur-sm">
-      {/* Sticky Header */}
-      <GlassSurface interactive={false} className="sticky top-0 z-10 flex items-center gap-3 rounded-none border-x-0 border-t-0 px-4 py-3">
+  return createPortal(
+    <div
+      className="invoice-review-overlay fixed inset-0 z-[120] flex min-h-0 flex-col overflow-hidden bg-canvas-0/95 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="invoice-review-title"
+    >
+      {/* Viewport-fester Header */}
+      <GlassSurface interactive={false} className="invoice-review-header z-20 flex shrink-0 items-center gap-3 rounded-none border-x-0 border-t-0 px-4 py-3">
         <button
           onClick={onAbbrechen}
           className="p-1.5 rounded-lg hover:bg-canvas-2 text-dark-text-main transition-colors"
@@ -1468,7 +1483,7 @@ export default function RechnungReviewModal({
         >
           <X size={20} />
         </button>
-        <h2 className="text-lg font-semibold text-dark-text-main flex-1">Rechnung pruefen</h2>
+        <h2 id="invoice-review-title" className="text-lg font-semibold text-dark-text-main flex-1">Rechnung pruefen</h2>
         <button
           onClick={handleSpeichern}
           disabled={hatPflichffehler || speichern}
@@ -1485,7 +1500,8 @@ export default function RechnungReviewModal({
         </button>
       </GlassSurface>
 
-      <div className="max-w-lg mx-auto px-4 pt-5 pb-[calc(var(--mobile-bottom-offset)+1.25rem)] space-y-5">
+      <div className="invoice-review-body min-h-0 flex-1 overflow-y-auto">
+        <div className="max-w-lg mx-auto px-4 py-5 space-y-5">
         {/* Warnungen */}
         {niedrigeConfidence && (
           <div className="flex items-start gap-3 p-3 rounded-card-sm bg-accent-danger/10 border border-accent-danger/30">
@@ -1761,12 +1777,11 @@ export default function RechnungReviewModal({
           }
         />
 
-        {/* Spacer fuer Sticky Footer */}
-        <div className="h-4" />
+        </div>
       </div>
 
-      {/* Sticky Footer (mobil) */}
-      <div className="sticky bottom-0 bg-canvas-1 border-t border-canvas-3 px-4 py-3 flex gap-3">
+      {/* Viewport-fester Footer, oberhalb der iOS Safe Area */}
+      <div className="invoice-review-footer z-20 flex shrink-0 gap-3 border-t border-canvas-3 bg-canvas-1 px-4 py-3">
         <button
           onClick={onAbbrechen}
           className="flex-1 py-3 rounded-card-sm bg-canvas-2 hover:bg-canvas-3
@@ -1789,6 +1804,7 @@ export default function RechnungReviewModal({
           Speichern
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

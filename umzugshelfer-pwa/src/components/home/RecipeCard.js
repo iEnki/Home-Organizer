@@ -27,8 +27,8 @@ export default function RecipeCard({ recipe, display, ingredients = [], onOpen, 
       whileTap={reduced ? {} : { scale: 0.97 }}
       className="w-full overflow-hidden text-left"
     >
-      {/* Thumbnail — compact 4:3 at all sizes */}
-      <div className="relative aspect-[4/3] overflow-hidden bg-light-surface-2 dark:bg-canvas-3">
+      {/* Flaches Vorschaubild, damit mehr Rezepte im sichtbaren Bereich bleiben. */}
+      <div className="relative aspect-[16/9] overflow-hidden bg-light-surface-2 dark:bg-canvas-3">
         {/* Fallback — immer sichtbar, wird vom Bild überdeckt */}
         <div className="flex h-full flex-col items-center justify-center gap-1.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-card-sm bg-primary-500/10">

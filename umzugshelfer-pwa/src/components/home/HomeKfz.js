@@ -450,6 +450,9 @@ export default function HomeKfz({ session }) {
       policies: data.policies.filter(match),
     };
   }, [costCategory, data, periodFrom, selectedVehicleId]);
+  const ignoredFuelImports = useMemo(() => data.fuelImports.filter((row) => (
+    row.status === "ignored" && !row.quell_snapshot?.invalidated_by_strict_detector
+  )), [data.fuelImports]);
 
   useEffect(() => {
     if (!filtered.services.length) return;
@@ -1079,6 +1082,9 @@ export default function HomeKfz({ session }) {
                       ["pending", fuelSyncReport.pending],
                       ["existing", fuelSyncReport.existing],
                       ["ignored", fuelSyncReport.ignored],
+                      ["invalidated", fuelSyncReport.invalidated || 0],
+                      ["removedFalsePositives", fuelSyncReport.removedFalsePositives || 0],
+                      ["needsManualReview", fuelSyncReport.needsManualReview || 0],
                       ["errors", fuelSyncReport.errors?.length || 0],
                     ].map(([key, value]) => (
                       <div key={key} className="rounded-card-sm border border-primary-500/10 bg-white/40 px-3 py-2 dark:bg-white/[0.035]">
@@ -1087,12 +1093,15 @@ export default function HomeKfz({ session }) {
                       </div>
                     ))}
                   </div>
-                  {(fuelSyncReport.repaired > 0 || fuelSyncReport.archived > 0 || fuelSyncReport.foreignHousehold > 0) ? (
+                  {(fuelSyncReport.repaired > 0 || fuelSyncReport.archived > 0 || fuelSyncReport.foreignHousehold > 0 || fuelSyncReport.invalidated > 0 || fuelSyncReport.removedFalsePositives > 0 || fuelSyncReport.needsManualReview > 0) ? (
                     <p className="mt-3 break-words text-xs text-light-text-secondary dark:text-dark-text-secondary">
                       {t("fuelImports.reportDetails", {
                         repaired: fuelSyncReport.repaired,
                         archived: fuelSyncReport.archived,
                         foreign: fuelSyncReport.foreignHousehold,
+                        invalidated: fuelSyncReport.invalidated || 0,
+                        removed: fuelSyncReport.removedFalsePositives || 0,
+                        review: fuelSyncReport.needsManualReview || 0,
                       })}
                     </p>
                   ) : null}
@@ -1149,16 +1158,16 @@ export default function HomeKfz({ session }) {
                   </div>
                 </div>
               ) : null}
-              {data.fuelImports.some((row) => row.status === "ignored") ? (
+              {ignoredFuelImports.length ? (
                 <div className="overflow-hidden rounded-card border border-light-border bg-light-card dark:border-dark-border dark:bg-canvas-2">
                   <button type="button" onClick={() => setIgnoredFuelOpen((current) => !current)} className="flex min-h-12 w-full min-w-0 items-center justify-between gap-3 px-4 text-left">
-                    <span className="min-w-0"><strong className="block">{t("fuelImports.ignoredTitle")}</strong><span className="block text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("fuelImports.ignoredCount", { count: data.fuelImports.filter((row) => row.status === "ignored").length })}</span></span>
+                    <span className="min-w-0"><strong className="block">{t("fuelImports.ignoredTitle")}</strong><span className="block text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("fuelImports.ignoredCount", { count: ignoredFuelImports.length })}</span></span>
                     <ChevronDown size={16} className={`shrink-0 transition-transform ${ignoredFuelOpen ? "rotate-180" : ""}`} />
                   </button>
                   <AnimatePresence initial={false}>
                     {ignoredFuelOpen ? (
                       <motion.div initial={reducedMotion ? false : { height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-t border-light-border dark:border-dark-border">
-                        {data.fuelImports.filter((row) => row.status === "ignored").map((row) => {
+                        {ignoredFuelImports.map((row) => {
                           const snapshot = row.quell_snapshot || {};
                           return (
                             <div key={row.id} className="flex min-w-0 flex-col gap-3 border-b border-light-border px-4 py-3 last:border-0 sm:flex-row sm:items-center dark:border-dark-border">

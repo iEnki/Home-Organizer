@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChefHat, History, Plus, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { supabase } from "../../supabaseClient";
 import { useLocale } from "../../contexts/LocaleContext";
@@ -72,7 +72,7 @@ function GruppenHeader({ label, count }) {
 function SkeletonCard() {
   return (
     <div className="overflow-hidden rounded-card border border-light-border bg-light-card animate-pulse dark:border-dark-border dark:bg-canvas-2">
-      <div className="aspect-[4/3] sm:aspect-[16/9] bg-light-border dark:bg-canvas-3" />
+      <div className="aspect-[16/9] bg-light-border dark:bg-canvas-3" />
       <div className="space-y-2 p-2.5 sm:space-y-2.5 sm:p-4">
         <div className="h-3.5 w-4/5 rounded bg-light-border dark:bg-canvas-3 sm:h-4" />
         <div className="hidden sm:block h-3 w-2/5 rounded bg-light-border dark:bg-canvas-3" />
@@ -117,6 +117,7 @@ export default function HomeKochbuch({ session }) {
   const { rezeptId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
   const reduced = useReducedMotion();
 
@@ -142,7 +143,7 @@ export default function HomeKochbuch({ session }) {
   const [listenFilter, setListenFilter] = useState(null);
   const [searchInZutaten, setSearchInZutaten] = useState(false);
   const [nutritionBusyId, setNutritionBusyId] = useState(null);
-  const [activeTab, setActiveTab] = useState("recipes");
+  const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") === "planner" ? "planner" : "recipes");
   const [plannerInitialRecipe, setPlannerInitialRecipe] = useState(null);
   const [importHistoryOpen, setImportHistoryOpen] = useState(false);
   const [shoppingPreview, setShoppingPreview] = useState(null);
@@ -160,7 +161,8 @@ export default function HomeKochbuch({ session }) {
     if (startModal === "form") setFormOpen(true);
     if (startModal === "listen") setListenModalOffen(true);
     if (startModal === "mealPlanner") setActiveTab("planner");
-    navigate(location.pathname, { replace: true, state: null });
+    const tabParam = startModal === "mealPlanner" ? "?tab=planner" : "";
+    navigate(location.pathname + tabParam, { replace: true, state: null });
   }, [location.pathname, location.state, navigate]);
 
   const loadData = useCallback(async () => {
@@ -639,7 +641,7 @@ export default function HomeKochbuch({ session }) {
     setPlannerInitialRecipe(recipe);
     setSelected(null);
     setActiveTab("planner");
-    navigate("/home/kochbuch");
+    navigate("/home/kochbuch?tab=planner");
   };
 
   const confirmPendingRecipeSave = async () => {
@@ -756,13 +758,13 @@ export default function HomeKochbuch({ session }) {
             <History size={15} /> {t("imports.button")}
           </button>
           <button
-            onClick={() => { setActiveTab("recipes"); setImportOpen(true); }}
+            onClick={() => { setActiveTab("recipes"); setSearchParams({}, { replace: true }); setImportOpen(true); }}
             className="inline-flex items-center gap-1.5 rounded-pill bg-primary-500 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-600 transition-colors"
           >
             <Upload size={15} /> {t("page.import")}
           </button>
           <button
-            onClick={() => { setActiveTab("recipes"); setFormOpen(true); }}
+            onClick={() => { setActiveTab("recipes"); setSearchParams({}, { replace: true }); setFormOpen(true); }}
             className="inline-flex items-center gap-1.5 rounded-pill border border-light-border px-4 py-2 text-sm text-light-text-main hover:bg-light-hover transition-colors dark:border-dark-border dark:text-dark-text-main dark:hover:bg-canvas-3"
           >
             <Plus size={15} /> {t("page.manual")}
@@ -773,7 +775,7 @@ export default function HomeKochbuch({ session }) {
       <div className="inline-flex rounded-card-sm border border-light-border bg-light-surface-1 p-1 dark:border-dark-border dark:bg-canvas-3">
         <button
           type="button"
-          onClick={() => setActiveTab("recipes")}
+          onClick={() => { setActiveTab("recipes"); setSearchParams({}, { replace: true }); }}
           className={`inline-flex items-center gap-1.5 rounded-card-sm px-3 py-1.5 text-sm font-medium transition ${
             activeTab === "recipes"
               ? "bg-light-card text-primary-500 shadow-elevation-1 dark:bg-canvas-2"
@@ -784,7 +786,7 @@ export default function HomeKochbuch({ session }) {
         </button>
         <button
           type="button"
-          onClick={() => setActiveTab("planner")}
+          onClick={() => { setActiveTab("planner"); setSearchParams({ tab: "planner" }, { replace: true }); }}
           className={`inline-flex items-center gap-1.5 rounded-card-sm px-3 py-1.5 text-sm font-medium transition ${
             activeTab === "planner"
               ? "bg-light-card text-primary-500 shadow-elevation-1 dark:bg-canvas-2"
@@ -846,7 +848,7 @@ export default function HomeKochbuch({ session }) {
             {Array.from({ length: 8 }).map((_, i) => <SkeletonListRow key={i} />)}
           </div>
         ) : (
-          <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
           </div>
         )
@@ -908,7 +910,7 @@ export default function HomeKochbuch({ session }) {
           variants={reduced ? {} : sectionVariants}
           initial="hidden"
           animate="show"
-          className="grid gap-3 grid-cols-2 sm:grid-cols-3 xl:grid-cols-4"
+          className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
         >
           {sortiert.map((recipe) => (
             <motion.div key={recipe.id} variants={reduced ? {} : cardVariants}>
@@ -932,7 +934,7 @@ export default function HomeKochbuch({ session }) {
                 variants={reduced ? {} : sectionVariants}
                 initial="hidden"
                 animate="show"
-                className="grid gap-3 grid-cols-2 sm:grid-cols-3 xl:grid-cols-4"
+                className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
               >
                 {gruppiert[key].map((recipe) => (
                   <motion.div key={recipe.id} variants={reduced ? {} : cardVariants}>
