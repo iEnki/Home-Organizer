@@ -1,6 +1,6 @@
 -- ============================================================
 -- Home Organizer Demo-Daten für Demo-User
--- User: demo@demo.com | ID: 982d334b-9604-4363-8a6b-e0ab45234ada
+-- User: demo@demo.com | ID: bc6c7d52-59de-4a7c-a60b-a25434ae9a2a
 --
 -- Szenario: Familie Müller, frisch eingezogen in Wiener Wohnung.
 -- Befüllt alle Home-Organizer-Features mit realistischen Beispielen.
@@ -59,6 +59,32 @@ DECLARE
   v_projekt_bad    UUID;
   v_projekt_winter UUID;
 
+  -- Neuere Home-Organizer-Module
+  v_konto_haushalt UUID;
+  v_konto_anna     UUID;
+  v_budget_tanken  UUID;
+  v_budget_service UUID;
+
+  v_dokument_tanken      UUID;
+  v_dokument_service     UUID;
+  v_dokument_internet    UUID;
+  v_dokument_versicherung UUID;
+  v_rechnung_tanken      UUID;
+  v_rechnung_service     UUID;
+  v_vertrag_internet     UUID;
+  v_polizze_kfz          UUID;
+
+  v_rezept_lasagne UUID;
+  v_rezept_curry   UUID;
+  v_rezept_pancakes UUID;
+
+  v_medikament_ibuprofen UUID;
+
+  v_fahrzeug UUID;
+  v_tankvorgang_import UUID;
+  v_service UUID;
+  v_kfz_aufgabe UUID;
+
 BEGIN
 
   -- ============================================================
@@ -92,6 +118,19 @@ BEGIN
   -- home_orte-Cascade löscht: home_lagerorte → ort_id
   -- home_objekte.lagerort_id / ort_id werden auf NULL gesetzt
   -- ============================================================
+  DELETE FROM public.home_rezepte      WHERE household_id = v_household_id;
+  DELETE FROM public.home_medikamente  WHERE household_id = v_household_id;
+  DELETE FROM public.home_fahrzeuge    WHERE household_id = v_household_id;
+  DELETE FROM public.vertraege         WHERE household_id = v_household_id;
+  DELETE FROM public.versicherungs_polizzen WHERE household_id = v_household_id;
+  DELETE FROM public.rechnungen        WHERE household_id = v_household_id;
+  DELETE FROM public.dokumente
+    WHERE user_id = v_user_id
+      AND household_id = v_household_id
+      AND storage_pfad LIKE 'demo-seed/%';
+  DELETE FROM public.home_budget_view_state WHERE user_id = v_user_id AND household_id = v_household_id;
+  DELETE FROM public.home_budget_views      WHERE user_id = v_user_id AND household_id = v_household_id;
+  DELETE FROM public.home_budget_categories WHERE household_id = v_household_id;
   DELETE FROM public.home_sparziele     WHERE user_id = v_user_id;
   DELETE FROM public.home_budget_limits WHERE user_id = v_user_id;
   DELETE FROM public.home_wissen        WHERE user_id = v_user_id;
@@ -104,7 +143,16 @@ BEGIN
   DELETE FROM public.home_orte          WHERE user_id = v_user_id;
   DELETE FROM public.home_bewohner      WHERE user_id = v_user_id;
   DELETE FROM public.budget_posten      WHERE user_id = v_user_id AND app_modus = 'home';
+  DELETE FROM public.home_finanzkonten  WHERE household_id = v_household_id;
   DELETE FROM public.todo_aufgaben      WHERE user_id = v_user_id AND app_modus = 'home';
+
+  -- Das Bücherregal wird in einigen Bestandsinstallationen über eine
+  -- separate Migration bereitgestellt. Deshalb nur löschen, wenn die
+  -- Tabelle tatsächlich vorhanden ist.
+  IF to_regclass('public.home_buecher') IS NOT NULL THEN
+    EXECUTE 'DELETE FROM public.home_buecher WHERE user_id = $1 AND household_id = $2'
+      USING v_user_id, v_household_id;
+  END IF;
 
 
   -- ============================================================
@@ -1025,6 +1073,554 @@ TIPP: Einen Tag vorher machen – schmeckt aufgewärmt noch besser!$w6$,
     (gen_random_uuid(), v_user_id, v_household_id,
      'Badrenovierung', 2500.00, 400.00, '2026-06-01', '#6366F1', '🛁');
 
+  -- ============================================================
+  -- 16. Erweiterter Finanzmanager
+  -- ============================================================
+  v_konto_haushalt := gen_random_uuid();
+  v_konto_anna     := gen_random_uuid();
+
+  INSERT INTO public.home_finanzkonten (
+    id, household_id, user_id, created_by_user_id, name, konto_typ,
+    inhaber_typ, inhaber_bewohner_id, aktiv, farbe, sortierung
+  ) VALUES
+    (v_konto_haushalt, v_household_id, v_user_id, v_user_id,
+     'Gemeinsames Haushaltskonto', 'haushaltskonto', 'household', NULL, true, '#10B981', 10),
+    (v_konto_anna, v_household_id, v_user_id, v_user_id,
+     'Annas Privatkonto', 'privatkonto', 'bewohner', v_bewohner_anna, true, '#8B5CF6', 20),
+    (gen_random_uuid(), v_household_id, v_user_id, v_user_id,
+     'Gemeinsame Kreditkarte', 'kreditkarte', 'household', NULL, true, '#06B6D4', 30);
+
+  INSERT INTO public.home_budget_categories (
+    id, household_id, name, color, sort_order, is_system, is_active, created_by_user_id
+  ) VALUES
+    (gen_random_uuid(), v_household_id, 'Lebensmittel', '#10B981', 10, true, true, v_user_id),
+    (gen_random_uuid(), v_household_id, 'Hygieneartikel', '#F97316', 20, true, true, v_user_id),
+    (gen_random_uuid(), v_household_id, 'Reinigungsmittel', '#06B6D4', 30, true, true, v_user_id),
+    (gen_random_uuid(), v_household_id, 'Haushalt', '#3B82F6', 40, true, true, v_user_id),
+    (gen_random_uuid(), v_household_id, 'Reparaturen', '#F59E0B', 50, true, true, v_user_id),
+    (gen_random_uuid(), v_household_id, 'Abonnements', '#A855F7', 60, true, true, v_user_id),
+    (gen_random_uuid(), v_household_id, 'Versicherungen', '#EC4899', 70, true, true, v_user_id),
+    (gen_random_uuid(), v_household_id, 'Einrichtung', '#14B8A6', 80, true, true, v_user_id),
+    (gen_random_uuid(), v_household_id, 'Tanken', '#0EA5E9', 90, true, true, v_user_id),
+    (gen_random_uuid(), v_household_id, 'Medikamente & Gesundheit', '#EF4444', 100, true, true, v_user_id),
+    (gen_random_uuid(), v_household_id, 'Freizeit', '#22C55E', 110, true, true, v_user_id),
+    (gen_random_uuid(), v_household_id, 'Sonstiges', '#6B7280', 999, true, true, v_user_id);
+
+  INSERT INTO public.home_budget_views (
+    id, user_id, household_id, name, is_default, filters
+  ) VALUES (
+    gen_random_uuid(), v_user_id, v_household_id,
+    'Haushalt – laufender Monat', true,
+    jsonb_build_object(
+      'scope', 'haushalt',
+      'period', 'current_month',
+      'categories', jsonb_build_array('Lebensmittel', 'Haushalt', 'Tanken', 'Versicherungen')
+    )
+  );
+
+  INSERT INTO public.home_budget_view_state (
+    id, user_id, household_id, current_state
+  ) VALUES (
+    gen_random_uuid(), v_user_id, v_household_id,
+    jsonb_build_object('period', 'current_month', 'scope', 'haushalt')
+  );
+
+  v_budget_tanken  := gen_random_uuid();
+  v_budget_service := gen_random_uuid();
+
+  INSERT INTO public.budget_posten (
+    id, user_id, household_id, app_modus, typ, budget_scope,
+    zahlungskonto_id, beschreibung, kategorie, betrag, datum, wiederholen
+  ) VALUES
+    (v_budget_tanken, v_user_id, v_household_id, 'home', 'ausgabe', 'haushalt',
+     v_konto_haushalt, 'Einkauf bei SOCAR', 'Tanken', -54.40, CURRENT_DATE - 3, false),
+    (v_budget_service, v_user_id, v_household_id, 'home', 'ausgabe', 'haushalt',
+     v_konto_haushalt, 'Jahresservice FastBox', 'Reparaturen', -874.04, CURRENT_DATE - 45, false);
+
+  -- ============================================================
+  -- 17. Dokumentarchiv, Rechnungen, Verträge und Versicherungen
+  -- Die Demo-Dokumente besitzen absichtlich nur Metadaten. Es wird
+  -- keine nicht vorhandene Binärdatei in den Storage geschrieben.
+  -- ============================================================
+  v_dokument_tanken       := gen_random_uuid();
+  v_dokument_service      := gen_random_uuid();
+  v_dokument_internet     := gen_random_uuid();
+  v_dokument_versicherung := gen_random_uuid();
+
+  INSERT INTO public.dokumente (
+    id, user_id, household_id, dateiname, datei_typ, storage_pfad,
+    beschreibung, groesse_kb, kategorie, app_modus, dokument_typ,
+    tags, meta, extrahierter_text
+  ) VALUES
+    (v_dokument_tanken, v_user_id, v_household_id,
+     'rechnung_socar_demo.pdf', 'application/pdf',
+     'demo-seed/rechnung_socar_demo.pdf',
+     'Demo-Tankrechnung von SOCAR', 86, 'Rechnungen', 'home', 'invoice',
+     ARRAY['Demo', 'Tanken', 'SOCAR'],
+     '{"demo_seed":true,"storage_placeholder":true}'::jsonb,
+     'SOCAR Tankstelle Wien, Super 95, 34,87 Liter, Gesamt EUR 54,40'),
+    (v_dokument_service, v_user_id, v_household_id,
+     'fastbox_service_demo.pdf', 'application/pdf',
+     'demo-seed/fastbox_service_demo.pdf',
+     'Demo-Servicebeleg mit KI-Analyse', 412, 'Kfz', 'home', 'invoice',
+     ARRAY['Demo', 'Kfz', 'Service', 'KI-Analyse'],
+     '{"demo_seed":true,"storage_placeholder":true}'::jsonb,
+     'FastBox Jahresservice: Ölwechsel, Filter, Bremsflüssigkeit, §57a-Überprüfung'),
+    (v_dokument_internet, v_user_id, v_household_id,
+     'magenta_internetvertrag_demo.pdf', 'application/pdf',
+     'demo-seed/magenta_internetvertrag_demo.pdf',
+     'Demo-Vertrag für Internet und Festnetz', 220, 'Verträge', 'home', 'contract',
+     ARRAY['Demo', 'Vertrag', 'Internet'],
+     '{"demo_seed":true,"storage_placeholder":true}'::jsonb,
+     'Magenta Zuhause XL, Mindestvertragsdauer 24 Monate, Kündigungsfrist 30 Tage'),
+    (v_dokument_versicherung, v_user_id, v_household_id,
+     'zurich_kfz_polizze_demo.pdf', 'application/pdf',
+     'demo-seed/zurich_kfz_polizze_demo.pdf',
+     'Demo-Kfz-Versicherungspolizze', 305, 'Versicherungen', 'home', 'insurance',
+     ARRAY['Demo', 'Versicherung', 'Kfz'],
+     '{"demo_seed":true,"storage_placeholder":true}'::jsonb,
+     'Zurich Kfz-Haftpflicht und Kasko, Polizzennummer ZH-KFZ-2026-4711');
+
+  v_rechnung_tanken  := gen_random_uuid();
+  v_rechnung_service := gen_random_uuid();
+
+  INSERT INTO public.rechnungen (
+    id, household_id, dokument_id, lieferant_name, rechnungsnummer,
+    rechnungsdatum, leistungsdatum, waehrung, netto, ust, brutto,
+    confidence, extraktion, raw_text
+  ) VALUES
+    (v_rechnung_tanken, v_household_id, v_dokument_tanken,
+     'SOCAR', 'SOCAR-DEMO-0602', CURRENT_DATE - 3, CURRENT_DATE - 3,
+     'EUR', 45.33, 9.07, 54.40, 0.98,
+     '{"quelle":"demo_seed","zahlungsart":"Bankomat"}'::jsonb,
+     'Super 95 34,87 l x 1,560 EUR = 54,40 EUR'),
+    (v_rechnung_service, v_household_id, v_dokument_service,
+     'FastBox Wien', 'R7145450', CURRENT_DATE - 45, CURRENT_DATE - 45,
+     'EUR', 728.37, 145.67, 874.04, 0.96,
+     '{"quelle":"demo_seed","analyse":"kfz-service-analyze","zahlungsart":"Karte"}'::jsonb,
+     'Jahresservice inklusive Ölwechsel, Filtern, Bremsflüssigkeit und §57a-Prüfung');
+
+  INSERT INTO public.rechnungs_positionen (
+    id, household_id, rechnung_id, pos_nr, beschreibung, menge, einheit,
+    einzelpreis, gesamtpreis, ust_satz, klassifikation
+  ) VALUES
+    (gen_random_uuid(), v_household_id, v_rechnung_tanken, 1,
+     'Super 95', 34.872, 'Liter', 1.560, 54.40, 20,
+     '{"budget_kategorie":"Tanken","kategorie":"kraftstoff"}'::jsonb),
+    (gen_random_uuid(), v_household_id, v_rechnung_service, 1,
+     'Jahresservice Arbeitszeit', 2.5, 'Stunde', 96.00, 240.00, 20,
+     '{"budget_kategorie":"Reparaturen","kategorie":"arbeit"}'::jsonb),
+    (gen_random_uuid(), v_household_id, v_rechnung_service, 2,
+     'Motoröl 5W-30', 4.5, 'Liter', 18.90, 85.05, 20,
+     '{"budget_kategorie":"Reparaturen","kategorie":"fluessigkeit"}'::jsonb),
+    (gen_random_uuid(), v_household_id, v_rechnung_service, 3,
+     'Ölfilter und Innenraumfilter', 1, 'Paket', 74.50, 74.50, 20,
+     '{"budget_kategorie":"Reparaturen","kategorie":"ersatzteil"}'::jsonb),
+    (gen_random_uuid(), v_household_id, v_rechnung_service, 4,
+     '§57a-Begutachtung', 1, 'Stück', 89.00, 89.00, 20,
+     '{"budget_kategorie":"Reparaturen","kategorie":"pruefung"}'::jsonb),
+    (gen_random_uuid(), v_household_id, v_rechnung_service, 5,
+     'Bremsflüssigkeit wechseln, Material und weitere Arbeiten', 1, 'Paket',
+     385.49, 385.49, 20,
+     '{"budget_kategorie":"Reparaturen","kategorie":"arbeit"}'::jsonb);
+
+  -- Rechnungen werden wie in der Anwendung über dokument_links mit
+  -- Budgetposten verbunden. budget_posten besitzt bewusst keine
+  -- rechnung_id-Spalte, da ein Posten mehrere Belege haben kann.
+  INSERT INTO public.dokument_links (
+    household_id, dokument_id, entity_type, entity_id, role
+  ) VALUES
+    (v_household_id, v_dokument_tanken, 'rechnung', v_rechnung_tanken, 'original'),
+    (v_household_id, v_dokument_tanken, 'budget_posten', v_budget_tanken, 'receipt'),
+    (v_household_id, v_dokument_service, 'rechnung', v_rechnung_service, 'original'),
+    (v_household_id, v_dokument_service, 'budget_posten', v_budget_service, 'receipt');
+
+  -- ============================================================
+  -- 18. KFZ-Cockpit mit Tankungen, Service, Reifen und Aufgaben
+  -- ============================================================
+  v_fahrzeug := gen_random_uuid();
+
+  INSERT INTO public.home_fahrzeuge (
+    id, household_id, created_by_user_id, name, marke, modell, baujahr,
+    kennzeichen, vin, kilometerstand, kraftstoffart, versicherung,
+    polizzennummer, pickerl_termin, status, notizen
+  ) VALUES (
+    v_fahrzeug, v_household_id, v_user_id,
+    'Rio – W91211D', 'KIA', 'Rio 1.4 CVVT', 2010,
+    'W91211D', 'KNADH511AA6123456', 156100, 'Benzin',
+    'Zurich', 'ZH-KFZ-2026-4711', CURRENT_DATE + 230, 'aktiv',
+    'Demo-Fahrzeug mit vollständiger Kosten-, Tank- und Servicehistorie.'
+  );
+
+  INSERT INTO public.home_fahrzeug_kilometerstaende (
+    id, household_id, fahrzeug_id, created_by_user_id, datum,
+    kilometerstand, quelle, source_id, notizen
+  ) VALUES
+    (gen_random_uuid(), v_household_id, v_fahrzeug, v_user_id,
+     CURRENT_DATE - 120, 154000, 'manuell', gen_random_uuid(), 'Stand bei erster Volltankung'),
+    (gen_random_uuid(), v_household_id, v_fahrzeug, v_user_id,
+     CURRENT_DATE - 45, 155300, 'manuell', gen_random_uuid(), 'Kilometerstand beim Jahresservice'),
+    (gen_random_uuid(), v_household_id, v_fahrzeug, v_user_id,
+     CURRENT_DATE - 3, 156100, 'manuell', gen_random_uuid(), 'Aktueller Kilometerstand');
+
+  INSERT INTO public.home_fahrzeug_tankvorgaenge (
+    id, household_id, fahrzeug_id, created_by_user_id, datum, betrag,
+    tankstelle, liter, kilometerstand, preis_pro_liter, kraftstoffart,
+    quelle, budget_posten_id, rechnung_id, dokument_id, notizen,
+    vollgetankt, verbrauch_bestaetigt, tankstatus, tankstatus_quelle
+  ) VALUES
+    (gen_random_uuid(), v_household_id, v_fahrzeug, v_user_id,
+     CURRENT_DATE - 120, 68.40, 'OMV', 45.000, 154000, 1.520, 'Super 95',
+     'manuell', NULL, NULL, NULL, 'Erster bestätigter Volltankanker',
+     true, true, 'voll', 'manuell'),
+    (gen_random_uuid(), v_household_id, v_fahrzeug, v_user_id,
+     CURRENT_DATE - 90, 46.50, 'Shell', 30.000, 154500, 1.550, 'Super 95',
+     'manuell', NULL, NULL, NULL, 'Zwischentankung',
+     false, true, 'teilweise', 'manuell'),
+    (gen_random_uuid(), v_household_id, v_fahrzeug, v_user_id,
+     CURRENT_DATE - 60, 43.40, 'BP', 28.000, 155050, 1.550, 'Super 95',
+     'manuell', NULL, NULL, NULL, 'Volltankung beendet Verbrauchssegment',
+     true, true, 'voll', 'manuell'),
+    (gen_random_uuid(), v_household_id, v_fahrzeug, v_user_id,
+     CURRENT_DATE - 30, 47.20, 'OMV', 30.000, 155650, 1.573, 'Super 95',
+     'manuell', NULL, NULL, NULL, 'Bestätigte Volltankung',
+     true, true, 'voll', 'manuell');
+
+  v_tankvorgang_import := gen_random_uuid();
+  INSERT INTO public.home_fahrzeug_tankvorgaenge (
+    id, household_id, fahrzeug_id, created_by_user_id, datum, betrag,
+    tankstelle, liter, kilometerstand, preis_pro_liter, kraftstoffart,
+    quelle, budget_posten_id, rechnung_id, dokument_id, notizen,
+    vollgetankt, verbrauch_bestaetigt, tankstatus, tankstatus_quelle
+  ) VALUES (
+    v_tankvorgang_import, v_household_id, v_fahrzeug, v_user_id,
+    CURRENT_DATE - 3, 54.40, 'SOCAR', 34.872, 156100, 1.560, 'Super 95',
+    'rechnung', v_budget_tanken, v_rechnung_tanken, v_dokument_tanken,
+    'Automatisch aus dem Budget erkannt; Tankstatus muss noch bestätigt werden.',
+    false, false, 'unbekannt', 'import'
+  );
+
+  INSERT INTO public.home_fahrzeug_tank_importe (
+    id, household_id, budget_posten_id, rechnung_id, dokument_id,
+    fahrzeug_id, tankvorgang_id, status, erkennungsgrund, confidence,
+    quell_snapshot, resolved_at
+  ) VALUES (
+    gen_random_uuid(), v_household_id, v_budget_tanken, v_rechnung_tanken,
+    v_dokument_tanken, v_fahrzeug, v_tankvorgang_import, 'imported',
+    'Budgetkategorie Tanken, Händler SOCAR und Kraftstoffposition erkannt',
+    0.99,
+    jsonb_build_object(
+      'lieferant', 'SOCAR',
+      'betrag', 54.40,
+      'liter', 34.872,
+      'preis_pro_liter', 1.560,
+      'datum', (CURRENT_DATE - 3)::text
+    ),
+    NOW() - INTERVAL '3 days'
+  );
+
+  v_service := gen_random_uuid();
+  INSERT INTO public.home_fahrzeug_services (
+    id, household_id, fahrzeug_id, created_by_user_id, typ, datum,
+    leistungsdatum, kilometerstand, kosten, werkstatt, beschreibung,
+    naechste_faelligkeit_datum, naechste_faelligkeit_km, dokument_id,
+    rechnung_id, budget_posten_id, rechnungsnummer, zahlungsart,
+    analyse_meta, notizen
+  ) VALUES (
+    v_service, v_household_id, v_fahrzeug, v_user_id,
+    'Jahresservice und §57a', CURRENT_DATE - 45, CURRENT_DATE - 45,
+    155300, 874.04, 'FastBox Wien',
+    'Ölwechsel, Filter, Bremsflüssigkeit, Radkontrolle und §57a-Überprüfung.',
+    CURRENT_DATE + 320, 170000, v_dokument_service,
+    v_rechnung_service, v_budget_service, 'R7145450', 'Karte',
+    '{"quelle":"ki_serviceanalyse","confidence":0.96,"warnings":[]}'::jsonb,
+    'Räder nach 50 bis 100 km kontrollieren und Radmuttern nachziehen.'
+  );
+
+  INSERT INTO public.home_fahrzeug_service_positionen (
+    id, household_id, service_id, sortierung, originaltext, beschreibung,
+    kategorie, menge, einheit, einzelpreis, gesamtpreis, ust_satz,
+    rabatt_betrag, kostenlos, teilenummer, confidence, notizen
+  ) VALUES
+    (gen_random_uuid(), v_household_id, v_service, 1,
+     'Ölwechsel-Plus-Paket', 'Motoröl und Ölfilter gewechselt',
+     'arbeit', 1, 'Paket', 240.00, 240.00, 20, 0, false, NULL, 0.99, NULL),
+    (gen_random_uuid(), v_household_id, v_service, 2,
+     'Motoröl 5W-30 4,5L', 'Motoröl 5W-30',
+     'fluessigkeit', 4.5, 'Liter', 18.90, 85.05, 20, 0, false, NULL, 0.98, NULL),
+    (gen_random_uuid(), v_household_id, v_service, 3,
+     'Ölfilter / Innenraumfilter', 'Ölfilter und Innenraumfilter ersetzt',
+     'ersatzteil', 1, 'Paket', 74.50, 74.50, 20, 0, false, 'KIA-FILTER-SET', 0.97, NULL),
+    (gen_random_uuid(), v_household_id, v_service, 4,
+     '§57a KFZ-Überprüfung', '§57a-Begutachtung durchgeführt',
+     'pruefung', 1, 'Stück', 89.00, 89.00, 20, 0, false, NULL, 0.99, NULL),
+    (gen_random_uuid(), v_household_id, v_service, 5,
+     'Entsorgung Altöl', 'Altöl und gebrauchten Filter fachgerecht entsorgt',
+     'entsorgung', 1, 'Pauschale', 0, 0, 20, 12.00, true, NULL, 0.91,
+     'Kostenlose Position nach Rabatt');
+
+  INSERT INTO public.dokument_links (
+    household_id, dokument_id, entity_type, entity_id, role
+  ) VALUES (
+    v_household_id, v_dokument_service, 'home_fahrzeug_services', v_service, 'original'
+  );
+
+  INSERT INTO public.home_fahrzeug_reifen (
+    id, household_id, fahrzeug_id, created_by_user_id, saison, marke,
+    groesse, profiltiefe, kaufdatum, lagerort, zustand, montiert_ab,
+    naechster_wechsel, austausch_faellig_ab_mm, laufleistung_km,
+    kaufpreis, herstellungsjahr, dot_nummer, notizen
+  ) VALUES
+    (gen_random_uuid(), v_household_id, v_fahrzeug, v_user_id,
+     'Sommerreifen', 'Continental PremiumContact 6', '195/55 R16',
+     5.8, CURRENT_DATE - 700, 'Am Fahrzeug', 'gut', CURRENT_DATE - 70,
+     CURRENT_DATE + 120, 3.0, 18400, 520.00, 2024, '1224',
+     'Luftdruck monatlich kontrollieren.'),
+    (gen_random_uuid(), v_household_id, v_fahrzeug, v_user_id,
+     'Winterreifen', 'Michelin Alpin 6', '195/55 R16',
+     6.4, CURRENT_DATE - 950, 'Tiefgarage – Reifenregal', 'gut',
+     CURRENT_DATE - 250, CURRENT_DATE + 120, 4.0, 12600, 560.00, 2023, '3623',
+     'Auf Alufelgen eingelagert.');
+
+  INSERT INTO public.home_fahrzeug_ausgaben (
+    id, household_id, fahrzeug_id, created_by_user_id, datum,
+    kategorie, beschreibung, betrag, notizen
+  ) VALUES
+    (gen_random_uuid(), v_household_id, v_fahrzeug, v_user_id,
+     CURRENT_DATE - 160, 'Steuer', 'Motorbezogene Versicherungssteuer', 168.00, 'Jahresanteil'),
+    (gen_random_uuid(), v_household_id, v_fahrzeug, v_user_id,
+     CURRENT_DATE - 22, 'Parken', 'Parkpickerl Wien', 120.00, 'Gültig für ein Jahr'),
+    (gen_random_uuid(), v_household_id, v_fahrzeug, v_user_id,
+     CURRENT_DATE - 15, 'Maut', 'Digitale Autobahnvignette', 103.80, NULL);
+
+  v_kfz_aufgabe := gen_random_uuid();
+  INSERT INTO public.home_fahrzeug_aufgaben (
+    id, household_id, fahrzeug_id, service_id, created_by_user_id,
+    titel, beschreibung, status, prioritaet, faellig_am,
+    kilometerstand_faellig, quelle, notizen
+  ) VALUES
+    (v_kfz_aufgabe, v_household_id, v_fahrzeug, v_service, v_user_id,
+     'Nächster Ölwechsel', 'Ölwechsel nach Serviceempfehlung durchführen.',
+     'offen', 'mittel', CURRENT_DATE + 320, 170000, 'ki_serviceanalyse',
+     'Aus dem analysierten Servicebeleg vorgeschlagen.'),
+    (gen_random_uuid(), v_household_id, v_fahrzeug, NULL, v_user_id,
+     'Winterreifen montieren', 'Termin rechtzeitig vor dem ersten Frost vereinbaren.',
+     'offen', 'mittel', CURRENT_DATE + 120, NULL, 'manuell', NULL),
+    (gen_random_uuid(), v_household_id, v_fahrzeug, NULL, v_user_id,
+     'Tankstatus des SOCAR-Belegs bestätigen',
+     'Prüfen, ob der Tank nach dem Tanken bis zum automatischen Zapfpistolen-Stopp voll war.',
+     'offen', 'niedrig', CURRENT_DATE + 2, NULL, 'manuell', NULL);
+
+  INSERT INTO public.home_fahrzeug_teile (
+    id, household_id, fahrzeug_id, aufgabe_id, created_by_user_id,
+    name, teilenummer, menge, einzelpreis, status, bezugsquelle, notizen
+  ) VALUES
+    (gen_random_uuid(), v_household_id, v_fahrzeug, v_kfz_aufgabe, v_user_id,
+     'Ölfilter', 'KIA-26300-35505', 1, 14.90, 'benoetigt', 'Autoteile Wien', NULL),
+    (gen_random_uuid(), v_household_id, v_fahrzeug, v_kfz_aufgabe, v_user_id,
+     'Motoröl 5W-30', NULL, 5, 12.50, 'vorhanden', 'Garage – Werkzeugschrank',
+     'Fünf Liter Reserve vorhanden.');
+
+  v_vertrag_internet := gen_random_uuid();
+  INSERT INTO public.vertraege (
+    id, household_id, dokument_id, partner, vertragstitel, start_date,
+    end_date, kuendigungsfrist_raw, kuendigungsfrist_tage, kuendigbar_ab,
+    review_required, reviewed_at, classification_confidence,
+    extraction_confidence, extraktion
+  ) VALUES (
+    v_vertrag_internet, v_household_id, v_dokument_internet,
+    'Magenta Telekom', 'Zuhause XL Internet',
+    CURRENT_DATE - 420, CURRENT_DATE + 310, '30 Tage zum Vertragsende',
+    30, CURRENT_DATE + 280, false, NOW(), 0.97, 0.95,
+    '{"tarif":"250 Mbit/s","monatlich":39.90,"quelle":"demo_seed"}'::jsonb
+  );
+
+  v_polizze_kfz := gen_random_uuid();
+  INSERT INTO public.versicherungs_polizzen (
+    id, household_id, dokument_id, fahrzeug_id, versicherer,
+    polizzen_nummer, versicherungsart, deckung, praemie,
+    praemien_intervall, naechste_faelligkeit, waehrung,
+    start_date, end_date, review_required, reviewed_at,
+    classification_confidence, extraction_confidence, extraktion
+  ) VALUES (
+    v_polizze_kfz, v_household_id, v_dokument_versicherung, v_fahrzeug,
+    'Zurich', 'ZH-KFZ-2026-4711', 'Kfz-Haftpflicht und Teilkasko',
+    'Haftpflicht EUR 10 Mio., Teilkasko mit EUR 300 Selbstbehalt',
+    180.00, 'vierteljaehrlich', CURRENT_DATE + 20, 'EUR',
+    CURRENT_DATE - 345, CURRENT_DATE + 20, false, NOW(), 0.99, 0.97,
+    '{"kennzeichen":"W91211D","quelle":"demo_seed"}'::jsonb
+  );
+
+  INSERT INTO public.dokument_links (
+    household_id, dokument_id, entity_type, entity_id, role
+  ) VALUES
+    (v_household_id, v_dokument_internet, 'vertrag', v_vertrag_internet, 'original'),
+    (v_household_id, v_dokument_versicherung, 'versicherungs_polizze', v_polizze_kfz, 'original'),
+    (v_household_id, v_dokument_versicherung, 'home_fahrzeuge', v_fahrzeug, 'insurance');
+
+  -- ============================================================
+  -- 19. Heimapotheke
+  -- ============================================================
+  v_medikament_ibuprofen := gen_random_uuid();
+
+  INSERT INTO public.home_medikamente (
+    id, user_id, household_id, name, wirkstoff, darreichungsform,
+    packungsgroesse, bestand, mindestbestand, ablaufdatum, lagerort,
+    kategorie, notizen, kaufdatum, preis, haendler, beipackzettel_url,
+    offizielle_quelle, source_payload
+  ) VALUES
+    (v_medikament_ibuprofen, v_user_id, v_household_id,
+     'Ibuprofen 400 mg', 'Ibuprofen', 'Filmtabletten', '20 Stück',
+     6, 5, CURRENT_DATE + 260, 'Badezimmer – Arzneischrank',
+     'Schmerzmittel', 'Nur nach Packungsbeilage verwenden.',
+     CURRENT_DATE - 80, 6.90, 'Apotheke am Stephansplatz',
+     'https://aspregister.basg.gv.at/', 'BASG',
+     '{"demo_seed":true,"pzn":"DEMO-IBU-400"}'::jsonb),
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'Cetirizin 10 mg', 'Cetirizindihydrochlorid', 'Tabletten', '30 Stück',
+     18, 5, CURRENT_DATE + 420, 'Badezimmer – Arzneischrank',
+     'Allergie', 'Bei Bedarf während der Pollensaison.',
+     CURRENT_DATE - 40, 8.50, 'Online-Apotheke', NULL, NULL,
+     '{"demo_seed":true}'::jsonb),
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'Wunddesinfektionsspray', 'Octenidin', 'Spray', '50 ml',
+     1, 1, CURRENT_DATE + 600, 'Erste-Hilfe-Box',
+     'Erste Hilfe', 'Für kleine oberflächliche Wunden.',
+     CURRENT_DATE - 120, 7.80, 'dm', NULL, NULL,
+     '{"demo_seed":true}'::jsonb),
+    (gen_random_uuid(), v_user_id, v_household_id,
+     'Nasenspray Kinder', 'Xylometazolin', 'Nasenspray', '10 ml',
+     0, 1, CURRENT_DATE + 45, 'Badezimmer – Arzneischrank',
+     'Erkältung', 'Bestand leer – bei Bedarf nachkaufen.',
+     CURRENT_DATE - 200, 5.20, 'Apotheke', NULL, NULL,
+     '{"demo_seed":true}'::jsonb);
+
+  INSERT INTO public.home_medikament_beipackzettel_analysen (
+    id, medikament_id, household_id, source_url, source_hash,
+    analyse_status, summary_payload, model, analysiert_am
+  ) VALUES (
+    gen_random_uuid(), v_medikament_ibuprofen, v_household_id,
+    'https://aspregister.basg.gv.at/', 'demo-ibuprofen-400',
+    'completed',
+    jsonb_build_object(
+      'kurzfassung', 'Schmerzstillendes und entzündungshemmendes Arzneimittel.',
+      'wichtige_hinweise', jsonb_build_array(
+        'Nicht bei bekannten Magen-Darm-Geschwüren ohne ärztliche Rücksprache verwenden.',
+        'Dosierung und maximale Tagesdosis der Packungsbeilage beachten.'
+      ),
+      'demo_seed', true
+    ),
+    'demo-seed', NOW() - INTERVAL '2 days'
+  );
+
+  -- ============================================================
+  -- 20. Kochbuch und Essensplanung
+  -- ============================================================
+  v_rezept_lasagne  := gen_random_uuid();
+  v_rezept_curry    := gen_random_uuid();
+  v_rezept_pancakes := gen_random_uuid();
+
+  INSERT INTO public.home_rezepte (
+    id, household_id, user_id, titel, beschreibung, quelle_plattform,
+    import_typ, analyse_modus, sprache, ziel_locale, standort, confidence,
+    gruppe, portionen, vorbereitungszeit_minuten, kochzeit_minuten,
+    gesamtzeit_minuten, kosten_min, kosten_max, waehrung,
+    kalorien_pro_portion, protein_pro_portion_g, kohlenhydrate_pro_portion_g,
+    fett_pro_portion_g, anleitung, equipment, notizen, tags,
+    favorisiert, status, raw_import_result
+  ) VALUES
+    (v_rezept_lasagne, v_household_id, v_user_id,
+     'Lasagne al forno', 'Familienrezept mit Bolognese und Béchamelsauce.',
+     'manuell', 'manuell', 'web', 'de', 'de', 'Wien, Österreich', 1.0,
+     'Familienrezepte', 4, 25, 55, 80, 12.00, 16.00, 'EUR',
+     720, 36, 68, 31,
+     '["Bolognese aus Zwiebel, Knoblauch, Hackfleisch und Tomaten kochen.","Béchamelsauce vorbereiten und Backofen auf 180 °C vorheizen.","Lasagne schichten und mit Käse abschließen.","Etwa 40 Minuten backen und vor dem Servieren ruhen lassen."]'::jsonb,
+     '["Großer Topf","Auflaufform","Kochlöffel"]'::jsonb,
+     'Schmeckt am nächsten Tag besonders gut.',
+     ARRAY['Pasta', 'Familie', 'Ofengericht'], true, 'gespeichert',
+     '{"quelle":"demo_seed"}'::jsonb),
+    (v_rezept_curry, v_household_id, v_user_id,
+     'Kichererbsen-Kokos-Curry', 'Schnelles vegetarisches Curry für den Alltag.',
+     'Webseite', 'web', 'web', 'de', 'de', 'Wien, Österreich', 0.94,
+     'Schnelle Küche', 4, 10, 25, 35, 8.00, 11.00, 'EUR',
+     510, 17, 62, 21,
+     '["Zwiebel, Knoblauch und Ingwer anbraten.","Currypaste kurz mitrösten.","Kichererbsen, Tomaten und Kokosmilch zugeben.","20 Minuten köcheln und mit Limette abschmecken."]'::jsonb,
+     '["Pfanne","Sieb","Messer"]'::jsonb,
+     'Mit Reis oder Naan servieren.',
+     ARRAY['Vegetarisch', 'Curry', 'Schnell'], true, 'gespeichert',
+     '{"quelle":"demo_seed","importiert":true}'::jsonb),
+    (v_rezept_pancakes, v_household_id, v_user_id,
+     'Fluffige Pancakes', 'Einfaches Frühstücksrezept.',
+     'Video', 'video', 'combined', 'de', 'de', 'Wien, Österreich', 0.91,
+     'Frühstück', 3, 10, 15, 25, 4.50, 6.00, 'EUR',
+     430, 12, 58, 16,
+     '["Trockene Zutaten vermischen.","Milch, Ei und Butter einrühren.","Teig zehn Minuten ruhen lassen.","Pancakes portionsweise goldbraun ausbacken."]'::jsonb,
+     '["Schüssel","Schneebesen","Pfanne"]'::jsonb,
+     'Mit Beeren und Ahornsirup servieren.',
+     ARRAY['Frühstück', 'Süß', 'Kinder'], false, 'gespeichert',
+     '{"quelle":"demo_seed","video_import":true}'::jsonb);
+
+  INSERT INTO public.home_rezept_zutaten (
+    id, rezept_id, household_id, name, normalized_name, kategorie,
+    menge, einheit, menge_text, original_text, confidence,
+    kosten_min, kosten_max, waehrung, einkauf_noetig, sortierung
+  ) VALUES
+    (gen_random_uuid(), v_rezept_lasagne, v_household_id, 'Hackfleisch gemischt', 'hackfleisch', 'Lebensmittel', 500, 'g', '500 g', '500 g Hackfleisch', 1.0, 5.00, 6.50, 'EUR', true, 1),
+    (gen_random_uuid(), v_rezept_lasagne, v_household_id, 'Lasagneplatten', 'lasagneplatten', 'Lebensmittel', 250, 'g', '250 g', '250 g Lasagneplatten', 1.0, 1.50, 2.20, 'EUR', false, 2),
+    (gen_random_uuid(), v_rezept_lasagne, v_household_id, 'Tomaten stückig', 'tomaten dose', 'Lebensmittel', 2, 'Dose', '2 Dosen', '2 Dosen Tomaten', 1.0, 2.00, 3.00, 'EUR', false, 3),
+    (gen_random_uuid(), v_rezept_curry, v_household_id, 'Kichererbsen', 'kichererbsen', 'Lebensmittel', 2, 'Dose', '2 Dosen', '2 Dosen Kichererbsen', 0.99, 1.80, 2.60, 'EUR', true, 1),
+    (gen_random_uuid(), v_rezept_curry, v_household_id, 'Kokosmilch', 'kokosmilch', 'Lebensmittel', 400, 'ml', '400 ml', '1 Dose Kokosmilch', 0.98, 1.50, 2.20, 'EUR', true, 2),
+    (gen_random_uuid(), v_rezept_curry, v_household_id, 'Currypaste', 'currypaste', 'Lebensmittel', 2, 'EL', '2 EL', '2 EL rote Currypaste', 0.94, 0.50, 0.90, 'EUR', false, 3),
+    (gen_random_uuid(), v_rezept_pancakes, v_household_id, 'Mehl', 'mehl', 'Lebensmittel', 250, 'g', '250 g', '250 g Mehl', 1.0, 0.30, 0.50, 'EUR', false, 1),
+    (gen_random_uuid(), v_rezept_pancakes, v_household_id, 'Milch', 'milch', 'Lebensmittel', 300, 'ml', '300 ml', '300 ml Milch', 1.0, 0.45, 0.65, 'EUR', true, 2),
+    (gen_random_uuid(), v_rezept_pancakes, v_household_id, 'Ei', 'ei', 'Lebensmittel', 2, 'Stück', '2 Stück', '2 Eier', 1.0, 0.70, 1.00, 'EUR', false, 3);
+
+  INSERT INTO public.home_rezept_plan (
+    id, household_id, user_id, rezept_id, planned_date, meal_slot,
+    portionen, notizen, sort_order, recurrence_frequency
+  ) VALUES
+    (gen_random_uuid(), v_household_id, v_user_id, v_rezept_curry,
+     CURRENT_DATE + 1, 'dinner', 4, 'Reis aus dem Vorrat verwenden.', 10, 'none'),
+    (gen_random_uuid(), v_household_id, v_user_id, v_rezept_pancakes,
+     CURRENT_DATE + 3, 'breakfast', 3, 'Beeren einkaufen.', 10, 'none'),
+    (gen_random_uuid(), v_household_id, v_user_id, v_rezept_lasagne,
+     CURRENT_DATE + 5, 'dinner', 4, 'Für Sonntag vorbereiten.', 10, 'none');
+
+  -- ============================================================
+  -- 21. Bücherregal (nur wenn die optionale Buchmigration vorliegt)
+  -- ============================================================
+  IF to_regclass('public.home_buecher') IS NOT NULL THEN
+    EXECUTE $sql$
+      INSERT INTO public.home_buecher (
+        id, user_id, household_id, created_by_user_id, titel, untertitel,
+        autoren, autor_anzeige, isbn_13, verlag, erscheinungsjahr, sprache,
+        seitenzahl, beschreibung, tags, ort_id, lagerort_id, status,
+        zustand, anzahl, notizen, api_quelle, api_ref, api_payload
+      ) VALUES
+        (gen_random_uuid(), $1, $2, $1, 'Clean Code', NULL,
+         ARRAY['Robert C. Martin'], 'Robert C. Martin', '9780132350884',
+         'Prentice Hall', 2008, 'de', 464,
+         'Grundlagen für lesbaren und wartbaren Code.',
+         ARRAY['Softwareentwicklung','Fachbuch'], $3, $4, 'im_regal',
+         'gut', 1, 'Häufig verwendetes Nachschlagewerk.',
+         'openlibrary', 'OL22856696M', '{"demo_seed":true}'::jsonb),
+        (gen_random_uuid(), $1, $2, $1, 'Der Name der Rose', NULL,
+         ARRAY['Umberto Eco'], 'Umberto Eco', '9783423010518',
+         'dtv', 1982, 'de', 654,
+         'Historischer Roman in einer mittelalterlichen Abtei.',
+         ARRAY['Roman','Klassiker'], $3, $4, 'im_regal',
+         'sehr_gut', 1, NULL,
+         'openlibrary', 'OL7353617M', '{"demo_seed":true}'::jsonb),
+        (gen_random_uuid(), $1, $2, $1, 'Atomic Habits', NULL,
+         ARRAY['James Clear'], 'James Clear', '9781847941831',
+         'Random House', 2018, 'en', 320,
+         'Praktische Methoden zum Aufbau guter Gewohnheiten.',
+         ARRAY['Sachbuch','Produktivität'], $3, $4, 'verliehen',
+         'gut', 1, 'An Nachbar Peter verliehen.',
+         'google_books', 'fFCjDQAAQBAJ', '{"demo_seed":true}'::jsonb)
+    $sql$ USING v_user_id, v_household_id, v_ort_wohnung, v_lager_buecher;
+  END IF;
+
 
   RAISE NOTICE '✅ Demo-Daten erfolgreich eingefügt für User: %', v_user_id;
   RAISE NOTICE '   Haushalt-ID: %', v_household_id;
@@ -1041,5 +1637,15 @@ TIPP: Einen Tag vorher machen – schmeckt aufgewärmt noch besser!$w6$,
   RAISE NOTICE '     Einmalig: KFZ-Inspektion, Urlaub, Kaffeemaschine, uvm.';
   RAISE NOTICE '   → 6 Budget-Limits, 2 Sparziele';
   RAISE NOTICE '   → 12 Verlaufeinträge, 6 Wissenseinträge';
+  RAISE NOTICE '   → 3 Finanzkonten, Budgetkategorien und gespeicherte Budgetansicht';
+  RAISE NOTICE '   → 4 Dokumente, 2 Rechnungen, 1 Vertrag und 1 Versicherung';
+  RAISE NOTICE '   → 1 Fahrzeug mit Tankungen, Servicepositionen, Reifen, Kosten und Aufgaben';
+  RAISE NOTICE '   → 4 Medikamente und 1 analysierter Beipackzettel';
+  RAISE NOTICE '   → 3 Rezepte, 9 Zutaten und 3 geplante Mahlzeiten';
+  IF to_regclass('public.home_buecher') IS NOT NULL THEN
+    RAISE NOTICE '   → 3 Bücher im optionalen Bücherregal';
+  ELSE
+    RAISE NOTICE '   → Bücherregal übersprungen: Tabelle public.home_buecher fehlt';
+  END IF;
 
 END $$;

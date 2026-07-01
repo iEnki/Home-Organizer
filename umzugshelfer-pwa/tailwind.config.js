@@ -91,7 +91,7 @@ module.exports = {
         "light-card":          "#FFFFFF",  // was undefined
         "light-hover":         "#F1F5F9",  // was undefined → light-surface-1
         "light-text-main":     "#1F2937",  // unchanged gray-800
-        "light-text-secondary":"#6B7280",  // unchanged gray-500
+        "light-text-secondary":"#4B5563",  // gray-600 → besserer Kontrast über Hintergrundbildern (Dark unberührt via dark-text-secondary)
         "light-accent-green":  "#10B981",  // → primary-500 (unified)
         "light-accent-purple": "#8B5CF6",  // unchanged violet-500
         "light-accent-orange": "#F59E0B",  // → accent-yellow

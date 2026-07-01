@@ -31,10 +31,13 @@ REACT_APP_SUPABASE_URL=https://your-supabase.example.com
 REACT_APP_SUPABASE_ANON_KEY=your-anon-key
 REACT_APP_PASSWORD_RESET_REDIRECT_URL=http://localhost:3000/update-password
 REACT_APP_VAPID_PUBLIC_KEY=your-vapid-public-key
+REACT_APP_GLOBAL_ASSISTANT_ENABLED=true
 GENERATE_SOURCEMAP=false
 ```
 
-`REACT_APP_SUPABASE_URL` and `REACT_APP_SUPABASE_ANON_KEY` are required. Push notifications need the VAPID key. Do not place service-role keys or AI-provider secrets in frontend environment files.
+`REACT_APP_SUPABASE_URL` and `REACT_APP_SUPABASE_ANON_KEY` are required. Push notifications need the VAPID key. `REACT_APP_GLOBAL_ASSISTANT_ENABLED` is optional and defaults to enabled. Do not place service-role keys or AI-provider secrets in frontend environment files.
+
+The production Dockerfile currently does not forward `REACT_APP_PASSWORD_RESET_REDIRECT_URL` as a build argument. Docker builds use the application origin plus `/update-password`; the explicit variable applies to local builds.
 
 ## Commands
 
@@ -72,15 +75,22 @@ src/
 
 Important domain areas include `components/home/kfz`, `components/home/budget`, `components/home/documents`, `components/home/geraete` and the recipe components under `components/home`.
 
+Recent domain capabilities include saved and bulk-editable budget views, queued recipe imports with review/history, duplicate-safe vehicle fuel-receipt imports, configurable mobile navigation and separate household AI-model settings for chat, vision and cookbook processing.
+
 ## Backend Contract
 
 The frontend expects:
 
 - the schema from `../database_setup_complete.sql`;
+- any dated migrations required by the deployed feature set (see the repository-level schema notes);
 - household-scoped RLS policies;
 - configured storage buckets and document links;
 - the Edge Functions in `../supabase/functions`;
 - local OCR and recipe services for the corresponding fullstack features.
+
+The Edge Functions cover authenticated AI chat and vision, invoices and document OCR, KFZ service analysis, recipe import/finalisation, book and medicine lookups, invitations, account deletion, push delivery and scheduled reminder checks. Provider secrets and service-role credentials belong in the backend runtime only.
+
+The core application can be self-hosted, but selected integrations require outbound access: OpenAI, OpenLibrary/Google Books, BASG medicine data, recipe source sites and browser-OCR CDN assets. Scheduled push reminders also require an external scheduler or `pg_cron`/`pg_net` call to `check-reminders`.
 
 Apply schema changes to both the dated migration under `../scripts` and the complete schema when adding database functionality.
 
