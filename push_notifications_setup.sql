@@ -70,8 +70,8 @@ $$;
 -- Folgende Secrets anlegen:
 --
 --   VAPID_SUBJECT     = mailto:deine@email.de
---   VAPID_PUBLIC_KEY  = BJWU4i1CJRIwQDTPRGfxccDO9qAXVaEWnkl5SUn8SrcQK4IYhbENOsbFtw9LfcVYR4i45KWjjeYVeuKsXg-FW4A
---   VAPID_PRIVATE_KEY = lFEbXMQeRNX5LsfFPHkcatQM4jbPR1g0LH3ct10L648
+--   VAPID_PUBLIC_KEY  = <dein-public-key>
+--   VAPID_PRIVATE_KEY = <dein-private-key>
 --
 -- WICHTIG: Den Private Key sicher aufbewahren und niemals im Code committen!
 
@@ -84,6 +84,44 @@ ALTER TABLE public.todo_aufgaben
   ADD COLUMN IF NOT EXISTS letzte_push_bald_faellig_fuer date,
   ADD COLUMN IF NOT EXISTS letzte_push_ueberfaellig_am   timestamptz,
   ADD COLUMN IF NOT EXISTS letzte_push_neu_am             timestamptz;
+
+ALTER TABLE public.user_profile
+  ADD COLUMN IF NOT EXISTS timezone text NOT NULL DEFAULT 'Europe/Vienna';
+
+CREATE TABLE IF NOT EXISTS public.home_push_reminder_state (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id uuid NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+  recipient_user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  entity_type text NOT NULL,
+  entity_id text NOT NULL,
+  reminder_type text NOT NULL,
+  reminder_key text NOT NULL,
+  period_key text NOT NULL,
+  last_value jsonb NOT NULL DEFAULT '{}'::jsonb,
+  last_sent_at timestamptz NOT NULL DEFAULT now(),
+  delivery_status text NOT NULL DEFAULT 'sent',
+  reserved_at timestamptz NOT NULL DEFAULT now(),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.home_push_reminder_state
+  ADD COLUMN IF NOT EXISTS delivery_status text NOT NULL DEFAULT 'sent',
+  ADD COLUMN IF NOT EXISTS reserved_at timestamptz NOT NULL DEFAULT now();
+
+CREATE INDEX IF NOT EXISTS idx_home_push_reminder_state_pending
+  ON public.home_push_reminder_state (delivery_status, reserved_at)
+  WHERE delivery_status = 'pending';
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_home_push_reminder_state_unique
+  ON public.home_push_reminder_state (
+    household_id, recipient_user_id, entity_type, entity_id,
+    reminder_type, reminder_key, period_key
+  );
+
+ALTER TABLE public.home_push_reminder_state ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS home_push_reminder_state_household_member_access
+  ON public.home_push_reminder_state;
 
 
 -- ── 5. Edge Functions deployen ───────────────────────────────────────────────

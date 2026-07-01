@@ -16,6 +16,8 @@ services:
     ports:
       - "${APP_PORT}:80" # Mappt den in .env definierten Port auf Port 80 des Containers (Nginx)
     restart: unless-stopped
+    volumes:
+      - ./umzugshelfer-pwa/public/Background:/usr/share/nginx/html/Background:ro
     env_file:
       - .env # Lädt Umgebungsvariablen aus der .env Datei (primär für docker-compose selbst)
     # Umgebungsvariablen für den Container zur Laufzeit (Nginx benötigt diese nicht direkt,

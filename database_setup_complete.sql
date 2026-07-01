@@ -2346,6 +2346,7 @@ CREATE TABLE IF NOT EXISTS public.household_settings (
   umzug_deaktiviert             boolean NOT NULL DEFAULT false,
   ki_provider                   text NOT NULL DEFAULT 'openai',
   openai_api_key                text,
+  openai_model                  text,
   ollama_base_url               text,
   ollama_model                  text DEFAULT 'llama3.2',
   kochbuch_ki_provider          text NOT NULL DEFAULT 'global',
@@ -2356,6 +2357,7 @@ CREATE TABLE IF NOT EXISTS public.household_settings (
   bildanalyse_modus             text DEFAULT 'chatgpt_vision',
   llamacloud_api_key            text,
   bildanalyse_openai_api_key    text,
+  bildanalyse_openai_model      text,
   updated_at                    timestamptz NOT NULL DEFAULT NOW(),
   updated_by                    uuid REFERENCES auth.users(id) ON DELETE SET NULL
 );
@@ -2808,11 +2810,13 @@ BEGIN
 END;
 $$;
 
+DROP FUNCTION IF EXISTS public.set_household_ki_settings(text, text, text, text);
 CREATE OR REPLACE FUNCTION public.set_household_ki_settings(
   p_ki_provider text,
   p_openai_api_key text,
   p_ollama_base_url text,
-  p_ollama_model text
+  p_ollama_model text,
+  p_openai_model text DEFAULT NULL
 )
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = ''
@@ -2825,11 +2829,12 @@ BEGIN
   END IF;
 
   INSERT INTO public.household_settings (
-    household_id, ki_provider, openai_api_key, ollama_base_url, ollama_model, updated_by
+    household_id, ki_provider, openai_api_key, openai_model, ollama_base_url, ollama_model, updated_by
   ) VALUES (
     v_household_id,
     COALESCE(NULLIF(BTRIM(p_ki_provider), ''), 'openai'),
     NULLIF(BTRIM(p_openai_api_key), ''),
+    NULLIF(BTRIM(p_openai_model), ''),
     NULLIF(BTRIM(p_ollama_base_url), ''),
     COALESCE(NULLIF(BTRIM(p_ollama_model), ''), 'llama3.2'),
     (SELECT auth.uid())
@@ -2837,6 +2842,7 @@ BEGIN
   ON CONFLICT (household_id) DO UPDATE
   SET ki_provider     = EXCLUDED.ki_provider,
       openai_api_key  = EXCLUDED.openai_api_key,
+      openai_model    = EXCLUDED.openai_model,
       ollama_base_url = EXCLUDED.ollama_base_url,
       ollama_model    = EXCLUDED.ollama_model,
       updated_by      = (SELECT auth.uid()),
@@ -3592,6 +3598,9 @@ ALTER TABLE public.household_settings
   ADD COLUMN IF NOT EXISTS kochbuch_ollama_model text,
   ADD COLUMN IF NOT EXISTS kochbuch_ollama_thinking_enabled boolean NOT NULL DEFAULT false;
 ALTER TABLE public.household_settings
+  ADD COLUMN IF NOT EXISTS openai_model text,
+  ADD COLUMN IF NOT EXISTS bildanalyse_openai_model text;
+ALTER TABLE public.household_settings
   ADD COLUMN IF NOT EXISTS llamacloud_api_key text;
 ALTER TABLE public.household_settings
   ADD COLUMN IF NOT EXISTS llamacloud_key_set boolean
@@ -3627,7 +3636,8 @@ DROP FUNCTION IF EXISTS public.set_household_bildanalyse_settings(text, text);
 CREATE OR REPLACE FUNCTION public.set_household_bildanalyse_settings(
   p_modus                      text,
   p_bildanalyse_openai_api_key text DEFAULT NULL,
-  p_ollama_vision_model        text DEFAULT NULL
+  p_ollama_vision_model        text DEFAULT NULL,
+  p_bildanalyse_openai_model   text DEFAULT NULL
 )
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = ''
@@ -3644,8 +3654,8 @@ BEGIN
     RAISE EXCEPTION 'Nur Admin darf Bildanalyse-Einstellungen aendern.';
   END IF;
 
-  INSERT INTO public.household_settings (household_id, bildanalyse_modus, bildanalyse_openai_api_key, ollama_vision_model)
-  VALUES (v_household_id, p_modus, p_bildanalyse_openai_api_key, p_ollama_vision_model)
+  INSERT INTO public.household_settings (household_id, bildanalyse_modus, bildanalyse_openai_api_key, ollama_vision_model, bildanalyse_openai_model)
+  VALUES (v_household_id, p_modus, p_bildanalyse_openai_api_key, p_ollama_vision_model, NULLIF(BTRIM(p_bildanalyse_openai_model), ''))
   ON CONFLICT (household_id) DO UPDATE
   SET bildanalyse_modus              = EXCLUDED.bildanalyse_modus,
       bildanalyse_openai_api_key     = CASE
@@ -3654,6 +3664,10 @@ BEGIN
         ELSE p_bildanalyse_openai_api_key
       END,
       ollama_vision_model            = COALESCE(p_ollama_vision_model, public.household_settings.ollama_vision_model),
+      bildanalyse_openai_model       = CASE
+        WHEN p_bildanalyse_openai_model IS NULL THEN public.household_settings.bildanalyse_openai_model
+        ELSE NULLIF(BTRIM(p_bildanalyse_openai_model), '')
+      END,
       updated_at                     = NOW();
 END;
 $$;

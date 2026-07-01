@@ -156,7 +156,7 @@ const payload = await parseJson(req);
 
   const { data: settings, error: settingsError } = await supabaseAdmin
     .from("household_settings")
-    .select("ki_provider, openai_api_key, ollama_base_url, ollama_model, kochbuch_ai_model, kochbuch_ki_provider, kochbuch_openai_model, kochbuch_ollama_model, kochbuch_ollama_thinking_enabled")
+    .select("ki_provider, openai_api_key, openai_model, ollama_base_url, ollama_model, kochbuch_ai_model, kochbuch_ki_provider, kochbuch_openai_model, kochbuch_ollama_model, kochbuch_ollama_thinking_enabled")
     .eq("household_id", membership.household_id)
     .maybeSingle();
 
@@ -266,7 +266,7 @@ const payload = await parseJson(req);
     const openaiModel =
       context === "kochbuch"
         ? settings.kochbuch_openai_model || settings.kochbuch_ai_model || "gpt-4o-mini"
-        : requestedModel || "gpt-4o";
+        : settings.openai_model || requestedModel || "gpt-4o";
     const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {

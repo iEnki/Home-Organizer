@@ -43,6 +43,10 @@ const WORKER_OVERRIDES: Record<string, { timeoutMs: number; memoryLimitMb: numbe
     timeoutMs: 180_000,
     memoryLimitMb: 256,
   },
+  "ki-vision": {
+    timeoutMs: 180_000,
+    memoryLimitMb: 256,
+  },
 };
 
 Deno.serve(async (req: Request) => {
