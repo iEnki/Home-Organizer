@@ -50,7 +50,7 @@ describe("GlassSurface", () => {
   });
 
   test("exports the layout and collapse animation contracts", () => {
-    expect(glassSurfaceClass).toContain("dark:bg-[#07161d]/30");
+    expect(glassSurfaceClass).toContain("dark:bg-[#07161d]/[0.22]");
     expect(glassPageVariants.show.transition.staggerChildren).toBe(0.045);
     expect(glassCollapseVariants.show.height).toBe("auto");
     expect(glassCollapseVariants.exit.height).toBe(0);

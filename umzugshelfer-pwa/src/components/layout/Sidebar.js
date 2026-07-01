@@ -301,7 +301,7 @@ const Sidebar = ({ activeRoute, onNavigate, appMode, mobileNavigationEnabled = f
         data-tour="tour-sidebar"
         style={{ width: isCollapsed ? COLLAPSED_W : EXPANDED_W }}
         className={`sidebar-rail hidden lg:flex fixed inset-y-0 left-0 z-50 flex-col
-                    bg-white/50 dark:bg-canvas-1/45
+                    bg-white/70 dark:bg-canvas-1/45
                     border-r border-light-border/70 dark:border-white/[0.08]
                     overflow-hidden
                     ${isCollapsed ? "" : "shadow-elevation-3 dark:border-r-primary-500/20"}`}

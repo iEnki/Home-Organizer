@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Search, Bell, Home, ChevronDown, Settings, LogOut, Crown, Users, Sparkles } from "lucide-react";
-import ThemeSwitch from "../ThemeSwitch";
+import DayNightToggle from "../DayNightToggle";
 import SparklesText from "../ui/SparklesText";
 import { supabase } from "../../supabaseClient";
 
@@ -205,7 +205,7 @@ const Topbar = ({
           <Search size={18} />
         </button>
 
-        <ThemeSwitch />
+        <DayNightToggle />
 
         {/* KI-Assistent-Button */}
         {onOpenAssistant && (

@@ -18,9 +18,12 @@ import { useTourContext } from "../contexts/TourContext";
 import { useAppMode } from "../contexts/AppModeContext";
 import { useLocale } from "../contexts/LocaleContext";
 import useViewport from "../hooks/useViewport";
-import ThemeSwitch from "./ThemeSwitch";
+import DayNightToggle from "./DayNightToggle";
 import usePushSubscription from "../hooks/usePushSubscription";
 import BottomSheet from "./ui/BottomSheet";
+
+const OPENAI_MODEL_CUSTOM_VALUE = "__custom__";
+const OPENAI_MODEL_PRESETS = ["gpt-4o-mini", "gpt-4o"];
 
 // ── Status-Badge ────────────────────────────────────────────────────────────
 function StatusBadge({ label, farbe }) {
@@ -157,6 +160,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
   const [apiKeyVisible,    setApiKeyVisible]    = useState(false);
   const [speichernStatus,  setSpeichernStatus]  = useState(null);
   const [kiProvider,       setKiProvider]       = useState("openai");
+  const [openaiModel,      setOpenaiModel]      = useState("gpt-4o");
   const [ollamaUrl,        setOllamaUrl]        = useState("");
   const [ollamaModel,      setOllamaModel]      = useState("llama3.2");
   const [ollamaStatus,     setOllamaStatus]     = useState(null);
@@ -172,6 +176,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
   const [bildanalyseOpenaiKeySet, setBildanalyseOpenaiKeySet] = useState(false);
   const [loescheOpenaiKey,        setLoescheOpenaiKey]        = useState(false);
   const [bildanalyseStatus,       setBildanalyseStatus]       = useState(null);
+  const [bildanalyseOpenaiModel,  setBildanalyseOpenaiModel]  = useState("gpt-4o");
   const [ollamaVisionModel,       setOllamaVisionModel]       = useState("");
 
   // Kochbuch-Importe
@@ -273,11 +278,13 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     if (!userId || !isHouseholdAdmin || !householdContext?.household_id) return;
     supabase
       .from("household_settings")
-      .select("bildanalyse_modus, bildanalyse_openai_key_set, ollama_vision_model, kochbuch_daily_web_import_limit, kochbuch_daily_video_import_limit, kochbuch_ki_provider, kochbuch_openai_model, kochbuch_ollama_model, kochbuch_ollama_thinking_enabled")
+      .select("openai_model, bildanalyse_modus, bildanalyse_openai_key_set, bildanalyse_openai_model, ollama_vision_model, kochbuch_daily_web_import_limit, kochbuch_daily_video_import_limit, kochbuch_ki_provider, kochbuch_openai_model, kochbuch_ollama_model, kochbuch_ollama_thinking_enabled")
       .eq("household_id", householdContext.household_id)
       .maybeSingle()
       .then(({ data }) => {
         if (data?.bildanalyse_modus) setBildanalyseModus(data.bildanalyse_modus);
+        if (data?.openai_model) setOpenaiModel(data.openai_model);
+        if (data?.bildanalyse_openai_model) setBildanalyseOpenaiModel(data.bildanalyse_openai_model);
         if (data?.bildanalyse_openai_key_set !== undefined) setBildanalyseOpenaiKeySet(!!data.bildanalyse_openai_key_set);
         if (data?.ollama_vision_model) setOllamaVisionModel(data.ollama_vision_model);
         if (data?.kochbuch_daily_web_import_limit !== undefined) setKochbuchWebLimit(data.kochbuch_daily_web_import_limit);
@@ -423,6 +430,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         p_openai_api_key: apiKey.trim() || null,
         p_ollama_base_url: null,
         p_ollama_model: null,
+        p_openai_model: openaiModel.trim() || null,
       });
     }
     setSpeichernStatus(error ? "fehler" : "ok");
@@ -441,6 +449,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         p_openai_api_key: kiProvider === "openai" ? (apiKey.trim() || null) : null,
         p_ollama_base_url: kiProvider === "ollama" ? (ollamaUrl.trim() || null) : null,
         p_ollama_model: kiProvider === "ollama" ? (ollamaModel.trim() || "llama3.2") : null,
+        p_openai_model: kiProvider === "openai" ? (openaiModel.trim() || null) : null,
       });
     }
     setOllamaStatus(error ? "fehler" : "ok");
@@ -453,6 +462,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
       p_modus: bildanalyseModus,
       p_bildanalyse_openai_api_key: bildanalyseOpenaiKey.trim() || null,
       p_ollama_vision_model: bildanalyseModus === "ocr_ollama" ? (ollamaVisionModel.trim() || null) : null,
+      p_bildanalyse_openai_model: bildanalyseModus === "chatgpt_vision" ? (bildanalyseOpenaiModel.trim() || null) : null,
     });
     if (!error) {
       if (bildanalyseOpenaiKey.trim()) setBildanalyseOpenaiKeySet(true);
@@ -786,11 +796,15 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     text-light-text-main dark:text-dark-text-main
     placeholder-light-text-secondary dark:placeholder-dark-text-secondary
     focus:outline-none focus:ring-2 focus:ring-secondary-500`;
+  const selectCls = `${inputCls} appearance-none`;
+  const openaiModelSelectValue = OPENAI_MODEL_PRESETS.includes(openaiModel) ? openaiModel : OPENAI_MODEL_CUSTOM_VALUE;
+  const bildanalyseModelSelectValue = OPENAI_MODEL_PRESETS.includes(bildanalyseOpenaiModel) ? bildanalyseOpenaiModel : OPENAI_MODEL_CUSTOM_VALUE;
+  const effectiveVisionModel = bildanalyseOpenaiModel?.trim() || openaiModel?.trim() || "gpt-4o";
 
   // ── Status-Berechnungen für Karten ────────────────────────────────────────
   const kiStatus = isHouseholdAdmin
     ? (kiProvider === "openai" && apiKey
-        ? { label: t("profile:ki.openAiConfigured"), farbe: "emerald" }
+        ? { label: `OpenAI · ${openaiModel?.trim() || "gpt-4o"}`, farbe: "emerald" }
         : kiProvider === "ollama" && ollamaUrl
         ? { label: t("profile:ki.ollamaConfigured"), farbe: "emerald" }
         : { label: t("common:status.notConfigured"), farbe: "gray" })
@@ -814,7 +828,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
   };
 
   const bildanalyseLabel = {
-    chatgpt_vision: "ChatGPT Vision",
+    chatgpt_vision: `ChatGPT Vision · ${effectiveVisionModel}`,
     ocr_regeln: "OCR + Regeln",
     ocr_ollama: "OCR + Ollama",
   }[bildanalyseModus] ?? "–";
@@ -848,7 +862,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               {t("locale.current", { language: t("theme." + theme) })}
             </p>
           </div>
-          <ThemeSwitch />
+          <DayNightToggle width={104} />
         </div>
         <div className="border-t border-light-border dark:border-dark-border pt-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1179,38 +1193,69 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               <div className="space-y-2">
                 <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.ki.apiKeySection")}</p>
                 <form
-                  className="flex gap-2"
+                  className="space-y-3"
                   onSubmit={(event) => {
                     event.preventDefault();
                     handleApiKeySpeichern();
                   }}
                 >
-                  <div className="relative flex-1">
-                    <input
-                      type={apiKeyVisible ? "text" : "password"}
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder="sk-..."
-                      autoComplete="new-password"
-                      className={`${inputCls} pr-10`}
-                    />
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type={apiKeyVisible ? "text" : "password"}
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                        placeholder="sk-..."
+                        autoComplete="new-password"
+                        className={`${inputCls} pr-10`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setApiKeyVisible(!apiKeyVisible)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 transition-colors"
+                      >
+                        {apiKeyVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
                     <button
-                      type="button"
-                      onClick={() => setApiKeyVisible(!apiKeyVisible)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 transition-colors"
+                      type="submit"
+                      className="flex items-center gap-1.5 px-4 py-2.5 rounded-pill text-sm font-medium
+                                 bg-primary-500 hover:bg-primary-600 text-white transition-colors shrink-0"
                     >
-                      {apiKeyVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+                      {speichernStatus === "ok" ? <><CheckCircle size={15} /> {t("common:status.saved")}</>
+                        : speichernStatus === "fehler" ? <><AlertCircle size={15} /> {t("common:status.error")}</>
+                        : <><Save size={15} /> {t("common:actions.save")}</>}
                     </button>
                   </div>
-                  <button
-                    type="submit"
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-pill text-sm font-medium
-                               bg-primary-500 hover:bg-primary-600 text-white transition-colors shrink-0"
-                  >
-                    {speichernStatus === "ok" ? <><CheckCircle size={15} /> {t("common:status.saved")}</>
-                      : speichernStatus === "fehler" ? <><AlertCircle size={15} /> {t("common:status.error")}</>
-                      : <><Save size={15} /> {t("common:actions.save")}</>}
-                  </button>
+                  <label className="space-y-1.5 block">
+                    <span className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+                      {t("profile:panelContent.ki.openaiModelSection")}
+                    </span>
+                    <select
+                      value={openaiModelSelectValue}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setOpenaiModel(value === OPENAI_MODEL_CUSTOM_VALUE ? "" : value);
+                      }}
+                      className={selectCls}
+                    >
+                      <option value="gpt-4o-mini">{t("profile:panelContent.ki.openaiModelRecommended")}</option>
+                      <option value="gpt-4o">{t("profile:panelContent.ki.openaiModelQuality")}</option>
+                      <option value={OPENAI_MODEL_CUSTOM_VALUE}>{t("profile:panelContent.ki.openaiModelCustom")}</option>
+                    </select>
+                    {openaiModelSelectValue === OPENAI_MODEL_CUSTOM_VALUE && (
+                      <input
+                        type="text"
+                        value={openaiModel}
+                        onChange={(e) => setOpenaiModel(e.target.value)}
+                        placeholder={t("profile:panelContent.ki.openaiModelCustomPlaceholder")}
+                        className={inputCls}
+                      />
+                    )}
+                    <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                      {t("profile:panelContent.ki.openaiModelHint")}
+                    </span>
+                  </label>
                 </form>
               </div>
             )}
@@ -1341,6 +1386,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                   </div>
                 )}
                 <form
+                  className="space-y-3"
                   onSubmit={(event) => {
                     event.preventDefault();
                     handleBildanalyseSpeichern();
@@ -1359,6 +1405,35 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                                 placeholder-light-text-secondary dark:placeholder-dark-text-secondary
                                 focus:outline-none focus:border-secondary-500 transition-colors`}
                   />
+                  <label className="space-y-1.5 block">
+                    <span className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+                      {t("profile:panelContent.imageAnalysis.openaiModelSection")}
+                    </span>
+                    <select
+                      value={bildanalyseModelSelectValue}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setBildanalyseOpenaiModel(value === OPENAI_MODEL_CUSTOM_VALUE ? "" : value);
+                      }}
+                      className={selectCls}
+                    >
+                      <option value="gpt-4o-mini">{t("profile:panelContent.ki.openaiModelRecommended")}</option>
+                      <option value="gpt-4o">{t("profile:panelContent.ki.openaiModelQuality")}</option>
+                      <option value={OPENAI_MODEL_CUSTOM_VALUE}>{t("profile:panelContent.ki.openaiModelCustom")}</option>
+                    </select>
+                    {bildanalyseModelSelectValue === OPENAI_MODEL_CUSTOM_VALUE && (
+                      <input
+                        type="text"
+                        value={bildanalyseOpenaiModel}
+                        onChange={(e) => setBildanalyseOpenaiModel(e.target.value)}
+                        placeholder={t("profile:panelContent.ki.openaiModelCustomPlaceholder")}
+                        className={inputCls}
+                      />
+                    )}
+                    <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                      {t("profile:panelContent.imageAnalysis.openaiModelHint")}
+                    </span>
+                  </label>
                 </form>
                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
                   {t("profile:panelContent.imageAnalysis.apiKeyNote")}

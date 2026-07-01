@@ -1,7 +1,7 @@
 import React from "react";
 import { motion, useReducedMotion } from "framer-motion";
 
-export const glassSurfaceClass = "glass-surface rounded-card border border-white/50 bg-white/[0.42] shadow-elevation-1 dark:border-white/[0.12] dark:bg-[#07161d]/30 dark:shadow-[0_18px_60px_rgba(0,0,0,.28)]";
+export const glassSurfaceClass = "glass-surface rounded-card border border-white/60 bg-white/[0.62] shadow-elevation-1 dark:border-white/[0.12] dark:bg-[#07161d]/[0.22] dark:shadow-[0_18px_60px_rgba(0,0,0,.28)]";
 export const glassModuleClass = "home-glass-modern glass-module auto-glass-cards relative min-h-full min-w-0 max-w-full space-y-4 overflow-x-clip bg-transparent p-4 pb-28 md:p-6 lg:pb-8";
 
 export const glassPageVariants = {
