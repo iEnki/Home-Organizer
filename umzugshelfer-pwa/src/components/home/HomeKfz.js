@@ -33,7 +33,10 @@ import { formatKfzDisplayText } from "../../utils/kfzPresentation";
 import {
   createKfzDocumentUrl,
   removeKfzDocument,
+  recordMileage,
+  saveFuelEntry,
   saveKfzExpenseWithBudget,
+  saveServiceEntry,
   uploadKfzDocument,
 } from "../../utils/kfzData";
 import {
@@ -558,15 +561,14 @@ export default function HomeKfz({ session }) {
 
   const recordVehicleMileage = async (vehicleId, mileage, date = today(), source = "manuell", sourceId = null) => {
     if (mileage === "" || mileage == null) return;
-    const { error: updateError } = await supabase.rpc("record_kfz_mileage", {
-      p_household_id: householdId,
-      p_vehicle_id: vehicleId,
-      p_date: date || today(),
-      p_mileage: Number(mileage),
-      p_source: source,
-      p_source_id: sourceId,
+    await recordMileage({
+      householdId,
+      fahrzeugId: vehicleId,
+      kilometerstand: mileage,
+      datum: date || today(),
+      quelle: source,
+      quelleId: sourceId,
     });
-    if (updateError) throw updateError;
   };
 
   const notifyKfzEvent = async ({ type, table, action, name, id }) => {
@@ -645,28 +647,9 @@ export default function HomeKfz({ session }) {
       } else if (type === "expense") {
         saved = await saveKfzExpenseWithBudget({ expense: form, householdId, userId, mirrorToBudget: Boolean(form.mirrorToBudget) });
       } else if (type === "fuel") {
-        const liters = numberOrNull(form.liter);
-        const tankstatus = form.tankstatus || "unbekannt";
-        saved = await saveRow("home_fahrzeug_tankvorgaenge", {
-          fahrzeug_id: form.fahrzeug_id, datum: form.datum || today(), betrag: numberOrNull(form.betrag) || 0,
-          tankstelle: form.tankstelle || null, liter: liters, kilometerstand: intOrNull(form.kilometerstand),
-          preis_pro_liter: numberOrNull(form.preis_pro_liter) || (liters ? Number(form.betrag || 0) / liters : null),
-          kraftstoffart: form.kraftstoffart || null, tankstatus, tankstatus_quelle: "manuell",
-          vollgetankt: tankstatus === "voll",
-          verbrauch_bestaetigt: true,
-          quelle: form.quelle || "manuell", budget_posten_id: form.budget_posten_id || null,
-          rechnung_id: form.rechnung_id || null, dokument_id: form.dokument_id || null,
-          notizen: form.notizen || null, created_by_user_id: userId,
-        }, form.id);
+        saved = await saveFuelEntry({ householdId, userId, values: form, id: form.id });
       } else if (type === "service") {
-        saved = await saveRow("home_fahrzeug_services", {
-          fahrzeug_id: form.fahrzeug_id, typ: form.typ || "Service", datum: form.datum || today(),
-          kilometerstand: intOrNull(form.kilometerstand), kosten: numberOrNull(form.kosten),
-          werkstatt: form.werkstatt || null, beschreibung: form.beschreibung || null,
-          naechste_faelligkeit_datum: form.naechste_faelligkeit_datum || null,
-          naechste_faelligkeit_km: intOrNull(form.naechste_faelligkeit_km),
-          dokument_id: form.dokument_id || null, notizen: form.notizen || null, created_by_user_id: userId,
-        }, form.id);
+        saved = await saveServiceEntry({ householdId, userId, values: form, id: form.id });
       } else if (type === "tire") {
         saved = await saveRow("home_fahrzeug_reifen", {
           fahrzeug_id: form.fahrzeug_id, saison: form.saison, marke: form.marke || null,
@@ -730,20 +713,9 @@ export default function HomeKfz({ session }) {
       } else if (kind === "expense") {
         saved = await saveKfzExpenseWithBudget({ expense: form, householdId, userId, mirrorToBudget: Boolean(form.mirrorToBudget) });
       } else {
-        const table = kind === "fuel" ? "home_fahrzeug_tankvorgaenge" : "home_fahrzeug_services";
-        const tankstatus = form.tankstatus || "unbekannt";
-        const payload = kind === "fuel" ? {
-          fahrzeug_id: form.fahrzeug_id, datum: form.datum, betrag: numberOrNull(form.betrag) || 0,
-          tankstelle: form.tankstelle || null, liter: numberOrNull(form.liter),
-          kilometerstand: intOrNull(form.kilometerstand), preis_pro_liter: numberOrNull(form.preis_pro_liter),
-          tankstatus, tankstatus_quelle: "manuell", vollgetankt: tankstatus === "voll", verbrauch_bestaetigt: true,
-          quelle: "manuell", created_by_user_id: userId,
-        } : {
-          fahrzeug_id: form.fahrzeug_id, typ: form.typ, datum: form.datum,
-          kilometerstand: intOrNull(form.kilometerstand), kosten: numberOrNull(form.kosten),
-          werkstatt: form.werkstatt || null, created_by_user_id: userId,
-        };
-        saved = await saveRow(table, payload);
+        saved = kind === "fuel"
+          ? await saveFuelEntry({ householdId, userId, values: form })
+          : await saveServiceEntry({ householdId, userId, values: form });
       }
       await notifyKfzEvent({
         type: kind,

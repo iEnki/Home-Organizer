@@ -1,0 +1,14 @@
+CREDENTIALS.txt
+.env
+
+# Local dependencies and generated build output
+node_modules/
+**/node_modules/
+build/
+**/build/
+dist/
+**/dist/
+
+# Python caches
+__pycache__/
+*.pyc

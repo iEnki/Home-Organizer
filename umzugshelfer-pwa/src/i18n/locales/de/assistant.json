@@ -60,7 +60,12 @@
     "wartungen": "Wartung erfassen",
     "budget_settlement": "Budget-Ausgleich anlegen",
     "buecher": "Buch erfassen",
-    "budget_split": "Budget mit Kostenaufteilung anlegen"
+    "budget_split": "Budget mit Kostenaufteilung anlegen",
+    "kfz_tank": "Tankvorgänge",
+    "kfz_kilometerstand": "Kilometerstände",
+    "kfz_service": "Fahrzeug-Services",
+    "erinnerung": "Erinnerungen",
+    "rezept_update": "Rezept-Änderungen"
   },
   "summaryLabels": {
     "inventar_one": "Objekt",
@@ -90,6 +95,23 @@
     "buecher_one": "Buch",
     "buecher_other": "Bücher",
     "budget_split_one": "Budget-Split",
-    "budget_split_other": "Budget-Splits"
-  }
+    "budget_split_other": "Budget-Splits",
+    "kfz_tank_one": "Tankvorgang",
+    "kfz_tank_other": "Tankvorgänge",
+    "kfz_kilometerstand_one": "Kilometerstand",
+    "kfz_kilometerstand_other": "Kilometerstände",
+    "kfz_service_one": "Fahrzeug-Service",
+    "kfz_service_other": "Fahrzeug-Services",
+    "erinnerung_one": "Erinnerung",
+    "erinnerung_other": "Erinnerungen",
+    "rezept_update_one": "Rezept-Änderung",
+    "rezept_update_other": "Rezept-Änderungen"
+  },
+  "agentProposalPreview": "Ich habe {{summary}} vorbereitet. Bitte bestätige oder verwirf den Vorschlag.",
+  "toolsUnsupportedFallback": "Das konfigurierte KI-Modell unterstützt kein Tool-Calling. Ich nutze den einfachen Modus.",
+  "workingTool": "Arbeite: {{tool}}…",
+  "agentBudgetExceeded": "Ich konnte die Anfrage nicht innerhalb des Tool-Budgets abschließen. Bitte grenze die Frage etwas ein.",
+  "flowInactive": "{{label}} ist vorbereitet, aber aktuell nicht als Home-Route eingebunden.",
+  "flowOpening": "Ich öffne den passenden Home-Flow: {{label}}.",
+  "preparedSummary": "Ich habe {{summary}} vorbereitet."
 }

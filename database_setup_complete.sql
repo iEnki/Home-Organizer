@@ -6282,3 +6282,163 @@ revoke all on function public.delete_kfz_service(uuid, uuid) from public;
 grant execute on function public.delete_kfz_service(uuid, uuid) to authenticated;
 
 select pg_notify('pgrst', 'reload schema');
+
+-- ============================================================
+-- Globaler Assistent (Tool-Calling-Ausbau, 2026-07):
+-- KI-Provider-Override pro Haushalt + Persistenz-Tabellen
+-- ============================================================
+
+ALTER TABLE public.household_settings
+  ADD COLUMN IF NOT EXISTS assistant_ki_provider text NOT NULL DEFAULT 'global',
+  ADD COLUMN IF NOT EXISTS assistant_openai_model text,
+  ADD COLUMN IF NOT EXISTS assistant_ollama_model text,
+  ADD COLUMN IF NOT EXISTS assistant_ollama_thinking_enabled boolean NOT NULL DEFAULT false;
+
+ALTER TABLE public.household_settings
+  DROP CONSTRAINT IF EXISTS household_settings_assistant_ki_provider_check,
+  ADD CONSTRAINT household_settings_assistant_ki_provider_check
+    CHECK (assistant_ki_provider IN ('global', 'openai', 'ollama'));
+
+DROP FUNCTION IF EXISTS public.set_household_assistant_ki_settings(text, text, text, boolean);
+CREATE OR REPLACE FUNCTION public.set_household_assistant_ki_settings(
+  p_assistant_ki_provider text,
+  p_assistant_openai_model text,
+  p_assistant_ollama_model text,
+  p_assistant_ollama_thinking_enabled boolean DEFAULT false
+)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_household_id uuid;
+BEGIN
+  SELECT household_id INTO v_household_id
+  FROM public.household_members
+  WHERE user_id = auth.uid() AND role = 'admin'
+  LIMIT 1;
+
+  IF v_household_id IS NULL THEN
+    RAISE EXCEPTION 'Nur Admin darf Assistent-Einstellungen ändern.';
+  END IF;
+
+  INSERT INTO public.household_settings (
+    household_id,
+    assistant_ki_provider,
+    assistant_openai_model,
+    assistant_ollama_model,
+    assistant_ollama_thinking_enabled,
+    updated_by
+  )
+  VALUES (
+    v_household_id,
+    COALESCE(NULLIF(BTRIM(p_assistant_ki_provider), ''), 'global'),
+    NULLIF(BTRIM(p_assistant_openai_model), ''),
+    NULLIF(BTRIM(p_assistant_ollama_model), ''),
+    COALESCE(p_assistant_ollama_thinking_enabled, false),
+    auth.uid()
+  )
+  ON CONFLICT (household_id) DO UPDATE
+  SET assistant_ki_provider = EXCLUDED.assistant_ki_provider,
+      assistant_openai_model = EXCLUDED.assistant_openai_model,
+      assistant_ollama_model = EXCLUDED.assistant_ollama_model,
+      assistant_ollama_thinking_enabled = EXCLUDED.assistant_ollama_thinking_enabled,
+      updated_by = auth.uid(),
+      updated_at = NOW();
+
+  RETURN true;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.set_household_assistant_ki_settings(text, text, text, boolean) FROM public;
+GRANT EXECUTE ON FUNCTION public.set_household_assistant_ki_settings(text, text, text, boolean) TO authenticated;
+
+-- Persistenz-Tabellen des globalen Assistenten (bisher nur localStorage-Fallback).
+-- Spaltennamen exakt nach den Zugriffen in src/utils/assistantPersistence.js.
+
+CREATE TABLE IF NOT EXISTS public.assistant_ui_config (
+  user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  enabled boolean NOT NULL DEFAULT true,
+  is_open boolean NOT NULL DEFAULT false,
+  is_minimized boolean NOT NULL DEFAULT false,
+  mobile_x numeric,
+  mobile_y numeric,
+  desktop_anchor text NOT NULL DEFAULT 'right',
+  desktop_x numeric,
+  desktop_y numeric,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+-- Falls die Tabelle auf Live-Systemen bereits ohne die Fenster-Positionen existiert:
+ALTER TABLE public.assistant_ui_config
+  ADD COLUMN IF NOT EXISTS is_minimized boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS mobile_x numeric,
+  ADD COLUMN IF NOT EXISTS mobile_y numeric,
+  ADD COLUMN IF NOT EXISTS desktop_x numeric,
+  ADD COLUMN IF NOT EXISTS desktop_y numeric;
+
+CREATE TABLE IF NOT EXISTS public.ai_chat_threads (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  household_id uuid REFERENCES public.households(id) ON DELETE SET NULL,
+  title text NOT NULL DEFAULT 'Neuer Chat',
+  context_route text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ai_chat_threads_user_updated
+  ON public.ai_chat_threads (user_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS public.ai_chat_messages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  thread_id uuid NOT NULL REFERENCES public.ai_chat_threads(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  role text NOT NULL,
+  content text,
+  payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ai_chat_messages_thread_created
+  ON public.ai_chat_messages (thread_id, created_at);
+
+CREATE TABLE IF NOT EXISTS public.ai_action_receipts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  thread_id uuid REFERENCES public.ai_chat_threads(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  household_id uuid,
+  domain text,
+  action_kind text NOT NULL DEFAULT 'create',
+  target_table text,
+  target_record_id text,
+  summary text,
+  request_payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  result_payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ai_action_receipts_thread
+  ON public.ai_action_receipts (thread_id, created_at DESC);
+
+ALTER TABLE public.assistant_ui_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_chat_threads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_chat_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_action_receipts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS assistant_ui_config_owner ON public.assistant_ui_config;
+CREATE POLICY assistant_ui_config_owner ON public.assistant_ui_config
+  FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+
+DROP POLICY IF EXISTS ai_chat_threads_owner ON public.ai_chat_threads;
+CREATE POLICY ai_chat_threads_owner ON public.ai_chat_threads
+  FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+
+DROP POLICY IF EXISTS ai_chat_messages_owner ON public.ai_chat_messages;
+CREATE POLICY ai_chat_messages_owner ON public.ai_chat_messages
+  FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+
+DROP POLICY IF EXISTS ai_action_receipts_owner ON public.ai_action_receipts;
+CREATE POLICY ai_action_receipts_owner ON public.ai_action_receipts
+  FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.assistant_ui_config TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.ai_chat_threads TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.ai_chat_messages TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.ai_action_receipts TO authenticated;
+
+select pg_notify('pgrst', 'reload schema');

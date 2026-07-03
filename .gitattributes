@@ -1,0 +1,24 @@
+# Unix-Zeilenenden (LF) fuer Shell-Skripte erzwingen
+# Verhindert CRLF-Probleme auf Linux-Servern
+*.sh        text eol=lf
+*.ts        text eol=lf
+*.js        text eol=lf
+*.json      text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.sql       text eol=lf
+*.md        text eol=lf
+*.env*      text eol=lf
+*.conf      text eol=lf
+*.exs       text eol=lf
+
+# Binaerdateien unveraendert lassen
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.woff      binary
+*.woff2     binary
+*.ttf       binary
+*.eot       binary

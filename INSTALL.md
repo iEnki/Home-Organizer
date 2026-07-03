@@ -56,8 +56,8 @@ node --version            # >= 16
 ### Repository klonen
 
 ```bash
-git clone https://github.com/dein-user/umzughelfer.git
-cd umzughelfer
+git clone https://github.com/iEnki/Home-Organizer.git
+cd Home-Organizer
 ```
 
 ---
@@ -230,9 +230,8 @@ sed -i "s/your-super-secret-jwt-token-with-at-least-32-characters-long/DEIN_JWT_
 ### Schritt 4 — Edge Functions kopieren
 
 ```bash
-mkdir -p volumes/functions/send-push volumes/functions/check-reminders
-cp supabase/functions/send-push/index.ts volumes/functions/send-push/index.ts
-cp supabase/functions/check-reminders/index.ts volumes/functions/check-reminders/index.ts
+mkdir -p volumes/functions
+cp -R supabase/functions/. volumes/functions/
 ```
 
 ### Schritt 5 — Starten
@@ -337,21 +336,11 @@ docker exec ollama ollama pull llama3.2
 Danach in der App eintragen (wie Option A):
 - Ollama-URL: `http://localhost:11434` (oder `http://DEINE-SERVER-IP:11434`)
 
-#### Nvidia GPU aktivieren
+#### GPU- und CPU-Betrieb
 
-In `docker-compose.full.yml` beim `ollama`-Service den GPU-Block auskommentieren:
+Das aktuelle Ollama-Profil enthält `gpus: all` und setzt eine funktionierende NVIDIA-Container-Runtime voraus. Voraussetzung ist das [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
 
-```yaml
-deploy:
-  resources:
-    reservations:
-      devices:
-        - driver: nvidia
-          count: all
-          capabilities: [gpu]
-```
-
-Voraussetzung: [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) installiert.
+Für einen CPU-only-Host muss `gpus: all` im `ollama`-Service entfernt oder ein separates CPU-Profil bereitgestellt werden, bevor das Profil gestartet wird.
 
 #### Ollama-Status prüfen
 

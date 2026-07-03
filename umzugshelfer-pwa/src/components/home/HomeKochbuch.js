@@ -7,6 +7,7 @@ import { supabase } from "../../supabaseClient";
 import { useLocale } from "../../contexts/LocaleContext";
 import { useToast } from "../../hooks/useToast";
 import { logVerlauf } from "../../utils/homeVerlauf";
+import { setRezeptFavorit, updateRezeptFelder } from "../../utils/rezeptHelpers";
 import {
   buildRecipeLocalizedPayload,
   hasLocalizedRecipeContent,
@@ -516,7 +517,7 @@ export default function HomeKochbuch({ session }) {
   };
 
   const toggleFavorite = async (recipe) => {
-    await supabase.from("home_rezepte").update({ favorisiert: !recipe.favorisiert }).eq("id", recipe.id);
+    await setRezeptFavorit({ rezeptId: recipe.id, favorit: !recipe.favorisiert });
     await loadData();
   };
 
@@ -524,8 +525,7 @@ export default function HomeKochbuch({ session }) {
     if (!selected) return;
     const gruppe = String(value || "").trim() || null;
     try {
-      const { error } = await supabase.from("home_rezepte").update({ gruppe }).eq("id", selected.id);
-      if (error) throw error;
+      await updateRezeptFelder({ rezeptId: selected.id, patch: { gruppe } });
       const updated = { ...selected, gruppe };
       setSelected(updated);
       setRecipes((current) => current.map((item) => item.id === selected.id ? { ...item, gruppe } : item));

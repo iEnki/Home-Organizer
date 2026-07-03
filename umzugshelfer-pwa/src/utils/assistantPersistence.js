@@ -42,6 +42,8 @@ export const DEFAULT_ASSISTANT_UI_CONFIG = {
   mobile_x: null,
   mobile_y: null,
   desktop_anchor: "right",
+  desktop_x: null,
+  desktop_y: null,
 };
 
 export const loadAssistantUiConfig = async (userId) => {

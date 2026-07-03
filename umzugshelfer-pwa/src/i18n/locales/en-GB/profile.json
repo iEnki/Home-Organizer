@@ -36,7 +36,9 @@
     "push": "Push notifications",
     "tours": "Interactive guides",
     "mobileNav": "Mobile navigation",
-    "account": "Account & security"
+    "account": "Account & security",
+    "assistant": "Global assistant",
+    "kochbuchAi": "Cookbook & AI"
   },
   "cards": {
     "appearance": {
@@ -101,6 +103,13 @@
       "statusVideo": "{{count}}/day video",
       "desc": "Daily limits for recipe and video imports",
       "action": "Set limits"
+    },
+    "assistant": {
+      "title": "Global assistant",
+      "statusOn": "Active",
+      "statusOff": "Disabled",
+      "desc": "AI assistant for questions and actions across the app",
+      "action": "Configure"
     }
   },
   "mobileTabs": {
@@ -260,6 +269,24 @@
       "webLimit": "Web recipes per day",
       "videoLimit": "Video recipes per day",
       "saveLimits": "Save limits"
+    },
+    "assistant": {
+      "intro": "The global assistant answers questions about your household data and can create new entries on request. Every action must be confirmed in the chat.",
+      "personalSection": "Personal setting",
+      "enableLabel": "Show assistant",
+      "enableHint": "Shows or hides the assistant just for you. Other household members are not affected.",
+      "aiProviderSection": "AI provider for the assistant",
+      "aiProviderGlobal": "Household default",
+      "aiProviderGlobalDesc": "Uses the general AI settings",
+      "aiProviderOpenaiDesc": "Dedicated OpenAI model for the assistant",
+      "aiProviderOllamaDesc": "Dedicated Ollama model for the assistant",
+      "openaiModel": "OpenAI model",
+      "ollamaModel": "Ollama model",
+      "ollamaModelHint": "A model with tool support is recommended for tool calls (e.g. qwen2.5, llama3.1). Without tool support the assistant automatically falls back to simple mode.",
+      "ollamaThinking": "Allow thinking mode",
+      "ollamaThinkingHint": "Only relevant for reasoning models. Disabled by default for faster answers.",
+      "adminOnlyHint": "The assistant AI provider is managed by the household admin.",
+      "saveAiProvider": "Save assistant AI"
     }
   }
 }

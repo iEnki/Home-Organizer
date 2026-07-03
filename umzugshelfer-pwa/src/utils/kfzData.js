@@ -4,6 +4,135 @@ const safeFileName = (name) => String(name || "datei")
   .normalize("NFKD")
   .replace(/[^\w.-]+/g, "_");
 
+const numberOrNull = (value) => {
+  if (value === "" || value === null || value === undefined) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const intOrNull = (value) => {
+  const parsed = numberOrNull(value);
+  return parsed === null ? null : Math.round(parsed);
+};
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+/**
+ * Legt einen Tankvorgang an oder aktualisiert ihn (gemeinsamer Pfad fuer
+ * HomeKfz-Formulare und den globalen Assistenten).
+ */
+export async function saveFuelEntry({ householdId, userId, values = {}, id = null }) {
+  if (!householdId) throw new Error("Haushalt ist erforderlich.");
+  if (!values.fahrzeug_id) throw new Error("Fahrzeug ist erforderlich.");
+  const liters = numberOrNull(values.liter);
+  const betrag = numberOrNull(values.betrag) || 0;
+  const tankstatus = ["voll", "teilweise", "unbekannt"].includes(values.tankstatus)
+    ? values.tankstatus
+    : "unbekannt";
+  const payload = {
+    household_id: householdId,
+    fahrzeug_id: values.fahrzeug_id,
+    datum: values.datum || todayIso(),
+    betrag,
+    tankstelle: values.tankstelle || null,
+    liter: liters,
+    kilometerstand: intOrNull(values.kilometerstand),
+    preis_pro_liter: numberOrNull(values.preis_pro_liter) || (liters ? betrag / liters : null),
+    kraftstoffart: values.kraftstoffart || null,
+    tankstatus,
+    tankstatus_quelle: values.tankstatus_quelle || "manuell",
+    vollgetankt: tankstatus === "voll",
+    verbrauch_bestaetigt: values.verbrauch_bestaetigt !== false,
+    quelle: values.quelle || "manuell",
+    budget_posten_id: values.budget_posten_id || null,
+    rechnung_id: values.rechnung_id || null,
+    dokument_id: values.dokument_id || null,
+    notizen: values.notizen || null,
+    created_by_user_id: userId,
+  };
+  const query = id
+    ? supabase.from("home_fahrzeug_tankvorgaenge").update(payload).eq("household_id", householdId).eq("id", id)
+    : supabase.from("home_fahrzeug_tankvorgaenge").insert(payload);
+  const { data, error } = await query.select("*").single();
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Legt einen Service-/Wartungseintrag fuer ein Fahrzeug an oder aktualisiert ihn.
+ */
+export async function saveServiceEntry({ householdId, userId, values = {}, id = null }) {
+  if (!householdId) throw new Error("Haushalt ist erforderlich.");
+  if (!values.fahrzeug_id) throw new Error("Fahrzeug ist erforderlich.");
+  const payload = {
+    household_id: householdId,
+    fahrzeug_id: values.fahrzeug_id,
+    typ: values.typ || "Service",
+    datum: values.datum || todayIso(),
+    kilometerstand: intOrNull(values.kilometerstand),
+    kosten: numberOrNull(values.kosten),
+    werkstatt: values.werkstatt || null,
+    beschreibung: values.beschreibung || null,
+    naechste_faelligkeit_datum: values.naechste_faelligkeit_datum || null,
+    naechste_faelligkeit_km: intOrNull(values.naechste_faelligkeit_km),
+    dokument_id: values.dokument_id || null,
+    notizen: values.notizen || null,
+    created_by_user_id: userId,
+  };
+  const query = id
+    ? supabase.from("home_fahrzeug_services").update(payload).eq("household_id", householdId).eq("id", id)
+    : supabase.from("home_fahrzeug_services").insert(payload);
+  const { data, error } = await query.select("*").single();
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Erfasst einen Kilometerstand via RPC record_kfz_mileage.
+ */
+export async function recordMileage({ householdId, fahrzeugId, kilometerstand, datum, quelle = "manuell", quelleId = null }) {
+  if (!householdId) throw new Error("Haushalt ist erforderlich.");
+  if (!fahrzeugId) throw new Error("Fahrzeug ist erforderlich.");
+  if (kilometerstand === "" || kilometerstand === null || kilometerstand === undefined) {
+    throw new Error("Kilometerstand ist erforderlich.");
+  }
+  const { data, error } = await supabase.rpc("record_kfz_mileage", {
+    p_household_id: householdId,
+    p_vehicle_id: fahrzeugId,
+    p_date: datum || todayIso(),
+    p_mileage: Number(kilometerstand),
+    p_source: quelle,
+    p_source_id: quelleId,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Findet ein Fahrzeug des Haushalts per Name oder Kennzeichen (fuzzy).
+ */
+export async function findVehicleByName({ householdId, name }) {
+  const { data, error } = await supabase
+    .from("home_fahrzeuge")
+    .select("id, name, kennzeichen")
+    .eq("household_id", householdId)
+    .limit(20);
+  if (error) throw error;
+  const vehicles = data || [];
+  if (vehicles.length === 0) return null;
+  const term = String(name || "").trim().toLowerCase();
+  if (!term) return vehicles.length === 1 ? vehicles[0] : null;
+  return (
+    vehicles.find((v) => String(v.name || "").toLowerCase() === term) ||
+    vehicles.find(
+      (v) =>
+        String(v.name || "").toLowerCase().includes(term) ||
+        String(v.kennzeichen || "").toLowerCase().includes(term),
+    ) ||
+    (vehicles.length === 1 ? vehicles[0] : null)
+  );
+}
+
 export async function saveKfzExpenseWithBudget({
   expense,
   householdId,

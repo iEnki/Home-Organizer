@@ -14,7 +14,7 @@ The application combines two workspaces:
 - **Moving Planner** for planning, completing and closing a move.
 - **Home Organizer** for ongoing household management.
 
-The app is responsive, installable as a PWA and fully self-hostable. Supabase provides authentication, PostgreSQL, storage, realtime and Edge Functions. AI features use OpenAI or Ollama according to the household configuration.
+The app is responsive and installable as a PWA. The core stack is fully self-hostable; optional OpenAI, book and medicine lookups, browser OCR, and web/video recipe imports require outbound internet access. Supabase provides authentication, PostgreSQL, storage, realtime and Edge Functions. AI features use OpenAI or Ollama according to the household configuration.
 
 ## Features
 
@@ -28,14 +28,15 @@ The app is responsive, installable as a PWA and fully self-hostable. Supabase pr
 - Renovation and material planning
 - Calculators for paint, wallpaper, flooring, insulation, boxes, volume and transport
 - PDF and calendar exports
+- Move-completion workflow that transfers packed items to Home inventory and archives moving data
 
 ### Home Organizer
 
 - Household dashboard with shortcuts and global search
-- Multiple households, members, invitations and separated data scopes
+- One shared household per user with multiple members, invitations and separated data scopes
 - Inventory with locations, photos, QR codes and search
 - Supplies, minimum quantities and shopping-list handover
-- Shopping list with quick capture, AI categorisation and recipe ingredients
+- Shopping list with quick capture, AI categorisation, recipe ingredients and configurable reminders
 - Medicine cabinet with stock, expiry dates, documents and leaflets
 - Device management with location, inventory links, documents and maintenance
 - Household tasks, projects, residents and activity history
@@ -43,9 +44,10 @@ The app is responsive, installable as a PWA and fully self-hostable. Supabase pr
 ### Budget, Invoices and Documents
 
 - Household and private accounts
-- Budgets, categories, limits, savings goals and recurring entries
+- Budgets, categories, limits, savings goals, cash-flow preview and recurring entries
+- Saved filter views, bulk editing and budget-entry archiving
 - Cost splitting and household settlement
-- Invoice scanner with PDF/image upload, OCR, line-item analysis and review
+- Invoice scanner with PDF/image upload, image optimisation, OCR, line-item analysis and review
 - Links between invoices, budget entries and original documents
 - Document archive with AI analysis and knowledge entries
 - Contracts, insurance, deadlines and reminders
@@ -56,7 +58,7 @@ The app is responsive, installable as a PWA and fully self-hostable. Supabase pr
 - Cover image, gallery view and central document links
 - Fuel entries with **full**, **partial** and **unknown** tank status
 - Full-tank consumption calculation including intermediate refuelling
-- Automatic detection of fuel receipts from the budget
+- Automatic, duplicate-safe import of fuel receipts from the budget
 - Review inbox for receipts that cannot be assigned safely
 - Costs, services, tyres, tasks, parts, documents and reminders
 - AI analysis of service invoices, garage receipts and inspection reports
@@ -66,9 +68,10 @@ The app is responsive, installable as a PWA and fully self-hostable. Supabase pr
 
 ### Cookbook, Books and Knowledge
 
-- Manual recipes and imports from web pages or video sources
+- Manual recipes and queued imports from web pages or video sources
 - Local parser for metadata, subtitles, audio and transcription
-- Review, translation, quality checks, nutrition and costs
+- Import status and history, review, duplicate warnings, translation and quality checks
+- Recipe images, nutrition and costs
 - Meal planning, cooking mode and cooking logs
 - Ingredient handover to shopping lists and supplies
 - Book management with ISBN, cover and duplicate detection
@@ -79,11 +82,14 @@ The app is responsive, installable as a PWA and fully self-hostable. Supabase pr
 - German and English (UK) UI
 - Dark and light themes
 - Responsive desktop and mobile navigation
+- Customisable favourites in the mobile navigation
+- Guided onboarding tours for core Home modules
 - Installable PWA for iOS, Android and desktop
 - Push notifications through Web Push and VAPID
 - Global AI assistant with household context
-- OpenAI or optional local Ollama
+- OpenAI or optional local Ollama with separate model choices for general AI, image analysis and cookbook workflows
 - Household RLS for shared data
+- Role model with `admin` for household settings and `member` for shared use
 
 ## Technology
 
@@ -94,7 +100,7 @@ The app is responsive, installable as a PWA and fully self-hostable. Supabase pr
 | Charts and PDF | Chart.js, React PDF Renderer |
 | Backend | Supabase, PostgreSQL, Auth, Storage, Realtime |
 | Server logic | Supabase Edge Functions with Deno |
-| Local services | FastAPI-based document OCR and recipe processing |
+| Local services | Document OCR with FastAPI/Uvicorn; recipe processing with Flask/Gunicorn, yt-dlp and faster-whisper |
 | Internationalisation | i18next, German and English (UK) |
 | Operations | Docker, Docker Compose, Nginx |
 
@@ -103,11 +109,13 @@ The app is responsive, installable as a PWA and fully self-hostable. Supabase pr
 - Linux server, preferably Ubuntu 22.04 or Debian 12
 - Docker 24 or newer
 - Docker Compose 2.20 or newer
+- Git, curl and OpenSSL
+- Node.js 16 or newer for the installer and key generation; Node.js 20 recommended
 - At least 2 CPU cores, 4 GB RAM and 20 GB storage
 - At least 8 GB RAM recommended for local Ollama
 - Domain and HTTPS for production, push and secure authentication
 
-Node.js 20 is only needed for local frontend development and helper scripts.
+Node.js 20 is also recommended for local frontend development.
 
 ## Installation
 
@@ -140,15 +148,17 @@ Generated `.env` and `CREDENTIALS.txt` files contain secrets and must never be p
 
 ## Database
 
-For a fresh installation, apply the complete schema:
+The fullstack installer offers to apply the bundled baseline schema during installation. This manual step is only required when schema setup was skipped, the database was not ready, or app-only mode is used:
 
 ```bash
 docker exec -i supabase-db psql -U postgres -d postgres < database_setup_complete.sql
 ```
 
-You can also run the file in the Supabase Studio SQL editor. The complete schema contains tables, indexes, triggers, RPCs, storage configuration and RLS policies.
+You can also run the file in the Supabase Studio SQL editor. The schema contains tables, indexes, triggers, RPCs, storage configuration and RLS policies.
 
-For existing installations, create a backup first and then use the dated migrations or the management-script update flow. The complete schema is intended for fresh installations.
+For existing installations, create a backup first and then use the dated migrations or the management-script update flow. The bundled schema is the baseline for fresh installations.
+
+> **Known schema gap:** The current frontend references a few areas that are not yet fully consolidated into `database_setup_complete.sql`: books/lending history, cooking logs, saved calculator scenarios and budget month-close tables. `scripts/migration_2026_05_23_home_rezept_kochprotokolle.sql` adds cooking logs; complete fresh-install migrations for the other areas are currently absent from the repository. Before a production rebuild, back up the existing database and verify these tables against the target installation.
 
 ## Local Development
 
@@ -184,9 +194,17 @@ REACT_APP_VAPID_PUBLIC_KEY=<vapid-public-key>
 
 Never expose a service-role key in the frontend.
 
+The current production Dockerfile does not pass the reset variable as a build argument; Docker builds therefore use `<App-Origin>/update-password` automatically. The variable applies to local builds.
+
 ### AI and Document Analysis
 
-The household configuration selects OpenAI or Ollama. API keys are used through the intended profile settings and server-side functions.
+The household configuration selects OpenAI or Ollama. Household admins manage providers, API keys and models in the profile; keys are protected through column-level security and read server-side by Edge Functions. General AI, image analysis and cookbook workflows may use separate models. Ollama thinking behaviour can be controlled separately for cookbook processing.
+
+Existing installations need the following idempotent migration for the current model-selection support:
+
+```bash
+docker exec -i supabase-db psql -U postgres -d postgres < scripts/hotfix_2026_06_18_ki_model_selection.sql
+```
 
 Fullstack deployments also configure:
 
@@ -206,6 +224,8 @@ docker compose -f docker-compose.full.yml --profile ollama up -d
 docker exec ollama ollama pull llama3.2
 ```
 
+The current Compose profile sets `gpus: all` and therefore requires a working NVIDIA container runtime. Remove that entry or provide a separate CPU profile for CPU-only operation.
+
 ### Push Notifications
 
 The installer generates VAPID keys. To enable push:
@@ -215,6 +235,8 @@ The installer generates VAPID keys. To enable push:
 3. Accept the browser permission.
 
 iOS requires an installed PWA and at least iOS 16.4.
+
+Manual test pushes work after VAPID activation. Scheduled reminders additionally require a recurring `check-reminders` invocation through `pg_cron`/`pg_net` or an external scheduler; the installer does not currently create this schedule.
 
 ### SMTP and Invitations
 
@@ -227,10 +249,9 @@ SMTP_PORT=587
 SMTP_USER=<user>
 SMTP_PASS=<password>
 SMTP_SENDER_NAME=Home Organizer
-RESEND_API_KEY=
 ```
 
-Use `scripts/manage_en.sh` to maintain this configuration.
+Use `scripts/manage_en.sh` to maintain this configuration. Confirmation, password reset and household invitations currently use Supabase Auth/GoTrue and its SMTP settings. `RESEND_API_KEY` is reserved in the Compose setup but is not used by the current invitation flow.
 
 ## Updates and Backups
 
@@ -258,7 +279,7 @@ Home-Organizer/
 |-- services/
 |   |-- document-ocr-service/    Local PDF/image OCR
 |   `-- recipe-source-parser/    Web/video recipe processing
-|-- supabase/functions/          Edge Functions
+|-- supabase/functions/          Edge Functions for AI, documents, imports, push and invitations
 |-- umzugshelfer-pwa/            React PWA
 |   |-- public/                  PWA files and assets
 |   `-- src/                     Components, hooks, i18n and utilities

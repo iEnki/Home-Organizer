@@ -14,7 +14,7 @@ Die Anwendung verbindet zwei Bereiche:
 - **Umzugsmodus** für Planung, Durchführung und Abschluss eines Umzugs.
 - **Home Organizer** für den dauerhaften Betrieb eines Haushalts.
 
-Die App ist für Desktop und Mobilgeräte optimiert, als PWA installierbar und vollständig selbst hostbar. Supabase stellt Authentifizierung, PostgreSQL, Storage, Realtime und Edge Functions bereit. KI-Funktionen verwenden je nach Haushaltskonfiguration OpenAI oder Ollama.
+Die App ist für Desktop und Mobilgeräte optimiert und als PWA installierbar. Der Kernstack ist vollständig selbst hostbar; optionale Funktionen für OpenAI, Buch- und Beipackzettelsuche, Browser-OCR sowie Web-/Video-Rezeptimporte benötigen ausgehenden Internetzugriff. Supabase stellt Authentifizierung, PostgreSQL, Storage, Realtime und Edge Functions bereit. KI-Funktionen verwenden je nach Haushaltskonfiguration OpenAI oder Ollama.
 
 ## Funktionsumfang
 
@@ -28,14 +28,15 @@ Die App ist für Desktop und Mobilgeräte optimiert, als PWA installierbar und v
 - Renovierungs- und Materialplanung
 - Rechner für Farbe, Tapete, Boden, Dämmstoff, Kartons, Volumen und Transport
 - PDF- und Kalenderexporte
+- Umzugsabschluss mit Übernahme von Packgegenständen ins Home-Inventar und Archivierung der Umzugsdaten
 
 ### Home Organizer
 
 - Haushaltsdashboard mit Schnellzugriffen und globaler Suche
-- Mehrere Haushalte, Mitglieder, Einladungen und getrennte Datenbereiche
+- Ein gemeinsamer Haushalt pro Benutzer mit mehreren Mitgliedern, Einladungen und getrennten Datenbereichen
 - Inventar mit Standorten, Fotos, QR-Codes und Suche
 - Vorräte, Mindestmengen und Übergabe an die Einkaufsliste
-- Einkaufsliste mit Schnellerfassung, KI-Kategorisierung und Rezeptzutaten
+- Einkaufsliste mit Schnellerfassung, KI-Kategorisierung, Rezeptzutaten und konfigurierbaren Erinnerungen
 - Heimapotheke mit Beständen, Ablaufdaten, Dokumenten und Beipackzetteln
 - Geräteverwaltung mit Standort, Inventarbezug, Dokumenten und Wartung
 - Haushaltsaufgaben, Projekte, Bewohner und Aktivitätsverlauf
@@ -43,9 +44,10 @@ Die App ist für Desktop und Mobilgeräte optimiert, als PWA installierbar und v
 ### Budget, Rechnungen und Dokumente
 
 - Haushalts- und Privatkonten
-- Budgets, Kategorien, Limits, Sparziele und wiederkehrende Buchungen
+- Budgets, Kategorien, Limits, Sparziele, Cashflow-Vorschau und wiederkehrende Buchungen
+- Gespeicherte Filteransichten, Sammelbearbeitung und Archivierung von Budgetposten
 - Kostenaufteilung und Haushaltsausgleich
-- Rechnungsscanner mit PDF-/Bild-Upload, OCR, Positionsanalyse und Review
+- Rechnungsscanner mit PDF-/Bild-Upload, Bildoptimierung, OCR, Positionsanalyse und Review
 - Verknüpfung von Rechnungen, Budgetposten und Originaldokumenten
 - Dokumentenarchiv mit KI-Analyse und Wissenseinträgen
 - Verträge, Versicherungen, Fristen und Erinnerungen
@@ -56,7 +58,7 @@ Die App ist für Desktop und Mobilgeräte optimiert, als PWA installierbar und v
 - Titelbild, Galerieansicht und zentrale Dokumentverknüpfung
 - Tankungen mit den Statuswerten **voll**, **teilweise** und **unbekannt**
 - Volltankbasierte Verbrauchsberechnung mit einbezogenen Zwischentankungen
-- Automatische Erkennung von Tankbelegen aus dem Budget
+- Automatische, duplikatgeschützte Übernahme von Tankbelegen aus dem Budget
 - Prüfliste für nicht eindeutig zuordenbare Tankbelege
 - Kosten, Services, Reifen, Aufgaben, Teile, Dokumente und Erinnerungen
 - KI-Analyse von Service-Rechnungen, Werkstattbelegen und Pickerl-Berichten
@@ -66,9 +68,10 @@ Die App ist für Desktop und Mobilgeräte optimiert, als PWA installierbar und v
 
 ### Kochbuch, Bücher und Wissen
 
-- Manuelle Rezepte sowie Import aus Webseiten und Videoquellen
+- Manuelle Rezepte sowie warteschlangenbasierter Import aus Webseiten und Videoquellen
 - Lokaler Parser für Metadaten, Untertitel, Audio und Transkription
-- Review, Übersetzung, Qualitätsprüfung, Nährwerte und Kosten
+- Importstatus und -historie, Review, Duplikatwarnung, Übersetzung und Qualitätsprüfung
+- Rezeptbilder, Nährwerte und Kosten
 - Wochen-/Essensplanung, Kochmodus und Kochprotokolle
 - Übergabe von Zutaten an Einkaufsliste und Vorräte
 - Bücherverwaltung mit ISBN-, Cover- und Duplikaterkennung
@@ -79,11 +82,14 @@ Die App ist für Desktop und Mobilgeräte optimiert, als PWA installierbar und v
 - Deutsche und englische Oberfläche (UK)
 - Dark Mode und Light Mode
 - Responsive Desktop- und Mobilnavigation
+- Anpassbare Favoriten in der mobilen Navigation
+- Geführte Onboarding-Touren für zentrale Home-Module
 - Installierbare PWA für iOS, Android und Desktop
 - Push-Benachrichtigungen über Web Push und VAPID
 - Globaler KI-Assistent mit Haushaltskontext
-- OpenAI oder optional lokales Ollama
+- OpenAI oder optional lokales Ollama mit getrennt wählbaren Modellen für allgemeine KI, Bildanalyse und Kochbuch
 - Household-RLS für gemeinsam verwaltete Daten
+- Rollenmodell mit `admin` für Haushaltseinstellungen und `member` für die gemeinsame Nutzung
 
 ## Technologie
 
@@ -94,7 +100,7 @@ Die App ist für Desktop und Mobilgeräte optimiert, als PWA installierbar und v
 | Diagramme und PDF | Chart.js, React PDF Renderer |
 | Backend | Supabase, PostgreSQL, Auth, Storage, Realtime |
 | Serverlogik | Supabase Edge Functions mit Deno |
-| Lokale Dienste | FastAPI-basierte Dokument-OCR und Rezeptverarbeitung |
+| Lokale Dienste | Dokument-OCR mit FastAPI/Uvicorn; Rezeptverarbeitung mit Flask/Gunicorn, yt-dlp und faster-whisper |
 | Internationalisierung | i18next, Deutsch und Englisch (UK) |
 | Betrieb | Docker, Docker Compose, Nginx |
 
@@ -103,11 +109,13 @@ Die App ist für Desktop und Mobilgeräte optimiert, als PWA installierbar und v
 - Linux-Server, empfohlen Ubuntu 22.04 oder Debian 12
 - Docker 24 oder neuer
 - Docker Compose 2.20 oder neuer
+- Git, curl und OpenSSL
+- Node.js 16 oder neuer für Installer und Schlüsselgenerierung; Node.js 20 empfohlen
 - Mindestens 2 CPU-Kerne, 4 GB RAM und 20 GB Speicher
 - Für lokales Ollama werden mindestens 8 GB RAM empfohlen
 - Domain und HTTPS für produktiven Betrieb, Push und sichere Anmeldung
 
-Node.js 20 wird nur für lokale Frontend-Entwicklung und Hilfsskripte benötigt.
+Für lokale Frontend-Entwicklung wird ebenfalls Node.js 20 empfohlen.
 
 ## Installation
 
@@ -140,15 +148,17 @@ Die erzeugten Dateien `.env` und `CREDENTIALS.txt` enthalten Geheimnisse und dü
 
 ## Datenbank
 
-Für eine neue Installation den vollständigen Stand ausführen:
+Der Fullstack-Installer bietet an, das gebündelte Basisschema direkt während der Installation auszuführen. Nur bei übersprungenem Setup, nicht bereiter Datenbank oder App-only-Installation ist der manuelle Schritt erforderlich:
 
 ```bash
 docker exec -i supabase-db psql -U postgres -d postgres < database_setup_complete.sql
 ```
 
-Alternativ kann die Datei im SQL-Editor von Supabase Studio ausgeführt werden. Das Komplettschema enthält Tabellen, Indizes, Trigger, RPCs, Storage-Konfiguration und RLS-Richtlinien.
+Alternativ kann die Datei im SQL-Editor von Supabase Studio ausgeführt werden. Das Schema enthält Tabellen, Indizes, Trigger, RPCs, Storage-Konfiguration und RLS-Richtlinien.
 
-Für bestehende Installationen zuerst ein Backup erstellen und anschließend die datierten Migrationen beziehungsweise den Update-Ablauf des Verwaltungsskripts verwenden. Das vollständige Schema ist für Neuinstallationen gedacht.
+Für bestehende Installationen zuerst ein Backup erstellen und anschließend die datierten Migrationen beziehungsweise den Update-Ablauf des Verwaltungsskripts verwenden. Das gebündelte Schema dient als Basis für Neuinstallationen.
+
+> **Bekannte Schema-Lücke:** Der aktuelle Frontendstand referenziert einzelne Bereiche, die noch nicht vollständig in `database_setup_complete.sql` konsolidiert sind. Dazu gehören Bücher/Verleihverlauf, Kochprotokolle, gespeicherte Rechnerszenarien und Tabellen des Budget-Monatsabschlusses. `scripts/migration_2026_05_23_home_rezept_kochprotokolle.sql` ergänzt die Kochprotokolle; für die übrigen Bereiche fehlt im Repository derzeit eine vollständige Neuinstallationsmigration. Vor einem produktiven Neuaufbau den vorhandenen Datenbankstand sichern und diese Tabellen gegen die Zielinstanz prüfen.
 
 ## Lokale Entwicklung
 
@@ -184,9 +194,17 @@ REACT_APP_VAPID_PUBLIC_KEY=<vapid-public-key>
 
 Ein Service-Role-Key gehört niemals in das Frontend.
 
+Beim aktuellen Docker-Produktionsbuild wird die Reset-Variable noch nicht als Build-Argument übernommen; dort verwendet die App automatisch `<App-Origin>/update-password`. Die Variable wirkt bei lokalen Builds.
+
 ### KI und Dokumentanalyse
 
-Die Haushaltskonfiguration entscheidet zwischen OpenAI und Ollama. API-Schlüssel werden über die vorgesehenen Profileinstellungen und serverseitigen Funktionen verwendet.
+Die Haushaltskonfiguration entscheidet zwischen OpenAI und Ollama. Haushaltsadmins verwalten Provider, API-Schlüssel und Modelle im Profil; Schlüssel bleiben durch Column-Level Security geschützt und werden von den Edge Functions serverseitig gelesen. Allgemeine KI, Bildanalyse und Kochbuch können getrennte Modelle verwenden. Für Ollama lässt sich das Thinking-Verhalten des Kochbuchs separat steuern.
+
+Bestehende Installationen benötigen für die aktuelle Modellwahl zusätzlich die idempotente Migration:
+
+```bash
+docker exec -i supabase-db psql -U postgres -d postgres < scripts/hotfix_2026_06_18_ki_model_selection.sql
+```
 
 Der Fullstack-Betrieb konfiguriert zusätzlich:
 
@@ -206,6 +224,8 @@ docker compose -f docker-compose.full.yml --profile ollama up -d
 docker exec ollama ollama pull llama3.2
 ```
 
+Das aktuelle Compose-Profil setzt `gpus: all` und benötigt daher eine funktionierende NVIDIA-Container-Runtime. Für reinen CPU-Betrieb muss dieser Eintrag entfernt oder ein separates CPU-Profil verwendet werden.
+
 ### Push-Benachrichtigungen
 
 VAPID-Schlüssel werden vom Installer erzeugt. Für Push:
@@ -215,6 +235,8 @@ VAPID-Schlüssel werden vom Installer erzeugt. Für Push:
 3. Browser-Berechtigung bestätigen.
 
 Unter iOS ist eine installierte PWA und mindestens iOS 16.4 erforderlich.
+
+Manuelle Test-Pushs funktionieren nach der VAPID-Aktivierung. Zeitgesteuerte Erinnerungen benötigen zusätzlich einen regelmäßigen Aufruf von `check-reminders`, beispielsweise über `pg_cron`/`pg_net` oder einen externen Scheduler; der Installer richtet diesen Zeitplan derzeit nicht automatisch ein.
 
 ### SMTP und Einladungen
 
@@ -227,10 +249,9 @@ SMTP_PORT=587
 SMTP_USER=<benutzer>
 SMTP_PASS=<passwort>
 SMTP_SENDER_NAME=Home Organizer
-RESEND_API_KEY=
 ```
 
-Die Konfiguration kann über `scripts/manage.sh` gepflegt werden.
+Die Konfiguration kann über `scripts/manage.sh` gepflegt werden. Bestätigung, Passwort-Reset und Haushaltseinladungen laufen aktuell über Supabase Auth/GoTrue und dessen SMTP-Konfiguration. `RESEND_API_KEY` ist im Compose-Setup nur reserviert und wird vom aktuellen Einladungsfluss nicht verwendet.
 
 ## Updates und Backups
 
@@ -258,7 +279,7 @@ Home-Organizer/
 |-- services/
 |   |-- document-ocr-service/    Lokale PDF-/Bild-OCR
 |   `-- recipe-source-parser/    Web-/Video-Rezeptverarbeitung
-|-- supabase/functions/          Edge Functions
+|-- supabase/functions/          Edge Functions für KI, Dokumente, Importe, Push und Einladungen
 |-- umzugshelfer-pwa/            React-PWA
 |   |-- public/                  PWA-Dateien und Assets
 |   `-- src/                     Komponenten, Hooks, i18n und Utilities

@@ -6,7 +6,7 @@ import {
   Eye, EyeOff, Save, Truck, Home, CheckCircle, AlertCircle,
   RotateCcw, Bell, BellOff, BellRing, Cpu, Wifi, WifiOff,
   ChevronRight, Camera, Pencil, Check, X, KeyRound, Shield, Layers, Sun, Copy, UserPlus,
-  Users, Crown, Smartphone, Building2, BookOpen,
+  Users, Crown, Smartphone, Building2, BookOpen, Sparkles,
 } from "lucide-react";
 import {
   MOBILE_NAV_REGISTRY, DEFAULT_MOBILE_FAVORITES,
@@ -21,6 +21,7 @@ import useViewport from "../hooks/useViewport";
 import DayNightToggle from "./DayNightToggle";
 import usePushSubscription from "../hooks/usePushSubscription";
 import BottomSheet from "./ui/BottomSheet";
+import { loadAssistantUiConfig, saveAssistantUiConfig } from "../utils/assistantPersistence";
 
 const OPENAI_MODEL_CUSTOM_VALUE = "__custom__";
 const OPENAI_MODEL_PRESETS = ["gpt-4o-mini", "gpt-4o"];
@@ -189,6 +190,14 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
   const [kochbuchOllamaThinkingEnabled, setKochbuchOllamaThinkingEnabled] = useState(false);
   const [kochbuchKiStatus, setKochbuchKiStatus] = useState(null);
 
+  // Globaler Assistent
+  const [assistantKiProvider, setAssistantKiProvider] = useState("global");
+  const [assistantOpenaiModel, setAssistantOpenaiModel] = useState("");
+  const [assistantOllamaModel, setAssistantOllamaModel] = useState("");
+  const [assistantOllamaThinkingEnabled, setAssistantOllamaThinkingEnabled] = useState(false);
+  const [assistantKiStatus, setAssistantKiStatus] = useState(null);
+  const [assistantEnabled, setAssistantEnabled] = useState(true);
+
   // Push
   const {
     isSupported:  pushUnterstuetzt,
@@ -278,7 +287,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     if (!userId || !isHouseholdAdmin || !householdContext?.household_id) return;
     supabase
       .from("household_settings")
-      .select("openai_model, bildanalyse_modus, bildanalyse_openai_key_set, bildanalyse_openai_model, ollama_vision_model, kochbuch_daily_web_import_limit, kochbuch_daily_video_import_limit, kochbuch_ki_provider, kochbuch_openai_model, kochbuch_ollama_model, kochbuch_ollama_thinking_enabled")
+      .select("openai_model, bildanalyse_modus, bildanalyse_openai_key_set, bildanalyse_openai_model, ollama_vision_model, kochbuch_daily_web_import_limit, kochbuch_daily_video_import_limit, kochbuch_ki_provider, kochbuch_openai_model, kochbuch_ollama_model, kochbuch_ollama_thinking_enabled, assistant_ki_provider, assistant_openai_model, assistant_ollama_model, assistant_ollama_thinking_enabled")
       .eq("household_id", householdContext.household_id)
       .maybeSingle()
       .then(({ data }) => {
@@ -293,8 +302,22 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         if (data?.kochbuch_openai_model) setKochbuchOpenaiModel(data.kochbuch_openai_model);
         if (data?.kochbuch_ollama_model) setKochbuchOllamaModel(data.kochbuch_ollama_model);
         if (data?.kochbuch_ollama_thinking_enabled !== undefined) setKochbuchOllamaThinkingEnabled(!!data.kochbuch_ollama_thinking_enabled);
+        if (data?.assistant_ki_provider) setAssistantKiProvider(data.assistant_ki_provider);
+        if (data?.assistant_openai_model) setAssistantOpenaiModel(data.assistant_openai_model);
+        if (data?.assistant_ollama_model) setAssistantOllamaModel(data.assistant_ollama_model);
+        if (data?.assistant_ollama_thinking_enabled !== undefined) setAssistantOllamaThinkingEnabled(!!data.assistant_ollama_thinking_enabled);
       });
   }, [userId, isHouseholdAdmin, householdContext?.household_id]);
+
+  // Persönlicher Assistent-Schalter (assistant_ui_config, alle Nutzer)
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    loadAssistantUiConfig(userId).then((config) => {
+      if (!cancelled) setAssistantEnabled(config?.enabled !== false);
+    });
+    return () => { cancelled = true; };
+  }, [userId]);
 
   // KI-Status für Nicht-Admin-Mitglieder
   useEffect(() => {
@@ -536,6 +559,23 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     }
     setKochbuchKiStatus(profileError || rpcError ? "fehler" : "ok");
     setTimeout(() => setKochbuchKiStatus(null), 3000);
+  };
+
+  const handleAssistantKiSpeichern = async () => {
+    setAssistantKiStatus(null);
+    const { error } = await supabase.rpc("set_household_assistant_ki_settings", {
+      p_assistant_ki_provider: assistantKiProvider,
+      p_assistant_openai_model: assistantOpenaiModel.trim() || null,
+      p_assistant_ollama_model: assistantOllamaModel.trim() || null,
+      p_assistant_ollama_thinking_enabled: !!assistantOllamaThinkingEnabled,
+    });
+    setAssistantKiStatus(error ? "fehler" : "ok");
+    setTimeout(() => setAssistantKiStatus(null), 3000);
+  };
+
+  const handleAssistantEnabledToggle = async (naechsterWert) => {
+    setAssistantEnabled(naechsterWert);
+    await saveAssistantUiConfig(userId, { enabled: naechsterWert });
   };
 
   const handleMitgliedEntfernen = async () => {
@@ -844,6 +884,8 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     "haushalt":         t("profile:panels.household"),
     "einladen":         t("profile:panels.invite"),
     "ki":               t("profile:panels.ai"),
+    "assistent":        t("profile:panels.assistant"),
+    "kochbuch":         t("profile:panels.kochbuchAi"),
     "bildanalyse":      t("profile:panels.imageAnalysis"),
     "push":             t("profile:panels.push"),
     "touren":           t("profile:panels.tours"),
@@ -1470,6 +1512,130 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 : <><Save size={15} /> {t("profile:panelContent.imageAnalysis.saveSettings")}</>}
             </button>
           </>
+        )}
+      </div>
+    );
+
+    if (key === "assistent") return (
+      <div className="space-y-4">
+        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+          {t("profile:panelContent.assistant.intro")}
+        </p>
+
+        {/* Persönlicher Ein/Aus-Schalter — für alle Nutzer */}
+        <div className="space-y-2 p-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-surface-1 dark:bg-canvas-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+            {t("profile:panelContent.assistant.personalSection")}
+          </p>
+          <label className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              checked={assistantEnabled}
+              onChange={(e) => handleAssistantEnabledToggle(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-light-border dark:border-dark-border text-primary-500 focus:ring-primary-500"
+            />
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-light-text-main dark:text-dark-text-main">
+                {t("profile:panelContent.assistant.enableLabel")}
+              </span>
+              <span className="block text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                {t("profile:panelContent.assistant.enableHint")}
+              </span>
+            </span>
+          </label>
+        </div>
+
+        {/* KI-Anbieter — nur Admin */}
+        {isHouseholdAdmin ? (
+          <div className="space-y-3 p-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-surface-1 dark:bg-canvas-3">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">
+                {t("profile:panelContent.assistant.aiProviderSection")}
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {[
+                  { id: "global", label: t("profile:panelContent.assistant.aiProviderGlobal"), desc: t("profile:panelContent.assistant.aiProviderGlobalDesc") },
+                  { id: "openai", label: "OpenAI", desc: t("profile:panelContent.assistant.aiProviderOpenaiDesc") },
+                  { id: "ollama", label: "Ollama", desc: t("profile:panelContent.assistant.aiProviderOllamaDesc") },
+                ].map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => setAssistantKiProvider(p.id)}
+                    className={`flex flex-col items-center p-3 rounded-card-sm border-2 text-sm text-center transition-all
+                                ${assistantKiProvider === p.id
+                                  ? "border-secondary-500 bg-secondary-500/10 text-secondary-500"
+                                  : "border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:border-secondary-500/40"
+                                }`}
+                  >
+                    <span className="font-semibold">{p.label}</span>
+                    <span className="text-xs opacity-70 mt-0.5">{p.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            {assistantKiProvider === "openai" && (
+              <label className="space-y-1.5 block">
+                <span className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+                  {t("profile:panelContent.assistant.openaiModel")}
+                </span>
+                <input
+                  type="text"
+                  value={assistantOpenaiModel}
+                  onChange={(e) => setAssistantOpenaiModel(e.target.value)}
+                  placeholder="gpt-4o"
+                  className={inputCls}
+                />
+              </label>
+            )}
+            {assistantKiProvider === "ollama" && (
+              <div className="space-y-3">
+                <label className="space-y-1.5 block">
+                  <span className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+                    {t("profile:panelContent.assistant.ollamaModel")}
+                  </span>
+                  <input
+                    type="text"
+                    value={assistantOllamaModel}
+                    onChange={(e) => setAssistantOllamaModel(e.target.value)}
+                    placeholder={ollamaModel || "qwen2.5"}
+                    className={inputCls}
+                  />
+                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                    {t("profile:panelContent.assistant.ollamaModelHint")}
+                  </p>
+                </label>
+                <label className="flex items-start gap-3 p-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-surface-2 dark:bg-canvas-2">
+                  <input
+                    type="checkbox"
+                    checked={assistantOllamaThinkingEnabled}
+                    onChange={(e) => setAssistantOllamaThinkingEnabled(e.target.checked)}
+                    className="mt-1 h-4 w-4 rounded border-light-border dark:border-dark-border text-secondary-500 focus:ring-secondary-500"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-light-text-main dark:text-dark-text-main">
+                      {t("profile:panelContent.assistant.ollamaThinking")}
+                    </span>
+                    <span className="block text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                      {t("profile:panelContent.assistant.ollamaThinkingHint")}
+                    </span>
+                  </span>
+                </label>
+              </div>
+            )}
+            <button
+              onClick={handleAssistantKiSpeichern}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-pill text-sm font-medium
+                         bg-primary-500 hover:bg-primary-600 text-white transition-colors"
+            >
+              {assistantKiStatus === "ok" ? <><CheckCircle size={15} /> {t("common:status.saved")}</>
+                : assistantKiStatus === "fehler" ? <><AlertCircle size={15} /> {t("common:status.error")}</>
+                : <><Save size={15} /> {t("profile:panelContent.assistant.saveAiProvider")}</>}
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+            {t("profile:panelContent.assistant.adminOnlyHint")}
+          </p>
         )}
       </div>
     );
@@ -2307,6 +2473,16 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 onAktion={() => setAktivesPanel("ki")}
                 iconFarbe="primary"
               />
+              <ModulKarte
+                icon={<Sparkles size={16} />}
+                titel={t("profile:cards.assistant.title")}
+                status={assistantEnabled ? t("profile:cards.assistant.statusOn") : t("profile:cards.assistant.statusOff")}
+                statusFarbe={assistantEnabled ? "emerald" : "gray"}
+                beschreibung={t("profile:cards.assistant.desc")}
+                aktionLabel={t("profile:cards.assistant.action")}
+                onAktion={() => setAktivesPanel("assistent")}
+                iconFarbe="secondary"
+              />
               {isHouseholdAdmin && (
                 <ModulKarte
                   icon={<Camera size={16} />}
@@ -2547,6 +2723,16 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               aktionLabel={t("profile:cards.ai.action")}
               onAktion={() => setAktivesPanel("ki")}
               iconFarbe="primary"
+            />
+            <ModulKarte
+              icon={<Sparkles size={16} />}
+              titel={t("profile:cards.assistant.title")}
+              status={assistantEnabled ? t("profile:cards.assistant.statusOn") : t("profile:cards.assistant.statusOff")}
+              statusFarbe={assistantEnabled ? "emerald" : "gray"}
+              beschreibung={t("profile:cards.assistant.desc")}
+              aktionLabel={t("profile:cards.assistant.action")}
+              onAktion={() => setAktivesPanel("assistent")}
+              iconFarbe="secondary"
             />
             {isHouseholdAdmin && (
               <ModulKarte

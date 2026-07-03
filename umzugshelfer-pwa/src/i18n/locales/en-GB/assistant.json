@@ -60,7 +60,12 @@
     "wartungen": "Record maintenance",
     "budget_settlement": "Add budget settlement",
     "buecher": "Record book",
-    "budget_split": "Add budget with cost split"
+    "budget_split": "Add budget with cost split",
+    "kfz_tank": "Fuel entries",
+    "kfz_kilometerstand": "Mileage entries",
+    "kfz_service": "Vehicle services",
+    "erinnerung": "Reminders",
+    "rezept_update": "Recipe changes"
   },
   "summaryLabels": {
     "inventar_one": "item",
@@ -90,6 +95,23 @@
     "buecher_one": "book",
     "buecher_other": "books",
     "budget_split_one": "budget split",
-    "budget_split_other": "budget splits"
-  }
+    "budget_split_other": "budget splits",
+    "kfz_tank_one": "fuel entry",
+    "kfz_tank_other": "fuel entries",
+    "kfz_kilometerstand_one": "mileage entry",
+    "kfz_kilometerstand_other": "mileage entries",
+    "kfz_service_one": "vehicle service",
+    "kfz_service_other": "vehicle services",
+    "erinnerung_one": "reminder",
+    "erinnerung_other": "reminders",
+    "rezept_update_one": "recipe change",
+    "rezept_update_other": "recipe changes"
+  },
+  "agentProposalPreview": "I have prepared {{summary}}. Please confirm or discard the proposal.",
+  "toolsUnsupportedFallback": "The configured AI model does not support tool calling. Falling back to simple mode.",
+  "workingTool": "Working: {{tool}}…",
+  "agentBudgetExceeded": "I could not finish the request within the tool budget. Please narrow down the question.",
+  "flowInactive": "{{label}} is prepared but not currently wired up as a Home route.",
+  "flowOpening": "Opening the matching Home flow: {{label}}.",
+  "preparedSummary": "I have prepared {{summary}}."
 }

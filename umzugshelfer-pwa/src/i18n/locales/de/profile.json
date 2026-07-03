@@ -36,7 +36,9 @@
     "push": "Push-Benachrichtigungen",
     "tours": "Interaktive Anleitungen",
     "mobileNav": "Mobile Navigation",
-    "account": "Account & Sicherheit"
+    "account": "Account & Sicherheit",
+    "assistant": "Globaler Assistent",
+    "kochbuchAi": "Kochbuch & KI"
   },
   "cards": {
     "appearance": {
@@ -101,6 +103,13 @@
       "statusVideo": "{{count}}/Tag Video",
       "desc": "Tageslimits fuer Rezept- und Videoimporte",
       "action": "Limits setzen"
+    },
+    "assistant": {
+      "title": "Globaler Assistent",
+      "statusOn": "Aktiv",
+      "statusOff": "Deaktiviert",
+      "desc": "KI-Assistent für Fragen und Aktionen in der ganzen App",
+      "action": "Konfigurieren"
     }
   },
   "mobileTabs": {
@@ -260,6 +269,24 @@
       "webLimit": "Web-Rezepte pro Tag",
       "videoLimit": "Video-Rezepte pro Tag",
       "saveLimits": "Limits speichern"
+    },
+    "assistant": {
+      "intro": "Der globale Assistent beantwortet Fragen zu deinen Haushaltsdaten und legt auf Wunsch neue Einträge an. Alle Aktionen müssen im Chat bestätigt werden.",
+      "personalSection": "Persönliche Einstellung",
+      "enableLabel": "Assistent anzeigen",
+      "enableHint": "Blendet den Assistenten nur für dich ein oder aus. Andere Haushaltsmitglieder sind nicht betroffen.",
+      "aiProviderSection": "KI-Anbieter für den Assistenten",
+      "aiProviderGlobal": "Haushalts-Standard",
+      "aiProviderGlobalDesc": "Nutzt die allgemeinen KI-Einstellungen",
+      "aiProviderOpenaiDesc": "Eigenes OpenAI-Modell für den Assistenten",
+      "aiProviderOllamaDesc": "Eigenes Ollama-Modell für den Assistenten",
+      "openaiModel": "OpenAI-Modell",
+      "ollamaModel": "Ollama-Modell",
+      "ollamaModelHint": "Für Tool-Aufrufe wird ein Modell mit Tool-Unterstützung empfohlen (z.B. qwen2.5, llama3.1). Ohne Tool-Support nutzt der Assistent automatisch den einfachen Modus.",
+      "ollamaThinking": "Thinking-Modus erlauben",
+      "ollamaThinkingHint": "Nur für Reasoning-Modelle relevant. Standardmäßig deaktiviert für schnellere Antworten.",
+      "adminOnlyHint": "Der KI-Anbieter des Assistenten wird vom Haushalts-Admin verwaltet.",
+      "saveAiProvider": "Assistent-KI speichern"
     }
   }
 }

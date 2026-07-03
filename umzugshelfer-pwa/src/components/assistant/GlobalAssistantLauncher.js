@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Loader2,
@@ -13,6 +13,12 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import useViewport from "../../hooks/useViewport";
+import useDraggablePanel from "../../hooks/useDraggablePanel";
+import useBottomSheetDrag from "../../hooks/useBottomSheetDrag";
+import {
+  resolveInitialBubblePosition,
+  resolveInitialDesktopPosition,
+} from "../../utils/assistantWindowGeometry";
 import { useToast } from "../../hooks/useToast";
 import { useLocale } from "../../contexts/LocaleContext";
 import { DEFAULT_BUDGET_VIEW_STATE, sanitizeBudgetViewState } from "../../utils/budgetViewState";
@@ -23,6 +29,8 @@ import {
   classifyAssistantInput,
   extractAssistantDomainItems,
 } from "../../utils/assistantAi";
+import { AgentToolsUnsupportedError, runAssistantAgent } from "../../utils/assistantAgent";
+import { buildAssistantTools } from "../../utils/assistantToolRegistry";
 import {
   ASSISTANT_ROUTE_MAP,
   getAssistantDomainLabel,
@@ -60,6 +68,22 @@ import {
 
 const DEFAULT_THREAD_TITLES = ["Neuer Chat", "New chat"];
 const GLOBAL_ASSISTANT_ENABLED = process.env.REACT_APP_GLOBAL_ASSISTANT_ENABLED !== "false";
+// Session-Flag: Modell ohne Tool-Support erkannt -> Legacy-Pipeline nutzen.
+const TOOLS_UNSUPPORTED_FLAG = "__assistant_tools_unsupported_v1";
+
+const isToolsUnsupportedCached = () => {
+  try {
+    return window.sessionStorage.getItem(TOOLS_UNSUPPORTED_FLAG) === "true";
+  } catch {
+    return false;
+  }
+};
+
+const cacheToolsUnsupported = () => {
+  try {
+    window.sessionStorage.setItem(TOOLS_UNSUPPORTED_FLAG, "true");
+  } catch {}
+};
 const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
 
 const buildOpenFlowPayload = ({ flowKey, input }) => {
@@ -184,6 +208,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
   const { t } = useTranslation(["assistant"]);
 
   const [uiConfig, setUiConfig] = useState(DEFAULT_ASSISTANT_UI_CONFIG);
+  const [configGeladen, setConfigGeladen] = useState(false);
   const [threads, setThreads] = useState([]);
   const [activeThreadId, setActiveThreadId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -193,15 +218,16 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [speechActive, setSpeechActive] = useState(false);
+  const [agentToolName, setAgentToolName] = useState(null);
   const panelBodyRef = useRef(null);
 
   const open = uiConfig.is_open === true;
   const visibleForUser = uiConfig.enabled !== false;
 
-  const panelPositionClass =
-    isDesktop && uiConfig.desktop_anchor === "left"
-      ? "md:ml-6 md:mr-auto"
-      : "md:mr-6 md:ml-auto";
+  const reducedMotion = useMemo(
+    () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches,
+    [],
+  );
 
   const persistUiConfig = useCallback(
     async (patch) => {
@@ -211,6 +237,62 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
     },
     [userId],
   );
+
+  // ── Verschiebbares Fenster (Desktop) ────────────────────────────────────────
+  const DESKTOP_PANEL = { width: 440, height: 680 };
+  const initialDesktopPosition = useMemo(() => {
+    if (!configGeladen || !isDesktop || typeof window === "undefined") return null;
+    return resolveInitialDesktopPosition({
+      desktop_x: uiConfig.desktop_x,
+      desktop_y: uiConfig.desktop_y,
+      desktop_anchor: uiConfig.desktop_anchor,
+      vw: window.innerWidth,
+      vh: window.innerHeight,
+      width: DESKTOP_PANEL.width,
+      height: DESKTOP_PANEL.height,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configGeladen, isDesktop, uiConfig.desktop_x, uiConfig.desktop_y, uiConfig.desktop_anchor]);
+
+  const panelDrag = useDraggablePanel({
+    enabled: isDesktop,
+    initialPosition: initialDesktopPosition,
+    onDragEnd: ({ x, y }) => persistUiConfig({ desktop_x: Math.round(x), desktop_y: Math.round(y) }),
+  });
+
+  // ── Bottom-Sheet mit Hoehen-Snap (Mobile) ───────────────────────────────────
+  const sheet = useBottomSheetDrag({
+    snapPoints: [0.45, 0.82, 1],
+    initialSnap: 0.82,
+    reducedMotion,
+    onDismiss: () => {
+      setPendingAction(null);
+      setActiveWorkflow(null);
+      persistUiConfig({ is_open: false, is_minimized: true });
+    },
+  });
+
+  // ── Minimierte, frei verschiebbare Blase (Mobile) ───────────────────────────
+  const initialBubblePosition = useMemo(() => {
+    if (!configGeladen || isDesktop || typeof window === "undefined") return null;
+    return resolveInitialBubblePosition({
+      mobile_x: uiConfig.mobile_x,
+      mobile_y: uiConfig.mobile_y,
+      vw: window.innerWidth,
+      vh: window.innerHeight,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configGeladen, isDesktop, uiConfig.mobile_x, uiConfig.mobile_y]);
+
+  const bubbleJustDragged = useRef(false);
+  const bubbleDrag = useDraggablePanel({
+    enabled: !isDesktop,
+    initialPosition: initialBubblePosition,
+    onDragEnd: ({ x, y }) => {
+      bubbleJustDragged.current = true;
+      persistUiConfig({ mobile_x: Math.round(x), mobile_y: Math.round(y) });
+    },
+  });
 
   const loadThreadMessages = useCallback(async (threadId) => {
     if (!threadId) {
@@ -252,6 +334,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
         ]);
         if (ignore) return;
         setUiConfig(storedUiConfig);
+        setConfigGeladen(true);
         setThreads(storedThreads);
         if (storedThreads[0]?.id) {
           setActiveThreadId(storedThreads[0].id);
@@ -286,10 +369,18 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
     onRegisterOpen?.(handleOpen);
   }, [onRegisterOpen, handleOpen]);
 
-  const handleClose = useCallback(() => {
+  // Minimieren: Fenster zu, Blase (Mobile) bleibt sichtbar.
+  const handleMinimize = useCallback(() => {
     setPendingAction(null);
     setActiveWorkflow(null);
     persistUiConfig({ is_open: false, is_minimized: true });
+  }, [persistUiConfig]);
+
+  // Schliessen: Fenster zu, keine Blase.
+  const handleClose = useCallback(() => {
+    setPendingAction(null);
+    setActiveWorkflow(null);
+    persistUiConfig({ is_open: false, is_minimized: false });
   }, [persistUiConfig]);
 
   const navigateToAssistantFlow = useCallback(
@@ -542,45 +633,104 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
     return true;
   }, [activeWorkflow, advanceWorkflow]);
 
-  const handleSend = useCallback(async () => {
-    const trimmed = input.trim();
-    if (!trimmed || loading) return;
-    const threadId = await ensureThread();
-    if (!threadId) return;
+  // Vorschlags-Handler fuer den Agenten: bereitet die Aktion vor, zeigt die
+  // Vorschaukarte und liefert eine Zusammenfassung ans Modell zurueck.
+  const buildAgentProposalHandler = useCallback(
+    (threadId, userText) => async (proposal) => {
+      try {
+        if (proposal?.kind === "open_flow") {
+          if (!ASSISTANT_ROUTE_MAP[proposal.routeKey]) {
+            return { fehler: `Unbekannter Flow: ${proposal.routeKey}` };
+          }
+          const flowPayload = buildOpenFlowPayload({
+            flowKey: proposal.routeKey,
+            input: proposal.query || userText,
+          });
+          const text = t("assistant:openFlowReply", { flow: proposal.routeKey });
+          await pushMessage(threadId, "assistant", text, flowPayload);
+          setPendingAction({
+            kind: "open_flow",
+            flow: flowPayload,
+            reply: text,
+            previewText: text,
+          });
+          return { summary: text };
+        }
 
-    setLoading(true);
-    setPendingAction(null);
-    setInput("");
+        const { domain, items } = proposal || {};
+        if (!domain || !Array.isArray(items) || items.length === 0) {
+          return { fehler: "Unvollstaendiger Vorschlag." };
+        }
 
-    try {
-      await pushMessage(threadId, "user", trimmed);
-      await maybeRenameThread(threadId, trimmed);
-
-      if (isMedicationAdviceRequest(trimmed)) {
-        await pushMessage(threadId, "assistant", medicationAdviceRefusal, {
-          type: "guardrail",
-          domain: "medikamente",
+        const actionContext = await loadAssistantActionContext({
+          domain,
+          userId,
+          householdId,
+          appMode,
+          pathname: location.pathname,
         });
-        return;
-      }
 
-      if (activeWorkflow?.status === "question") {
-        await continueWorkflow({ threadId, text: trimmed });
-        return;
-      }
+        const preparedAction = await prepareAssistantAction({
+          domain,
+          session,
+          items,
+          context: actionContext,
+        });
 
+        if (
+          await handlePreparedAssistantResult({
+            threadId,
+            preparedAction,
+            fallbackText: "",
+          })
+        ) {
+          return {
+            summary:
+              preparedAction?.text ||
+              t("assistant:preparedSummary", {
+                summary: summarizeAssistantItems(domain, items, t),
+              }),
+          };
+        }
+
+        const previewText = t("assistant:agentProposalPreview", {
+          summary: summarizeAssistantItems(domain, items, t),
+        });
+        await pushMessage(threadId, "assistant", previewText, {
+          type: "prepared_action",
+          domain,
+          count: items.length,
+        });
+        setPendingAction({
+          threadId,
+          domain,
+          preparedAction: { ...preparedAction, domain, items },
+          actionContext,
+          previewText,
+        });
+        return { summary: previewText };
+      } catch (error) {
+        return { fehler: error?.message || String(error) };
+      }
+    },
+    [appMode, handlePreparedAssistantResult, householdId, location.pathname, pushMessage, session, t, userId],
+  );
+
+  // Legacy-Pipeline: klassifizieren -> extrahieren -> Workflow/Vorschau.
+  // Bleibt als vollstaendiger Fallback fuer Modelle ohne Tool-Calling erhalten.
+  const runLegacyPipeline = useCallback(async ({ threadId, trimmed }) => {
       const detectedFlow = detectHomeAssistantFlow(trimmed);
       if (detectedFlow) {
         if (detectedFlow.inactive) {
           await pushMessage(
             threadId,
             "assistant",
-            `${detectedFlow.label} ist vorbereitet, aber aktuell nicht als Home-Route eingebunden.`,
+            t("assistant:flowInactive", { label: detectedFlow.label }),
           );
           return;
         }
         const flowPayload = buildHomeAssistantFlowPayload(detectedFlow, trimmed);
-        const text = `Ich oeffne den passenden Home-Flow: ${detectedFlow.label}.`;
+        const text = t("assistant:flowOpening", { label: detectedFlow.label });
         await pushMessage(threadId, "assistant", text, flowPayload);
         setPendingAction({
           kind: "open_flow",
@@ -693,7 +843,9 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
 
       const previewText =
         classification.reply ||
-        `Ich habe ${summarizeAssistantItems(classification.domain, items, t)} vorbereitet.`;
+        t("assistant:preparedSummary", {
+          summary: summarizeAssistantItems(classification.domain, items, t),
+        });
       await pushMessage(threadId, "assistant", previewText, {
         type: "prepared_action",
         domain: classification.domain,
@@ -711,6 +863,88 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
         actionContext,
         previewText,
       });
+  }, [
+    appMode,
+    beginWorkflow,
+    handlePreparedAssistantResult,
+    householdId,
+    locale,
+    location.pathname,
+    pushMessage,
+    session,
+    t,
+    userId,
+  ]);
+
+  const handleSend = useCallback(async () => {
+    const trimmed = input.trim();
+    if (!trimmed || loading) return;
+    const threadId = await ensureThread();
+    if (!threadId) return;
+
+    setLoading(true);
+    setPendingAction(null);
+    setInput("");
+
+    try {
+      await pushMessage(threadId, "user", trimmed);
+      await maybeRenameThread(threadId, trimmed);
+
+      if (isMedicationAdviceRequest(trimmed)) {
+        await pushMessage(threadId, "assistant", medicationAdviceRefusal, {
+          type: "guardrail",
+          domain: "medikamente",
+        });
+        return;
+      }
+
+      if (activeWorkflow?.status === "question") {
+        await continueWorkflow({ threadId, text: trimmed });
+        return;
+      }
+
+      // Primaerpfad: agentischer Tool-Loop (Lesen + Vorschlaege ueber Tools).
+      if (!isToolsUnsupportedCached()) {
+        try {
+          const agentResult = await runAssistantAgent({
+            userId,
+            session,
+            householdId,
+            appMode,
+            pathname: location.pathname,
+            locale,
+            input: trimmed,
+            history: messages,
+            toolSpecs: buildAssistantTools({ appMode }),
+            onToolEvent: ({ name }) => setAgentToolName(name),
+            onProposal: buildAgentProposalHandler(threadId, trimmed),
+          });
+          setAgentToolName(null);
+          if (!agentResult.proposalCreated) {
+            await pushMessage(
+              threadId,
+              "assistant",
+              agentResult.finalText || t("assistant:uncertainReply"),
+              {
+                type: "agent_answer",
+                tool_trace: agentResult.toolTrace,
+              },
+            );
+          }
+          return;
+        } catch (agentError) {
+          setAgentToolName(null);
+          if (agentError instanceof AgentToolsUnsupportedError) {
+            cacheToolsUnsupported();
+            toast.info?.(t("assistant:toolsUnsupportedFallback"));
+          } else {
+            throw agentError;
+          }
+        }
+      }
+
+      // Fallback: Legacy-Pipeline (klassifizieren -> extrahieren).
+      await runLegacyPipeline({ threadId, trimmed });
     } catch (error) {
       const message = error?.message || t("assistant:errGeneric");
       toast.error(message);
@@ -722,10 +956,14 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
         retryable: Boolean(error?.retryable),
       });
     } finally {
+      setAgentToolName(null);
       setLoading(false);
     }
   }, [
+    activeWorkflow,
     appMode,
+    buildAgentProposalHandler,
+    continueWorkflow,
     ensureThread,
     householdId,
     input,
@@ -733,15 +971,13 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
     locale,
     location.pathname,
     maybeRenameThread,
+    messages,
     pushMessage,
+    runLegacyPipeline,
     session,
     t,
     toast,
     userId,
-    activeWorkflow,
-    beginWorkflow,
-    continueWorkflow,
-    handlePreparedAssistantResult,
   ]);
 
   const handleWorkflowChoice = useCallback(async (message, choice) => {
@@ -850,20 +1086,14 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
 
   if (!userId || !GLOBAL_ASSISTANT_ENABLED || !visibleForUser) return null;
 
-  return (
+  const panelInner = (
     <>
-      {open && (
-        <div
-          className="fixed inset-0 z-[150] flex items-end justify-end bg-black/30 backdrop-blur-sm"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) handleClose();
-          }}
-        >
-          <div
-            className={`flex h-[min(82vh,760px)] w-full max-w-[440px] flex-col rounded-t-3xl border border-light-border bg-light-card shadow-elevation-3 dark:border-dark-border dark:bg-canvas-2 md:mb-6 md:h-[680px] md:rounded-3xl ${panelPositionClass}`}
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-center gap-2 border-b border-light-border px-4 py-3 dark:border-dark-border">
+            <div
+              className={`flex items-center gap-2 border-b border-light-border px-4 py-3 dark:border-dark-border ${
+                isDesktop ? "cursor-move touch-none select-none" : ""
+              }`}
+              {...(isDesktop ? panelDrag.dragHandleProps : {})}
+            >
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-500/10 text-primary-500">
                 <Sparkles size={18} />
               </div>
@@ -894,7 +1124,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
               </button>
               <button
                 type="button"
-                onClick={handleClose}
+                onClick={handleMinimize}
                 className="rounded-full p-2 text-light-text-secondary hover:bg-light-hover dark:text-dark-text-secondary dark:hover:bg-canvas-3"
                 title={t("assistant:minimize")}
               >
@@ -902,7 +1132,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
               </button>
               <button
                 type="button"
-                onClick={() => persistUiConfig({ is_open: false, is_minimized: true })}
+                onClick={handleClose}
                 className="rounded-full p-2 text-light-text-secondary hover:bg-light-hover dark:text-dark-text-secondary dark:hover:bg-canvas-3"
                 title={t("assistant:close")}
               >
@@ -1131,7 +1361,9 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
               {loading && (
                 <div className="inline-flex items-center gap-2 rounded-full bg-light-bg px-3 py-2 text-sm text-light-text-secondary dark:bg-canvas-1 dark:text-dark-text-secondary">
                   <Loader2 size={15} className="animate-spin" />
-                  {t("assistant:working")}
+                  {agentToolName
+                    ? t("assistant:workingTool", { tool: agentToolName })
+                    : t("assistant:working")}
                 </div>
               )}
             </div>
@@ -1171,7 +1403,72 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
                 </button>
               </div>
             </div>
+    </>
+  );
+
+  return (
+    <>
+      {open &&
+        (isDesktop ? (
+          <div
+            ref={panelDrag.elementRef}
+            className="fixed z-[150] flex h-[min(680px,calc(100vh-24px))] w-[min(440px,calc(100vw-24px))] flex-col overflow-hidden rounded-3xl border border-light-border bg-light-card shadow-elevation-3 dark:border-dark-border dark:bg-canvas-2"
+            style={
+              panelDrag.position
+                ? { left: panelDrag.position.x, top: panelDrag.position.y }
+                : { right: 24, bottom: 24 }
+            }
+          >
+            {panelInner}
           </div>
+        ) : (
+          <div
+            className="fixed inset-0 z-[150] flex items-end justify-center bg-black/30 backdrop-blur-sm"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) handleMinimize();
+            }}
+          >
+            <div
+              className="flex w-full flex-col overflow-hidden rounded-t-3xl border border-light-border bg-light-card shadow-elevation-3 dark:border-dark-border dark:bg-canvas-2"
+              style={sheet.sheetStyle}
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <div
+                className="flex shrink-0 cursor-grab touch-none items-center justify-center pb-1 pt-2"
+                {...sheet.handleProps}
+              >
+                <div className="h-1.5 w-10 rounded-full bg-light-border dark:bg-dark-border" />
+              </div>
+              {panelInner}
+            </div>
+          </div>
+        ))}
+
+      {!open && !isDesktop && configGeladen && uiConfig.is_minimized === true && (
+        <div
+          ref={bubbleDrag.elementRef}
+          role="button"
+          tabIndex={0}
+          aria-label={t("assistant:open")}
+          {...bubbleDrag.dragHandleProps}
+          onClick={() => {
+            if (bubbleJustDragged.current) {
+              bubbleJustDragged.current = false;
+              return;
+            }
+            handleOpen();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") handleOpen();
+          }}
+          className="fixed z-[140] flex h-14 w-14 cursor-pointer touch-none items-center justify-center rounded-full bg-primary-500 text-white shadow-elevation-3 active:scale-95"
+          style={
+            bubbleDrag.position
+              ? { left: bubbleDrag.position.x, top: bubbleDrag.position.y }
+              : { right: 16, bottom: 96 }
+          }
+        >
+          <Sparkles size={22} />
         </div>
       )}
     </>

@@ -113,6 +113,10 @@ const payload = await parseJson(req);
     payload?.response_format && typeof payload.response_format === "object"
       ? (payload.response_format as ResponseFormat)
       : undefined;
+  const tools = Array.isArray(payload?.tools) && payload.tools.length > 0
+    ? (payload.tools as Record<string, unknown>[])
+    : undefined;
+  const toolChoice = payload?.tool_choice ?? undefined;
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return errorResponse({
@@ -156,7 +160,7 @@ const payload = await parseJson(req);
 
   const { data: settings, error: settingsError } = await supabaseAdmin
     .from("household_settings")
-    .select("ki_provider, openai_api_key, openai_model, ollama_base_url, ollama_model, kochbuch_ai_model, kochbuch_ki_provider, kochbuch_openai_model, kochbuch_ollama_model, kochbuch_ollama_thinking_enabled")
+    .select("ki_provider, openai_api_key, openai_model, ollama_base_url, ollama_model, kochbuch_ai_model, kochbuch_ki_provider, kochbuch_openai_model, kochbuch_ollama_model, kochbuch_ollama_thinking_enabled, assistant_ki_provider, assistant_openai_model, assistant_ollama_model, assistant_ollama_thinking_enabled")
     .eq("household_id", membership.household_id)
     .maybeSingle();
 
@@ -180,10 +184,17 @@ const payload = await parseJson(req);
   }
 
   const cookbookProvider = settings.kochbuch_ki_provider || "global";
+  const assistantProvider = settings.assistant_ki_provider || "global";
   const provider =
-    context === "kochbuch" && cookbookProvider !== "global"
+    context === "assistant" && assistantProvider !== "global"
+      ? assistantProvider
+      : context === "kochbuch" && cookbookProvider !== "global"
       ? cookbookProvider
       : settings.ki_provider || "openai";
+
+  // Erkennung: Upstream lehnt Tool-Calling ab (z.B. Ollama-Modell ohne Tool-Support).
+  const isToolsUnsupportedError = (message: unknown) =>
+    Boolean(tools) && /tool|function.?call/i.test(String(message || ""));
 
   try {
     if (provider === "ollama") {
@@ -203,20 +214,31 @@ const payload = await parseJson(req);
       // Wichtig: Bei Ollama niemals blind das vom Client angeforderte Modell nutzen.
       // Der Frontend-Default ist oft "gpt-4o" und fuehrt sonst zu "model not found".
       const ollamaModel = (
-        context === "kochbuch"
+        context === "assistant"
+          ? settings.assistant_ollama_model || settings.ollama_model || "llama3.2"
+          : context === "kochbuch"
           ? settings.kochbuch_ollama_model || settings.ollama_model || "llama3.2"
           : settings.ollama_model || "llama3.2"
       ).trim();
       const disableOllamaThinking =
-        context === "kochbuch" ? !Boolean(settings.kochbuch_ollama_thinking_enabled) : true;
+        context === "assistant"
+          ? !Boolean(settings.assistant_ollama_thinking_enabled)
+          : context === "kochbuch"
+          ? !Boolean(settings.kochbuch_ollama_thinking_enabled)
+          : true;
+      // Bei Tool-Calling keine JSON-Instruktion injizieren — das Modell muss frei
+      // zwischen tool_calls und Textantwort waehlen koennen.
       const ollamaMessages =
-        responseFormat?.type === "json_object" ? injectJsonInstruction(messages, disableOllamaThinking) : messages;
+        !tools && responseFormat?.type === "json_object"
+          ? injectJsonInstruction(messages, disableOllamaThinking)
+          : messages;
       let ollamaBody: Record<string, unknown> = {
         model: ollamaModel,
         messages: ollamaMessages,
         temperature,
         ...(disableOllamaThinking ? { think: false, reasoning_effort: false } : {}),
-        ...(responseFormat?.type === "json_object" ? { format: "json" } : {}),
+        ...(!tools && responseFormat?.type === "json_object" ? { format: "json" } : {}),
+        ...(tools ? { tools, tool_choice: toolChoice ?? "auto" } : {}),
       };
       let ollamaRes = await fetch(`${base}/v1/chat/completions`, {
         method: "POST",
@@ -236,10 +258,21 @@ const payload = await parseJson(req);
         ollamaJson = await ollamaRes.json().catch(() => ({}));
       }
       if (!ollamaRes.ok) {
+        const ollamaErrorMessage = ollamaJson?.error?.message || ollamaJson?.error || `Ollama HTTP ${ollamaRes.status}`;
+        if (isToolsUnsupportedError(ollamaErrorMessage)) {
+          return errorResponse({
+            httpStatus: 502,
+            code: "TOOLS_UNSUPPORTED",
+            message: `Das Ollama-Modell "${ollamaModel}" unterstuetzt kein Tool-Calling.`,
+            provider: "ollama",
+            status: ollamaRes.status,
+            retryable: false,
+          });
+        }
         return errorResponse({
           httpStatus: 502,
           code: "UPSTREAM_ERROR",
-          message: ollamaJson?.error?.message || ollamaJson?.error || `Ollama HTTP ${ollamaRes.status}`,
+          message: ollamaErrorMessage,
           provider: "ollama",
           status: ollamaRes.status,
           retryable: ollamaRes.status >= 500,
@@ -264,7 +297,9 @@ const payload = await parseJson(req);
     }
 
     const openaiModel =
-      context === "kochbuch"
+      context === "assistant"
+        ? settings.assistant_openai_model || settings.openai_model || "gpt-4o"
+        : context === "kochbuch"
         ? settings.kochbuch_openai_model || settings.kochbuch_ai_model || "gpt-4o-mini"
         : settings.openai_model || requestedModel || "gpt-4o";
     const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -278,15 +313,27 @@ const payload = await parseJson(req);
         messages,
         temperature,
         ...(responseFormat ? { response_format: responseFormat } : {}),
+        ...(tools ? { tools, tool_choice: toolChoice ?? "auto" } : {}),
       }),
     });
 
     const openaiJson = await openaiRes.json().catch(() => ({}));
     if (!openaiRes.ok) {
+      const openaiErrorMessage = openaiJson?.error?.message || `OpenAI HTTP ${openaiRes.status}`;
+      if (isToolsUnsupportedError(openaiErrorMessage) && openaiRes.status === 400) {
+        return errorResponse({
+          httpStatus: 502,
+          code: "TOOLS_UNSUPPORTED",
+          message: `Das OpenAI-Modell "${openaiModel}" unterstuetzt kein Tool-Calling.`,
+          provider: "openai",
+          status: openaiRes.status,
+          retryable: false,
+        });
+      }
       return errorResponse({
         httpStatus: 502,
         code: "UPSTREAM_ERROR",
-        message: openaiJson?.error?.message || `OpenAI HTTP ${openaiRes.status}`,
+        message: openaiErrorMessage,
         provider: "openai",
         status: openaiRes.status,
         retryable: openaiRes.status >= 500 || openaiRes.status === 429,

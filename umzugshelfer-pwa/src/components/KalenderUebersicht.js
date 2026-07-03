@@ -3,14 +3,14 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
-  format, addMonths, addDays,
+  format, addMonths,
   startOfMonth, endOfMonth,
   startOfWeek, endOfWeek,
   isSameMonth, isSameDay, isToday as isTodayFn,
   eachDayOfInterval,
 } from "date-fns";
 import { de } from "date-fns/locale";
-import { supabase } from "../supabaseClient";
+import { buildCalendarEvents, loadCalendarRawData } from "../utils/calendarEvents";
 import { useAppMode } from "../contexts/AppModeContext";
 import {
   CheckSquare, Wrench, DollarSign, CalendarDays, Utensils,
@@ -68,19 +68,6 @@ const EVENT_ICONS = {
 
 const LEGENDE_HOME  = ["aufgabe", "wartung", "budget", "meal"];
 const LEGENDE_UMZUG = ["aufgabe", "meilenstein"];
-
-// ── Datum-Hilfsfunktionen ────────────────────────────────────────────────────
-const calcNaechstesDatum = (datum, intervall) => {
-  const d = new Date(datum);
-  switch (intervall) {
-    case "Täglich":         return addDays(d, 1);
-    case "Wöchentlich":     return addDays(d, 7);
-    case "Monatlich":       return addMonths(d, 1);
-    case "Vierteljährlich": return addMonths(d, 3);
-    case "Jährlich":        return addMonths(d, 12);
-    default:                return d;
-  }
-};
 
 // ── MonatsAnsicht ────────────────────────────────────────────────────────────
 function MonthView({ datum, events, onEventClick }) {
@@ -390,132 +377,41 @@ const KalenderUebersicht = ({ session }) => {
   // Monat navigieren
   const navigate = (dir) => setDatum((prev) => addMonths(prev, dir));
 
-  // ── Daten laden ────────────────────────────────────────────────────────────
+  // ── Daten laden (gemeinsame Logik in utils/calendarEvents.js) ─────────────
   const ladeEvents = useCallback(async () => {
     if (!userId) return;
     setLadend(true);
-    const alleEvents = [];
+    let alleEvents = [];
 
     try {
-      // 1. Aufgaben
-      const { data: aufgaben } = await supabase
-        .from("todo_aufgaben")
-        .select("id, beschreibung, faelligkeitsdatum, prioritaet")
-        .eq("user_id", userId)
-        .eq("erledigt", false)
-        .eq("app_modus", appMode)
-        .not("faelligkeitsdatum", "is", null);
-
-      (aufgaben || []).forEach((a) => {
-        const d = new Date(a.faelligkeitsdatum);
-        alleEvents.push({
-          id: `aufgabe-${a.id}`,
-          title: a.beschreibung,
-          start: d, end: d, allDay: true,
-          typ: "aufgabe",
-          sub: t("home:calendar.priority", { priority: a.prioritaet || "–" }),
-          link: appMode === "home" ? "/home/aufgaben" : "/todos",
-        });
+      const raw = await loadCalendarRawData({
+        userId,
+        appMode,
+        mealVon: format(startOfMonth(datum), "yyyy-MM-dd"),
+        mealBis: format(endOfMonth(datum), "yyyy-MM-dd"),
       });
-
-      if (appMode === "home") {
-        // 2. Gerätewartungen
-        const { data: geraete } = await supabase
-          .from("home_geraete")
-          .select("id, name, naechste_wartung, hersteller")
-          .eq("user_id", userId)
-          .not("naechste_wartung", "is", null);
-
-        (geraete || []).forEach((g) => {
-          alleEvents.push({
-            id: `wartung-${g.id}`,
-            title: t("home:calendar.maintenanceTitle", { name: g.name }),
-            start: new Date(g.naechste_wartung), end: new Date(g.naechste_wartung), allDay: true,
-            typ: "wartung",
-            sub: g.hersteller
-              ? t("home:calendar.manufacturer", { manufacturer: g.hersteller })
-              : t("home:calendar.deviceMaintenance"),
-            link: "/home/geraete",
-          });
-        });
-
-        // 3. Wiederkehrende Budget-Einträge
-        const { data: budget } = await supabase
-          .from("budget_posten")
-          .select("id, beschreibung, betrag, intervall, naechstes_datum, kategorie")
-          .eq("user_id", userId)
-          .is("archived_at", null)
-          .eq("wiederholen", true)
-          .not("naechstes_datum", "is", null);
-
-        (budget || []).forEach((b) => {
-          let naechst = new Date(b.naechstes_datum);
-          for (let i = 0; i < 3; i++) {
-            if (i > 0) naechst = calcNaechstesDatum(naechst.toISOString().split("T")[0], b.intervall);
-            alleEvents.push({
-              id: `budget-${b.id}-${i}`,
-              title: `${b.beschreibung} (${b.betrag} €)`,
-              start: new Date(naechst), end: new Date(naechst), allDay: true,
-              typ: "budget",
-              sub: `${b.intervall} · ${b.kategorie || t("home:calendar.noCategory")}`,
-              link: "/home/budget",
-            });
-          }
-        });
-
-        // 4. Essensplaner
-        const { data: meals } = await supabase
-          .from("home_rezept_plan")
-          .select("id, planned_date, meal_slot, portionen, notizen, rezept_id, home_rezepte(id, titel, thumbnail_url)")
-          .eq("user_id", userId)
-          .gte("planned_date", format(startOfMonth(datum), "yyyy-MM-dd"))
-          .lte("planned_date", format(endOfMonth(datum), "yyyy-MM-dd"));
-
-        const mealSlotLabels = {
-          breakfast: t("home:calendar.mealSlots.breakfast"),
-          lunch: t("home:calendar.mealSlots.lunch"),
-          dinner: t("home:calendar.mealSlots.dinner"),
-          snack: t("home:calendar.mealSlots.snack"),
-        };
-        (meals || []).forEach((meal) => {
-          const d = new Date(`${meal.planned_date}T00:00:00`);
-          const recipeTitle = meal.home_rezepte?.titel || t("home:calendar.mealUnknownRecipe");
-          const slotLabel = mealSlotLabels[meal.meal_slot] || t("home:calendar.meal");
-          alleEvents.push({
-            id: `meal-${meal.id}`,
-            title: t("home:calendar.mealTitle", { slot: slotLabel, recipe: recipeTitle }),
-            start: d, end: d, allDay: true,
-            typ: "meal",
-            sub: [
-              t("home:calendar.mealServings", { count: meal.portionen || 4 }),
-              meal.notizen,
-            ].filter(Boolean).join(" · "),
-            link: meal.rezept_id ? `/home/kochbuch/${meal.rezept_id}` : "/home/kochbuch",
-            linkLabel: t("home:calendar.openRecipe"),
-          });
-        });
-      } else {
-        // 5. Umzug-Meilensteine
-        try {
-          const { data: meilensteine } = await supabase
-            .from("umzug_meilensteine")
-            .select("id, titel, datum, beschreibung")
-            .eq("user_id", userId)
-            .not("datum", "is", null);
-
-          (meilensteine || []).forEach((m) => {
-            alleEvents.push({
-              id: `meilenstein-${m.id}`,
-              title: m.titel,
-              start: new Date(m.datum), end: new Date(m.datum), allDay: true,
-              typ: "meilenstein",
-              sub: m.beschreibung || t("home:calendar.movingMilestone"),
-              link: "/zeitstrahl",
-            });
-          });
-        } catch (_) { /* Tabelle optional */ }
-      }
-
+      alleEvents = buildCalendarEvents({
+        appMode,
+        ...raw,
+        labels: {
+          priority: (prio) => t("home:calendar.priority", { priority: prio || "–" }),
+          maintenanceTitle: (name) => t("home:calendar.maintenanceTitle", { name }),
+          manufacturer: (hersteller) => t("home:calendar.manufacturer", { manufacturer: hersteller }),
+          deviceMaintenance: () => t("home:calendar.deviceMaintenance"),
+          noCategory: () => t("home:calendar.noCategory"),
+          mealSlot: (slot) => ({
+            breakfast: t("home:calendar.mealSlots.breakfast"),
+            lunch: t("home:calendar.mealSlots.lunch"),
+            dinner: t("home:calendar.mealSlots.dinner"),
+            snack: t("home:calendar.mealSlots.snack"),
+          }[slot] || t("home:calendar.meal")),
+          mealTitle: (slot, recipe) => t("home:calendar.mealTitle", { slot, recipe }),
+          mealUnknownRecipe: () => t("home:calendar.mealUnknownRecipe"),
+          mealServings: (count) => t("home:calendar.mealServings", { count }),
+          openRecipe: () => t("home:calendar.openRecipe"),
+          movingMilestone: () => t("home:calendar.movingMilestone"),
+        },
+      });
     } catch (err) {
       console.error("Fehler beim Laden der Kalenderevents:", err);
     } finally {

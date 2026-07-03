@@ -46,7 +46,7 @@ const parseErrorResponse = async (response) => {
 const edgeChatClient = {
   chat: {
     completions: {
-      create: async ({ model, messages, temperature, response_format, context }) => {
+      create: async ({ model, messages, temperature, response_format, context, tools, tool_choice }) => {
         const doFetch = async (token) =>
           fetch(buildFunctionsUrl("ki-chat"), {
             method: "POST",
@@ -54,7 +54,14 @@ const edgeChatClient = {
               "Content-Type": "application/json",
               "Authorization": `Bearer ${token}`,
             },
-            body: JSON.stringify({ model, messages, temperature, response_format, context }),
+            body: JSON.stringify({
+              model,
+              messages,
+              temperature,
+              response_format,
+              context,
+              ...(Array.isArray(tools) && tools.length > 0 ? { tools, tool_choice } : {}),
+            }),
           });
 
         const { data: { session } } = await supabase.auth.getSession();

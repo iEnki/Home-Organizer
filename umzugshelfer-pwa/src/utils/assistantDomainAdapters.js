@@ -10,6 +10,8 @@ import { buildShares, validateSplitConfig } from "./budgetSplits";
 import { applyShoppingBatch, prepareShoppingBatch } from "./einkaufslisteUtils";
 import { notifyHouseholdBatchEvent } from "./pushNotifications";
 import { buildInvoiceKnowledgeContent } from "./localizedKnowledge";
+import { findVehicleByName, recordMileage, saveFuelEntry, saveServiceEntry } from "./kfzData";
+import { findRecipeByTitle, setRezeptFavorit, updateRezeptFelder } from "./rezeptHelpers";
 import {
   buildMedicationPayload,
   findExistingMedication,
@@ -1713,6 +1715,368 @@ export const applyBudgetSettlementAiItems = async ({ session, items = [] }) => {
   return { count: receipts.length, receipts };
 };
 
+// ── KFZ: Tankvorgang / Kilometerstand / Service ───────────────────────────────
+
+const resolveKfzVehicle = async ({ householdId, item }) => {
+  if (item.fahrzeug_id) return { id: item.fahrzeug_id, name: item.fahrzeug_name || "Fahrzeug" };
+  const vehicle = await findVehicleByName({ householdId, name: item.fahrzeug_name });
+  if (!vehicle) {
+    throw new Error(
+      item.fahrzeug_name
+        ? `Fahrzeug "${item.fahrzeug_name}" wurde nicht gefunden.`
+        : "Es gibt mehrere Fahrzeuge — bitte den Fahrzeugnamen angeben.",
+    );
+  }
+  return vehicle;
+};
+
+export const applyKfzAiItems = async ({ session, domain, items = [] }) => {
+  const userId = session?.user?.id;
+  const householdId = await loadHouseholdId(session);
+  const receipts = [];
+
+  for (const item of items) {
+    const vehicle = await resolveKfzVehicle({ householdId, item });
+
+    if (domain === "kfz_tank") {
+      const saved = await saveFuelEntry({
+        householdId,
+        userId,
+        values: { ...item, fahrzeug_id: vehicle.id },
+      });
+      if (item.kilometerstand) {
+        try {
+          await recordMileage({
+            householdId,
+            fahrzeugId: vehicle.id,
+            kilometerstand: item.kilometerstand,
+            datum: saved?.datum || item.datum,
+            quelle: "tankvorgang",
+            quelleId: saved?.id || null,
+          });
+        } catch {}
+      }
+      receipts.push(
+        createReceipt({
+          householdId,
+          domain,
+          table: "home_fahrzeug_tankvorgaenge",
+          id: saved?.id,
+          summary: `${vehicle.name || "Fahrzeug"}: Tankvorgang ${saved?.datum || ""} (${saved?.betrag ?? item.betrag} EUR)`.trim(),
+          requestPayload: item,
+          resultPayload: saved,
+        }),
+      );
+    } else if (domain === "kfz_kilometerstand") {
+      await recordMileage({
+        householdId,
+        fahrzeugId: vehicle.id,
+        kilometerstand: item.kilometerstand,
+        datum: item.datum,
+      });
+      receipts.push(
+        createReceipt({
+          householdId,
+          domain,
+          table: "home_fahrzeug_kilometerstaende",
+          id: null,
+          summary: `${vehicle.name || "Fahrzeug"}: ${Number(item.kilometerstand).toLocaleString("de-AT")} km`,
+          requestPayload: item,
+          resultPayload: { kilometerstand: item.kilometerstand, datum: item.datum || null },
+        }),
+      );
+    } else if (domain === "kfz_service") {
+      const saved = await saveServiceEntry({
+        householdId,
+        userId,
+        values: { ...item, fahrzeug_id: vehicle.id },
+      });
+      receipts.push(
+        createReceipt({
+          householdId,
+          domain,
+          table: "home_fahrzeug_services",
+          id: saved?.id,
+          summary: `${vehicle.name || "Fahrzeug"}: ${saved?.typ || "Service"} ${saved?.datum || ""}`.trim(),
+          requestPayload: item,
+          resultPayload: saved,
+        }),
+      );
+    } else {
+      throw new Error(`Unbekannte KFZ-Domaene: ${domain}`);
+    }
+  }
+
+  await notifyHouseholdBatchEvent({
+    userId,
+    table: "home_fahrzeuge",
+    action: "erstellt",
+    eintraege: receipts.map((receipt) => ({ datensatz_name: receipt.summary })),
+    url: "/home/kfz",
+    tag: `assistant-kfz-${Date.now()}`,
+    title: "Neue KFZ-Eintraege",
+    body: `${receipts.length} ${receipts.length === 1 ? "KFZ-Eintrag wurde" : "KFZ-Eintraege wurden"} erfasst.`,
+  });
+
+  return { count: receipts.length, receipts };
+};
+
+// ── Erinnerungen (todo_aufgaben mit erinnerungs_datum) ────────────────────────
+
+export const applyReminderAiItems = async ({ session, items = [] }) => {
+  const userId = session?.user?.id;
+  const householdId = await loadHouseholdId(session);
+  const receipts = [];
+
+  for (const item of items) {
+    if (!item.erinnerungs_datum) {
+      throw new Error("Eine Erinnerung braucht ein Erinnerungsdatum.");
+    }
+    const payload = {
+      user_id: userId,
+      beschreibung: item.beschreibung || "Erinnerung",
+      kategorie: item.kategorie || "Erinnerung",
+      prioritaet: item.prioritaet || "Mittel",
+      faelligkeitsdatum: item.faelligkeitsdatum || normalizeDate(item.erinnerungs_datum),
+      erinnerungs_datum: item.erinnerungs_datum,
+      app_modus: "home",
+      erledigt: false,
+    };
+    const { data, error } = await supabase
+      .from("todo_aufgaben")
+      .insert(payload)
+      .select("id, beschreibung")
+      .single();
+    if (error) throw error;
+    receipts.push(
+      createReceipt({
+        householdId,
+        domain: "erinnerung",
+        table: "todo_aufgaben",
+        id: data?.id,
+        summary: `${data?.beschreibung || payload.beschreibung} (${normalizeDate(item.erinnerungs_datum)})`,
+        requestPayload: item,
+        resultPayload: payload,
+      }),
+    );
+  }
+
+  await notifyHouseholdBatchEvent({
+    userId,
+    table: "todo_aufgaben",
+    action: "erstellt",
+    eintraege: receipts.map((receipt) => ({ datensatz_name: receipt.summary })),
+    url: "/home/aufgaben",
+    tag: `assistant-erinnerung-${Date.now()}`,
+    title: "Neue Erinnerungen",
+    body: `${receipts.length} ${receipts.length === 1 ? "Erinnerung wurde" : "Erinnerungen wurden"} angelegt.`,
+  });
+
+  return { count: receipts.length, receipts };
+};
+
+// ── Rezept-Aenderungen (Favorit / einfache Felder) ────────────────────────────
+
+export const applyRecipeUpdateAiItems = async ({ session, items = [] }) => {
+  const userId = session?.user?.id;
+  const householdId = await loadHouseholdId(session);
+  const receipts = [];
+
+  for (const item of items) {
+    let rezeptId = item.rezept_id || null;
+    let titel = item.titel || null;
+    if (!rezeptId) {
+      const recipe = await findRecipeByTitle({ userId, titel: item.titel });
+      if (!recipe) throw new Error(`Rezept "${item.titel || ""}" wurde nicht gefunden.`);
+      rezeptId = recipe.id;
+      titel = recipe.titel;
+    }
+
+    const mode = item.mode || (item.favorit !== undefined ? "favorit" : "patch");
+    if (mode === "favorit") {
+      const saved = await setRezeptFavorit({ rezeptId, favorit: item.favorit !== false });
+      receipts.push(
+        createReceipt({
+          householdId,
+          domain: "rezept_update",
+          actionKind: "update",
+          table: "home_rezepte",
+          id: rezeptId,
+          summary: `${saved?.titel || titel}: ${saved?.favorisiert ? "Als Favorit markiert" : "Favorit entfernt"}`,
+          requestPayload: item,
+          resultPayload: saved,
+        }),
+      );
+    } else {
+      const saved = await updateRezeptFelder({ rezeptId, patch: item.patch || item, userId });
+      receipts.push(
+        createReceipt({
+          householdId,
+          domain: "rezept_update",
+          actionKind: "update",
+          table: "home_rezepte",
+          id: rezeptId,
+          summary: `${saved?.titel || titel}: Rezept aktualisiert`,
+          requestPayload: item,
+          resultPayload: saved,
+        }),
+      );
+    }
+  }
+
+  return { count: receipts.length, receipts };
+};
+
+// ── Update/Delete-Operationen auf bestehenden Datensaetzen ────────────────────
+// Whitelist je Domain: Ziel-Tabelle + aenderbare Felder. Updates/Loeschungen
+// erfordern eine konkrete Datensatz-ID (aus den Lese-Tools).
+
+const RECORD_OP_CONFIG = {
+  budget: {
+    table: "budget_posten",
+    updatable: ["beschreibung", "betrag", "datum", "kategorie", "typ", "wiederholen", "intervall"],
+    summaryField: "beschreibung",
+    url: "/home/budget",
+  },
+  aufgaben: {
+    table: "todo_aufgaben",
+    updatable: ["beschreibung", "kategorie", "prioritaet", "faelligkeitsdatum", "erinnerungs_datum", "erledigt"],
+    summaryField: "beschreibung",
+    url: "/home/aufgaben",
+  },
+  todos: {
+    table: "todo_aufgaben",
+    updatable: ["beschreibung", "kategorie", "prioritaet", "faelligkeitsdatum", "erledigt"],
+    summaryField: "beschreibung",
+    url: "/todos",
+  },
+  erinnerung: {
+    table: "todo_aufgaben",
+    updatable: ["beschreibung", "erinnerungs_datum", "faelligkeitsdatum", "erledigt"],
+    summaryField: "beschreibung",
+    url: "/home/aufgaben",
+  },
+  vorraete: {
+    table: "home_vorraete",
+    updatable: ["name", "bestand", "mindestmenge", "einheit", "kategorie"],
+    summaryField: "name",
+    url: "/home/vorraete",
+  },
+  inventar: {
+    table: "home_objekte",
+    updatable: ["name", "kategorie", "status", "menge"],
+    summaryField: "name",
+    url: "/home/inventar",
+  },
+  geraete: {
+    table: "home_geraete",
+    updatable: ["name", "hersteller", "modell", "kategorie", "naechste_wartung"],
+    summaryField: "name",
+    url: "/home/geraete",
+  },
+  medikamente: {
+    table: "home_medikamente",
+    updatable: ["bestand", "mindestbestand", "lagerort", "ablaufdatum", "kategorie"],
+    summaryField: "name",
+    url: "/home/heimapotheke",
+  },
+  einkaufliste: {
+    table: "home_einkaufliste",
+    updatable: ["name", "menge", "einheit", "erledigt"],
+    summaryField: "name",
+    url: "/home/einkaufliste",
+  },
+  kfz_tank: {
+    table: "home_fahrzeug_tankvorgaenge",
+    updatable: ["datum", "betrag", "liter", "preis_pro_liter", "kilometerstand", "tankstelle", "tankstatus"],
+    summaryField: "tankstelle",
+    url: "/home/kfz",
+  },
+};
+
+export const applyRecordOpsAiItems = async ({ session, domain, items = [] }) => {
+  const config = RECORD_OP_CONFIG[domain];
+  if (!config) throw new Error(`Aendern/Loeschen wird fuer ${domain} nicht unterstuetzt.`);
+  const userId = session?.user?.id;
+  const householdId = await loadHouseholdId(session);
+  const receipts = [];
+
+  for (const item of items) {
+    const op = item.op === "delete" ? "delete" : "update";
+    if (!item.id) {
+      throw new Error("Zum Aendern/Loeschen wird die Datensatz-ID benoetigt (zuerst per Suche nachschlagen).");
+    }
+
+    if (op === "delete") {
+      const { data: existing } = await supabase
+        .from(config.table)
+        .select("*")
+        .eq("id", item.id)
+        .maybeSingle();
+      const { error } = await supabase.from(config.table).delete().eq("id", item.id);
+      if (error) throw error;
+      receipts.push(
+        createReceipt({
+          householdId,
+          domain,
+          actionKind: "delete",
+          table: config.table,
+          id: item.id,
+          summary: `Geloescht: ${existing?.[config.summaryField] || item.name || item.beschreibung || config.table}`,
+          requestPayload: item,
+          resultPayload: existing || {},
+        }),
+      );
+    } else {
+      const patch = {};
+      const source = item.patch && typeof item.patch === "object" ? item.patch : item;
+      config.updatable.forEach((field) => {
+        if (source[field] !== undefined) patch[field] = source[field];
+      });
+      if (Object.keys(patch).length === 0) {
+        throw new Error("Keine aenderbaren Felder im Update enthalten.");
+      }
+      const { data, error } = await supabase
+        .from(config.table)
+        .update(patch)
+        .eq("id", item.id)
+        .select("*")
+        .single();
+      if (error) throw error;
+      receipts.push(
+        createReceipt({
+          householdId,
+          domain,
+          actionKind: "update",
+          table: config.table,
+          id: item.id,
+          summary: `Aktualisiert: ${data?.[config.summaryField] || item.name || item.beschreibung || config.table}`,
+          requestPayload: item,
+          resultPayload: patch,
+        }),
+      );
+    }
+  }
+
+  if (receipts.length > 0) {
+    await notifyHouseholdBatchEvent({
+      userId,
+      table: config.table,
+      action: receipts.some((r) => r.action_kind === "delete") ? "geloescht" : "geaendert",
+      eintraege: receipts.map((receipt) => ({ datensatz_name: receipt.summary })),
+      url: config.url,
+      tag: `assistant-ops-${domain}-${Date.now()}`,
+      title: "Assistent-Aenderungen",
+      body: `${receipts.length} ${receipts.length === 1 ? "Eintrag wurde" : "Eintraege wurden"} geaendert.`,
+    });
+  }
+
+  return { count: receipts.length, receipts };
+};
+
+const hasRecordOps = (items = []) =>
+  Array.isArray(items) && items.some((item) => item?.op === "update" || item?.op === "delete");
+
 export const prepareAssistantAction = async ({
   domain,
   session,
@@ -1754,6 +2118,15 @@ export const commitAssistantAction = async ({
     });
   }
 
+  // Update-/Delete-Operationen (item.op) laufen ueber den Whitelist-Pfad.
+  if (hasRecordOps(preparedAction?.items) && RECORD_OP_CONFIG[domain]) {
+    return applyRecordOpsAiItems({
+      session,
+      domain,
+      items: preparedAction.items,
+    });
+  }
+
   switch (domain) {
     case "inventar":
       return applyInventoryAiItems({ session, items: preparedAction.items });
@@ -1792,6 +2165,14 @@ export const commitAssistantAction = async ({
       });
     case "rechnung":
       return applyManualInvoiceAssistantItems({ session, items: preparedAction.items });
+    case "kfz_tank":
+    case "kfz_kilometerstand":
+    case "kfz_service":
+      return applyKfzAiItems({ session, domain, items: preparedAction.items });
+    case "erinnerung":
+      return applyReminderAiItems({ session, items: preparedAction.items });
+    case "rezept_update":
+      return applyRecipeUpdateAiItems({ session, items: preparedAction.items });
     case "inventar_ort":
     case "inventar_lagerort":
     case "bewohner":

@@ -158,6 +158,54 @@ Beispiel: {"items":[{"titel":"Harry Potter und der Stein der Weisen","autor":"J.
 Text: "${text}"
 Antworte NUR mit dem JSON-Objekt.`,
   },
+  kfz_tank: {
+    title: "Tankvorgang erfassen",
+    summaryLabel: "Tankvorgaenge",
+    fields:
+      "fahrzeug_name (optional wenn nur 1 Fahrzeug), datum (optional, YYYY-MM-DD), betrag (Zahl, Pflicht), liter (optional), preis_pro_liter (optional), kilometerstand (optional), tankstelle (optional), tankstatus (voll|teilweise|unbekannt, optional)",
+    schema:
+      '{"fahrzeug_name":"Golf","datum":"2026-07-01","betrag":65.40,"liter":42.5,"kilometerstand":82500,"tankstelle":"OMV","tankstatus":"voll"}',
+    buildPrompt: (text) => `Extrahiere Tankvorgaenge aus dem Text als JSON-Objekt {"items":[...]}.
+Felder: fahrzeug_name, datum (YYYY-MM-DD, default heute), betrag (Zahl, Pflicht), liter, preis_pro_liter, kilometerstand, tankstelle, tankstatus ("voll", "teilweise" oder "unbekannt").
+Beispiel: {"items":[{"fahrzeug_name":"Golf","betrag":65.40,"liter":42.5,"tankstatus":"voll"}]}
+Text: "${text}"
+Antworte NUR mit dem JSON-Objekt.`,
+  },
+  kfz_kilometerstand: {
+    title: "Kilometerstand erfassen",
+    summaryLabel: "Kilometerstaende",
+    fields:
+      "fahrzeug_name (optional wenn nur 1 Fahrzeug), kilometerstand (Zahl, Pflicht), datum (optional, YYYY-MM-DD)",
+    schema: '{"fahrzeug_name":"Golf","kilometerstand":82500,"datum":"2026-07-02"}',
+  },
+  kfz_service: {
+    title: "Fahrzeug-Service erfassen",
+    summaryLabel: "Services",
+    fields:
+      "fahrzeug_name (optional wenn nur 1 Fahrzeug), typ (z.B. Oelwechsel, Pickerl, Service), datum (optional, YYYY-MM-DD), kilometerstand (optional), kosten (optional), werkstatt (optional), beschreibung (optional), naechste_faelligkeit_datum (optional)",
+    schema:
+      '{"fahrzeug_name":"Golf","typ":"Oelwechsel","datum":"2026-06-15","kilometerstand":82000,"kosten":120,"werkstatt":"Autohaus Mayer"}',
+  },
+  erinnerung: {
+    title: "Erinnerung anlegen",
+    summaryLabel: "Erinnerungen",
+    fields:
+      "beschreibung (Pflicht), erinnerungs_datum (YYYY-MM-DD oder ISO-Zeitstempel, Pflicht), faelligkeitsdatum (optional), kategorie (optional)",
+    schema:
+      '{"beschreibung":"Auto tanken","erinnerungs_datum":"2026-07-03","kategorie":"Erinnerung"}',
+    buildPrompt: (text) => `Extrahiere Erinnerungen aus dem Text als JSON-Objekt {"items":[...]}.
+Felder: beschreibung (Pflicht), erinnerungs_datum (YYYY-MM-DD, Pflicht — rechne relative Angaben wie "morgen" in ein konkretes Datum um), faelligkeitsdatum (optional), kategorie (optional).
+Beispiel: {"items":[{"beschreibung":"Auto tanken","erinnerungs_datum":"2026-07-03"}]}
+Text: "${text}"
+Antworte NUR mit dem JSON-Objekt.`,
+  },
+  rezept_update: {
+    title: "Rezept aendern",
+    summaryLabel: "Rezept-Aenderungen",
+    fields:
+      "titel (Rezeptname zur Suche, Pflicht wenn keine rezept_id), rezept_id (optional), mode (favorit|patch), favorit (true|false bei mode favorit), patch (Objekt mit Feldern gruppe/titel/notizen/portionen bei mode patch)",
+    schema: '{"titel":"Lasagne","mode":"favorit","favorit":true}',
+  },
   budget_split: {
     title: "Budget mit Kostenaufteilung anlegen",
     summaryLabel: "Budget-Splits",
@@ -197,6 +245,11 @@ export const ASSISTANT_ROUTE_MAP = {
   home_heimapotheke: "/home/heimapotheke",
   home_geraete: "/home/geraete",
   home_projekte: "/home/projekte",
+  home_kfz: "/home/kfz",
+  home_kochbuch: "/home/kochbuch",
+  home_wissen: "/home/wissen",
+  home_verlauf: "/home/verlauf",
+  kalender: "/kalender",
   umzug_todos: "/todos",
   umzug_packliste: "/packliste",
 };
