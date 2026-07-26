@@ -28,12 +28,13 @@ import {
 import { PDFDownloadLink } from "@react-pdf/renderer";
 import { supabase, getActiveHouseholdId } from "../../supabaseClient";
 import { notifyHouseholdEvent } from "../../utils/pushNotifications";
-import { buildKfzCsv, buildKfzStats, normalizeTankStatus } from "../../utils/kfzStats";
+import { buildKfzCsv, buildKfzStats, isFuelEntryReviewed, normalizeTankStatus } from "../../utils/kfzStats";
 import { formatKfzDisplayText } from "../../utils/kfzPresentation";
 import {
   createKfzDocumentUrl,
   removeKfzDocument,
   recordMileage,
+  markFuelEntryReviewed,
   saveFuelEntry,
   saveKfzExpenseWithBudget,
   saveServiceEntry,
@@ -228,11 +229,12 @@ function TankStatusField({ value, onChange, error = "" }) {
 }
 
 function FormActions({ saving, onCancel }) {
+  const { t } = useTranslation(["kfz"]);
   return (
     <div className="grid w-full grid-cols-2 gap-2">
-      <button type="button" onClick={onCancel} className={`${buttonSecondary} flex-1`}>Abbrechen</button>
+      <button type="button" onClick={onCancel} className={`${buttonSecondary} flex-1`}>{t("cancel")}</button>
       <button type="submit" form="kfz-editor-form" disabled={saving} className={`${buttonPrimary} flex-1`}>
-        {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Speichern
+        {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} {t("save")}
       </button>
     </div>
   );
@@ -256,6 +258,7 @@ function EditorShell({ modal, title, saving, onClose, children }) {
 }
 
 function QuickEntrySheet({ open, onClose, vehicles, onSubmit, saving }) {
+  const { t } = useTranslation(["kfz"]);
   const [kind, setKind] = useState("expense");
   const [details, setDetails] = useState(false);
   const [form, setForm] = useState({ ...EMPTY.expense, fahrzeug_id: vehicles[0]?.id || "" });
@@ -281,28 +284,28 @@ function QuickEntrySheet({ open, onClose, vehicles, onSubmit, saving }) {
   const submit = (event) => {
     event.preventDefault();
     const nextErrors = {};
-    if (!form.fahrzeug_id) nextErrors.fahrzeug_id = "Bitte ein Fahrzeug wählen.";
-    if (!form.datum || !dateValid) nextErrors.datum = "Bitte ein gültiges Datum angeben.";
-    if (kind === "expense" && (form.betrag === "" || !(Number(form.betrag) >= 0))) nextErrors.betrag = "Bitte einen Betrag angeben.";
-    if (kind === "expense" && !form.beschreibung.trim()) nextErrors.beschreibung = "Bitte eine Beschreibung angeben.";
-    if (kind === "fuel" && (form.betrag === "" || !(Number(form.betrag) >= 0))) nextErrors.betrag = "Bitte einen gültigen Betrag angeben.";
-    if (kind === "fuel" && (form.kilometerstand === "" || !(Number(form.kilometerstand) >= 0))) nextErrors.kilometerstand = "Bitte einen Kilometerstand angeben.";
-    if (kind === "fuel" && !["voll", "teilweise", "unbekannt"].includes(form.tankstatus)) nextErrors.tankstatus = "Bitte den Tankstatus nach dem Tanken angeben.";
-    if (kind === "service" && !form.typ) nextErrors.typ = "Bitte einen Servicetyp angeben.";
-    if (kind === "mileage" && (form.kilometerstand === "" || !(Number(form.kilometerstand) >= 0))) nextErrors.kilometerstand = "Bitte einen Kilometerstand angeben.";
+    if (!form.fahrzeug_id) nextErrors.fahrzeug_id = t("errors.vehicleRequired");
+    if (!form.datum || !dateValid) nextErrors.datum = t("errors.validDate");
+    if (kind === "expense" && (form.betrag === "" || !(Number(form.betrag) >= 0))) nextErrors.betrag = t("errors.amountRequired");
+    if (kind === "expense" && !form.beschreibung.trim()) nextErrors.beschreibung = t("errors.descriptionRequired");
+    if (kind === "fuel" && (form.betrag === "" || !(Number(form.betrag) >= 0))) nextErrors.betrag = t("errors.validAmount");
+    if (kind === "fuel" && (form.kilometerstand === "" || !(Number(form.kilometerstand) >= 0))) nextErrors.kilometerstand = t("errors.mileageRequired");
+    if (kind === "fuel" && !["voll", "teilweise", "unbekannt"].includes(form.tankstatus)) nextErrors.tankstatus = t("errors.tankStatusRequired");
+    if (kind === "service" && !form.typ) nextErrors.typ = t("errors.serviceTypeRequired");
+    if (kind === "mileage" && (form.kilometerstand === "" || !(Number(form.kilometerstand) >= 0))) nextErrors.kilometerstand = t("errors.mileageRequired");
     setErrors(nextErrors);
     if (!Object.keys(nextErrors).length) onSubmit(kind, form);
   };
 
   return (
-    <BottomSheet open={open} onClose={onClose} title="Schneller Eintrag" responsive>
+    <BottomSheet open={open} onClose={onClose} title={t("quickEntry")} responsive>
       <form id="kfz-quick-form" className="space-y-4" onSubmit={submit}>
         <div className="grid grid-cols-2 gap-2">
           {[
-            ["expense", "Ausgabe", Receipt],
-            ["fuel", "Tankung", Fuel],
-            ["service", "Service", Wrench],
-            ["mileage", "Kilometerstand", Gauge],
+            ["expense", t("entryTypes.expense"), Receipt],
+            ["fuel", t("entryTypes.fuel"), Fuel],
+            ["service", t("entryTypes.service"), Wrench],
+            ["mileage", t("entryTypes.mileage"), Gauge],
           ].map(([id, label, Icon]) => (
             <button
               key={id}
@@ -316,43 +319,43 @@ function QuickEntrySheet({ open, onClose, vehicles, onSubmit, saving }) {
             </button>
           ))}
         </div>
-        <Field label="Fahrzeug" required error={errors.fahrzeug_id}>
+        <Field label={t("fields.vehicle")} required error={errors.fahrzeug_id}>
           <select className={inputClass} value={form.fahrzeug_id || ""} onChange={(e) => update("fahrzeug_id", e.target.value)}>
-            <option value="">Fahrzeug auswählen</option>
+            <option value="">{t("fields.selectVehicle")}</option>
             {vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicleLabel(vehicle)}</option>)}
           </select>
         </Field>
-        <LocalizedDateField label="Datum" required value={form.datum} onChange={(value) => update("datum", value)} onValidityChange={setDateValid} error={errors.datum} />
+        <LocalizedDateField label={t("fields.date")} required value={form.datum} onChange={(value) => update("datum", value)} onValidityChange={setDateValid} error={errors.datum} />
         {kind === "expense" ? (
           <>
-            <Field label="Beschreibung" required error={errors.beschreibung}><input className={inputClass} value={form.beschreibung} onChange={(e) => update("beschreibung", e.target.value)} /></Field>
-            <Field label="Betrag (EUR)" required error={errors.betrag}><input className={inputClass} type="number" min="0" step="0.01" value={form.betrag} onChange={(e) => update("betrag", e.target.value)} /></Field>
-            <Field label="Kategorie"><select className={inputClass} value={form.kategorie} onChange={(e) => update("kategorie", e.target.value)}>{["Versicherung","Steuer","Parken","Maut","Reifen","Zubehoer","Sonstiges"].map((value) => <option key={value} value={value}>{expenseCategoryLabel(value)}</option>)}</select></Field>
+            <Field label={t("fields.description")} required error={errors.beschreibung}><input className={inputClass} value={form.beschreibung} onChange={(e) => update("beschreibung", e.target.value)} /></Field>
+            <Field label={t("fields.amountEur")} required error={errors.betrag}><input className={inputClass} type="number" min="0" step="0.01" value={form.betrag} onChange={(e) => update("betrag", e.target.value)} /></Field>
+            <Field label={t("fields.category")}><select className={inputClass} value={form.kategorie} onChange={(e) => update("kategorie", e.target.value)}>{["Versicherung","Steuer","Parken","Maut","Reifen","Zubehoer","Sonstiges"].map((value) => <option key={value} value={value}>{expenseCategoryLabel(value)}</option>)}</select></Field>
           </>
         ) : null}
         {kind === "fuel" ? (
           <>
-            <Field label="Betrag (EUR)" required error={errors.betrag}><input className={inputClass} type="number" min="0" step="0.01" value={form.betrag} onChange={(e) => update("betrag", e.target.value)} /></Field>
-            <Field label="Kilometerstand" required error={errors.kilometerstand}><input className={inputClass} type="number" min="0" max="9999999" value={form.kilometerstand} onChange={(e) => update("kilometerstand", e.target.value)} /></Field>
+            <Field label={t("fields.amountEur")} required error={errors.betrag}><input className={inputClass} type="number" min="0" step="0.01" value={form.betrag} onChange={(e) => update("betrag", e.target.value)} /></Field>
+            <Field label={t("fields.mileage")} required error={errors.kilometerstand}><input className={inputClass} type="number" min="0" max="9999999" value={form.kilometerstand} onChange={(e) => update("kilometerstand", e.target.value)} /></Field>
             <TankStatusField value={form.tankstatus} onChange={(value) => update("tankstatus", value)} error={errors.tankstatus} />
           </>
         ) : null}
         {kind === "service" ? (
-          <Field label="Servicetyp" required error={errors.typ}><select className={inputClass} value={form.typ} onChange={(e) => update("typ", e.target.value)}>{["Service","Oelwechsel","Reparatur","Pickerl","Reifenwechsel"].map((value) => <option key={value} value={value}>{serviceTypeLabel(value)}</option>)}</select></Field>
+          <Field label={t("fields.serviceType")} required error={errors.typ}><select className={inputClass} value={form.typ} onChange={(e) => update("typ", e.target.value)}>{["Service","Oelwechsel","Reparatur","Pickerl","Reifenwechsel"].map((value) => <option key={value} value={value}>{serviceTypeLabel(value)}</option>)}</select></Field>
         ) : null}
         {kind === "mileage" ? (
-          <Field label="Kilometerstand" required error={errors.kilometerstand}><input className={inputClass} type="number" min="0" value={form.kilometerstand} onChange={(e) => update("kilometerstand", e.target.value)} /></Field>
+          <Field label={t("fields.mileage")} required error={errors.kilometerstand}><input className={inputClass} type="number" min="0" value={form.kilometerstand} onChange={(e) => update("kilometerstand", e.target.value)} /></Field>
         ) : null}
         {kind !== "mileage" ? (
           <button type="button" onClick={() => setDetails((value) => !value)} className="flex min-h-11 w-full items-center justify-between rounded-card-sm border border-light-border px-3 text-sm font-semibold dark:border-dark-border">
-            Weitere Angaben <ChevronDown size={16} className={details ? "rotate-180" : ""} />
+            {t("moreDetails")} <ChevronDown size={16} className={details ? "rotate-180" : ""} />
           </button>
         ) : null}
         {details && kind === "fuel" ? (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <Field label="Liter"><input className={inputClass} type="number" min="0" step="0.001" value={form.liter} onChange={(e) => update("liter", e.target.value)} /></Field>
-            <Field label="Tankstelle"><input className={inputClass} value={form.tankstelle} onChange={(e) => update("tankstelle", e.target.value)} /></Field>
-            <Field label="Preis / Liter"><input className={inputClass} type="number" min="0" step="0.001" value={form.preis_pro_liter} onChange={(e) => update("preis_pro_liter", e.target.value)} /></Field>
+            <Field label={t("fields.litres")}><input className={inputClass} type="number" min="0" step="0.001" value={form.liter} onChange={(e) => update("liter", e.target.value)} /></Field>
+            <Field label={t("fields.fuelStation")}><input className={inputClass} value={form.tankstelle} onChange={(e) => update("tankstelle", e.target.value)} /></Field>
+            <Field label={t("fields.pricePerLitre")}><input className={inputClass} type="number" min="0" step="0.001" value={form.preis_pro_liter} onChange={(e) => update("preis_pro_liter", e.target.value)} /></Field>
           </div>
         ) : null}
         {details && kind === "expense" ? (
@@ -360,14 +363,14 @@ function QuickEntrySheet({ open, onClose, vehicles, onSubmit, saving }) {
         ) : null}
         {details && kind === "service" ? (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <Field label="Kosten"><input className={inputClass} type="number" min="0" step="0.01" value={form.kosten} onChange={(e) => update("kosten", e.target.value)} /></Field>
-            <Field label="Kilometerstand"><input className={inputClass} type="number" min="0" value={form.kilometerstand} onChange={(e) => update("kilometerstand", e.target.value)} /></Field>
-            <Field label="Werkstatt"><input className={inputClass} value={form.werkstatt} onChange={(e) => update("werkstatt", e.target.value)} /></Field>
+            <Field label={t("fields.costs")}><input className={inputClass} type="number" min="0" step="0.01" value={form.kosten} onChange={(e) => update("kosten", e.target.value)} /></Field>
+            <Field label={t("fields.mileage")}><input className={inputClass} type="number" min="0" value={form.kilometerstand} onChange={(e) => update("kilometerstand", e.target.value)} /></Field>
+            <Field label={t("fields.workshop")}><input className={inputClass} value={form.werkstatt} onChange={(e) => update("werkstatt", e.target.value)} /></Field>
           </div>
         ) : null}
         <div className="sticky bottom-0 -mx-4 border-t border-light-border bg-light-card-bg px-4 pb-1 pt-3 dark:border-dark-border dark:bg-canvas-2">
           <button type="submit" disabled={saving} className={`${buttonPrimary} w-full`}>
-            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Speichern
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} {t("save")}
           </button>
         </div>
       </form>
@@ -589,28 +592,28 @@ export default function HomeKfz({ session }) {
     if (!modal) return;
     const { type, form } = modal;
     const errors = {};
-    if (type !== "vehicle" && !form.fahrzeug_id) errors.fahrzeug_id = "Bitte ein Fahrzeug wählen.";
-    if (type === "vehicle" && !form.name?.trim()) errors.name = "Der Fahrzeugname ist erforderlich.";
-    if (type === "vehicle" && form.vin && !/^[A-HJ-NPR-Z0-9]{17}$/i.test(form.vin)) errors.vin = "VIN muss aus 17 gültigen Zeichen bestehen.";
-    if (type === "vehicle" && form.baujahr !== "" && (!(Number(form.baujahr) >= 1886) || Number(form.baujahr) > new Date().getFullYear() + 1)) errors.baujahr = "Bitte ein gültiges Baujahr eingeben.";
-    if (type === "vehicle" && form.kilometerstand !== "" && (!(Number(form.kilometerstand) >= 0) || Number(form.kilometerstand) > 9999999)) errors.kilometerstand = "Bitte einen gültigen Kilometerstand eingeben.";
-    if (["expense", "fuel", "service"].includes(type) && !form.datum) errors.datum = "Bitte ein Datum eingeben.";
-    if (type === "expense" && !form.beschreibung?.trim()) errors.beschreibung = "Beschreibung ist erforderlich.";
-    if (type === "expense" && (form.betrag === "" || !(Number(form.betrag) >= 0))) errors.betrag = "Bitte einen gültigen Betrag eingeben.";
-    if (type === "fuel" && (form.betrag === "" || !(Number(form.betrag) >= 0))) errors.betrag = "Bitte einen gültigen Betrag eingeben.";
-    if (type === "fuel" && (form.kilometerstand === "" || !(Number(form.kilometerstand) >= 0) || Number(form.kilometerstand) > 9999999)) errors.kilometerstand = "Bitte einen Kilometerstand eingeben.";
-    if (type === "fuel" && !["voll", "teilweise", "unbekannt"].includes(form.tankstatus)) errors.tankstatus = "Bitte den Tankstatus nach dem Tanken angeben.";
+    if (type !== "vehicle" && !form.fahrzeug_id) errors.fahrzeug_id = t("errors.vehicleRequired");
+    if (type === "vehicle" && !form.name?.trim()) errors.name = t("errors.vehicleNameRequired");
+    if (type === "vehicle" && form.vin && !/^[A-HJ-NPR-Z0-9]{17}$/i.test(form.vin)) errors.vin = t("errors.vinInvalid");
+    if (type === "vehicle" && form.baujahr !== "" && (!(Number(form.baujahr) >= 1886) || Number(form.baujahr) > new Date().getFullYear() + 1)) errors.baujahr = t("errors.validBuildYear");
+    if (type === "vehicle" && form.kilometerstand !== "" && (!(Number(form.kilometerstand) >= 0) || Number(form.kilometerstand) > 9999999)) errors.kilometerstand = t("errors.validMileage");
+    if (["expense", "fuel", "service"].includes(type) && !form.datum) errors.datum = t("errors.dateRequired");
+    if (type === "expense" && !form.beschreibung?.trim()) errors.beschreibung = t("errors.descriptionIsRequired");
+    if (type === "expense" && (form.betrag === "" || !(Number(form.betrag) >= 0))) errors.betrag = t("errors.validAmountInput");
+    if (type === "fuel" && (form.betrag === "" || !(Number(form.betrag) >= 0))) errors.betrag = t("errors.validAmountInput");
+    if (type === "fuel" && (form.kilometerstand === "" || !(Number(form.kilometerstand) >= 0) || Number(form.kilometerstand) > 9999999)) errors.kilometerstand = t("errors.mileageRequired");
+    if (type === "fuel" && !["voll", "teilweise", "unbekannt"].includes(form.tankstatus)) errors.tankstatus = t("errors.tankStatusRequired");
     if (type === "fuel" && form.liter !== "" && (!(Number(form.liter) > 0) || Number(form.liter) > 500)) errors.liter = "Bitte eine plausible Literzahl eingeben.";
     if (type === "fuel" && form.preis_pro_liter !== "" && (!(Number(form.preis_pro_liter) > 0) || Number(form.preis_pro_liter) > 20)) errors.preis_pro_liter = "Bitte einen plausiblen Literpreis eingeben.";
-    if (type === "service" && form.kosten !== "" && !(Number(form.kosten) >= 0)) errors.kosten = "Bitte gültige Kosten eingeben.";
-    if (type === "service" && form.kilometerstand !== "" && (!(Number(form.kilometerstand) >= 0) || Number(form.kilometerstand) > 9999999)) errors.kilometerstand = "Bitte einen gültigen Kilometerstand eingeben.";
-    if (type === "tire" && form.profiltiefe !== "" && (!(Number(form.profiltiefe) >= 0) || Number(form.profiltiefe) > 30)) errors.profiltiefe = "Bitte eine plausible Profiltiefe eingeben.";
-    if (type === "tire" && form.herstellungsjahr !== "" && (!(Number(form.herstellungsjahr) >= 1980) || Number(form.herstellungsjahr) > new Date().getFullYear() + 1)) errors.herstellungsjahr = "Bitte ein gültiges Herstellungsjahr eingeben.";
-    if (type === "task" && !form.titel?.trim()) errors.titel = "Titel ist erforderlich.";
-    if (type === "part" && !form.name?.trim()) errors.name = "Teilename ist erforderlich.";
-    if (type === "part" && (!(Number(form.menge) > 0) || Number(form.menge) > 9999)) errors.menge = "Bitte eine gültige Menge eingeben.";
+    if (type === "service" && form.kosten !== "" && !(Number(form.kosten) >= 0)) errors.kosten = t("errors.validCosts");
+    if (type === "service" && form.kilometerstand !== "" && (!(Number(form.kilometerstand) >= 0) || Number(form.kilometerstand) > 9999999)) errors.kilometerstand = t("errors.validMileage");
+    if (type === "tire" && form.profiltiefe !== "" && (!(Number(form.profiltiefe) >= 0) || Number(form.profiltiefe) > 30)) errors.profiltiefe = t("errors.validTreadDepth");
+    if (type === "tire" && form.herstellungsjahr !== "" && (!(Number(form.herstellungsjahr) >= 1980) || Number(form.herstellungsjahr) > new Date().getFullYear() + 1)) errors.herstellungsjahr = t("errors.validManufacturingYear");
+    if (type === "task" && !form.titel?.trim()) errors.titel = t("errors.titleRequired");
+    if (type === "part" && !form.name?.trim()) errors.name = t("errors.partNameRequired");
+    if (type === "part" && (!(Number(form.menge) > 0) || Number(form.menge) > 9999)) errors.menge = t("errors.validQuantity");
     Object.entries(dateValidity).forEach(([field, valid]) => {
-      if (!valid) errors[field] = "Bitte ein gültiges Datum eingeben.";
+      if (!valid) errors[field] = t("errors.validDateInput");
     });
     setFormErrors(errors);
     if (Object.keys(errors).length) return;
@@ -647,7 +650,12 @@ export default function HomeKfz({ session }) {
       } else if (type === "expense") {
         saved = await saveKfzExpenseWithBudget({ expense: form, householdId, userId, mirrorToBudget: Boolean(form.mirrorToBudget) });
       } else if (type === "fuel") {
-        saved = await saveFuelEntry({ householdId, userId, values: form, id: form.id });
+        saved = await saveFuelEntry({
+          householdId,
+          userId,
+          values: markFuelEntryReviewed(form),
+          id: form.id,
+        });
       } else if (type === "service") {
         saved = await saveServiceEntry({ householdId, userId, values: form, id: form.id });
       } else if (type === "tire") {
@@ -714,7 +722,7 @@ export default function HomeKfz({ session }) {
         saved = await saveKfzExpenseWithBudget({ expense: form, householdId, userId, mirrorToBudget: Boolean(form.mirrorToBudget) });
       } else {
         saved = kind === "fuel"
-          ? await saveFuelEntry({ householdId, userId, values: form })
+          ? await saveFuelEntry({ householdId, userId, values: markFuelEntryReviewed(form) })
           : await saveServiceEntry({ householdId, userId, values: form });
       }
       await notifyKfzEvent({
@@ -728,14 +736,14 @@ export default function HomeKfz({ session }) {
       setQuickOpen(false);
       await loadData();
     } catch (quickError) {
-      setError(quickError?.message || "Schneller Eintrag konnte nicht gespeichert werden.");
+      setError(quickError?.message || t("errors.quickSave"));
     } finally {
       setSaving(false);
     }
   };
 
   const deleteRow = async (table, id, label) => {
-    if (!window.confirm(`${label} wirklich löschen?`)) return;
+    if (!window.confirm(t("confirm.delete", { label }))) return;
     if (table === "home_fahrzeuge") {
       setSaving(true);
       setError("");
@@ -755,7 +763,7 @@ export default function HomeKfz({ session }) {
         await notifyKfzEvent({ table, action: "geloescht", name: label, id });
         await loadData();
       } catch (vehicleDeleteError) {
-        setError(vehicleDeleteError?.message || "Fahrzeug konnte nicht gelöscht werden.");
+        setError(vehicleDeleteError?.message || t("errors.deleteVehicle"));
       } finally {
         setSaving(false);
       }
@@ -890,11 +898,16 @@ export default function HomeKfz({ session }) {
           householdId,
           vehicleId: selectedVehicle.id,
           makeCover: !selectedVehicleCover && index === 0,
+          validationMessages: {
+            required: t("errors.photoRequired"),
+            type: t("errors.photoType"),
+            size: t("errors.photoSize"),
+          },
         });
       }
       await loadData();
     } catch (photoError) {
-      setError(photoError?.message || "Fahrzeugfoto konnte nicht gespeichert werden.");
+      setError(photoError?.message || t("errors.photoSave"));
     } finally {
       setSaving(false);
     }
@@ -908,14 +921,14 @@ export default function HomeKfz({ session }) {
       await setVehicleCoverPhoto({ householdId, vehicleId: selectedVehicle.id, documentId: photo.id });
       await loadData();
     } catch (photoError) {
-      setError(photoError?.message || "Titelbild konnte nicht geaendert werden.");
+      setError(photoError?.message || t("errors.coverUpdate"));
     } finally {
       setSaving(false);
     }
   };
 
   const removeVehiclePhoto = async (photo) => {
-    if (!window.confirm("Fahrzeugfoto wirklich löschen?")) return;
+    if (!window.confirm(t("confirm.deletePhoto"))) return;
     setSaving(true);
     setError("");
     try {
@@ -926,7 +939,7 @@ export default function HomeKfz({ session }) {
       }
       await loadData();
     } catch (photoError) {
-      setError(photoError?.message || "Fahrzeugfoto konnte nicht gelöscht werden.");
+      setError(photoError?.message || t("errors.photoDelete"));
     } finally {
       setSaving(false);
     }
@@ -951,7 +964,7 @@ export default function HomeKfz({ session }) {
     </div>
   );
 
-  if (loading) return <div className="flex items-center gap-2 p-6 text-light-text-main dark:text-dark-text-main"><Loader2 className="animate-spin" size={18} /> Kfz-Modul wird geladen...</div>;
+  if (loading) return <div className="flex items-center gap-2 p-6 text-light-text-main dark:text-dark-text-main"><Loader2 className="animate-spin" size={18} /> {t("loading")}</div>;
 
   return (
     <div className="kfz-modern glass-module relative min-h-full min-w-0 max-w-full space-y-5 overflow-x-clip bg-transparent p-4 pb-28 text-light-text-main md:p-6 lg:pb-8 dark:text-dark-text-main">
@@ -971,7 +984,7 @@ export default function HomeKfz({ session }) {
             {vehicleOptions}
           </select>
           <select className={`${inputClass} min-w-0 md:min-w-44`} value={costCategory} onChange={(e) => setCostCategory(e.target.value)}>
-            <option value="">Alle Kostenarten</option>
+            <option value="">{t("allCostTypes")}</option>
             {["Tanken","Service","Versicherung","Steuer","Parken","Maut","Reifen","Zubehoer","Sonstiges"].map((value) => <option key={value} value={value}>{expenseCategoryLabel(value)}</option>)}
           </select>
           <button onClick={() => setQuickOpen(true)} disabled={!data.vehicles.length} className={`${buttonPrimary} w-full md:w-auto`}><Plus size={17} /> {t("kfz:quickEntry")}</button>
@@ -983,7 +996,7 @@ export default function HomeKfz({ session }) {
       {error ? <KfzAlert>{error}</KfzAlert> : null}
 
       {!data.vehicles.length ? (
-        <EmptyState icon={Car} title="Noch kein Fahrzeug angelegt" text="Lege dein erstes Fahrzeug an, um Kosten, Tankungen und Termine zu verwalten." action={<button onClick={() => openModal("vehicle")} className={buttonPrimary}><Plus size={16} /> Fahrzeug anlegen</button>} />
+        <EmptyState icon={Car} title={t("empty.noVehicleTitle")} text={t("empty.noVehicleText")} action={<button onClick={() => openModal("vehicle")} className={buttonPrimary}><Plus size={16} /> {t("empty.addVehicle")}</button>} />
       ) : (
         <>
           <nav className={`${glassPanelClass} grid min-w-0 grid-cols-4 gap-1 overflow-hidden p-1.5 md:flex`}>
@@ -1156,7 +1169,7 @@ export default function HomeKfz({ session }) {
                   </AnimatePresence>
                 </div>
               ) : null}
-              {filtered.fuel.length ? <div className="overflow-hidden rounded-card border border-light-border bg-light-card dark:border-dark-border dark:bg-canvas-2">{filtered.fuel.map((row) => <div key={row.id} className="grid min-w-0 grid-cols-2 gap-2 border-b border-light-border px-4 py-3 text-sm last:border-0 md:grid-cols-[1fr_.7fr_.7fr_.7fr_auto] md:items-center dark:border-dark-border"><div className="col-span-2 min-w-0 md:col-span-1"><div className="flex min-w-0 flex-wrap items-center gap-2"><strong className="break-words">{row.tankstelle || "Tankung"}</strong>{row.verbrauch_bestaetigt === false ? <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-300">{t("fuelImports.needsReview")}</span> : null}</div><div className="break-words text-xs text-light-text-secondary dark:text-dark-text-secondary">{vehicleLabel(vehicleById[row.fahrzeug_id])}</div></div><div>{formatDate(row.datum)}</div><div>{row.liter ? `${Number(row.liter).toFixed(2)} l` : "-"}</div><div className="col-span-2 md:col-span-1"><strong>{money(row.betrag)}</strong><div className="break-words text-xs text-light-text-secondary dark:text-dark-text-secondary">{row.kilometerstand ? `${Number(row.kilometerstand).toLocaleString("de-AT")} km` : "-"} - {row.verbrauch_bestaetigt === false ? t("fuelImports.consumptionOpen") : fuelStatusLabel(row, t)}</div></div><div className="col-span-2 flex justify-end md:col-span-1">{rowActions(() => openModal("fuel", row), () => deleteFuelEntry(row))}</div></div>)}</div> : <EmptyState icon={Fuel} title="Noch keine Tankungen" />}
+              {filtered.fuel.length ? <div className="overflow-hidden rounded-card border border-light-border bg-light-card dark:border-dark-border dark:bg-canvas-2">{filtered.fuel.map((row) => <div key={row.id} className="grid min-w-0 grid-cols-2 gap-2 border-b border-light-border px-4 py-3 text-sm last:border-0 md:grid-cols-[1fr_.7fr_.7fr_.7fr_auto] md:items-center dark:border-dark-border"><div className="col-span-2 min-w-0 md:col-span-1"><div className="flex min-w-0 flex-wrap items-center gap-2"><strong className="break-words">{row.tankstelle || "Tankung"}</strong>{!isFuelEntryReviewed(row) ? <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-300">{t("fuelImports.needsReview")}</span> : null}</div><div className="break-words text-xs text-light-text-secondary dark:text-dark-text-secondary">{vehicleLabel(vehicleById[row.fahrzeug_id])}</div></div><div>{formatDate(row.datum)}</div><div>{row.liter ? `${Number(row.liter).toFixed(2)} l` : "-"}</div><div className="col-span-2 md:col-span-1"><strong>{money(row.betrag)}</strong><div className="break-words text-xs text-light-text-secondary dark:text-dark-text-secondary">{row.kilometerstand ? `${Number(row.kilometerstand).toLocaleString("de-AT")} km` : "-"} - {!isFuelEntryReviewed(row) ? t("fuelImports.consumptionOpen") : fuelStatusLabel(row, t)}</div></div><div className="col-span-2 flex justify-end md:col-span-1">{rowActions(() => openModal("fuel", row), () => deleteFuelEntry(row))}</div></div>)}</div> : <EmptyState icon={Fuel} title="Noch keine Tankungen" />}
             </section>
           ) : null}
 
@@ -1322,54 +1335,54 @@ export default function HomeKfz({ session }) {
                 <Field label="Typ"><select className={inputClass} value={modal.form.typ} onChange={(e) => updateModal("typ", e.target.value)}>{["Service","Oelwechsel","Reparatur","Pickerl","Reifenwechsel"].map((value) => <option key={value} value={value}>{serviceTypeLabel(value)}</option>)}</select></Field>
                 <LocalizedDateField label="Datum" required value={modal.form.datum} onChange={(value) => updateModal("datum", value)} onValidityChange={(valid) => updateDateValidity("datum", valid)} error={formErrors.datum} />
                 <Field label="Kilometerstand" error={formErrors.kilometerstand}><input className={inputClass} type="number" min="0" max="9999999" value={modal.form.kilometerstand || ""} onChange={(e) => updateModal("kilometerstand", e.target.value)} /></Field>
-                <Field label="Kosten" error={formErrors.kosten}><input className={inputClass} type="number" min="0" step="0.01" value={modal.form.kosten || ""} onChange={(e) => updateModal("kosten", e.target.value)} /></Field>
-                <Field label="Werkstatt"><input className={inputClass} value={modal.form.werkstatt || ""} onChange={(e) => updateModal("werkstatt", e.target.value)} /></Field>
-                <Field label="Dokument"><select className={inputClass} value={modal.form.dokument_id || ""} onChange={(e) => updateModal("dokument_id", e.target.value)}><option value="">Kein Dokument</option>{documentOptions}</select></Field>
-                <LocalizedDateField label="Nächste Fälligkeit" value={modal.form.naechste_faelligkeit_datum || ""} onChange={(value) => updateModal("naechste_faelligkeit_datum", value)} onValidityChange={(valid) => updateDateValidity("naechste_faelligkeit_datum", valid)} error={formErrors.naechste_faelligkeit_datum} />
-                <Field label="Nächste Fälligkeit (km)"><input className={inputClass} type="number" min="0" value={modal.form.naechste_faelligkeit_km || ""} onChange={(e) => updateModal("naechste_faelligkeit_km", e.target.value)} /></Field>
-                <Field label="Beschreibung" className="md:col-span-2 lg:col-span-3"><textarea className={`${inputClass} py-3`} rows={3} value={modal.form.beschreibung || ""} onChange={(e) => updateModal("beschreibung", e.target.value)} /></Field>
+                <Field label={t("fields.costs")} error={formErrors.kosten}><input className={inputClass} type="number" min="0" step="0.01" value={modal.form.kosten || ""} onChange={(e) => updateModal("kosten", e.target.value)} /></Field>
+                <Field label={t("fields.workshop")}><input className={inputClass} value={modal.form.werkstatt || ""} onChange={(e) => updateModal("werkstatt", e.target.value)} /></Field>
+                <Field label={t("fields.document")}><select className={inputClass} value={modal.form.dokument_id || ""} onChange={(e) => updateModal("dokument_id", e.target.value)}><option value="">{t("fields.noDocument")}</option>{documentOptions}</select></Field>
+                <LocalizedDateField label={t("fields.nextDueDate")} value={modal.form.naechste_faelligkeit_datum || ""} onChange={(value) => updateModal("naechste_faelligkeit_datum", value)} onValidityChange={(valid) => updateDateValidity("naechste_faelligkeit_datum", valid)} error={formErrors.naechste_faelligkeit_datum} />
+                <Field label={t("fields.nextDueKm")}><input className={inputClass} type="number" min="0" value={modal.form.naechste_faelligkeit_km || ""} onChange={(e) => updateModal("naechste_faelligkeit_km", e.target.value)} /></Field>
+                <Field label={t("fields.description")} className="md:col-span-2 lg:col-span-3"><textarea className={`${inputClass} py-3`} rows={3} value={modal.form.beschreibung || ""} onChange={(e) => updateModal("beschreibung", e.target.value)} /></Field>
               </div>
             ) : null}
 
             {modal.type === "tire" ? (
               <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                <Field label="Saison"><select className={inputClass} value={modal.form.saison} onChange={(e) => updateModal("saison", e.target.value)}>{["Sommerreifen","Winterreifen","Ganzjahresreifen"].map((value) => <option key={value}>{value}</option>)}</select></Field>
-                <Field label="Marke"><input className={inputClass} value={modal.form.marke || ""} onChange={(e) => updateModal("marke", e.target.value)} /></Field>
-                <Field label="Größe"><input className={inputClass} placeholder="205/55 R16" value={modal.form.groesse || ""} onChange={(e) => updateModal("groesse", e.target.value)} /></Field>
-                <Field label="Profiltiefe (mm)" error={formErrors.profiltiefe}><input className={inputClass} type="number" min="0" max="30" step="0.1" value={modal.form.profiltiefe || ""} onChange={(e) => updateModal("profiltiefe", e.target.value)} /></Field>
-                <Field label="Austausch ab (mm)"><input className={inputClass} type="number" min="0" step="0.1" value={modal.form.austausch_faellig_ab_mm || ""} onChange={(e) => updateModal("austausch_faellig_ab_mm", e.target.value)} /></Field>
-                <Field label="Laufleistung (km)"><input className={inputClass} type="number" min="0" value={modal.form.laufleistung_km || ""} onChange={(e) => updateModal("laufleistung_km", e.target.value)} /></Field>
-                <LocalizedDateField label="Kaufdatum" value={modal.form.kaufdatum || ""} onChange={(value) => updateModal("kaufdatum", value)} onValidityChange={(valid) => updateDateValidity("kaufdatum", valid)} error={formErrors.kaufdatum} />
-                <Field label="Kaufpreis"><input className={inputClass} type="number" min="0" step="0.01" value={modal.form.kaufpreis || ""} onChange={(e) => updateModal("kaufpreis", e.target.value)} /></Field>
-                <Field label="Herstellungsjahr" error={formErrors.herstellungsjahr}><input className={inputClass} type="number" min="1980" max={new Date().getFullYear() + 1} value={modal.form.herstellungsjahr || ""} onChange={(e) => updateModal("herstellungsjahr", e.target.value)} /></Field>
-                <Field label="DOT-Nummer"><input className={inputClass} value={modal.form.dot_nummer || ""} onChange={(e) => updateModal("dot_nummer", e.target.value)} /></Field>
-                <Field label="Lagerort"><input className={inputClass} value={modal.form.lagerort || ""} onChange={(e) => updateModal("lagerort", e.target.value)} /></Field>
-                <LocalizedDateField label="Nächster Wechsel" value={modal.form.naechster_wechsel || ""} onChange={(value) => updateModal("naechster_wechsel", value)} onValidityChange={(valid) => updateDateValidity("naechster_wechsel", valid)} error={formErrors.naechster_wechsel} />
-                <Field label="Zustandsfoto" className="md:col-span-2 lg:col-span-3"><label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-card-sm border border-dashed border-light-border px-3 text-center text-sm text-light-text-secondary dark:border-dark-border dark:text-dark-text-secondary"><Upload size={20} /><span className="mt-2 max-w-full break-all">{modal.form.photo?.name || "Foto auswählen"}</span><input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => updateModal("photo", e.target.files?.[0] || null)} /></label></Field>
+                <Field label={t("fields.season")}><select className={inputClass} value={modal.form.saison} onChange={(e) => updateModal("saison", e.target.value)}>{["Sommerreifen","Winterreifen","Ganzjahresreifen"].map((value) => <option key={value}>{value}</option>)}</select></Field>
+                <Field label={t("fields.brand")}><input className={inputClass} value={modal.form.marke || ""} onChange={(e) => updateModal("marke", e.target.value)} /></Field>
+                <Field label={t("fields.size")}><input className={inputClass} placeholder="205/55 R16" value={modal.form.groesse || ""} onChange={(e) => updateModal("groesse", e.target.value)} /></Field>
+                <Field label={t("fields.treadDepth")} error={formErrors.profiltiefe}><input className={inputClass} type="number" min="0" max="30" step="0.1" value={modal.form.profiltiefe || ""} onChange={(e) => updateModal("profiltiefe", e.target.value)} /></Field>
+                <Field label={t("fields.replaceFromMm")}><input className={inputClass} type="number" min="0" step="0.1" value={modal.form.austausch_faellig_ab_mm || ""} onChange={(e) => updateModal("austausch_faellig_ab_mm", e.target.value)} /></Field>
+                <Field label={t("fields.runningDistance")}><input className={inputClass} type="number" min="0" value={modal.form.laufleistung_km || ""} onChange={(e) => updateModal("laufleistung_km", e.target.value)} /></Field>
+                <LocalizedDateField label={t("fields.purchaseDate")} value={modal.form.kaufdatum || ""} onChange={(value) => updateModal("kaufdatum", value)} onValidityChange={(valid) => updateDateValidity("kaufdatum", valid)} error={formErrors.kaufdatum} />
+                <Field label={t("fields.purchasePrice")}><input className={inputClass} type="number" min="0" step="0.01" value={modal.form.kaufpreis || ""} onChange={(e) => updateModal("kaufpreis", e.target.value)} /></Field>
+                <Field label={t("fields.manufacturingYear")} error={formErrors.herstellungsjahr}><input className={inputClass} type="number" min="1980" max={new Date().getFullYear() + 1} value={modal.form.herstellungsjahr || ""} onChange={(e) => updateModal("herstellungsjahr", e.target.value)} /></Field>
+                <Field label={t("fields.dotNumber")}><input className={inputClass} value={modal.form.dot_nummer || ""} onChange={(e) => updateModal("dot_nummer", e.target.value)} /></Field>
+                <Field label={t("fields.storageLocation")}><input className={inputClass} value={modal.form.lagerort || ""} onChange={(e) => updateModal("lagerort", e.target.value)} /></Field>
+                <LocalizedDateField label={t("fields.nextChange")} value={modal.form.naechster_wechsel || ""} onChange={(value) => updateModal("naechster_wechsel", value)} onValidityChange={(valid) => updateDateValidity("naechster_wechsel", valid)} error={formErrors.naechster_wechsel} />
+                <Field label={t("fields.conditionPhoto")} className="md:col-span-2 lg:col-span-3"><label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-card-sm border border-dashed border-light-border px-3 text-center text-sm text-light-text-secondary dark:border-dark-border dark:text-dark-text-secondary"><Upload size={20} /><span className="mt-2 max-w-full break-all">{modal.form.photo?.name || t("fields.choosePhoto")}</span><input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => updateModal("photo", e.target.files?.[0] || null)} /></label></Field>
               </div>
             ) : null}
 
             {modal.type === "task" ? (
               <div className="grid gap-3 md:grid-cols-2">
-                <Field label="Titel" required error={formErrors.titel} className="md:col-span-2"><input className={inputClass} value={modal.form.titel || ""} onChange={(e) => updateModal("titel", e.target.value)} /></Field>
-                <Field label="Status"><select className={inputClass} value={modal.form.status} onChange={(e) => updateModal("status", e.target.value)}><option value="offen">Offen</option><option value="in_bearbeitung">In Bearbeitung</option><option value="erledigt">Erledigt</option></select></Field>
-                <Field label="Priorität"><select className={inputClass} value={modal.form.prioritaet} onChange={(e) => updateModal("prioritaet", e.target.value)}><option value="niedrig">Niedrig</option><option value="mittel">Mittel</option><option value="hoch">Hoch</option></select></Field>
-                <LocalizedDateField label="Fällig am" value={modal.form.faellig_am || ""} onChange={(value) => updateModal("faellig_am", value)} onValidityChange={(valid) => updateDateValidity("faellig_am", valid)} error={formErrors.faellig_am} />
-                <Field label="Fällig bei Kilometerstand"><input className={inputClass} type="number" min="0" value={modal.form.kilometerstand_faellig || ""} onChange={(e) => updateModal("kilometerstand_faellig", e.target.value)} /></Field>
-                <Field label="Beschreibung" className="md:col-span-2"><textarea className={`${inputClass} py-3`} rows={3} value={modal.form.beschreibung || ""} onChange={(e) => updateModal("beschreibung", e.target.value)} /></Field>
+                <Field label={t("fields.title")} required error={formErrors.titel} className="md:col-span-2"><input className={inputClass} value={modal.form.titel || ""} onChange={(e) => updateModal("titel", e.target.value)} /></Field>
+                <Field label={t("fields.status")}><select className={inputClass} value={modal.form.status} onChange={(e) => updateModal("status", e.target.value)}><option value="offen">{t("options.taskStatus.open")}</option><option value="in_bearbeitung">{t("options.taskStatus.inProgress")}</option><option value="erledigt">{t("options.taskStatus.done")}</option></select></Field>
+                <Field label={t("fields.priority")}><select className={inputClass} value={modal.form.prioritaet} onChange={(e) => updateModal("prioritaet", e.target.value)}><option value="niedrig">{t("options.priority.low")}</option><option value="mittel">{t("options.priority.medium")}</option><option value="hoch">{t("options.priority.high")}</option></select></Field>
+                <LocalizedDateField label={t("fields.dueDate")} value={modal.form.faellig_am || ""} onChange={(value) => updateModal("faellig_am", value)} onValidityChange={(valid) => updateDateValidity("faellig_am", valid)} error={formErrors.faellig_am} />
+                <Field label={t("fields.dueMileage")}><input className={inputClass} type="number" min="0" value={modal.form.kilometerstand_faellig || ""} onChange={(e) => updateModal("kilometerstand_faellig", e.target.value)} /></Field>
+                <Field label={t("fields.description")} className="md:col-span-2"><textarea className={`${inputClass} py-3`} rows={3} value={modal.form.beschreibung || ""} onChange={(e) => updateModal("beschreibung", e.target.value)} /></Field>
               </div>
             ) : null}
 
             {modal.type === "part" ? (
               <div className="grid gap-3 md:grid-cols-2">
-                <Field label="Teil" required error={formErrors.name}><input className={inputClass} value={modal.form.name || ""} onChange={(e) => updateModal("name", e.target.value)} /></Field>
-                <Field label="Teilenummer"><input className={inputClass} value={modal.form.teilenummer || ""} onChange={(e) => updateModal("teilenummer", e.target.value)} /></Field>
-                <Field label="Aufgabe"><select className={inputClass} value={modal.form.aufgabe_id || ""} onChange={(e) => updateModal("aufgabe_id", e.target.value)}><option value="">Keine Aufgabe</option>{filtered.tasks.map((row) => <option key={row.id} value={row.id}>{row.titel}</option>)}</select></Field>
-                <Field label="Status"><select className={inputClass} value={modal.form.status} onChange={(e) => updateModal("status", e.target.value)}><option value="benoetigt">Benötigt</option><option value="bestellt">Bestellt</option><option value="vorhanden">Vorhanden</option><option value="verbaut">Verbaut</option></select></Field>
-                <Field label="Menge" error={formErrors.menge}><input className={inputClass} type="number" min="0.01" max="9999" step="0.01" value={modal.form.menge || ""} onChange={(e) => updateModal("menge", e.target.value)} /></Field>
-                <Field label="Einzelpreis"><input className={inputClass} type="number" min="0" step="0.01" value={modal.form.einzelpreis || ""} onChange={(e) => updateModal("einzelpreis", e.target.value)} /></Field>
-                <Field label="Bezugsquelle"><input className={inputClass} value={modal.form.bezugsquelle || ""} onChange={(e) => updateModal("bezugsquelle", e.target.value)} /></Field>
-                <Field label="Dokument"><select className={inputClass} value={modal.form.dokument_id || ""} onChange={(e) => updateModal("dokument_id", e.target.value)}><option value="">Kein Dokument</option>{documentOptions}</select></Field>
+                <Field label={t("fields.part")} required error={formErrors.name}><input className={inputClass} value={modal.form.name || ""} onChange={(e) => updateModal("name", e.target.value)} /></Field>
+                <Field label={t("fields.partNumber")}><input className={inputClass} value={modal.form.teilenummer || ""} onChange={(e) => updateModal("teilenummer", e.target.value)} /></Field>
+                <Field label={t("fields.task")}><select className={inputClass} value={modal.form.aufgabe_id || ""} onChange={(e) => updateModal("aufgabe_id", e.target.value)}><option value="">{t("fields.noTask")}</option>{filtered.tasks.map((row) => <option key={row.id} value={row.id}>{row.titel}</option>)}</select></Field>
+                <Field label={t("fields.status")}><select className={inputClass} value={modal.form.status} onChange={(e) => updateModal("status", e.target.value)}><option value="benoetigt">{t("options.partStatus.needed")}</option><option value="bestellt">{t("options.partStatus.ordered")}</option><option value="vorhanden">{t("options.partStatus.available")}</option><option value="verbaut">{t("options.partStatus.installed")}</option></select></Field>
+                <Field label={t("fields.quantity")} error={formErrors.menge}><input className={inputClass} type="number" min="0.01" max="9999" step="0.01" value={modal.form.menge || ""} onChange={(e) => updateModal("menge", e.target.value)} /></Field>
+                <Field label={t("fields.unitPrice")}><input className={inputClass} type="number" min="0" step="0.01" value={modal.form.einzelpreis || ""} onChange={(e) => updateModal("einzelpreis", e.target.value)} /></Field>
+                <Field label={t("fields.source")}><input className={inputClass} value={modal.form.bezugsquelle || ""} onChange={(e) => updateModal("bezugsquelle", e.target.value)} /></Field>
+                <Field label={t("fields.document")}><select className={inputClass} value={modal.form.dokument_id || ""} onChange={(e) => updateModal("dokument_id", e.target.value)}><option value="">{t("fields.noDocument")}</option>{documentOptions}</select></Field>
               </div>
             ) : null}
           </form>

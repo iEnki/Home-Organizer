@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { CalendarDays } from "lucide-react";
 import { formatLocalizedDateInput, parseLocalizedDate } from "../../../utils/kfzDate";
 
@@ -11,6 +12,7 @@ export default function LocalizedDateField({
   className = "",
   onValidityChange,
 }) {
+  const { t } = useTranslation(["kfz"]);
   const id = useId();
   const pickerRef = useRef(null);
   const validityCallbackRef = useRef(onValidityChange);
@@ -28,7 +30,10 @@ export default function LocalizedDateField({
   }, [value]);
 
   const commit = () => {
-    const parsed = parseLocalizedDate(text);
+    const parsed = parseLocalizedDate(text, {
+      formatError: t("errors.dateFormat"),
+      invalidError: t("errors.dateInvalid"),
+    });
     setLocalError(parsed.error || "");
     validityCallbackRef.current?.(!parsed.error);
     if (!parsed.error) onChange(parsed.iso);
@@ -47,7 +52,10 @@ export default function LocalizedDateField({
           placeholder="TT.MM.JJJJ"
           onChange={(event) => {
             setText(event.target.value);
-            const parsed = parseLocalizedDate(event.target.value);
+            const parsed = parseLocalizedDate(event.target.value, {
+              formatError: t("errors.dateFormat"),
+              invalidError: t("errors.dateInvalid"),
+            });
             validityCallbackRef.current?.(!parsed.error);
           }}
           onBlur={commit}
@@ -61,7 +69,7 @@ export default function LocalizedDateField({
             else pickerRef.current?.click();
           }}
           className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-light-text-secondary hover:text-primary-500 dark:text-dark-text-secondary"
-          aria-label="Kalender öffnen"
+          aria-label={t("fields.date")}
         >
           <CalendarDays size={18} />
         </button>

@@ -261,6 +261,13 @@ export function KfzOverview({
   const { t } = useTranslation("kfz");
   const { isMobile } = useViewport();
   const monthlyValues = stats.monthly.map(([, value]) => value);
+  const costPerKmDetail = stats.costPerKm == null
+    ? t("overview.costPerKmMissing")
+    : t("overview.evaluatedKmPeriod", {
+      count: stats.totalDistance.toLocaleString("de-AT"),
+      from: formatDate(stats.mileageCoverageStart),
+      to: formatDate(stats.mileageCoverageEnd),
+    });
   const overviewChartOptions = useMemo(() => ({
     ...chartBase,
     animation: isMobile ? { duration: 450, easing: "easeOutQuart" } : chartBase.animation,
@@ -309,7 +316,7 @@ export function KfzOverview({
     <motion.div variants={pageVariants} initial="hidden" animate="show" className="min-w-0 max-w-full space-y-5 overflow-x-clip">
       <div data-testid="kpi-grid" className="grid min-w-0 grid-cols-2 gap-3 xl:grid-cols-4">
         <AnimatedKpi icon={WalletCards} label={t("overview.totalCost")} value={stats.totalCost} format={money} detail={period === "all" ? t("overview.allTime") : t("overview.lastMonths", { count: period })} trend={stats.comparison.totalCostChange} sparkline={monthlyValues} />
-        <AnimatedKpi icon={Gauge} label={t("overview.costPerKm")} value={stats.costPerKm || 0} format={(value) => stats.costPerKm == null ? "-" : money(value)} detail={t("overview.evaluatedKm", { count: stats.totalDistance.toLocaleString("de-AT") })} tone="cyan" sparkline={monthlyValues} />
+        <AnimatedKpi icon={Gauge} label={t("overview.costPerKm")} value={stats.costPerKm || 0} format={(value) => stats.costPerKm == null ? "-" : money(value)} detail={costPerKmDetail} tone="cyan" sparkline={monthlyValues} />
         <AnimatedKpi icon={Fuel} label={t("overview.consumption")} value={stats.averageConsumption || 0} format={(value) => stats.averageConsumption == null ? "-" : `${value.toFixed(1)} l/100 km`} detail={t("overview.fullTankOnly")} tone="amber" />
         <AnimatedKpi icon={Car} label={t("overview.mileage")} value={selectedVehicle?.kilometerstand || 0} format={(value) => selectedVehicle ? `${Math.round(value).toLocaleString("de-AT")} km` : "-"} detail={selectedVehicle?.kennzeichen || t("overview.selectVehicle")} />
       </div>

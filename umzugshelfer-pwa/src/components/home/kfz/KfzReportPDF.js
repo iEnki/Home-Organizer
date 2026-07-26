@@ -10,6 +10,7 @@ const styles = StyleSheet.create({
   kpi: { flexGrow: 1, border: "1 solid #dbe3ec", borderRadius: 6, padding: 9 },
   kpiLabel: { color: "#64748b", fontSize: 7, marginBottom: 4 },
   kpiValue: { fontSize: 13, fontWeight: 700 },
+  kpiNote: { color: "#64748b", fontSize: 6, marginTop: 4 },
   heading: { fontSize: 12, fontWeight: 700, marginTop: 12, marginBottom: 6 },
   row: { flexDirection: "row", borderBottom: "1 solid #e8edf3", paddingVertical: 5 },
   date: { width: "15%" },
@@ -20,6 +21,7 @@ const styles = StyleSheet.create({
 });
 
 const money = (value) => `${Number(value || 0).toFixed(2)} EUR`;
+const date = (value) => value ? new Date(`${value}T00:00:00`).toLocaleDateString("de-AT") : "-";
 
 export default function KfzReportPDF({ vehicle, stats, services = [], servicePositions = [], tires = [], periodLabel }) {
   return (
@@ -31,7 +33,15 @@ export default function KfzReportPDF({ vehicle, stats, services = [], servicePos
         </Text>
         <View style={styles.kpis}>
           <View style={styles.kpi}><Text style={styles.kpiLabel}>Gesamtkosten</Text><Text style={styles.kpiValue}>{money(stats.totalCost)}</Text></View>
-          <View style={styles.kpi}><Text style={styles.kpiLabel}>Kosten / km</Text><Text style={styles.kpiValue}>{stats.costPerKm == null ? "-" : money(stats.costPerKm)}</Text></View>
+          <View style={styles.kpi}>
+            <Text style={styles.kpiLabel}>Kosten / km</Text>
+            <Text style={styles.kpiValue}>{stats.costPerKm == null ? "-" : money(stats.costPerKm)}</Text>
+            <Text style={styles.kpiNote}>
+              {stats.costPerKm == null
+                ? "Mindestens zwei Kilometerstaende erforderlich"
+                : `${stats.totalDistance.toLocaleString("de-AT")} km, ${date(stats.mileageCoverageStart)} bis ${date(stats.mileageCoverageEnd)}`}
+            </Text>
+          </View>
           <View style={styles.kpi}><Text style={styles.kpiLabel}>Verbrauch</Text><Text style={styles.kpiValue}>{stats.averageConsumption == null ? "-" : `${stats.averageConsumption.toFixed(1)} l/100 km`}</Text></View>
         </View>
         <Text style={styles.heading}>Kosten</Text>

@@ -13,6 +13,8 @@ const MODUS_LABEL = {
   chatgpt_vision: "ChatGPT Vision",
   ocr_regeln: "OCR + Regeln",
   ocr_ollama: "OCR + Ollama",
+  lmstudio_vision: "LM Studio Vision",
+  claude_vision: "Claude Vision",
 };
 
 export default function HomeRechnungScannen({ session }) {
