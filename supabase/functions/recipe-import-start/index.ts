@@ -3,6 +3,7 @@
 // the internal recipe-source-parser service.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveProvider, type KiSettingsRow } from "../_shared/kiProviders.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,19 +46,11 @@ function isVideoPlatform(platform: string) {
 }
 
 function resolveCookbookProvider(settings: Record<string, any> | null | undefined) {
-  const override = settings?.kochbuch_ki_provider || "global";
-  const provider = override === "global" ? settings?.ki_provider || "openai" : override;
-  if (provider === "ollama") {
-    return {
-      provider,
-      configured: Boolean(settings?.ollama_base_url),
-      error: "Ollama ist für das Kochbuch nicht konfiguriert.",
-    };
-  }
+  const resolved = resolveProvider((settings || {}) as KiSettingsRow, "kochbuch");
   return {
-    provider: "openai",
-    configured: Boolean(settings?.openai_api_key),
-    error: "OpenAI ist für das Kochbuch nicht konfiguriert.",
+    provider: resolved.provider,
+    configured: resolved.configured,
+    error: resolved.notConfiguredMessage,
   };
 }
 
@@ -125,9 +118,15 @@ Deno.serve(async (req: Request) => {
       openai_api_key,
       ollama_base_url,
       ollama_model,
+      lmstudio_base_url,
+      lmstudio_model,
+      anthropic_api_key,
+      claude_model,
       kochbuch_ki_provider,
       kochbuch_openai_model,
       kochbuch_ollama_model,
+      kochbuch_lmstudio_model,
+      kochbuch_claude_model,
       kochbuch_video_import_enabled,
       kochbuch_daily_web_import_limit,
       kochbuch_daily_video_import_limit,

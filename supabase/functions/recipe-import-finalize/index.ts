@@ -4,6 +4,14 @@
 // persists the review draft.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  ANTHROPIC_API_URL,
+  anthropicHeaders,
+  fromAnthropicResponse,
+  resolveProvider,
+  toAnthropicRequest,
+  type KiSettingsRow,
+} from "../_shared/kiProviders.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +19,9 @@ const corsHeaders = {
 };
 const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 const OLLAMA_ANALYSIS_TIMEOUT_MS = 85_000;
+// Lokale Provider (Ollama, LM Studio) bekommen ein hartes Analyse-Timeout,
+// danach kann der Nutzer den Import mit OpenAI fortsetzen.
+const LOCAL_AI_PROVIDERS = new Set(["ollama", "lmstudio"]);
 const OLLAMA_TRANSCRIPT_LIMIT = 9_000;
 const OLLAMA_WEB_TEXT_LIMIT = 7_000;
 const OLLAMA_SEGMENT_LIMIT = 48;
@@ -427,23 +438,14 @@ function compactPayloadForOllama(payload: Record<string, unknown>) {
 }
 
 function resolveCookbookAi(settings: Record<string, unknown> | null | undefined, forceProvider?: string) {
-  const override = forceProvider || String(settings?.kochbuch_ki_provider || "global");
-  const provider = override === "global" ? String(settings?.ki_provider || "openai") : override;
-  if (provider === "ollama") {
-    return {
-      provider: "ollama",
-      configured: Boolean(settings?.ollama_base_url),
-      model: String(settings?.kochbuch_ollama_model || settings?.ollama_model || "llama3.2").trim(),
-      baseUrl: String(settings?.ollama_base_url || "").replace(/\/$/, ""),
-      error: "Ollama ist für das Kochbuch nicht konfiguriert.",
-    };
-  }
+  const resolved = resolveProvider((settings || {}) as KiSettingsRow, "kochbuch", { forceProvider });
   return {
-    provider: "openai",
-    configured: Boolean(settings?.openai_api_key),
-    model: String(settings?.kochbuch_openai_model || settings?.kochbuch_ai_model || "gpt-4o-mini").trim(),
-    apiKey: String(settings?.openai_api_key || ""),
-    error: "OpenAI ist für das Kochbuch nicht konfiguriert.",
+    provider: resolved.provider,
+    configured: resolved.configured,
+    model: resolved.model,
+    baseUrl: resolved.baseUrl || "",
+    apiKey: resolved.apiKey || "",
+    error: resolved.notConfiguredMessage,
   };
 }
 
@@ -469,30 +471,49 @@ async function callKiJson(settings: Record<string, unknown>, messages: unknown[]
   const ai = resolveCookbookAi(settings, forceProvider);
   if (!ai.configured) throw new Error(ai.error);
 
-  const endpoint = ai.provider === "ollama" ? `${ai.baseUrl}/v1/chat/completions` : "https://api.openai.com/v1/chat/completions";
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (ai.provider === "openai") headers.Authorization = `Bearer ${ai.apiKey}`;
+  const isLocalProvider = LOCAL_AI_PROVIDERS.has(ai.provider);
+  const isClaude = ai.provider === "claude";
+  const endpoint = isClaude
+    ? ANTHROPIC_API_URL
+    : isLocalProvider
+    ? `${ai.baseUrl}/v1/chat/completions`
+    : "https://api.openai.com/v1/chat/completions";
+  const headers: Record<string, string> = isClaude
+    ? anthropicHeaders(ai.apiKey)
+    : { "Content-Type": "application/json" };
+  if (!isClaude && ai.apiKey) headers.Authorization = `Bearer ${ai.apiKey}`;
   const disableOllamaThinking = ai.provider === "ollama" && !Boolean(settings?.kochbuch_ollama_thinking_enabled);
 
-  let requestBody: Record<string, unknown> = ai.provider === "ollama"
-    ? {
-        model: ai.model,
-        messages: injectJsonInstruction(messages, disableOllamaThinking),
-        temperature,
-        format: "json",
-        ...(disableOllamaThinking ? { think: false, reasoning_effort: false } : {}),
-      }
-    : {
-        model: ai.model,
-        messages,
-        temperature,
-        response_format: { type: "json_object" },
-      };
+  let requestBody: Record<string, unknown>;
+  if (ai.provider === "ollama") {
+    requestBody = {
+      model: ai.model,
+      messages: injectJsonInstruction(messages, disableOllamaThinking),
+      temperature,
+      format: "json",
+      ...(disableOllamaThinking ? { think: false, reasoning_effort: false } : {}),
+    };
+  } else if (isClaude) {
+    // Anthropic: max_tokens Pflicht, KEIN temperature (claude-opus-4-8 lehnt es ab).
+    requestBody = toAnthropicRequest({
+      model: ai.model,
+      messages: messages as Record<string, unknown>[],
+      responseFormat: { type: "json_object" },
+    });
+  } else {
+    // openai + lmstudio (OpenAI-kompatibel)
+    requestBody = {
+      model: ai.model,
+      messages,
+      temperature,
+      response_format: { type: "json_object" },
+    };
+  }
 
   const fetchCompletion = async (body: Record<string, unknown>) => {
     const controller = new AbortController();
-    const timeoutId = ai.provider === "ollama"
-      ? setTimeout(() => controller.abort("ollama-timeout"), OLLAMA_ANALYSIS_TIMEOUT_MS)
+    const timeoutId = isLocalProvider
+      ? setTimeout(() => controller.abort("local-ai-timeout"), OLLAMA_ANALYSIS_TIMEOUT_MS)
       : null;
 
     try {
@@ -505,9 +526,9 @@ async function callKiJson(settings: Record<string, unknown>, messages: unknown[]
       const responseText = await response.text().catch(() => "");
       return { response, responseText };
     } catch (err) {
-      if (ai.provider === "ollama" && controller.signal.aborted) {
-        const timeoutError = new Error("Ollama analysis timed out.");
-        timeoutError.name = "OllamaTimeoutError";
+      if (isLocalProvider && controller.signal.aborted) {
+        const timeoutError = new Error(`${ai.provider === "lmstudio" ? "LM Studio" : "Ollama"} analysis timed out.`);
+        timeoutError.name = "LocalAiTimeoutError";
         throw timeoutError;
       }
       throw err;
@@ -538,6 +559,13 @@ async function callKiJson(settings: Record<string, unknown>, messages: unknown[]
 
   if (!response.ok) {
     throw new Error(json?.error?.message || json?.error || `${ai.provider} HTTP ${response.status}`);
+  }
+
+  if (isClaude) {
+    if (json?.stop_reason === "refusal") {
+      throw new Error("Claude hat die Rezeptanalyse aus Sicherheitsgruenden abgelehnt.");
+    }
+    json = fromAnthropicResponse(json);
   }
 
   const content = json?.choices?.[0]?.message?.content;
@@ -659,7 +687,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: loadedSettings, error: settingsError } = await supabaseAdmin
     .from("household_settings")
-    .select("ki_provider, openai_api_key, ollama_base_url, ollama_model, kochbuch_ai_model, kochbuch_ki_provider, kochbuch_openai_model, kochbuch_ollama_model, kochbuch_ollama_thinking_enabled, kochbuch_extract_costs, kochbuch_extract_macros")
+    .select("ki_provider, openai_api_key, ollama_base_url, ollama_model, lmstudio_base_url, lmstudio_model, lmstudio_api_key, anthropic_api_key, claude_model, kochbuch_ai_model, kochbuch_ki_provider, kochbuch_openai_model, kochbuch_ollama_model, kochbuch_lmstudio_model, kochbuch_claude_model, kochbuch_ollama_thinking_enabled, kochbuch_extract_costs, kochbuch_extract_macros")
     .eq("household_id", job.household_id)
     .maybeSingle();
   if (settingsError) throw settingsError;
@@ -678,7 +706,7 @@ Deno.serve(async (req: Request) => {
     warnings.push(cookbookAi.error);
   } else {
     try {
-      const aiPayload = cookbookAi.provider === "ollama" ? compactPayloadForOllama(body) : body;
+      const aiPayload = LOCAL_AI_PROVIDERS.has(cookbookAi.provider) ? compactPayloadForOllama(body) : body;
       const structured = await callKiJson(
         settings || {},
         buildPrompt(aiPayload, targetLocale, location, settings?.kochbuch_extract_macros !== false),
@@ -692,7 +720,7 @@ Deno.serve(async (req: Request) => {
         structure: structured.raw,
       };
       recipe = structured.parsed;
-      if (cookbookAi.provider !== "ollama" && shouldRunInstructionRefinement(body, recipe)) {
+      if (!LOCAL_AI_PROVIDERS.has(cookbookAi.provider) && shouldRunInstructionRefinement(body, recipe)) {
         try {
           const refined = await callKiJson(
             settings || {},
@@ -717,8 +745,14 @@ Deno.serve(async (req: Request) => {
         }
       }
     } catch (err) {
-      if (cookbookAi.provider === "ollama" && err instanceof Error && err.name === "OllamaTimeoutError" && forceProvider !== "openai") {
-        const fallbackMessage = "Ollama hat für diese Analyse zu lange gebraucht. Soll dieser Import mit OpenAI fortgesetzt werden?";
+      if (
+        LOCAL_AI_PROVIDERS.has(cookbookAi.provider) &&
+        err instanceof Error &&
+        (err.name === "LocalAiTimeoutError" || err.name === "OllamaTimeoutError") &&
+        forceProvider !== "openai"
+      ) {
+        const providerLabel = cookbookAi.provider === "lmstudio" ? "LM Studio" : "Ollama";
+        const fallbackMessage = `${providerLabel} hat für diese Analyse zu lange gebraucht. Soll dieser Import mit OpenAI fortgesetzt werden?`;
         await supabaseAdmin
           .from("home_rezept_import_jobs")
           .update({

@@ -1,40 +1,24 @@
 // Supabase Edge Function: ki-chat
-// Serverseitiger KI-Proxy fuer Haushalts-KI (OpenAI/Ollama).
+// Serverseitiger KI-Proxy fuer Haushalts-KI (OpenAI/Ollama/LM Studio/Claude).
 // Mitglieder duerfen KI nutzen, Schluessel bleiben serverseitig.
+// Provider-Logik liegt in ../_shared/kiProviders.ts (gemeinsam mit ki-vision
+// und recipe-import-*).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  callChatProvider,
+  resolveProvider,
+  type KiSettingsRow,
+} from "../_shared/kiProviders.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-type ContentPart =
-  | { type: "text"; text: string }
-  | { type: "image_url"; image_url: { url: string; detail?: "low" | "high" | "auto" } };
-
-type ChatMessage = { role: string; content: string | ContentPart[] };
 type ResponseFormat =
   | { type: "json_object" }
   | { type: string; [key: string]: unknown };
-
-function injectJsonInstruction(messages: ChatMessage[], disableThinking = true): ChatMessage[] {
-  const instruction = disableThinking
-    ? "Antworte AUSSCHLIESSLICH mit gueltigem JSON. Kein Erklaerungstext, kein Markdown, keine Code-Bloecke. Nutze keine Thinking- oder Reasoning-Ausgabe."
-    : "Antworte AUSSCHLIESSLICH mit gueltigem JSON. Kein Erklaerungstext, kein Markdown, keine Code-Bloecke.";
-  const idx = messages.findIndex((m) => m.role === "system");
-  if (idx !== -1 && typeof messages[idx].content === "string") {
-    const patched = [...messages];
-    patched[idx] = { ...patched[idx], content: `${patched[idx].content}\n\n${instruction}` };
-    return patched;
-  }
-  return [{ role: "system", content: instruction }, ...messages];
-}
-
-function isOllamaThinkingControlError(message: unknown) {
-  const text = String(message || "").toLowerCase();
-  return text.includes("think") || text.includes("reasoning_effort") || text.includes("reasoning effort");
-}
 
 const parseJson = async (req: Request) => {
   try {
@@ -104,8 +88,8 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-const payload = await parseJson(req);
-  const messages = (payload?.messages ?? []) as ChatMessage[];
+  const payload = await parseJson(req);
+  const messages = (payload?.messages ?? []) as Record<string, unknown>[];
   const requestedModel = typeof payload?.model === "string" ? payload.model : undefined;
   const context = typeof payload?.context === "string" ? payload.context : undefined;
   const temperature = typeof payload?.temperature === "number" ? payload.temperature : 0.2;
@@ -160,7 +144,14 @@ const payload = await parseJson(req);
 
   const { data: settings, error: settingsError } = await supabaseAdmin
     .from("household_settings")
-    .select("ki_provider, openai_api_key, openai_model, ollama_base_url, ollama_model, kochbuch_ai_model, kochbuch_ki_provider, kochbuch_openai_model, kochbuch_ollama_model, kochbuch_ollama_thinking_enabled, assistant_ki_provider, assistant_openai_model, assistant_ollama_model, assistant_ollama_thinking_enabled")
+    .select(
+      "ki_provider, openai_api_key, openai_model, ollama_base_url, ollama_model, " +
+        "lmstudio_base_url, lmstudio_model, lmstudio_api_key, anthropic_api_key, claude_model, " +
+        "kochbuch_ai_model, kochbuch_ki_provider, kochbuch_openai_model, kochbuch_ollama_model, " +
+        "kochbuch_lmstudio_model, kochbuch_claude_model, kochbuch_ollama_thinking_enabled, " +
+        "assistant_ki_provider, assistant_openai_model, assistant_ollama_model, " +
+        "assistant_lmstudio_model, assistant_claude_model, assistant_ollama_thinking_enabled",
+    )
     .eq("household_id", membership.household_id)
     .maybeSingle();
 
@@ -183,172 +174,48 @@ const payload = await parseJson(req);
     });
   }
 
-  const cookbookProvider = settings.kochbuch_ki_provider || "global";
-  const assistantProvider = settings.assistant_ki_provider || "global";
-  const provider =
-    context === "assistant" && assistantProvider !== "global"
-      ? assistantProvider
-      : context === "kochbuch" && cookbookProvider !== "global"
-      ? cookbookProvider
-      : settings.ki_provider || "openai";
+  const resolved = resolveProvider(settings as KiSettingsRow, context, { requestedModel });
 
-  // Erkennung: Upstream lehnt Tool-Calling ab (z.B. Ollama-Modell ohne Tool-Support).
-  const isToolsUnsupportedError = (message: unknown) =>
-    Boolean(tools) && /tool|function.?call/i.test(String(message || ""));
+  if (!resolved.configured) {
+    return errorResponse({
+      httpStatus: 409,
+      code: "KI_NOT_CONFIGURED",
+      message: resolved.notConfiguredMessage,
+      provider: resolved.provider,
+      status: 409,
+      retryable: false,
+    });
+  }
 
   try {
-    if (provider === "ollama") {
-      if (!settings.ollama_base_url) {
-        return errorResponse({
-          httpStatus: 409,
-          code: "KI_NOT_CONFIGURED",
-          message: context === "kochbuch"
-            ? "Ollama ist für das Kochbuch nicht konfiguriert."
-            : "Ollama ist im Haushalt nicht konfiguriert.",
-          provider: "ollama",
-          status: 409,
-          retryable: false,
-        });
-      }
-      const base = settings.ollama_base_url.replace(/\/$/, "");
-      // Wichtig: Bei Ollama niemals blind das vom Client angeforderte Modell nutzen.
-      // Der Frontend-Default ist oft "gpt-4o" und fuehrt sonst zu "model not found".
-      const ollamaModel = (
-        context === "assistant"
-          ? settings.assistant_ollama_model || settings.ollama_model || "llama3.2"
-          : context === "kochbuch"
-          ? settings.kochbuch_ollama_model || settings.ollama_model || "llama3.2"
-          : settings.ollama_model || "llama3.2"
-      ).trim();
-      const disableOllamaThinking =
-        context === "assistant"
-          ? !Boolean(settings.assistant_ollama_thinking_enabled)
-          : context === "kochbuch"
-          ? !Boolean(settings.kochbuch_ollama_thinking_enabled)
-          : true;
-      // Bei Tool-Calling keine JSON-Instruktion injizieren — das Modell muss frei
-      // zwischen tool_calls und Textantwort waehlen koennen.
-      const ollamaMessages =
-        !tools && responseFormat?.type === "json_object"
-          ? injectJsonInstruction(messages, disableOllamaThinking)
-          : messages;
-      let ollamaBody: Record<string, unknown> = {
-        model: ollamaModel,
-        messages: ollamaMessages,
-        temperature,
-        ...(disableOllamaThinking ? { think: false, reasoning_effort: false } : {}),
-        ...(!tools && responseFormat?.type === "json_object" ? { format: "json" } : {}),
-        ...(tools ? { tools, tool_choice: toolChoice ?? "auto" } : {}),
-      };
-      let ollamaRes = await fetch(`${base}/v1/chat/completions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(ollamaBody),
-      });
-
-      let ollamaJson = await ollamaRes.json().catch(() => ({}));
-      if (!ollamaRes.ok && disableOllamaThinking && isOllamaThinkingControlError(ollamaJson?.error?.message || ollamaJson?.error)) {
-        const { think, reasoning_effort, ...bodyWithoutThinkingControls } = ollamaBody;
-        ollamaBody = bodyWithoutThinkingControls;
-        ollamaRes = await fetch(`${base}/v1/chat/completions`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(ollamaBody),
-        });
-        ollamaJson = await ollamaRes.json().catch(() => ({}));
-      }
-      if (!ollamaRes.ok) {
-        const ollamaErrorMessage = ollamaJson?.error?.message || ollamaJson?.error || `Ollama HTTP ${ollamaRes.status}`;
-        if (isToolsUnsupportedError(ollamaErrorMessage)) {
-          return errorResponse({
-            httpStatus: 502,
-            code: "TOOLS_UNSUPPORTED",
-            message: `Das Ollama-Modell "${ollamaModel}" unterstuetzt kein Tool-Calling.`,
-            provider: "ollama",
-            status: ollamaRes.status,
-            retryable: false,
-          });
-        }
-        return errorResponse({
-          httpStatus: 502,
-          code: "UPSTREAM_ERROR",
-          message: ollamaErrorMessage,
-          provider: "ollama",
-          status: ollamaRes.status,
-          retryable: ollamaRes.status >= 500,
-        });
-      }
-
-      return new Response(JSON.stringify(ollamaJson), {
-        headers: jsonHeaders,
-      });
-    }
-
-    const openaiKey = settings.openai_api_key;
-    if (!openaiKey) {
-      return errorResponse({
-        httpStatus: 409,
-        code: "KI_NOT_CONFIGURED",
-        message: "OpenAI API-Key ist im Haushalt nicht konfiguriert.",
-        provider: "openai",
-        status: 409,
-        retryable: false,
-      });
-    }
-
-    const openaiModel =
-      context === "assistant"
-        ? settings.assistant_openai_model || settings.openai_model || "gpt-4o"
-        : context === "kochbuch"
-        ? settings.kochbuch_openai_model || settings.kochbuch_ai_model || "gpt-4o-mini"
-        : settings.openai_model || requestedModel || "gpt-4o";
-    const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${openaiKey}`,
-      },
-      body: JSON.stringify({
-        model: openaiModel,
-        messages,
-        temperature,
-        ...(responseFormat ? { response_format: responseFormat } : {}),
-        ...(tools ? { tools, tool_choice: toolChoice ?? "auto" } : {}),
-      }),
+    const result = await callChatProvider(resolved, {
+      messages,
+      tools,
+      toolChoice,
+      responseFormat,
+      temperature,
     });
 
-    const openaiJson = await openaiRes.json().catch(() => ({}));
-    if (!openaiRes.ok) {
-      const openaiErrorMessage = openaiJson?.error?.message || `OpenAI HTTP ${openaiRes.status}`;
-      if (isToolsUnsupportedError(openaiErrorMessage) && openaiRes.status === 400) {
-        return errorResponse({
-          httpStatus: 502,
-          code: "TOOLS_UNSUPPORTED",
-          message: `Das OpenAI-Modell "${openaiModel}" unterstuetzt kein Tool-Calling.`,
-          provider: "openai",
-          status: openaiRes.status,
-          retryable: false,
-        });
-      }
+    if (!result.ok) {
       return errorResponse({
         httpStatus: 502,
-        code: "UPSTREAM_ERROR",
-        message: openaiErrorMessage,
-        provider: "openai",
-        status: openaiRes.status,
-        retryable: openaiRes.status >= 500 || openaiRes.status === 429,
+        code: result.code,
+        message: result.message,
+        provider: resolved.provider,
+        status: result.status,
+        retryable: result.retryable,
       });
     }
 
-    return new Response(JSON.stringify(openaiJson), {
+    return new Response(JSON.stringify(result.json), {
       headers: jsonHeaders,
     });
-  } catch (err: any) {
+  } catch (err) {
     return errorResponse({
       httpStatus: 500,
       code: "KI_PROXY_ERROR",
-      message: err?.message || "KI-Proxy Fehler",
-      provider: provider === "ollama" ? "ollama" : "openai",
+      message: err instanceof Error ? err.message : "KI-Proxy Fehler",
+      provider: resolved.provider,
       status: 500,
       retryable: true,
     });

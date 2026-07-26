@@ -2,20 +2,33 @@
 // Zentraler Bild-Proxy fuer den Rechnungsscanner.
 //
 // POST /
-//   mode = "chatgpt_vision" -> GPT-4o Vision (bildanalyse_openai_api_key, fallback: openai_api_key)
-//   mode = "ocr_ollama"     -> Ollama Vision (ollama_base_url + ollama_vision_model aus household_settings)
+//   mode = "chatgpt_vision"   -> OpenAI Responses Vision (bildanalyse_openai_api_key, fallback: openai_api_key)
+//   mode = "ocr_ollama"       -> Ollama Vision (ollama_base_url + ollama_vision_model)
+//   mode = "lmstudio_vision"  -> LM Studio Vision (lmstudio_base_url + lmstudio_vision_model)
+//   mode = "claude_vision"    -> Claude/Anthropic Vision (anthropic_api_key + claude_model)
 //
 // Gibt immer { status: "ok", text: string } zurueck.
 //
 // WICHTIG: KI_RECHNUNG_PROMPT_SERVER muss identisch mit
 // KI_RECHNUNG_PROMPT_VISION in rechnungAnalyse.js gehalten werden!
 
+import {
+  ANTHROPIC_API_URL,
+  anthropicHeaders,
+  CLAUDE_DEFAULT_MODEL,
+} from "../_shared/kiProviders.ts";
+import {
+  callOpenAiVisionResponse,
+  extractOpenAiResponseText,
+} from "../_shared/openaiModels.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 const VISION_PROVIDER_TIMEOUT_MS = 150_000;
-const FUNCTION_VERSION = "ki-vision-2026-06-18-diagnostics";
+const SUPABASE_REQUEST_TIMEOUT_MS = 6_000;
+const FUNCTION_VERSION = "ki-vision-2026-07-26.2";
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -85,56 +98,123 @@ function restHeaders(token: string) {
   };
 }
 
-async function fetchJson(url: string, init: RequestInit) {
-  const response = await fetch(url, init);
-  const text = await response.text().catch(() => "");
-  let payload: any = null;
-  if (text) {
+async function fetchSupabaseJson(url: string, init: RequestInit) {
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    SUPABASE_REQUEST_TIMEOUT_MS,
+  );
+  try {
+    const response = await fetch(url, { ...init, signal: controller.signal });
+    const text = await response.text().catch(() => "");
+    let payload: any = null;
+    if (text) {
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        payload = { message: text };
+      }
+    }
+    return { response, payload };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchFirstAvailableSupabaseJson(
+  urls: string[],
+  init: RequestInit,
+) {
+  let lastError: unknown = null;
+  for (const url of [...new Set(urls.filter(Boolean))]) {
     try {
-      payload = JSON.parse(text);
-    } catch {
-      payload = { message: text };
+      const result = await fetchSupabaseJson(url, init);
+      if (!result.response.ok) {
+        throw new Error(
+          result.payload?.message
+            || result.payload?.error
+            || `HTTP ${result.response.status}`,
+        );
+      }
+      return result.payload;
+    } catch (error) {
+      // HTTP-Antworten duerfen nicht ueber einen zweiten Endpunkt wiederholt
+      // werden. Nur bei einem Transportfehler wird der Kong-Fallback versucht.
+      if (
+        error instanceof Error
+        && !["AbortError", "TypeError"].includes(error.name)
+      ) {
+        throw error;
+      }
+      lastError = error;
     }
   }
-  if (!response.ok) {
-    throw new Error(payload?.message || payload?.error || `HTTP ${response.status}`);
-  }
-  return payload;
+  throw lastError || new Error("Supabase-Dienst ist nicht erreichbar.");
+}
+
+function serviceCandidates(
+  internalBaseUrl: string | undefined,
+  internalPath: string,
+  publicPath: string,
+) {
+  const supabaseUrl = env("SUPABASE_URL").replace(/\/$/, "");
+  const candidates: string[] = [];
+  const internalBase = internalBaseUrl?.trim().replace(/\/$/, "");
+  if (internalBase) candidates.push(`${internalBase}${internalPath}`);
+  candidates.push(`${supabaseUrl}${publicPath}`);
+  return candidates;
 }
 
 async function getAuthenticatedUser(authHeader: string) {
-  const supabaseUrl = env("SUPABASE_URL").replace(/\/$/, "");
   const anonKey = env("SUPABASE_ANON_KEY");
-  const payload = await fetchJson(`${supabaseUrl}/auth/v1/user`, {
-    method: "GET",
-    headers: {
-      "apikey": anonKey,
-      "Authorization": authHeader,
+  return await fetchFirstAvailableSupabaseJson(
+    serviceCandidates(
+      Deno.env.get("SUPABASE_AUTH_URL"),
+      "/user",
+      "/auth/v1/user",
+    ),
+    {
+      method: "GET",
+      headers: {
+        "apikey": anonKey,
+        "Authorization": authHeader,
+      },
     },
-  });
-  return payload;
+  );
 }
 
 async function loadMembership(userId: string) {
-  const supabaseUrl = env("SUPABASE_URL").replace(/\/$/, "");
   const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
-  const url = `${supabaseUrl}/rest/v1/household_members?select=household_id&user_id=eq.${encodeURIComponent(userId)}&limit=1`;
-  const rows = await fetchJson(url, {
-    method: "GET",
-    headers: restHeaders(serviceKey),
-  });
+  const query = `/household_members?select=household_id&user_id=eq.${encodeURIComponent(userId)}&limit=1`;
+  const rows = await fetchFirstAvailableSupabaseJson(
+    serviceCandidates(
+      Deno.env.get("SUPABASE_REST_URL"),
+      query,
+      `/rest/v1${query}`,
+    ),
+    {
+      method: "GET",
+      headers: restHeaders(serviceKey),
+    },
+  );
   return Array.isArray(rows) ? rows[0] : null;
 }
 
 async function loadVisionSettings(householdId: string) {
-  const supabaseUrl = env("SUPABASE_URL").replace(/\/$/, "");
   const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
-  const select = "bildanalyse_openai_api_key,openai_api_key,openai_model,bildanalyse_openai_model,ollama_base_url,ollama_model,ollama_vision_model";
-  const url = `${supabaseUrl}/rest/v1/household_settings?select=${encodeURIComponent(select)}&household_id=eq.${encodeURIComponent(householdId)}&limit=1`;
-  const rows = await fetchJson(url, {
-    method: "GET",
-    headers: restHeaders(serviceKey),
-  });
+  const select = "bildanalyse_openai_api_key,openai_api_key,openai_model,bildanalyse_openai_model,ollama_base_url,ollama_model,ollama_vision_model,lmstudio_base_url,lmstudio_api_key,lmstudio_model,lmstudio_vision_model,anthropic_api_key,claude_model";
+  const query = `/household_settings?select=${encodeURIComponent(select)}&household_id=eq.${encodeURIComponent(householdId)}&limit=1`;
+  const rows = await fetchFirstAvailableSupabaseJson(
+    serviceCandidates(
+      Deno.env.get("SUPABASE_REST_URL"),
+      query,
+      `/rest/v1${query}`,
+    ),
+    {
+      method: "GET",
+      headers: restHeaders(serviceKey),
+    },
+  );
   return Array.isArray(rows) ? rows[0] : null;
 }
 
@@ -327,23 +407,26 @@ async function handleRequest(req: Request) {
 
     const outputLanguage = locale === "en-GB" || locale === "en" ? "English (United Kingdom)" : "German";
     const visionPrompt = `${prompt?.trim() || KI_RECHNUNG_PROMPT_SERVER}\n\nZiel-Ausgabesprache fuer natuerliche Texte: ${outputLanguage}. JSON-Feldnamen bleiben unveraendert.`;
-    const messages = [{
-      role: "user",
-      content: [
-        { type: "image_url", image_url: { url: `data:${mime_type};base64,${file_base64}`, detail: "high" } },
-        { type: "text", text: visionPrompt },
-      ],
-    }];
-
     let openaiResult;
     try {
-      openaiResult = await fetchJsonWithTimeout("OpenAI", "https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${openaiKey}` },
-        body: JSON.stringify({ model: modelInfo.model, messages, temperature: 0.1, max_tokens: 1800 }),
+      openaiResult = await callOpenAiVisionResponse({
+        apiKey: openaiKey,
+        model: modelInfo.model,
+        prompt: visionPrompt,
+        imageUrl: `data:${mime_type};base64,${file_base64}`,
+        maxOutputTokens: 1800,
+        timeoutMs: VISION_PROVIDER_TIMEOUT_MS,
       });
     } catch (error) {
-      return providerError("openai", 502, `OpenAI Vision ist nicht erreichbar: ${safeErrorMessage(error)}`, "vision_provider_unreachable");
+      const isTimeout = error instanceof Error && error.name === "AbortError";
+      return providerError(
+        "openai",
+        isTimeout ? 504 : 502,
+        isTimeout
+          ? "OpenAI Vision hat nicht rechtzeitig geantwortet. Bitte versuche es erneut."
+          : `OpenAI Vision ist nicht erreichbar: ${safeErrorMessage(error)}`,
+        isTimeout ? "vision_provider_timeout" : "vision_provider_unreachable",
+      );
     }
 
     const openaiRes = openaiResult.response;
@@ -354,11 +437,17 @@ async function handleRequest(req: Request) {
       return providerError("openai", status, detail, openaiRes.status === 504 ? "vision_provider_timeout" : "vision_provider_error");
     }
 
-    const content = (openaiJson as any)?.choices?.[0]?.message?.content?.trim?.() ?? "";
+    const output = extractOpenAiResponseText(openaiJson);
+    if (output.refusal) {
+      return providerError("openai", 502, `OpenAI hat die Bildanalyse abgelehnt: ${output.refusal}`, "vision_provider_refusal");
+    }
+    if (!output.text) {
+      return providerError("openai", 502, "OpenAI hat keine Textausgabe fuer die Bildanalyse geliefert.", "vision_provider_empty_response");
+    }
     return new Response(
       JSON.stringify({
         status: "ok",
-        text: content,
+        text: output.text,
         extractor: "chatgpt_vision",
         config_source: configSource,
         model: modelInfo.model,
@@ -424,10 +513,134 @@ async function handleRequest(req: Request) {
     );
   }
 
+  // ── LM Studio Vision ──────────────────────────────────────────────────────
+  if (mode === "lmstudio_vision") {
+    const s = await loadVisionSettings(membership.household_id);
+
+    if (!s?.lmstudio_base_url) {
+      return jsonResponse({
+        error: "Kein LM Studio-Server konfiguriert. Bitte unter Profil -> KI-Einstellungen eine LM Studio-URL hinterlegen.",
+        message: "Kein LM Studio-Server konfiguriert. Bitte unter Profil -> KI-Einstellungen eine LM Studio-URL hinterlegen.",
+        function_version: FUNCTION_VERSION,
+      }, 409);
+    }
+
+    const lmBase = s.lmstudio_base_url.replace(/\/$/, "");
+    const lmModel = s.lmstudio_vision_model || s.lmstudio_model;
+    if (!lmModel) {
+      return jsonResponse({
+        error: "Kein LM Studio Vision-Modell konfiguriert. Bitte unter Profil -> Bildanalyse ein Modell hinterlegen.",
+        message: "Kein LM Studio Vision-Modell konfiguriert. Bitte unter Profil -> Bildanalyse ein Modell hinterlegen.",
+        function_version: FUNCTION_VERSION,
+      }, 409);
+    }
+    const outputLanguage = locale === "en-GB" || locale === "en" ? "English (United Kingdom)" : "German";
+    const lmPrompt = `${prompt?.trim() || KI_RECHNUNG_PROMPT_SERVER}\n\nZiel-Ausgabesprache fuer natuerliche Texte: ${outputLanguage}. JSON-Feldnamen bleiben unveraendert.`;
+
+    const lmHeaders: Record<string, string> = { "Content-Type": "application/json" };
+    if (s.lmstudio_api_key) lmHeaders["Authorization"] = `Bearer ${s.lmstudio_api_key}`;
+
+    let lmResult;
+    try {
+      lmResult = await fetchJsonWithTimeout("LM Studio", `${lmBase}/v1/chat/completions`, {
+        method: "POST",
+        headers: lmHeaders,
+        body: JSON.stringify({
+          model: lmModel,
+          messages: [{
+            role: "user",
+            content: [
+              { type: "image_url", image_url: { url: `data:${mime_type};base64,${file_base64}` } },
+              { type: "text", text: lmPrompt },
+            ],
+          }],
+          temperature: 0.1,
+          max_tokens: 1800,
+          stream: false,
+        }),
+      });
+    } catch (error) {
+      return providerError("lmstudio", 502, `LM Studio Vision ist nicht erreichbar: ${safeErrorMessage(error)}`, "vision_provider_unreachable");
+    }
+
+    const lmRes = lmResult.response;
+    const lmJson = lmResult.payload;
+    if (!lmRes.ok) {
+      const status = lmRes.status === 504 ? 504 : 502;
+      return providerError("lmstudio", status, providerMessage("LM Studio", lmRes.status, lmJson), lmRes.status === 504 ? "vision_provider_timeout" : "vision_provider_error");
+    }
+
+    const content = (lmJson as any)?.choices?.[0]?.message?.content?.trim?.() ?? "";
+    return new Response(
+      JSON.stringify({ status: "ok", text: content, extractor: "lmstudio_vision", model: lmModel, function_version: FUNCTION_VERSION }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  // ── Claude Vision (Anthropic /v1/messages) ────────────────────────────────
+  if (mode === "claude_vision") {
+    const s = await loadVisionSettings(membership.household_id);
+
+    if (!s?.anthropic_api_key) {
+      return jsonResponse({
+        error: "Kein Anthropic API-Key (Claude) konfiguriert. Bitte unter Profil -> KI-Einstellungen einen Key hinterlegen.",
+        message: "Kein Anthropic API-Key (Claude) konfiguriert. Bitte unter Profil -> KI-Einstellungen einen Key hinterlegen.",
+        function_version: FUNCTION_VERSION,
+      }, 409);
+    }
+
+    const claudeModel = (s.claude_model || CLAUDE_DEFAULT_MODEL).trim();
+    const outputLanguage = locale === "en-GB" || locale === "en" ? "English (United Kingdom)" : "German";
+    const claudePrompt = `${prompt?.trim() || KI_RECHNUNG_PROMPT_SERVER}\n\nZiel-Ausgabesprache fuer natuerliche Texte: ${outputLanguage}. JSON-Feldnamen bleiben unveraendert.`;
+
+    let claudeResult;
+    try {
+      // WICHTIG: kein temperature/thinking an claude-opus-4-8 senden (400), max_tokens ist Pflicht.
+      claudeResult = await fetchJsonWithTimeout("Claude", ANTHROPIC_API_URL, {
+        method: "POST",
+        headers: anthropicHeaders(s.anthropic_api_key),
+        body: JSON.stringify({
+          model: claudeModel,
+          max_tokens: 1800,
+          messages: [{
+            role: "user",
+            content: [
+              { type: "image", source: { type: "base64", media_type: mime_type, data: file_base64 } },
+              { type: "text", text: claudePrompt },
+            ],
+          }],
+        }),
+      });
+    } catch (error) {
+      return providerError("claude", 502, `Claude Vision ist nicht erreichbar: ${safeErrorMessage(error)}`, "vision_provider_unreachable");
+    }
+
+    const claudeRes = claudeResult.response;
+    const claudeJson = claudeResult.payload as any;
+    if (!claudeRes.ok) {
+      const status = claudeRes.status === 504 ? 504 : 502;
+      const detail = `${providerMessage("Claude", claudeRes.status, claudeJson)} Modell: ${claudeModel}.`;
+      return providerError("claude", status, detail, claudeRes.status === 504 ? "vision_provider_timeout" : "vision_provider_error");
+    }
+    if (claudeJson?.stop_reason === "refusal") {
+      return providerError("claude", 502, "Claude hat die Bildanalyse aus Sicherheitsgruenden abgelehnt.", "vision_provider_error");
+    }
+
+    const content = (Array.isArray(claudeJson?.content) ? claudeJson.content : [])
+      .filter((block: any) => block?.type === "text")
+      .map((block: any) => block.text || "")
+      .join("")
+      .trim();
+    return new Response(
+      JSON.stringify({ status: "ok", text: content, extractor: "claude_vision", model: claudeModel, function_version: FUNCTION_VERSION }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
   // ── Unbekannter Modus ─────────────────────────────────────────────────────
   return jsonResponse({
-    error: `Unbekannter Modus: ${mode}. Erlaubt: chatgpt_vision, ocr_ollama, diagnostics`,
-    message: `Unbekannter Modus: ${mode}. Erlaubt: chatgpt_vision, ocr_ollama, diagnostics`,
+    error: `Unbekannter Modus: ${mode}. Erlaubt: chatgpt_vision, ocr_ollama, lmstudio_vision, claude_vision, diagnostics`,
+    message: `Unbekannter Modus: ${mode}. Erlaubt: chatgpt_vision, ocr_ollama, lmstudio_vision, claude_vision, diagnostics`,
     function_version: FUNCTION_VERSION,
   }, 400);
 }

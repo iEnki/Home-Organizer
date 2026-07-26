@@ -9,6 +9,8 @@ const corsHeaders = {
 
 const ENV_KEYS = [
   "SUPABASE_URL",
+  "SUPABASE_AUTH_URL",
+  "SUPABASE_REST_URL",
   "SUPABASE_ANON_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",
   "JWT_SECRET",
@@ -46,6 +48,10 @@ const WORKER_OVERRIDES: Record<string, { timeoutMs: number; memoryLimitMb: numbe
   "ki-vision": {
     timeoutMs: 180_000,
     memoryLimitMb: 256,
+  },
+  "openai-models": {
+    timeoutMs: 60_000,
+    memoryLimitMb: 150,
   },
 };
 
