@@ -152,7 +152,7 @@ const UmzugSummaryCard = ({
   const { t } = useTranslation(["move"]);
   const todosProzent = todosGesamt > 0 ? Math.round((todosErledigt / todosGesamt) * 100) : 0;
   return (
-    <div className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-2
+    <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-2
                     border border-light-border dark:border-dark-border p-5 lg:p-6
                     hover:shadow-elevation-3 transition-shadow duration-300">
       {/* Gesamtfortschritt */}
@@ -230,7 +230,7 @@ const KategorienCard = ({ navigate }) => {
   ];
 
   return (
-    <div className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-2
+    <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-2
                     border border-light-border dark:border-dark-border p-5 lg:p-6
                     hover:shadow-elevation-3 transition-shadow duration-300">
       <h3 className="text-sm font-semibold text-light-text-secondary dark:text-dark-text-secondary
@@ -258,7 +258,7 @@ const KategorienCard = ({ navigate }) => {
                          hover:border-primary-500/30 hover:bg-light-surface-2 dark:hover:bg-canvas-4
                          hover:shadow-elevation-1 transition-colors duration-200 group"
             >
-              <div className={`w-9 h-9 rounded-lg ${f.bg} flex items-center justify-center`}>
+              <div className={`w-9 h-9 rounded-card ${f.bg} flex items-center justify-center`}>
                 <Icon size={18} className={f.color} />
               </div>
               <span className="text-xs font-medium text-light-text-main dark:text-dark-text-main
@@ -278,7 +278,7 @@ const AktiveAufgabenCard = ({ todos }) => {
   const { t } = useTranslation(["move"]);
   const heute = new Date().toISOString().split("T")[0];
   return (
-    <div className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-2
+    <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-2
                     border border-light-border dark:border-dark-border p-5 lg:p-6
                     hover:shadow-elevation-3 transition-shadow duration-300">
       <div className="flex items-center justify-between mb-4">
@@ -373,7 +373,7 @@ const KontakteCard = ({ kontakteCount, budgetAusgegeben, budgetGesamt, kostenNac
 
   return (
     <motion.div
-      className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-2
+      className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-2
                   border border-light-border dark:border-dark-border p-5 lg:p-6
                   hover:shadow-elevation-3 transition-shadow duration-300"
       animate={budgetKritisch ? {
@@ -389,7 +389,7 @@ const KontakteCard = ({ kontakteCount, budgetAusgegeben, budgetGesamt, kostenNac
         {/* Kontakte */}
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-card bg-violet-500/10 flex items-center justify-center">
               <Users size={16} className="text-violet-400" />
             </div>
             <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
@@ -414,7 +414,7 @@ const KontakteCard = ({ kontakteCount, budgetAusgegeben, budgetGesamt, kostenNac
         {/* Budget + Donut-Chart */}
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${budgetKritisch ? "bg-red-500/10" : "bg-primary-500/10"}`}>
+            <div className={`w-8 h-8 rounded-card flex items-center justify-center ${budgetKritisch ? "bg-red-500/10" : "bg-primary-500/10"}`}>
               <motion.span
                 animate={budgetKritisch ? { scale: [1, 1.2, 1] } : {}}
                 transition={budgetKritisch ? { repeat: Infinity, duration: 1.8, ease: "easeInOut" } : {}}
@@ -707,7 +707,7 @@ const Dashboard = ({ session }) => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4">
+    <div className="home-glass-modern glass-module auto-glass-cards relative min-h-full min-w-0 max-w-full space-y-4 overflow-x-clip bg-transparent p-4 pb-28 md:p-6 lg:pb-8">
 
       {/* ── Held-Begrüßung ────────────────────────────────────────────────────── */}
       <HeroHeader session={session} />
@@ -817,7 +817,7 @@ const Dashboard = ({ session }) => {
 
       {/* ── Phasen-Checkliste ──────────────────────────────────────────────────── */}
       {phasenTodos.length > 0 && (
-        <div className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-2
+        <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-2
                         border border-light-border dark:border-dark-border p-5 lg:p-6 mb-6">
           <h2 className="text-sm font-semibold text-light-text-secondary dark:text-dark-text-secondary
                          uppercase tracking-wider mb-4">

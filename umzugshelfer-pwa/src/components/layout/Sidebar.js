@@ -34,6 +34,7 @@ const umzugGruppen = [
     accent: "167,139,250", // Violet
     items: [
       { name: "Materialplaner", path: "/materialplaner", icon: Paintbrush },
+      { name: "Renovierung",    path: "/renovierung",    icon: Wrench },
       { name: "Rechner",        path: "/bedarfsrechner", icon: Calculator },
       { name: "Zeitstrahl",     path: "/zeitstrahl",     icon: CalendarClock },
       { name: "Dokumente",      path: "/dokumente",      icon: FolderOpen },
@@ -98,6 +99,7 @@ const NAV_LABEL_KEYS_BY_PATH = {
   "/todos":                 "nav:items.todos",
   "/packliste":             "nav:items.packingList",
   "/materialplaner":        "nav:items.materials",
+  "/renovierung":           "nav:items.renovation",
   "/bedarfsrechner":        "nav:items.calculator",
   "/zeitstrahl":            "nav:items.timeline",
   "/dokumente":             "nav:items.documents",

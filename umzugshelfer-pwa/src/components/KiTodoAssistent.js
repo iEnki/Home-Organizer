@@ -277,7 +277,7 @@ Antworte nur mit dem JSON-Array.`;
     <div className="p-4 space-y-4 relative">
       {toastMessage.text && (
         <div
-          className={`fixed top-5 right-5 p-3 rounded-md shadow-lg text-sm z-[100] ${
+          className={`fixed top-5 right-5 p-3 rounded-card-sm shadow-lg text-sm z-[100] ${
             toastMessage.type === "success"
               ? "bg-green-500 text-white"
               : toastMessage.type === "error"
@@ -306,7 +306,7 @@ Antworte nur mit dem JSON-Array.`;
           )}
         </button>
         {showHelp && (
-          <div className="mt-2 p-3 bg-dark-input border border-dark-border rounded-md text-xs text-light-text-main dark:text-dark-text-main space-y-2">
+          <div className="mt-2 p-3 bg-dark-input border border-dark-border rounded-card-sm text-xs text-light-text-main dark:text-dark-text-main space-y-2">
             <p>
               <strong>1. OpenAI API-Key:</strong> Gib einmalig deinen OpenAI
               API-Key ein. Er wird für zukünftige Sitzungen in deinem Profil
@@ -354,7 +354,7 @@ Antworte nur mit dem JSON-Array.`;
 
       {false && !isApiKeySet && showApiKeyInput && kiProvider === "openai" && (
         /* API Key Input Form */
-        <div className="p-3 bg-dark-card-bg border border-dark-border rounded-lg">
+        <div className="p-3 bg-canvas-2 border border-dark-border rounded-card">
           <p className="text-sm text-dark-text-secondary mb-2 flex items-center">
             <Info size={16} className="mr-2 text-blue-400" />
             OpenAI API-Key für To-Do Erfassung benötigt.
@@ -365,12 +365,12 @@ Antworte nur mit dem JSON-Array.`;
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder="OpenAI API-Key"
-              className="flex-grow px-3 py-2 border border-dark-border rounded-md text-sm bg-dark-input text-dark-text-main focus:ring-dark-accent-green focus:border-dark-accent-green"
+              className="flex-grow px-3 py-2 border border-dark-border rounded-card-sm text-sm bg-dark-input text-dark-text-main focus:ring-dark-accent-green focus:border-dark-accent-green"
             />
             <button
               onClick={handleApiKeySubmit}
               disabled={isLoading}
-              className="bg-dark-accent-green text-dark-bg px-4 py-2 rounded-md text-sm hover:opacity-90 disabled:opacity-50"
+              className="bg-dark-accent-green text-dark-bg px-4 py-2 rounded-card-sm text-sm hover:opacity-90 disabled:opacity-50"
             >
               {isLoading ? "Speichere..." : "Key speichern"}
             </button>
@@ -394,10 +394,10 @@ Antworte nur mit dem JSON-Array.`;
       {isApiKeySet && (
         <div className="space-y-3">
           {/* Modus-Umschalter */}
-          <div className="flex gap-2 border border-dark-border rounded-lg p-1 w-fit">
+          <div className="flex gap-2 border border-dark-border rounded-card p-1 w-fit">
             <button
               onClick={() => setInputModus("sprache")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-card-sm text-sm font-medium transition-all ${
                 inputModus === "sprache"
                   ? "bg-blue-500 text-white"
                   : "text-dark-text-secondary hover:text-dark-text-main"
@@ -407,7 +407,7 @@ Antworte nur mit dem JSON-Array.`;
             </button>
             <button
               onClick={() => setInputModus("text")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-card-sm text-sm font-medium transition-all ${
                 inputModus === "text"
                   ? "bg-blue-500 text-white"
                   : "text-dark-text-secondary hover:text-dark-text-main"
@@ -433,7 +433,7 @@ Antworte nur mit dem JSON-Array.`;
                 <button
                   onClick={handleStartRecording}
                   disabled={isLoading}
-                  className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-70"
+                  className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-card-sm text-sm flex items-center justify-center gap-2 disabled:opacity-70"
                 >
                   <Mic size={18} />{" "}
                   {transcribedText || extractedTodos.length > 0
@@ -443,7 +443,7 @@ Antworte nur mit dem JSON-Array.`;
               ) : (
                 <button
                   onClick={handleStopRecording}
-                  className="w-full bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm flex items-center justify-center gap-2"
+                  className="w-full bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-card-sm text-sm flex items-center justify-center gap-2"
                 >
                   <StopCircle size={18} /> Aufnahme stoppen & Verarbeiten
                 </button>
@@ -452,7 +452,7 @@ Antworte nur mit dem JSON-Array.`;
                 !isLoading &&
                 extractedTodos.length === 0 &&
                 !error && (
-                  <div className="p-3 bg-dark-input border border-dark-border rounded-md">
+                  <div className="p-3 bg-dark-input border border-dark-border rounded-card-sm">
                     <p className="text-sm text-dark-text-secondary mb-1">
                       Erkannter Text (wird automatisch verarbeitet):
                     </p>
@@ -467,7 +467,7 @@ Antworte nur mit dem JSON-Array.`;
                 onChange={(e) => setTextEingabe(e.target.value)}
                 rows={4}
                 placeholder="To-Dos als Text eingeben, z.B.: Arzttermin vereinbaren, Priorität Hoch. Ummelden bis Ende des Monats."
-                className="w-full px-3 py-2 border border-dark-border rounded-md text-sm bg-dark-input text-dark-text-main placeholder-dark-text-secondary focus:ring-1 focus:ring-blue-500 resize-none"
+                className="w-full px-3 py-2 border border-dark-border rounded-card-sm text-sm bg-dark-input text-dark-text-main placeholder-dark-text-secondary focus:ring-1 focus:ring-blue-500 resize-none"
               />
               <button
                 onClick={() => {
@@ -478,7 +478,7 @@ Antworte nur mit dem JSON-Array.`;
                   }
                 }}
                 disabled={isLoading || !textEingabe.trim()}
-                className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-70"
+                className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-card-sm text-sm flex items-center justify-center gap-2 disabled:opacity-70"
               >
                 <Send size={16} /> Text analysieren
               </button>
@@ -498,7 +498,7 @@ Antworte nur mit dem JSON-Array.`;
         </div>
       )}
       {error && !isLoading && (
-        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-md text-red-300 text-sm flex items-center gap-2">
+        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-card-sm text-red-300 text-sm flex items-center gap-2">
           <AlertTriangle size={18} /> {error}
         </div>
       )}
@@ -532,7 +532,7 @@ Antworte nur mit dem JSON-Array.`;
                 showToast("Callback fehlt.", "error");
               }
             }}
-            className="mt-3 w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md text-sm flex items-center justify-center gap-2"
+            className="mt-3 w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-card-sm text-sm flex items-center justify-center gap-2"
           >
             <CheckSquare size={18} /> Zu To-Do Liste hinzufügen
           </button>

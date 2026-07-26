@@ -656,13 +656,13 @@ const BudgetTracker = ({ session }) => {
   const prognose = berechnePrognose();
 
   return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4">
+    <div className="home-glass-modern glass-module auto-glass-cards relative min-h-full min-w-0 max-w-full space-y-4 overflow-x-clip bg-transparent p-4 pb-28 md:p-6 lg:pb-8">
       <h2 className="text-2xl font-bold text-light-text-main dark:text-dark-text-main mb-4">
         {t("budget:tracker.title")}
       </h2>
       {/* Neue Gesamtzahlen-Übersicht */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-        <div className="bg-light-card-bg dark:bg-canvas-2 p-3 rounded-card border border-light-border dark:border-dark-border text-center">
+        <div className="bg-light-card dark:bg-canvas-2 p-3 rounded-card border border-light-border dark:border-dark-border text-center">
           <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
             {t("budget:tracker.totalPlanned")}
           </p>
@@ -670,7 +670,7 @@ const BudgetTracker = ({ session }) => {
             {formatGermanCurrency(geplanteGesamtkosten)} €
           </p>
         </div>
-        <div className="bg-light-card-bg dark:bg-canvas-2 p-3 rounded-card border border-light-border dark:border-dark-border text-center">
+        <div className="bg-light-card dark:bg-canvas-2 p-3 rounded-card border border-light-border dark:border-dark-border text-center">
           <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
             {t("budget:tracker.totalPaid")}
           </p>
@@ -678,7 +678,7 @@ const BudgetTracker = ({ session }) => {
             {formatGermanCurrency(gesamtTeilzahlungen)} €
           </p>
         </div>
-        <div className="bg-light-card-bg dark:bg-canvas-2 p-3 rounded-card border border-light-border dark:border-dark-border text-center">
+        <div className="bg-light-card dark:bg-canvas-2 p-3 rounded-card border border-light-border dark:border-dark-border text-center">
           <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
             {t("budget:tracker.totalOpen")}
           </p>
@@ -695,7 +695,7 @@ const BudgetTracker = ({ session }) => {
       </div>
       <div className="flex flex-col lg:flex-row gap-4">
         <div className="lg:w-1/3 space-y-4">
-          <div className="bg-light-card-bg dark:bg-canvas-2 p-4 rounded-card shadow-elevation-2 border border-light-border dark:border-dark-border">
+          <div className="bg-light-card dark:bg-canvas-2 p-4 rounded-card shadow-elevation-2 border border-light-border dark:border-dark-border">
             <h3 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main mb-3">
               {t("budget:tracker.totalBudget")}
             </h3>
@@ -715,7 +715,7 @@ const BudgetTracker = ({ session }) => {
                   disabled={!userId}
                   step="0.01"
                   placeholder={t("budget:tracker.budgetPlaceholder")}
-                  className="w-full px-2.5 py-1.5 border border-light-border dark:border-dark-border rounded-card-sm text-sm shadow-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border border-light-border dark:border-dark-border rounded-card-sm text-sm shadow-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 />
               </div>
               <button
@@ -746,7 +746,7 @@ const BudgetTracker = ({ session }) => {
 
         <div className="lg:w-2/3 space-y-4">
           {/* Budget-Übersicht entfernt, stattdessen neue Gesamtbudget-Box */}
-          <div className="bg-light-card-bg dark:bg-canvas-2 p-4 rounded-card shadow-elevation-2 border border-light-border dark:border-dark-border mb-4">
+          <div className="bg-light-card dark:bg-canvas-2 p-4 rounded-card shadow-elevation-2 border border-light-border dark:border-dark-border mb-4">
             <h3 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main mb-2">
               {t("budget:tracker.totalBudget")}
             </h3>
@@ -847,7 +847,7 @@ const BudgetTracker = ({ session }) => {
               </div>
             )}
           </div>
-          <div className="bg-light-card-bg dark:bg-canvas-2 p-4 rounded-card shadow-elevation-2 border border-light-border dark:border-dark-border">
+          <div className="bg-light-card dark:bg-canvas-2 p-4 rounded-card shadow-elevation-2 border border-light-border dark:border-dark-border">
             <div className="flex flex-col sm:flex-row justify-between items-baseline mb-3">
               <div className="flex items-center gap-2">
                 <h3 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main">
@@ -943,7 +943,7 @@ const BudgetTracker = ({ session }) => {
                         ${
                           filterKategorie === kat
                             ? ""
-                            : "hover:bg-gray-200 dark:hover:bg-gray-700"
+                            : "hover:bg-light-hover dark:hover:bg-canvas-3"
                         }
                       `}
                       style={
@@ -1135,7 +1135,7 @@ const BudgetTracker = ({ session }) => {
                   return (
                     <div
                       key={p.id}
-                      className="border border-light-border dark:border-dark-border p-3 rounded-card-sm hover:shadow-sm transition-shadow bg-gray-50 dark:bg-canvas-1/30"
+                      className="border border-light-border dark:border-dark-border p-3 rounded-card-sm hover:shadow-sm transition-shadow bg-light-surface-1 dark:bg-canvas-1/30"
                     >
                       <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-2">
                         <div className="flex items-start space-x-2 flex-grow">
@@ -1255,7 +1255,7 @@ const BudgetTracker = ({ session }) => {
 
       {showPostenModal && (
         <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-3 z-50">
-          <div className="bg-light-card-bg dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-md relative border border-light-border dark:border-dark-border">
+          <div className="bg-light-card dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-md relative border border-light-border dark:border-dark-border">
             <button
               onClick={resetForm}
               className="absolute top-2.5 right-2.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
@@ -1279,7 +1279,7 @@ const BudgetTracker = ({ session }) => {
                   value={beschreibung}
                   onChange={(e) => setBeschreibung(e.target.value)}
                   required
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 />
               </div>
               <div>
@@ -1293,7 +1293,7 @@ const BudgetTracker = ({ session }) => {
                   id="postenKategorie"
                   value={kategorie}
                   onChange={(e) => setKategorie(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 >
                   {Object.keys(budgetKategorieIcons).map((key) => (
                     <option key={key} value={key}>
@@ -1316,7 +1316,7 @@ const BudgetTracker = ({ session }) => {
                   onChange={(e) => setGeplanterBetrag(e.target.value)}
                   step="0.01"
                   required
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 />
               </div>
               <div>
@@ -1338,7 +1338,7 @@ const BudgetTracker = ({ session }) => {
                   min="0"
                   placeholder="z.B. 500"
                   disabled={vollBezahlt || !!editingPostenId}
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 />
                 <div className="flex items-center mt-1">
                   <input
@@ -1378,7 +1378,7 @@ const BudgetTracker = ({ session }) => {
                   value={datum}
                   onChange={(e) => setDatum(e.target.value)}
                   required
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 />
               </div>
               <div>
@@ -1393,14 +1393,14 @@ const BudgetTracker = ({ session }) => {
                   id="postenLieferdatum"
                   value={lieferdatum}
                   onChange={(e) => setLieferdatum(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 />
               </div>
               <div className="flex justify-end space-x-2 pt-1">
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="px-3 py-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary bg-light-border dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-700 rounded-card-sm"
+                  className="px-3 py-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary bg-light-border dark:bg-dark-border hover:bg-light-hover dark:hover:bg-canvas-3 rounded-card-sm"
                 >
                   {t("budget:tracker.cancel")}
                 </button>
@@ -1417,7 +1417,7 @@ const BudgetTracker = ({ session }) => {
       )}
       {showTeilzahlungModalFor && (
         <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-3 z-50">
-          <div className="bg-light-card-bg dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-sm relative border border-light-border dark:border-dark-border">
+          <div className="bg-light-card dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-sm relative border border-light-border dark:border-dark-border">
             <button
               onClick={() => setShowTeilzahlungModalFor(null)}
               className="absolute top-2.5 right-2.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
@@ -1444,7 +1444,7 @@ const BudgetTracker = ({ session }) => {
                   onChange={(e) => setTeilzahlungBetrag(e.target.value)}
                   step="0.01"
                   required
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 />
               </div>
               <div>
@@ -1460,7 +1460,7 @@ const BudgetTracker = ({ session }) => {
                   value={teilzahlungDatum}
                   onChange={(e) => setTeilzahlungDatum(e.target.value)}
                   required
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 />
               </div>
               <div>
@@ -1475,14 +1475,14 @@ const BudgetTracker = ({ session }) => {
                   id="teilzahlungNotiz"
                   value={teilzahlungNotiz}
                   onChange={(e) => setTeilzahlungNotiz(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 />
               </div>
               <div className="flex justify-end space-x-2 pt-1">
                 <button
                   type="button"
                   onClick={() => setShowTeilzahlungModalFor(null)}
-                  className="px-3 py-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary bg-light-border dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-700 rounded-card-sm"
+                  className="px-3 py-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary bg-light-border dark:bg-dark-border hover:bg-light-hover dark:hover:bg-canvas-3 rounded-card-sm"
                 >
                   {t("budget:tracker.cancel")}
                 </button>

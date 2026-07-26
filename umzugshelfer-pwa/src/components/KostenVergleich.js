@@ -74,11 +74,11 @@ const KostenVergleich = ({ session }) => {
   const availableKategorien = [...new Set(budgetPosten.map((p) => p.kategorie).filter(Boolean))];
 
   const cardBase = "p-4 rounded-card border shadow-sm";
-  const cardLight = "bg-light-card-bg border-light-border";
+  const cardLight = "bg-light-card border-light-border";
   const cardDark = "dark:bg-canvas-2 dark:border-dark-border";
 
   return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4">
+    <div className="home-glass-modern glass-module auto-glass-cards relative min-h-full min-w-0 max-w-full space-y-4 overflow-x-clip bg-transparent p-4 pb-28 md:p-6 lg:pb-8">
       <div className="flex items-center gap-3 mb-2">
         <Scale size={28} className="text-light-accent-purple dark:text-dark-accent-purple" />
         <h1 className="text-2xl font-bold text-light-text-main dark:text-dark-text-main">
@@ -104,7 +104,7 @@ const KostenVergleich = ({ session }) => {
             placeholder="z.B. 1200"
             value={angebotUnternehmen}
             onChange={(e) => handleAngebotChange(e.target.value)}
-            className="w-full max-w-xs px-3 py-2 border border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-1 focus:ring-light-accent-purple dark:focus:ring-dark-accent-purple"
+            className="w-full max-w-xs px-3 py-2 border border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:ring-1 focus:ring-light-accent-purple dark:focus:ring-dark-accent-purple"
           />
           <span className="text-light-text-secondary dark:text-dark-text-secondary text-sm">€</span>
         </div>

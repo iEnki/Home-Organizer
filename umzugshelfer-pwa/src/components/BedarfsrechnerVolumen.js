@@ -40,17 +40,17 @@ const BedarfsrechnerVolumen = ({ onVolumeCalculated }) => {
     setQuantities((prev) => ({ ...prev, [itemId]: value }));
   };
 
-  const inputClass = `w-full px-3 py-2 border rounded-md text-sm focus:ring-1 ${
+  const inputClass = `w-full px-3 py-2 border rounded-card-sm text-sm focus:ring-1 ${
     theme === "dark"
-      ? "border-dark-border bg-dark-border text-dark-text-main placeholder-dark-text-secondary focus:ring-orange-400 focus:border-orange-400"
-      : "border-gray-300 bg-gray-50 text-gray-900 placeholder-gray-400 focus:ring-orange-500 focus:border-orange-500"
+      ? "border-dark-border bg-canvas-2 text-dark-text-main placeholder-dark-text-secondary focus:ring-orange-400 focus:border-orange-400"
+      : "border-light-border bg-light-surface-1 text-light-text-main placeholder-light-text-secondary focus:ring-orange-500 focus:border-orange-500"
   }`;
   const labelClass = `block text-sm font-medium mb-1 ${
-    theme === "dark" ? "text-dark-text-secondary" : "text-gray-700"
+    theme === "dark" ? "text-dark-text-secondary" : "text-light-text-main"
   }`;
 
   return (
-    <div className="p-4 md:p-6 bg-light-card-bg dark:bg-dark-card-bg rounded-lg shadow border border-light-border dark:border-dark-border mt-6">
+    <div className="p-4 md:p-6 bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border mt-6">
       <h2 className="text-xl font-semibold text-light-text-main dark:text-dark-text-main mb-1 flex items-center justify-between">
         <div className="flex items-center">
           <Box size={24} className="mr-2 text-orange-500 dark:text-orange-400" />
@@ -67,7 +67,7 @@ const BedarfsrechnerVolumen = ({ onVolumeCalculated }) => {
       </h2>
 
       {showHelp && (
-        <div className="mb-4 p-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-md text-xs text-gray-600 dark:text-dark-text-secondary space-y-1">
+        <div className="mb-4 p-3 bg-light-surface-1 dark:bg-canvas-3 border border-light-border dark:border-dark-border rounded-card-sm text-xs text-light-text-secondary dark:text-dark-text-secondary space-y-1">
           <p>{t("move:calculator.volume.help.intro")}</p>
           <p>{t("move:calculator.volume.help.estimate")}</p>
           <p>{t("move:calculator.volume.help.vehicle")}</p>
@@ -98,7 +98,7 @@ const BedarfsrechnerVolumen = ({ onVolumeCalculated }) => {
         ))}
       </div>
 
-      <div className="bg-gray-50 dark:bg-dark-bg p-4 rounded-md border border-gray-200 dark:border-dark-border">
+      <div className="bg-light-surface-1 dark:bg-canvas-3 p-4 rounded-card-sm border border-light-border dark:border-dark-border">
         <h3 className="text-lg font-medium text-light-text-main dark:text-dark-text-main mb-3">
           {t("move:calculator.volume.estimatedTotal")}
         </h3>

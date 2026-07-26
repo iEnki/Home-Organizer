@@ -43,23 +43,23 @@ const BedarfsrechnerTransportkosten = ({ initialVolume }) => {
     }
   }, [totalVolume, transporterCapacity, costPerTrip]);
 
-  const inputClass = `w-full px-3 py-2 border rounded-md text-sm focus:ring-1 ${
+  const inputClass = `w-full px-3 py-2 border rounded-card-sm text-sm focus:ring-1 ${
     theme === "dark"
-      ? "border-dark-border bg-dark-border text-dark-text-main placeholder-dark-text-secondary focus:ring-cyan-400 focus:border-cyan-400"
-      : "border-gray-300 bg-gray-50 text-gray-900 placeholder-gray-400 focus:ring-cyan-500 focus:border-cyan-500"
+      ? "border-dark-border bg-canvas-2 text-dark-text-main placeholder-dark-text-secondary focus:ring-cyan-400 focus:border-cyan-400"
+      : "border-light-border bg-light-surface-1 text-light-text-main placeholder-light-text-secondary focus:ring-cyan-500 focus:border-cyan-500"
   }`;
   const readOnlyInputClass =
     initialVolume > 0
       ? theme === "dark"
-        ? "border-dark-border bg-gray-700 text-dark-text-main placeholder-dark-text-secondary cursor-not-allowed"
-        : "border-gray-300 bg-gray-200 text-gray-700 placeholder-gray-500 cursor-not-allowed"
+        ? "border-dark-border bg-canvas-3 text-dark-text-main placeholder-dark-text-secondary cursor-not-allowed"
+        : "border-light-border bg-light-surface-2 text-light-text-main placeholder-light-text-secondary cursor-not-allowed"
       : "";
   const labelClass = `block text-sm font-medium mb-1 ${
-    theme === "dark" ? "text-dark-text-secondary" : "text-gray-700"
+    theme === "dark" ? "text-dark-text-secondary" : "text-light-text-main"
   }`;
 
   return (
-    <div className="p-4 md:p-6 bg-light-card-bg dark:bg-dark-card-bg rounded-lg shadow border border-light-border dark:border-dark-border mt-6">
+    <div className="p-4 md:p-6 bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border mt-6">
       <h2 className="text-xl font-semibold text-light-text-main dark:text-dark-text-main mb-1 flex items-center justify-between">
         <div className="flex items-center">
           <Truck size={24} className="mr-2 text-cyan-500 dark:text-cyan-400" />
@@ -76,7 +76,7 @@ const BedarfsrechnerTransportkosten = ({ initialVolume }) => {
       </h2>
 
       {showHelp && (
-        <div className="mb-4 p-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-md text-xs text-gray-600 dark:text-dark-text-secondary space-y-1">
+        <div className="mb-4 p-3 bg-light-surface-1 dark:bg-canvas-3 border border-light-border dark:border-dark-border rounded-card-sm text-xs text-light-text-secondary dark:text-dark-text-secondary space-y-1">
           <p>{t("move:calculator.transport.help.volume")}</p>
           <p>{t("move:calculator.transport.help.capacity")}</p>
           <p>{t("move:calculator.transport.help.cost")}</p>
@@ -131,7 +131,7 @@ const BedarfsrechnerTransportkosten = ({ initialVolume }) => {
         </div>
       </div>
 
-      <div className="bg-gray-50 dark:bg-dark-bg p-4 rounded-md border border-gray-200 dark:border-dark-border">
+      <div className="bg-light-surface-1 dark:bg-canvas-3 p-4 rounded-card-sm border border-light-border dark:border-dark-border">
         <h3 className="text-lg font-medium text-light-text-main dark:text-dark-text-main mb-3">
           {t("move:shared.result")}
         </h3>
@@ -144,7 +144,7 @@ const BedarfsrechnerTransportkosten = ({ initialVolume }) => {
               {numberOfTrips} {t("move:shared.pieceShort")}
             </span>
           </p>
-          <hr className="border-gray-200 dark:border-dark-border my-2" />
+          <hr className="border-light-border dark:border-dark-border my-2" />
           <p className="flex justify-between text-base">
             <span className="text-light-text-secondary dark:text-dark-text-secondary">
               {t("move:calculator.transport.estimatedCost")}
@@ -169,7 +169,7 @@ const BedarfsrechnerTransportkosten = ({ initialVolume }) => {
                     },
                   });
                 }}
-                className="bg-light-accent-green dark:bg-dark-accent-green text-white dark:text-dark-bg px-3 py-1.5 rounded-md shadow hover:opacity-90 flex items-center text-sm ml-auto"
+                className="bg-light-accent-green dark:bg-dark-accent-green text-white dark:text-dark-bg px-3 py-1.5 rounded-card-sm shadow hover:opacity-90 flex items-center text-sm ml-auto"
               >
                 <SendToBack size={16} className="mr-2" />
                 {t("move:calculator.transport.addToBudget")}

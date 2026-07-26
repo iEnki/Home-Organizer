@@ -237,7 +237,7 @@ Antworte nur mit dem JSON.`;
 
   return (
     <div
-      className={`max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4 min-h-screen ${
+      className={`home-glass-modern glass-module auto-glass-cards relative min-h-full min-w-0 max-w-full space-y-4 overflow-x-clip bg-transparent p-4 pb-28 md:p-6 lg:pb-8 ${
         theme === "dark" ? "text-dark-text-main" : "text-light-text-main"
       }`}
     >
@@ -264,7 +264,7 @@ Antworte nur mit dem JSON.`;
 
       <div
         className={`mb-8 p-6 rounded-card shadow-elevation-2 ${
-          theme === "dark" ? "bg-dark-card-bg" : "bg-light-card-bg"
+          theme === "dark" ? "bg-canvas-2" : "bg-light-card"
         }`}
       >
         <h2 className="text-xl font-semibold mb-4">{t("documents:manager.uploadTitle")}</h2>
@@ -274,7 +274,7 @@ Antworte nur mit dem JSON.`;
           ${
             isDragActive
               ? theme === "dark"
-                ? "border-secondary-500 bg-dark-bg-hover"
+                ? "border-secondary-500 bg-canvas-3"
                 : "border-light-accent-blue bg-light-bg-hover"
               : theme === "dark"
               ? "border-dark-border hover:border-secondary-500"
@@ -349,8 +349,8 @@ Antworte nur mit dem JSON.`;
       {(kiLaed || kiVorschlag) && (
         <div className={`mb-6 p-4 rounded-card border flex items-start gap-3 ${
           theme === "dark"
-            ? "bg-dark-card-bg border-primary-500/40"
-            : "bg-light-card-bg border-primary-500/40"
+            ? "bg-canvas-2 border-primary-500/40"
+            : "bg-light-card border-primary-500/40"
         }`}>
           <Sparkles size={18} className="text-primary-500 dark:text-primary-400 flex-shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
@@ -419,7 +419,7 @@ Antworte nur mit dem JSON.`;
             <div
               key={doc.id}
               className={`p-4 rounded-card shadow-elevation-2 ${
-                theme === "dark" ? "bg-dark-card-bg" : "bg-light-card-bg"
+                theme === "dark" ? "bg-canvas-2" : "bg-light-card"
               }`}
             >
               <div className="flex items-center mb-2">

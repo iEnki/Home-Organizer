@@ -371,7 +371,7 @@ Antworte nur mit dem JSON-Array. Achte darauf, dass jeder explizit genannte Gege
       {/* relative für Toast-Positionierung */}
       {toastMessage.text && (
         <div
-          className={`fixed top-5 right-5 p-3 rounded-md shadow-lg text-sm z-[100]
+          className={`fixed top-5 right-5 p-3 rounded-card-sm shadow-lg text-sm z-[100]
             ${toastMessage.type === "success" ? "bg-green-500 text-white" : ""}
             ${toastMessage.type === "error" ? "bg-red-500 text-white" : ""}
             ${toastMessage.type === "info" ? "bg-blue-500 text-white" : ""}
@@ -398,7 +398,7 @@ Antworte nur mit dem JSON-Array. Achte darauf, dass jeder explizit genannte Gege
           )}
         </button>
         {showHelp && (
-          <div className="mt-2 p-3 bg-dark-input border border-dark-border rounded-md text-xs text-light-text-main dark:text-dark-text-main space-y-2">
+          <div className="mt-2 p-3 bg-dark-input border border-dark-border rounded-card-sm text-xs text-light-text-main dark:text-dark-text-main space-y-2">
             <p>
               <strong>1. OpenAI API-Key:</strong> Gib einmalig deinen OpenAI
               API-Key ein. Er wird für zukünftige Sitzungen in deinem Profil
@@ -445,7 +445,7 @@ Antworte nur mit dem JSON-Array. Achte darauf, dass jeder explizit genannte Gege
         )}
       </div>
       {false && !isApiKeySet && showApiKeyInput && kiProvider === "openai" && (
-        <div className="p-3 bg-dark-card-bg border border-dark-border rounded-lg">
+        <div className="p-3 bg-canvas-2 border border-dark-border rounded-card">
           <p className="text-sm text-dark-text-secondary mb-2 flex items-center">
             <Info size={16} className="mr-2 text-blue-400" />
             Für diese Funktion wird ein OpenAI API-Key benötigt. Du kannst
@@ -458,11 +458,11 @@ Antworte nur mit dem JSON-Array. Achte darauf, dass jeder explizit genannte Gege
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder="OpenAI API-Key eingeben"
-              className="flex-grow px-3 py-2 border border-dark-border rounded-md text-sm bg-dark-input text-dark-text-main focus:ring-dark-accent-green focus:border-dark-accent-green"
+              className="flex-grow px-3 py-2 border border-dark-border rounded-card-sm text-sm bg-dark-input text-dark-text-main focus:ring-dark-accent-green focus:border-dark-accent-green"
             />
             <button
               onClick={handleApiKeySubmit}
-              className="bg-dark-accent-green text-dark-bg px-4 py-2 rounded-md text-sm hover:opacity-90"
+              className="bg-dark-accent-green text-dark-bg px-4 py-2 rounded-card-sm text-sm hover:opacity-90"
             >
               Key speichern
             </button>
@@ -486,10 +486,10 @@ Antworte nur mit dem JSON-Array. Achte darauf, dass jeder explizit genannte Gege
       {isApiKeySet && (
         <div className="space-y-3">
           {/* Modus-Umschalter */}
-          <div className="flex gap-2 border border-dark-border rounded-lg p-1 w-fit">
+          <div className="flex gap-2 border border-dark-border rounded-card p-1 w-fit">
             <button
               onClick={() => setInputModus("sprache")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-card-sm text-sm font-medium transition-all ${
                 inputModus === "sprache"
                   ? "bg-blue-500 text-white"
                   : "text-dark-text-secondary hover:text-dark-text-main"
@@ -499,7 +499,7 @@ Antworte nur mit dem JSON-Array. Achte darauf, dass jeder explizit genannte Gege
             </button>
             <button
               onClick={() => setInputModus("text")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-card-sm text-sm font-medium transition-all ${
                 inputModus === "text"
                   ? "bg-blue-500 text-white"
                   : "text-dark-text-secondary hover:text-dark-text-main"
@@ -525,7 +525,7 @@ Antworte nur mit dem JSON-Array. Achte darauf, dass jeder explizit genannte Gege
                 <button
                   onClick={handleStartRecording}
                   disabled={isLoading || isRecording}
-                  className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-70"
+                  className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-card-sm text-sm flex items-center justify-center gap-2 disabled:opacity-70"
                 >
                   <Mic size={18} />{" "}
                   {transcribedText || extractedItems.length > 0
@@ -535,7 +535,7 @@ Antworte nur mit dem JSON-Array. Achte darauf, dass jeder explizit genannte Gege
               ) : (
                 <button
                   onClick={handleStopRecording}
-                  className="w-full bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm flex items-center justify-center gap-2"
+                  className="w-full bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-card-sm text-sm flex items-center justify-center gap-2"
                 >
                   <StopCircle size={18} /> Aufnahme stoppen & Verarbeiten
                 </button>
@@ -544,7 +544,7 @@ Antworte nur mit dem JSON-Array. Achte darauf, dass jeder explizit genannte Gege
                 !isLoading &&
                 extractedItems.length === 0 &&
                 !error && (
-                  <div className="p-3 bg-dark-input border border-dark-border rounded-md">
+                  <div className="p-3 bg-dark-input border border-dark-border rounded-card-sm">
                     <p className="text-sm text-dark-text-secondary mb-1">
                       Erkannter Text (wird automatisch verarbeitet):
                     </p>
@@ -559,7 +559,7 @@ Antworte nur mit dem JSON-Array. Achte darauf, dass jeder explizit genannte Gege
                 onChange={(e) => setTextEingabe(e.target.value)}
                 rows={4}
                 placeholder="Packstücke als Text eingeben, z.B.: Bücher und Laptop in Kiste Büro. Kiste Büro ist für das Arbeitszimmer."
-                className="w-full px-3 py-2 border border-dark-border rounded-md text-sm bg-dark-input text-dark-text-main placeholder-dark-text-secondary focus:ring-1 focus:ring-blue-500 resize-none"
+                className="w-full px-3 py-2 border border-dark-border rounded-card-sm text-sm bg-dark-input text-dark-text-main placeholder-dark-text-secondary focus:ring-1 focus:ring-blue-500 resize-none"
               />
               <button
                 onClick={() => {
@@ -570,7 +570,7 @@ Antworte nur mit dem JSON-Array. Achte darauf, dass jeder explizit genannte Gege
                   }
                 }}
                 disabled={isLoading || !textEingabe.trim()}
-                className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm flex items-center justify-center gap-2 disabled:opacity-70"
+                className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-card-sm text-sm flex items-center justify-center gap-2 disabled:opacity-70"
               >
                 <Send size={16} /> Text analysieren
               </button>
@@ -597,7 +597,7 @@ Antworte nur mit dem JSON-Array. Achte darauf, dass jeder explizit genannte Gege
         </div>
       )}
       {error && !isLoading && (
-        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-md text-red-300 text-sm flex items-center gap-2">
+        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-card-sm text-red-300 text-sm flex items-center gap-2">
           <AlertTriangle size={18} /> {error}
         </div>
       )}
@@ -644,7 +644,7 @@ Antworte nur mit dem JSON-Array. Achte darauf, dass jeder explizit genannte Gege
                 );
               }
             }}
-            className="mt-3 w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md text-sm flex items-center justify-center gap-2"
+            className="mt-3 w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-card-sm text-sm flex items-center justify-center gap-2"
           >
             <CheckSquare size={18} /> Zur Packliste hinzufügen
           </button>

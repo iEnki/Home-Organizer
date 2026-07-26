@@ -41,15 +41,15 @@ const BedarfsrechnerBoden = () => {
     }
   }, [roomLength, roomWidth, packageContent, wastePercentage, packagePrice]);
 
-  const inputClass = `w-full px-3 py-2 border rounded-md text-sm focus:ring-1 ${
+  const inputClass = `w-full px-3 py-2 border rounded-card-sm text-sm focus:ring-1 ${
     theme === "dark"
-      ? "border-dark-border bg-dark-border text-dark-text-main placeholder-dark-text-secondary focus:ring-dark-accent-purple focus:border-dark-accent-purple"
-      : "border-gray-300 bg-gray-50 text-gray-900 placeholder-gray-400 focus:ring-light-accent-purple focus:border-light-accent-purple"
+      ? "border-dark-border bg-canvas-2 text-dark-text-main placeholder-dark-text-secondary focus:ring-dark-accent-purple focus:border-dark-accent-purple"
+      : "border-light-border bg-light-surface-1 text-light-text-main placeholder-light-text-secondary focus:ring-light-accent-purple focus:border-light-accent-purple"
   }`;
-  const labelClass = `block text-sm font-medium mb-1 ${theme === "dark" ? "text-dark-text-secondary" : "text-gray-700"}`;
+  const labelClass = `block text-sm font-medium mb-1 ${theme === "dark" ? "text-dark-text-secondary" : "text-light-text-main"}`;
 
   return (
-    <div className="p-4 md:p-6 bg-light-card-bg dark:bg-dark-card-bg rounded-lg shadow border border-light-border dark:border-dark-border mt-6">
+    <div className="p-4 md:p-6 bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border mt-6">
       <h2 className="text-xl font-semibold text-light-text-main dark:text-dark-text-main mb-1 flex items-center justify-between">
         <div className="flex items-center">
           <Layers size={24} className="mr-2 text-light-accent-purple dark:text-dark-accent-purple" />
@@ -61,7 +61,7 @@ const BedarfsrechnerBoden = () => {
       </h2>
 
       {showHelp && (
-        <div className="mb-4 p-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-md text-xs text-gray-600 dark:text-dark-text-secondary space-y-1">
+        <div className="mb-4 p-3 bg-light-surface-1 dark:bg-canvas-3 border border-light-border dark:border-dark-border rounded-card-sm text-xs text-light-text-secondary dark:text-dark-text-secondary space-y-1">
           <p>{t("move:calculator.floor.help.dimensions")}</p>
           <p>{t("move:calculator.floor.help.package")}</p>
           <p>{t("move:calculator.floor.help.waste")}</p>
@@ -77,7 +77,7 @@ const BedarfsrechnerBoden = () => {
         <Field id="floorPackagePrice" label={t("move:calculator.floor.packagePrice")} value={packagePrice} setValue={setPackagePrice} inputClass={inputClass} labelClass={labelClass} placeholder="z. B. 25.99" />
       </div>
 
-      <div className="bg-gray-50 dark:bg-dark-bg p-4 rounded-md border border-gray-200 dark:border-dark-border">
+      <div className="bg-light-surface-1 dark:bg-canvas-3 p-4 rounded-card-sm border border-light-border dark:border-dark-border">
         <h3 className="text-lg font-medium text-light-text-main dark:text-dark-text-main mb-3">{t("move:shared.result")}</h3>
         <div className="space-y-2 text-sm">
           <ResultRow label={t("move:calculator.common.roomArea")} value={`${roomArea.toFixed(2)} m²`} />
@@ -85,7 +85,7 @@ const BedarfsrechnerBoden = () => {
           <ResultRow label={t("move:calculator.common.requiredPackages")} value={`${requiredPackages} ${t("move:shared.pieceShort")}`} strongClass="font-bold text-light-accent-purple dark:text-dark-accent-purple" />
           {parseFloat(packagePrice) > 0 && (
             <>
-              <hr className="border-gray-200 dark:border-dark-border my-2" />
+              <hr className="border-light-border dark:border-dark-border my-2" />
               <ResultRow label={t("move:calculator.common.estimatedCosts")} value={`${totalCost.toFixed(2)} €`} strongClass="font-bold text-light-accent-purple dark:text-dark-accent-purple" />
             </>
           )}
@@ -93,7 +93,7 @@ const BedarfsrechnerBoden = () => {
             <div className="mt-4 text-right">
               <button
                 onClick={() => navigate("/materialplaner", { state: { neuerPosten: { beschreibung: t("move:calculator.common.itemDescriptions.flooring"), menge_einheit: `${requiredPackages} ${t("move:shared.packageUnit")}`, geschaetzter_preis: parseFloat(packagePrice) > 0 ? totalCost : null, status: "Geplant" } } })}
-                className="bg-light-accent-purple dark:bg-dark-accent-purple text-white px-3 py-1.5 rounded-md shadow hover:opacity-90 flex items-center text-sm ml-auto"
+                className="bg-light-accent-purple dark:bg-dark-accent-purple text-white px-3 py-1.5 rounded-card-sm shadow hover:opacity-90 flex items-center text-sm ml-auto"
               >
                 <SendToBack size={16} className="mr-2" />
                 {t("move:shared.toMaterials")}

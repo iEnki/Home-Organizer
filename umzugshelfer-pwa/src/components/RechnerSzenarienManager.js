@@ -64,7 +64,7 @@ const RechnerSzenarienManager = ({ session }) => {
     setSzenarien(szenarien.filter((s) => s.id !== id));
   };
 
-  const cardBase = "p-3 rounded-lg border bg-light-card-bg dark:bg-dark-card-bg border-light-border dark:border-dark-border";
+  const cardBase = "p-3 rounded-card border bg-light-card dark:bg-canvas-2 border-light-border dark:border-dark-border";
 
   return (
     <div className="space-y-4">
@@ -75,7 +75,7 @@ const RechnerSzenarienManager = ({ session }) => {
         <button
           onClick={() => setShowForm(!showForm)}
           disabled={!userId}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-light-accent-green dark:bg-dark-accent-green text-white dark:text-dark-bg rounded-md text-sm font-medium hover:opacity-90 disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-light-accent-green dark:bg-dark-accent-green text-white dark:text-dark-bg rounded-card-sm text-sm font-medium hover:opacity-90 disabled:opacity-50"
         >
           <PlusCircle size={16} />
           {t("move:calculator.scenarios.saveScenario")}
@@ -104,7 +104,7 @@ const RechnerSzenarienManager = ({ session }) => {
                   onChange={(e) => setName(e.target.value)}
                   required
                   placeholder={t("move:calculator.scenarios.namePlaceholder")}
-                  className="w-full px-2.5 py-1.5 border border-light-border dark:border-dark-border rounded-md text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-1 focus:ring-light-accent-green dark:focus:ring-dark-accent-green"
+                  className="w-full px-2.5 py-1.5 border border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:ring-1 focus:ring-light-accent-green dark:focus:ring-dark-accent-green"
                 />
               </div>
               <div>
@@ -114,7 +114,7 @@ const RechnerSzenarienManager = ({ session }) => {
                 <select
                   value={rechnerTyp}
                   onChange={(e) => setRechnerTyp(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-light-border dark:border-dark-border rounded-md text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-1 focus:ring-light-accent-green dark:focus:ring-dark-accent-green"
+                  className="w-full px-2.5 py-1.5 border border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:ring-1 focus:ring-light-accent-green dark:focus:ring-dark-accent-green"
                 >
                   {RECHNER_TYPEN.map((type) => (
                     <option key={type} value={type}>
@@ -133,7 +133,7 @@ const RechnerSzenarienManager = ({ session }) => {
                 value={ergebnis}
                 onChange={(e) => setErgebnis(e.target.value)}
                 placeholder={t("move:calculator.scenarios.resultPlaceholder")}
-                className="w-full px-2.5 py-1.5 border border-light-border dark:border-dark-border rounded-md text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-1 focus:ring-light-accent-green dark:focus:ring-dark-accent-green"
+                className="w-full px-2.5 py-1.5 border border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:ring-1 focus:ring-light-accent-green dark:focus:ring-dark-accent-green"
               />
             </div>
             <div>
@@ -145,20 +145,20 @@ const RechnerSzenarienManager = ({ session }) => {
                 onChange={(e) => setNotizen(e.target.value)}
                 rows={2}
                 placeholder={t("move:calculator.scenarios.notesPlaceholder")}
-                className="w-full px-2.5 py-1.5 border border-light-border dark:border-dark-border rounded-md text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-1 focus:ring-light-accent-green dark:focus:ring-dark-accent-green resize-none"
+                className="w-full px-2.5 py-1.5 border border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:ring-1 focus:ring-light-accent-green dark:focus:ring-dark-accent-green resize-none"
               />
             </div>
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setShowForm(false)}
-                className="px-3 py-1.5 text-sm border border-light-border dark:border-dark-border rounded-md text-light-text-secondary dark:text-dark-text-secondary hover:opacity-80"
+                className="px-3 py-1.5 text-sm border border-light-border dark:border-dark-border rounded-card-sm text-light-text-secondary dark:text-dark-text-secondary hover:opacity-80"
               >
                 {t("common:actions.cancel")}
               </button>
               <button
                 type="submit"
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-light-accent-green dark:bg-dark-accent-green text-white dark:text-dark-bg rounded-md text-sm font-medium hover:opacity-90"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-light-accent-green dark:bg-dark-accent-green text-white dark:text-dark-bg rounded-card-sm text-sm font-medium hover:opacity-90"
               >
                 <Save size={14} />
                 {t("common:actions.save")}

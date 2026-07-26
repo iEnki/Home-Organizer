@@ -83,8 +83,8 @@ const kontaktTypMeta = {
   },
   Sonstiges: {
     icon: <OtherIcon size={14} />,
-    light: { color: "bg-gray-200 text-gray-700", avatarColor: "bg-gray-500" },
-    dark: { color: "bg-gray-600/40 text-gray-300", avatarColor: "bg-gray-500" },
+    light: { color: "bg-light-surface-2 text-light-text-main", avatarColor: "bg-gray-500" },
+    dark: { color: "bg-gray-600/40 text-dark-text-secondary", avatarColor: "bg-gray-500" },
   },
 };
 
@@ -335,7 +335,7 @@ const KontaktManager = ({ session }) => {
     );
 
   return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4">
+    <div className="home-glass-modern glass-module auto-glass-cards relative min-h-full min-w-0 max-w-full space-y-4 overflow-x-clip bg-transparent p-4 pb-28 md:p-6 lg:pb-8">
       <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
         <h2 className="text-2xl font-bold text-light-text-main dark:text-dark-text-main">
           {t("move:contacts.title")}
@@ -379,14 +379,14 @@ const KontaktManager = ({ session }) => {
           placeholder={t("move:contacts.searchPlaceholder")}
           value={searchTerm}
           onChange={handleSearchChange}
-          className="w-full pl-9 pr-3 py-2 border border-light-border dark:border-dark-border rounded-card-sm focus:ring-2 focus:ring-secondary-500 shadow-sm text-sm text-light-text-main dark:text-dark-text-main bg-white dark:bg-dark-border placeholder-light-text-secondary dark:placeholder-dark-text-secondary"
+          className="w-full pl-9 pr-3 py-2 border border-light-border dark:border-dark-border rounded-card-sm focus:ring-2 focus:ring-secondary-500 shadow-sm text-sm text-light-text-main dark:text-dark-text-main bg-light-bg dark:bg-canvas-1 placeholder-light-text-secondary dark:placeholder-dark-text-secondary"
         />
         <Search
           className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary"
           size={18}
         />
       </div>
-      <div className="mb-3 p-3 border border-light-border dark:border-dark-border rounded-card-sm bg-light-card-bg/80 dark:bg-canvas-2/50">
+      <div className="mb-3 p-3 border border-light-border dark:border-dark-border rounded-card-sm bg-light-card/80 dark:bg-canvas-2/50">
         <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
           {t("move:contacts.mapService")}
         </label>
@@ -398,7 +398,7 @@ const KontaktManager = ({ session }) => {
               className={`px-2.5 py-1 text-xs font-medium rounded-card-sm transition-colors ${
                 selectedMapService === service
                   ? "bg-light-accent-blue text-white dark:bg-dark-accent-blue dark:text-white shadow-sm"
-                  : "bg-light-border text-light-text-secondary dark:bg-dark-border dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-gray-700"
+                  : "bg-light-border text-light-text-secondary dark:bg-dark-border dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
               }`}
             >
               {service === "google"
@@ -418,7 +418,7 @@ const KontaktManager = ({ session }) => {
             className={`px-3 py-1 text-xs font-medium rounded-card-sm transition-colors ${
               filterTyp === typOption
                 ? "bg-primary-500 text-white shadow-sm"
-                : "bg-light-border text-light-text-secondary dark:bg-dark-border dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-gray-700"
+                : "bg-light-border text-light-text-secondary dark:bg-dark-border dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
             }`}
           >
             {typOption === "Alle" ? t("move:contacts.all") : t(`move:contacts.types.${typOption}`, { defaultValue: typOption })}
@@ -436,7 +436,7 @@ const KontaktManager = ({ session }) => {
 
       {userId && showForm && (
         <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-3 z-50">
-          <div className="bg-light-card-bg dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-md relative border border-light-border dark:border-dark-border">
+          <div className="bg-light-card dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-md relative border border-light-border dark:border-dark-border">
             <button
               onClick={() => setShowForm(false)}
               className="absolute top-3 right-3 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
@@ -460,7 +460,7 @@ const KontaktManager = ({ session }) => {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm shadow-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm shadow-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 />
               </div>
               <div>
@@ -474,7 +474,7 @@ const KontaktManager = ({ session }) => {
                   id="kontaktTyp"
                   value={typ}
                   onChange={(e) => setTyp(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm shadow-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm shadow-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 >
                   {Object.keys(kontaktTypMeta).map((key) => (
                     <option key={key} value={key}>
@@ -496,7 +496,7 @@ const KontaktManager = ({ session }) => {
                   value={telefon}
                   onChange={(e) => setTelefon(e.target.value)}
                   required
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm shadow-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm shadow-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 />
               </div>
               <div>
@@ -512,7 +512,7 @@ const KontaktManager = ({ session }) => {
                   value={adresse}
                   onChange={(e) => setAdresse(e.target.value)}
                   placeholder={t("move:contacts.fields.addressPlaceholder")}
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm shadow-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm shadow-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 />
               </div>
               <div>
@@ -527,7 +527,7 @@ const KontaktManager = ({ session }) => {
                   value={notiz}
                   onChange={(e) => setNotiz(e.target.value)}
                   rows="2"
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm shadow-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm shadow-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 />
               </div>
               <div>
@@ -568,14 +568,14 @@ const KontaktManager = ({ session }) => {
                   onChange={(e) => setBemerkungen(e.target.value)}
                   rows="2"
                   placeholder={t("move:contacts.fields.remarksPlaceholder")}
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm shadow-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm shadow-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 />
               </div>
               <div className="flex justify-end space-x-2 pt-1">
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="px-3 py-1.5 text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary bg-light-border dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-700 rounded-pill"
+                  className="px-3 py-1.5 text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary bg-light-border dark:bg-dark-border hover:bg-light-hover dark:hover:bg-canvas-3 rounded-pill"
                 >
                   {t("move:contacts.actions.cancel")}
                 </button>
@@ -622,7 +622,7 @@ const KontaktManager = ({ session }) => {
                         return (
                           <div
                             key={kontakt.id}
-                            className="bg-light-card-bg dark:bg-canvas-2 p-3 rounded-card shadow-elevation-2 hover:shadow-elevation-2 transition-shadow duration-200 flex flex-col space-y-1.5 group self-start border border-light-border dark:border-dark-border/50"
+                            className="bg-light-card dark:bg-canvas-2 p-3 rounded-card shadow-elevation-2 hover:shadow-elevation-2 transition-shadow duration-200 flex flex-col space-y-1.5 group self-start border border-light-border dark:border-dark-border/50"
                           >
                             <div className="flex items-center space-x-2.5">
                               <div

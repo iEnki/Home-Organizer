@@ -514,7 +514,7 @@ const Materialplaner = ({ session }) => {
           {postenInRaum.map((p) => (
             <div
               key={p.id}
-              className="bg-light-card-bg dark:bg-canvas-2 p-3 rounded-card shadow-elevation-2 flex flex-col justify-between self-start border border-light-border dark:border-dark-border"
+              className="bg-light-card dark:bg-canvas-2 p-3 rounded-card shadow-elevation-2 flex flex-col justify-between self-start border border-light-border dark:border-dark-border"
             >
               <div>
                 <div className="flex justify-between items-start mb-1.5">
@@ -522,14 +522,14 @@ const Materialplaner = ({ session }) => {
                     {p.beschreibung}
                   </h4>
                   <div
-                    className="flex-shrink-0 p-1 rounded-full bg-light-border dark:bg-dark-border"
+                    className="flex-shrink-0 p-1 rounded-full bg-light-surface-1 dark:bg-canvas-3"
                     title={materialStatusLabel(p.status)}
                   >
                     {getStatusIcon(p.status)}
                   </div>
                 </div>
                 {p.kategorie && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  <p className="text-xs font-medium text-secondary-600 dark:text-secondary-400 mb-1">
                     {t("move:materialsPlanner.category")}: {materialCategoryLabel(p.kategorie)}
                   </p>
                 )}
@@ -539,7 +539,7 @@ const Materialplaner = ({ session }) => {
                   </p>
                 )}
                 {p.geschaetzter_preis && (
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  <p className="text-xs font-semibold text-primary-600 dark:text-primary-400">
                     {t("move:materialsPlanner.priceApprox", { price: parseFloat(p.geschaetzter_preis).toFixed(2) })}
                   </p>
                 )}
@@ -559,7 +559,7 @@ const Materialplaner = ({ session }) => {
                 <select
                   value={p.status}
                   onChange={(e) => handleUpdateStatus(p.id, e.target.value)}
-                  className="text-xs p-1 border border-light-border dark:border-dark-border rounded-card-sm focus:ring-2 focus:ring-secondary-500 bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main"
+                  className="text-xs p-1 border border-light-border dark:border-dark-border rounded-card-sm focus:ring-2 focus:ring-secondary-500 bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main"
                 >
                   {formStatusOptions.map((opt) => (
                     <option key={opt} value={opt}>
@@ -570,14 +570,14 @@ const Materialplaner = ({ session }) => {
                 <button
                   onClick={() => handleEditClick(p)}
                   title={t("move:materialsPlanner.edit")}
-                  className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 dark:hover:text-primary-400 rounded hover:bg-gray-200 dark:hover:bg-dark-border/50"
+                  className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 dark:hover:text-primary-400 rounded hover:bg-light-hover dark:hover:bg-dark-border/50"
                 >
                   <Edit3 size={16} />
                 </button>
                 <button
                   onClick={() => handleDeletePosten(p.id)}
                   title={t("move:materialsPlanner.delete")}
-                  className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-danger-color rounded hover:bg-gray-200 dark:hover:bg-dark-border/50"
+                  className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-danger-color rounded hover:bg-light-hover dark:hover:bg-dark-border/50"
                 >
                   <Trash2 size={16} />
                 </button>
@@ -596,7 +596,7 @@ const Materialplaner = ({ session }) => {
         </h3>
         <div className="overflow-x-auto -mx-4 px-4">
           <table className="min-w-full text-sm text-left text-light-text-secondary dark:text-dark-text-secondary">
-            <thead className="text-xs text-light-text-main dark:text-dark-text-main uppercase bg-gray-50 dark:bg-canvas-1 border-b border-light-border dark:border-dark-border">
+            <thead className="text-xs text-light-text-main dark:text-dark-text-main uppercase bg-light-surface-1 dark:bg-canvas-1 border-b border-light-border dark:border-dark-border">
               <tr>
                 <th scope="col" className="px-4 py-2">
                   {t("move:materialsPlanner.fields.description")}
@@ -622,7 +622,7 @@ const Materialplaner = ({ session }) => {
               {postenInRaum.map((p) => (
                 <tr
                   key={p.id}
-                  className="bg-light-card-bg dark:bg-canvas-2 border-b border-light-border dark:border-dark-border hover:bg-gray-100 dark:hover:bg-dark-border/30"
+                  className="bg-light-card dark:bg-canvas-2 border-b border-light-border dark:border-dark-border hover:bg-light-surface-1 dark:hover:bg-dark-border/30"
                 >
                   <td className="px-4 py-2 font-medium text-light-text-main dark:text-dark-text-main whitespace-nowrap">
                     {p.beschreibung}
@@ -638,7 +638,7 @@ const Materialplaner = ({ session }) => {
                     <select
                       value={p.status}
                       onChange={(e) => handleUpdateStatus(p.id, e.target.value)}
-                      className="text-xs p-1 border border-light-border dark:border-dark-border rounded-card-sm focus:ring-2 focus:ring-secondary-500 bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main w-full"
+                      className="text-xs p-1 border border-light-border dark:border-dark-border rounded-card-sm focus:ring-2 focus:ring-secondary-500 bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main w-full"
                     >
                       {formStatusOptions.map((opt) => (
                         <option key={opt} value={opt}>
@@ -662,14 +662,14 @@ const Materialplaner = ({ session }) => {
                     <button
                       onClick={() => handleEditClick(p)}
                       title={t("move:materialsPlanner.edit")}
-                      className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 dark:hover:text-primary-400 rounded hover:bg-gray-200 dark:hover:bg-dark-border/50"
+                      className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 dark:hover:text-primary-400 rounded hover:bg-light-hover dark:hover:bg-dark-border/50"
                     >
                       <Edit3 size={14} />
                     </button>
                     <button
                       onClick={() => handleDeletePosten(p.id)}
                       title={t("move:materialsPlanner.delete")}
-                      className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-danger-color rounded hover:bg-gray-200 dark:hover:bg-dark-border/50"
+                      className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-danger-color rounded hover:bg-light-hover dark:hover:bg-dark-border/50"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -683,7 +683,7 @@ const Materialplaner = ({ session }) => {
     ));
 
   return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4">
+    <div className="home-glass-modern glass-module auto-glass-cards relative min-h-full min-w-0 max-w-full space-y-4 overflow-x-clip bg-transparent p-4 pb-28 md:p-6 lg:pb-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
         <h2 className="text-2xl font-bold text-light-text-main dark:text-dark-text-main">{t("move:materialsPlanner.title")}</h2>
         <div className="flex flex-wrap items-center gap-2">
@@ -692,7 +692,7 @@ const Materialplaner = ({ session }) => {
             className={`p-1.5 rounded-card-sm ${
               viewMode === "kacheln"
                 ? "bg-primary-500 text-white dark:bg-primary-600 dark:text-dark-bg"
-                : "bg-light-border text-light-text-secondary dark:bg-dark-border dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-gray-700"
+                : "bg-light-surface-1 text-light-text-secondary dark:bg-canvas-3 dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
             }`}
             title={t("move:materialsPlanner.tileView")}
           >
@@ -703,7 +703,7 @@ const Materialplaner = ({ session }) => {
             className={`p-1.5 rounded-card-sm ${
               viewMode === "liste"
                 ? "bg-primary-500 text-white dark:bg-primary-600 dark:text-dark-bg"
-                : "bg-light-border text-light-text-secondary dark:bg-dark-border dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-gray-700"
+                : "bg-light-surface-1 text-light-text-secondary dark:bg-canvas-3 dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
             }`}
             title={t("move:materialsPlanner.listView")}
           >
@@ -719,7 +719,7 @@ const Materialplaner = ({ session }) => {
       </div>
 
       {/* Filter Sektion */}
-      <div className="p-4 bg-light-card-bg dark:bg-canvas-1 border border-light-border dark:border-dark-border rounded-card mb-4">
+      <div className="p-4 bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border rounded-card mb-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 items-end">
           <div>
             <label
@@ -735,7 +735,7 @@ const Materialplaner = ({ session }) => {
                 value={filterText}
                 onChange={(e) => setFilterText(e.target.value)}
                 placeholder={t("move:materialsPlanner.searchPlaceholder")}
-                className="w-full pl-8 pr-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                className="w-full pl-8 pr-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
               />
               <Search
                 size={16}
@@ -754,7 +754,7 @@ const Materialplaner = ({ session }) => {
               id="filterKategorie"
               value={filterKategorie}
               onChange={(e) => setFilterKategorie(e.target.value)}
-              className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+              className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
             >
               {kategorieOptionsList.map((option) => (
                 <option key={option} value={option}>
@@ -774,7 +774,7 @@ const Materialplaner = ({ session }) => {
               id="filterStatus"
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+              className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
             >
               {statusOptionsList.map((option) => (
                 <option key={option} value={option}>
@@ -787,8 +787,8 @@ const Materialplaner = ({ session }) => {
       </div>
 
       {showFormModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-3 z-50">
-          <div className="bg-light-card-bg dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-md relative border border-light-border dark:border-dark-border">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center p-3 pb-safe z-50">
+          <div className="bg-light-card dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-md max-h-[90vh] overflow-y-auto relative border border-light-border dark:border-dark-border">
             <button
               onClick={resetForm}
               className="absolute top-2.5 right-2.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
@@ -800,7 +800,7 @@ const Materialplaner = ({ session }) => {
             </h3>
             <form onSubmit={handleSubmit} className="space-y-3">
               {/* Materialauswahl Sektion */}
-              <div className="p-3 border border-light-border dark:border-dark-border/50 rounded-card-sm space-y-2 bg-gray-50 dark:bg-canvas-1/30">
+              <div className="p-3 border border-light-border dark:border-dark-border/50 rounded-card-sm space-y-2 bg-light-surface-1 dark:bg-canvas-1/30">
                 <h4 className="text-sm font-medium text-light-text-main dark:text-dark-text-main">
                   {t("move:materialsPlanner.materialPicker.title")}
                 </h4>
@@ -817,7 +817,7 @@ const Materialplaner = ({ session }) => {
                     onChange={(e) =>
                       setGewaehlteMaterialKategorie(e.target.value)
                     }
-                    className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                    className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                   >
                     <option value="">{t("move:materialsPlanner.materialPicker.allCategories")}</option>
                     {materialKategorien.map((kat) => (
@@ -841,7 +841,7 @@ const Materialplaner = ({ session }) => {
                       onChange={(e) =>
                         setAusgewaehltesMaterialId(e.target.value)
                       }
-                      className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                      className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                     >
                       <option value="">
                         {t("move:materialsPlanner.materialPicker.chooseOrManual")}
@@ -873,7 +873,7 @@ const Materialplaner = ({ session }) => {
                     if (ausgewaehltesMaterialId) setAusgewaehltesMaterialId("");
                   }}
                   required
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 />
               </div>
               <div>
@@ -887,7 +887,7 @@ const Materialplaner = ({ session }) => {
                   id="renoKategorie"
                   value={kategorie}
                   onChange={(e) => setKategorie(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 >
                   {formKategorieOptions.map((option) => (
                     <option key={option} value={option}>
@@ -907,7 +907,7 @@ const Materialplaner = ({ session }) => {
                   id="renoRaum"
                   value={raum}
                   onChange={(e) => setRaum(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 >
               {raumOptionsList.map((option) => (
                 <option key={option} value={option}>
@@ -940,7 +940,7 @@ const Materialplaner = ({ session }) => {
                   min="0.01"
                   step="0.01"
                   required
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 />
               </div>
               <div>
@@ -965,7 +965,7 @@ const Materialplaner = ({ session }) => {
                       (m) => m.id === ausgewaehltesMaterialId
                     )?.einheit
                   }
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 />
               </div>
               <div>
@@ -981,7 +981,7 @@ const Materialplaner = ({ session }) => {
                   value={geschaetzterPreis}
                   onChange={(e) => setGeschaetzterPreis(e.target.value)}
                   step="0.01"
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 />
               </div>
               <div>
@@ -997,7 +997,7 @@ const Materialplaner = ({ session }) => {
                   value={baumarktLink}
                   onChange={(e) => setBaumarktLink(e.target.value)}
                   placeholder="https://..."
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 />
               </div>
               <div>
@@ -1011,7 +1011,7 @@ const Materialplaner = ({ session }) => {
                   id="renoStatus"
                   value={status}
                   onChange={(e) => setStatus(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500"
                 >
                   {formStatusOptions.map((opt) => (
                     <option key={opt} value={opt}>
@@ -1024,7 +1024,7 @@ const Materialplaner = ({ session }) => {
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="px-3 py-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary bg-light-border dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-700 rounded-pill"
+                  className="px-3 py-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary bg-light-border dark:bg-dark-border hover:bg-light-hover dark:hover:bg-canvas-3 rounded-pill"
                 >{t("common:actions.cancel")}</button>
                 <button
                   type="submit"

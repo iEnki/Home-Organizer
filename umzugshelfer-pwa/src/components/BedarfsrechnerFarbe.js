@@ -53,13 +53,13 @@ const BedarfsrechnerFarbe = () => {
     setDeductionItems((prevItems) => prevItems.filter((item) => item.id !== idToRemove));
   };
 
-  const inputClass = `w-full px-3 py-2 border rounded-md text-sm focus:ring-1 ${
+  const inputClass = `w-full px-3 py-2 border rounded-card-sm text-sm focus:ring-1 ${
     theme === "dark"
-      ? "border-dark-border bg-dark-border text-dark-text-main placeholder-dark-text-secondary focus:ring-dark-accent-green focus:border-dark-accent-green"
-      : "border-gray-300 bg-gray-50 text-gray-900 placeholder-gray-400 focus:ring-light-accent-green focus:border-light-accent-green"
+      ? "border-dark-border bg-canvas-2 text-dark-text-main placeholder-dark-text-secondary focus:ring-dark-accent-green focus:border-dark-accent-green"
+      : "border-light-border bg-light-surface-1 text-light-text-main placeholder-light-text-secondary focus:ring-light-accent-green focus:border-light-accent-green"
   }`;
   return (
-    <div className="p-4 md:p-6 bg-light-card-bg dark:bg-dark-card-bg rounded-lg shadow border border-light-border dark:border-dark-border">
+    <div className="p-4 md:p-6 bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border">
       <h2 className="text-xl font-semibold text-light-text-main dark:text-dark-text-main mb-1 flex items-center justify-between">
         <div className="flex items-center">
           <PaintBucket size={24} className="mr-2 text-light-accent-green dark:text-dark-accent-green" />
@@ -71,7 +71,7 @@ const BedarfsrechnerFarbe = () => {
       </h2>
 
       {showHelp && (
-        <div className="mb-4 p-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-md text-xs text-gray-600 dark:text-dark-text-secondary space-y-1">
+        <div className="mb-4 p-3 bg-light-surface-1 dark:bg-canvas-3 border border-light-border dark:border-dark-border rounded-card-sm text-xs text-light-text-secondary dark:text-dark-text-secondary space-y-1">
           <p>{t("move:calculator.paint.help.dimensions")}</p>
           <p>{t("move:calculator.paint.help.coats")}</p>
           <p>{t("move:calculator.paint.help.coverage")}</p>
@@ -93,7 +93,7 @@ const BedarfsrechnerFarbe = () => {
               className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
                 modus === mode
                   ? "bg-light-accent-green text-white dark:bg-dark-accent-green dark:text-dark-bg border-light-accent-green dark:border-dark-accent-green shadow"
-                  : "bg-light-border text-light-text-secondary dark:bg-dark-border dark:text-dark-text-secondary border-light-border dark:border-dark-border hover:bg-gray-200 dark:hover:bg-gray-700"
+                  : "bg-light-border text-light-text-secondary dark:bg-canvas-2 dark:text-dark-text-secondary border-light-border dark:border-dark-border hover:bg-light-hover dark:hover:bg-canvas-3"
               }`}
               aria-pressed={modus === mode}
             >
@@ -130,18 +130,18 @@ const BedarfsrechnerFarbe = () => {
         onRemove={removeDeductionItem}
       />
 
-      <div className="bg-gray-50 dark:bg-dark-bg p-4 rounded-md border border-gray-200 dark:border-dark-border">
+      <div className="bg-light-surface-1 dark:bg-canvas-3 p-4 rounded-card-sm border border-light-border dark:border-dark-border">
         <h3 className="text-lg font-medium text-light-text-main dark:text-dark-text-main mb-3">{t("move:shared.result")}</h3>
         <div className="space-y-2 text-sm">
           <ResultRow label={t("move:calculator.paint.wallAreaGross")} value={`${wallArea.toFixed(2)} m²`} />
           <ResultRow label={t("move:calculator.paint.paintableArea")} value={`${paintableArea.toFixed(2)} m²`} />
-          <hr className="border-gray-200 dark:border-dark-border my-2" />
+          <hr className="border-light-border dark:border-dark-border my-2" />
           <ResultRow label={t("move:calculator.paint.requiredPaint")} value={`${requiredPaint.toFixed(2)} Liter`} strongClass="font-bold text-light-accent-green dark:text-dark-accent-green" />
           {requiredPaint > 0 && (
             <div className="mt-4 text-right">
               <button
                 onClick={() => navigate("/materialplaner", { state: { neuerPosten: { beschreibung: t("move:calculator.common.itemDescriptions.wallPaint"), menge_einheit: `${requiredPaint.toFixed(2)} Liter`, status: "Geplant" } } })}
-                className="bg-light-accent-purple dark:bg-dark-accent-purple text-white px-3 py-1.5 rounded-md shadow hover:opacity-90 flex items-center text-sm ml-auto"
+                className="bg-light-accent-purple dark:bg-dark-accent-purple text-white px-3 py-1.5 rounded-card-sm shadow hover:opacity-90 flex items-center text-sm ml-auto"
               >
                 <SendToBack size={16} className="mr-2" />
                 {t("move:shared.toMaterials")}
@@ -157,7 +157,7 @@ const BedarfsrechnerFarbe = () => {
 function Field({ id, label, value, setValue, inputClass, placeholder }) {
   return (
     <div>
-      <label htmlFor={id} className="block text-sm font-medium mb-1 text-gray-700 dark:text-dark-text-secondary">{label}</label>
+      <label htmlFor={id} className="block text-sm font-medium mb-1 text-light-text-main dark:text-dark-text-secondary">{label}</label>
       <input type="number" id={id} value={value} onChange={(e) => setValue(e.target.value)} className={inputClass} placeholder={placeholder} />
     </div>
   );
@@ -168,7 +168,7 @@ function DeductionEditor({ t, items, inputClass, onChange, onAdd, onRemove }) {
     <div className="mb-6">
       <h3 className="text-md font-medium text-light-text-main dark:text-dark-text-main mb-2">{t("move:calculator.common.deductions")}</h3>
       {items.map((item) => (
-        <div key={item.id} className="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-2 items-center p-2 border border-gray-200 dark:border-dark-border/50 rounded-md">
+        <div key={item.id} className="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-2 items-center p-2 border border-light-border dark:border-dark-border/50 rounded-card-sm">
           <SmallField id={`deductWidth-${item.id}`} label={t("move:calculator.common.width")} value={item.width} onChange={(value) => onChange(item.id, "width", value)} inputClass={inputClass} placeholder="z. B. 1.2" />
           <SmallField id={`deductHeight-${item.id}`} label={t("move:calculator.common.height")} value={item.height} onChange={(value) => onChange(item.id, "height", value)} inputClass={inputClass} placeholder="z. B. 1.5" />
           <SmallField id={`deductCount-${item.id}`} label={t("move:calculator.common.count")} value={item.count} onChange={(value) => onChange(item.id, "count", value)} inputClass={inputClass} placeholder="1" />

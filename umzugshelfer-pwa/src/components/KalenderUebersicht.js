@@ -84,9 +84,12 @@ function MonthView({ datum, events, onEventClick }) {
   const WOCHENTAGE_KURZ = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
   return (
-    <GlassSurface interactive={false} className="overflow-hidden rounded-card-sm">
+    <GlassSurface
+      interactive={false}
+      className="overflow-hidden rounded-card-sm lg:flex lg:min-h-0 lg:flex-1 lg:flex-col"
+    >
       {/* Wochentag-Header */}
-      <div className="grid grid-cols-7 bg-light-surface-1/60 dark:bg-white/[0.03] border-b border-light-border dark:border-white/[0.08]">
+      <div className="grid grid-cols-7 shrink-0 bg-light-surface-1/60 dark:bg-white/[0.03] border-b border-light-border dark:border-white/[0.08]">
         {WOCHENTAGE_KURZ.map((d) => (
           <div key={d} className="py-2 text-center text-[10px] font-semibold tracking-widest uppercase text-light-text-secondary dark:text-dark-text-secondary">
             {d}
@@ -96,7 +99,10 @@ function MonthView({ datum, events, onEventClick }) {
 
       {/* Tag-Zellen — transparent über dem Glas der Hauptkarte; key auf dem
           Monat triggert die gestaffelte Einblendung bei jedem Monatswechsel */}
-      <div className="grid grid-cols-7" key={format(datum, "yyyy-MM")}>
+      <div
+        className="grid grid-cols-7 lg:min-h-0 lg:flex-1 lg:auto-rows-fr"
+        key={format(datum, "yyyy-MM")}
+      >
         {days.map((day, i) => {
           const dayEvents = eventsForDay(day);
           const inMonth   = isSameMonth(day, datum);
@@ -112,6 +118,7 @@ function MonthView({ datum, events, onEventClick }) {
               style={{ animationDelay: `${Math.min(i * 9, 380)}ms`, animationFillMode: "both" }}
               className={[
                 "group/day min-h-[68px] sm:min-h-[80px] p-1 border-b border-r border-light-border/40 dark:border-white/[0.05]",
+                "lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden",
                 "animate-fade-in transition-colors duration-200",
                 i % 7 === 6 ? "border-r-0" : "",
                 !inMonth
@@ -125,7 +132,7 @@ function MonthView({ datum, events, onEventClick }) {
             >
               {/* Tageszahl */}
               <div className={[
-                "mb-1 flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded-full text-[11px] sm:text-xs font-medium transition-colors",
+                "mb-1 flex h-5 w-5 shrink-0 sm:h-6 sm:w-6 items-center justify-center rounded-full text-[11px] sm:text-xs font-medium transition-colors",
                 today
                   ? "bg-primary-500 text-white font-bold shadow-glow-primary"
                   : inMonth
@@ -136,7 +143,7 @@ function MonthView({ datum, events, onEventClick }) {
               </div>
 
               {/* Event-Pills */}
-              <div className="space-y-0.5">
+              <div className="space-y-0.5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                 {visibleEvents.map((ev) => {
                   const cfg = EVENT_CFG[ev.typ] || EVENT_CFG.aufgabe;
                   return (
@@ -205,7 +212,7 @@ function AgendaView({ datum, events, onEventClick }) {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
       {dateKeys.map((key, gi) => {
         const dayDate = new Date(key);
         const today   = isTodayFn(dayDate);
@@ -439,10 +446,12 @@ const KalenderUebersicht = ({ session }) => {
   ];
 
   return (
-    <div className="home-glass-modern glass-module relative min-h-full min-w-0 max-w-full space-y-4 overflow-x-clip bg-transparent p-4 pb-28 md:p-6 lg:pb-8">
+    // Auf Desktop füllt die Seite die volle Höhe unter der 72px-Topbar und
+    // passt sich per flex-1 jeder Fenstergröße an; mobil bleibt es beim Scrollen.
+    <div className="home-glass-modern glass-module relative min-h-full min-w-0 max-w-full space-y-4 overflow-x-clip bg-transparent p-4 pb-28 md:p-6 lg:flex lg:h-[calc(100dvh-72px)] lg:min-h-0 lg:flex-col lg:overflow-hidden lg:pb-6">
 
       {/* Seitentitel */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3 lg:shrink-0">
         <div>
           <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">
             {t("home:calendar.title")}
@@ -473,10 +482,13 @@ const KalenderUebersicht = ({ session }) => {
       </div>
 
       {/* Kalender-Hauptkarte */}
-      <GlassSurface interactive={false} className="overflow-hidden">
+      <GlassSurface
+        interactive={false}
+        className="overflow-hidden lg:flex lg:min-h-0 lg:flex-1 lg:flex-col"
+      >
 
         {/* Navigation */}
-        <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-light-border dark:border-dark-border">
+        <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-3 border-b border-light-border dark:border-dark-border">
           <div className="flex items-center gap-2">
             <div className="h-3.5 w-0.5 rounded-full bg-primary-500 shrink-0" />
             <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main capitalize">
@@ -517,7 +529,7 @@ const KalenderUebersicht = ({ session }) => {
         </div>
 
         {/* Legende */}
-        <div className="flex flex-wrap gap-x-4 gap-y-1.5 px-4 py-2.5 border-b border-light-border dark:border-dark-border">
+        <div className="flex shrink-0 flex-wrap gap-x-4 gap-y-1.5 px-4 py-2.5 border-b border-light-border dark:border-dark-border">
           {legendeTypen.map((typ) => {
             const cfg = EVENT_CFG[typ];
             return (
@@ -532,9 +544,9 @@ const KalenderUebersicht = ({ session }) => {
         </div>
 
         {/* Inhalt */}
-        <div className="p-4">
+        <div className="p-4 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
           {ladend ? (
-            <div className="h-64 flex flex-col items-center justify-center gap-3 animate-pulse">
+            <div className="h-64 lg:h-auto lg:flex-1 flex flex-col items-center justify-center gap-3 animate-pulse">
               <CalendarDays size={28} className="text-primary-500" />
               <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                 {t("home:calendar.loading")}
@@ -544,6 +556,7 @@ const KalenderUebersicht = ({ session }) => {
             <AnimatePresence mode="wait">
               <motion.div
                 key={ansicht}
+                className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col"
                 variants={reducedMotion ? {} : glassPageVariants}
                 initial="hidden"
                 animate="show"

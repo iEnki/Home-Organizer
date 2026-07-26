@@ -45,17 +45,17 @@ const BedarfsrechnerDaemmstoff = () => {
   };
   const removeAreaItem = (idToRemove) => setAreaItems((prevItems) => prevItems.filter((item) => item.id !== idToRemove));
 
-  const inputClass = `w-full px-3 py-2 border rounded-md text-sm focus:ring-1 ${
+  const inputClass = `w-full px-3 py-2 border rounded-card-sm text-sm focus:ring-1 ${
     theme === "dark"
-      ? "border-dark-border bg-dark-border text-dark-text-main placeholder-dark-text-secondary focus:ring-sky-400 focus:border-sky-400"
-      : "border-gray-300 bg-gray-50 text-gray-900 placeholder-gray-400 focus:ring-sky-500 focus:border-sky-500"
+      ? "border-dark-border bg-canvas-2 text-dark-text-main placeholder-dark-text-secondary focus:ring-sky-400 focus:border-sky-400"
+      : "border-light-border bg-light-surface-1 text-light-text-main placeholder-light-text-secondary focus:ring-sky-500 focus:border-sky-500"
   }`;
   const smallInputClass = inputClass.replace("py-2", "py-1").replace("text-sm", "text-xs");
-  const labelClass = `block text-sm font-medium mb-1 ${theme === "dark" ? "text-dark-text-secondary" : "text-gray-700"}`;
-  const smallLabelClass = `block text-xs font-medium mb-0.5 ${theme === "dark" ? "text-dark-text-secondary" : "text-gray-700"}`;
+  const labelClass = `block text-sm font-medium mb-1 ${theme === "dark" ? "text-dark-text-secondary" : "text-light-text-main"}`;
+  const smallLabelClass = `block text-xs font-medium mb-0.5 ${theme === "dark" ? "text-dark-text-secondary" : "text-light-text-main"}`;
 
   return (
-    <div className="p-4 md:p-6 bg-light-card-bg dark:bg-dark-card-bg rounded-lg shadow border border-light-border dark:border-dark-border mt-6">
+    <div className="p-4 md:p-6 bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border mt-6">
       <h2 className="text-xl font-semibold text-light-text-main dark:text-dark-text-main mb-1 flex items-center justify-between">
         <div className="flex items-center">
           <ThermometerSnowflake size={24} className="mr-2 text-sky-500 dark:text-sky-400" />
@@ -67,7 +67,7 @@ const BedarfsrechnerDaemmstoff = () => {
       </h2>
 
       {showHelp && (
-        <div className="mb-4 p-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-md text-xs text-gray-600 dark:text-dark-text-secondary space-y-1">
+        <div className="mb-4 p-3 bg-light-surface-1 dark:bg-canvas-3 border border-light-border dark:border-dark-border rounded-card-sm text-xs text-light-text-secondary dark:text-dark-text-secondary space-y-1">
           <p>{t("move:calculator.insulation.help.areas")}</p>
           <p>{t("move:calculator.insulation.help.package")}</p>
           <p>{t("move:calculator.insulation.help.waste")}</p>
@@ -77,7 +77,7 @@ const BedarfsrechnerDaemmstoff = () => {
       <div className="mb-6 space-y-3">
         <h3 className="text-md font-medium text-light-text-main dark:text-dark-text-main mt-4 mb-2">{t("move:calculator.insulation.areas")}</h3>
         {areaItems.map((item, index) => (
-          <div key={item.id} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end p-2 border border-gray-200 dark:border-dark-border/50 rounded-md">
+          <div key={item.id} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end p-2 border border-light-border dark:border-dark-border/50 rounded-card-sm">
             <div>
               <label htmlFor={`areaLength-${item.id}`} className={smallLabelClass}>{t("move:calculator.insulation.areaLength", { index: index + 1 })}</label>
               <input type="number" id={`areaLength-${item.id}`} value={item.length} onChange={(e) => handleAreaItemChange(item.id, "length", e.target.value)} className={smallInputClass} placeholder="z. B. 5" />
@@ -105,16 +105,16 @@ const BedarfsrechnerDaemmstoff = () => {
         <Field id="daemmWaste" label={t("move:calculator.common.waste")} value={wastePercentage} setValue={setWastePercentage} inputClass={inputClass} labelClass={labelClass} placeholder="z. B. 10" />
       </div>
 
-      <div className="bg-gray-50 dark:bg-dark-bg p-4 rounded-md border border-gray-200 dark:border-dark-border">
+      <div className="bg-light-surface-1 dark:bg-canvas-3 p-4 rounded-card-sm border border-light-border dark:border-dark-border">
         <h3 className="text-lg font-medium text-light-text-main dark:text-dark-text-main mb-3">{t("move:shared.result")}</h3>
         <div className="space-y-2 text-sm">
           <ResultRow label={t("move:calculator.insulation.totalArea")} value={`${totalArea.toFixed(2)} m²`} />
           <ResultRow label={t("move:calculator.common.materialWithWaste")} value={`${totalMaterialNeeded.toFixed(2)} m²`} />
-          <hr className="border-gray-200 dark:border-dark-border my-2" />
+          <hr className="border-light-border dark:border-dark-border my-2" />
           <ResultRow label={t("move:calculator.insulation.requiredPackages")} value={`${requiredPackages} ${t("move:shared.pieceShort")}`} strongClass="font-bold text-sky-500 dark:text-sky-400" />
           {requiredPackages > 0 && (
             <div className="mt-4 text-right">
-              <button onClick={() => navigate("/materialplaner", { state: { neuerPosten: { beschreibung: t("move:calculator.common.itemDescriptions.insulation"), menge_einheit: `${requiredPackages} ${t("move:shared.packageUnit")}`, status: "Geplant" } } })} className="bg-sky-600 hover:bg-sky-700 dark:bg-sky-500 dark:hover:bg-sky-600 text-white px-3 py-1.5 rounded-md shadow flex items-center text-sm ml-auto">
+              <button onClick={() => navigate("/materialplaner", { state: { neuerPosten: { beschreibung: t("move:calculator.common.itemDescriptions.insulation"), menge_einheit: `${requiredPackages} ${t("move:shared.packageUnit")}`, status: "Geplant" } } })} className="bg-sky-600 hover:bg-sky-700 dark:bg-sky-500 dark:hover:bg-sky-600 text-white px-3 py-1.5 rounded-card-sm shadow flex items-center text-sm ml-auto">
                 <SendToBack size={16} className="mr-2" />
                 {t("move:shared.toMaterials")}
               </button>

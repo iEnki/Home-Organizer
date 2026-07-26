@@ -2225,7 +2225,7 @@ const RaumInventar = ({ kisten }) => {
   const gesamtAusgepackt = raeume.reduce((s, r) => s + inventarNachRaum[r].length, 0);
 
   return (
-    <div className="bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-sm">
+    <div className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-sm">
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between px-4 py-3 text-left"
@@ -2303,6 +2303,7 @@ const PacklisteManager = ({ session }) => {
   const [showPhotoSectionInModal, setShowPhotoSectionInModal] = useState(false);
   const [showQrCodeSectionInModal, setShowQrCodeSectionInModal] =
     useState(false);
+  const [qrWirdErzeugt, setQrWirdErzeugt] = useState(false);
   const [showPhotoLightbox, setShowPhotoLightbox] = useState(false);
   const [lightboxImageUrl, setLightboxImageUrl] = useState("");
   const [showKiAssistent, setShowKiAssistent] = useState(false);
@@ -2520,6 +2521,43 @@ const PacklisteManager = ({ session }) => {
       alert(t("move:packlistManager.alerts.error", { message: error.message }));
     } finally {
       setLoading(false);
+    }
+  };
+
+  // pack_kisten.qr_code_wert ist nullable: Kisten aus Alt-Beständen, Demo-Seeds
+  // oder direkten SQL-Importen haben keinen Wert. Ohne ihn blieb die QR-Sektion
+  // im Modal wortlos leer. Der Wert wird darum beim Öffnen einmalig nachgezogen
+  // und gespeichert, damit er zum Drucken und Scannen stabil bleibt.
+  // Filter bewusst nur über id: der Client-Proxy schreibt .match() nicht auf
+  // household_id um, wodurch ein user_id-Filter bei geteilten Haushalten
+  // stillschweigend keine Zeile träfe. RLS grenzt den Zugriff bereits ab.
+  const stelleQrWertSicher = async (kiste) => {
+    if (!kiste?.id) return null;
+    if (kiste.qr_code_wert) return kiste.qr_code_wert;
+
+    setQrWirdErzeugt(true);
+    try {
+      const qrWert = `KISTE-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const { data, error } = await supabase
+        .from("pack_kisten")
+        .update({ qr_code_wert: qrWert })
+        .eq("id", kiste.id)
+        .select("id, qr_code_wert")
+        .single();
+      if (error) throw error;
+
+      setAktuelleKiste((prev) =>
+        prev && prev.id === kiste.id
+          ? { ...prev, qr_code_wert: data.qr_code_wert }
+          : prev
+      );
+      fetchKisten();
+      return data.qr_code_wert;
+    } catch (error) {
+      alert(t("move:packlistManager.alerts.error", { message: error.message }));
+      return null;
+    } finally {
+      setQrWirdErzeugt(false);
     }
   };
 
@@ -3095,7 +3133,7 @@ const PacklisteManager = ({ session }) => {
         return (
           <div
             key={kiste.id}
-            className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-2 hover:shadow-elevation-2 transition-shadow duration-200 cursor-pointer flex flex-col self-start border border-light-border dark:border-dark-border/50 overflow-hidden"
+            className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-2 hover:shadow-elevation-2 transition-shadow duration-200 cursor-pointer flex flex-col self-start border border-light-border dark:border-dark-border/50 overflow-hidden"
             onClick={() => handleOpenKisteModal(kiste)}
           >
             {/* Das img-Tag wird jetzt immer gerendert, kisteImageUrl hat immer einen Wert */}
@@ -3149,6 +3187,7 @@ const PacklisteManager = ({ session }) => {
                       setAktuelleKiste(kiste);
                       setShowQrCodeSectionInModal(true);
                       setShowKisteModal(true);
+                      stelleQrWertSicher(kiste);
                     }}
                     className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 dark:hover:text-primary-400"
                     title={t("move:packlistManager.showQr")}
@@ -3175,10 +3214,10 @@ const PacklisteManager = ({ session }) => {
   );
 
   const renderListenAnsicht = () => (
-    <div className="bg-light-card-bg dark:bg-canvas-2 p-4 rounded-card shadow-elevation-2 border border-light-border dark:border-dark-border">
+    <div className="bg-light-card dark:bg-canvas-2 p-4 rounded-card shadow-elevation-2 border border-light-border dark:border-dark-border">
       <div className="overflow-x-auto -mx-4 px-4">
       <table className="min-w-full text-sm text-left text-light-text-secondary dark:text-dark-text-secondary">
-        <thead className="text-xs text-light-text-main dark:text-dark-text-main uppercase bg-gray-50 dark:bg-canvas-1">
+        <thead className="text-xs text-light-text-main dark:text-dark-text-main uppercase bg-light-surface-1 dark:bg-canvas-1">
           <tr>
             <th scope="col" className="px-2 py-2 w-10"></th>{" "}
             {/* Spalte für Aufklapp-Button */}
@@ -3206,7 +3245,7 @@ const PacklisteManager = ({ session }) => {
 
             return (
               <React.Fragment key={kiste.id}>
-                <tr className="border-b border-light-border dark:border-dark-border/50 hover:bg-gray-100 dark:hover:bg-canvas-1/30">
+                <tr className="border-b border-light-border dark:border-dark-border/50 hover:bg-light-surface-1 dark:hover:bg-canvas-1/30">
                   <td className="px-2 py-2 text-center">
                     <button
                       onClick={() => toggleKisteAufklappen(kiste.id)}
@@ -3272,6 +3311,7 @@ const PacklisteManager = ({ session }) => {
                           setAktuelleKiste(kiste);
                           setShowQrCodeSectionInModal(true);
                           setShowKisteModal(true);
+                          stelleQrWertSicher(kiste);
                         }}
                         className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 dark:hover:text-primary-400"
                         title={t("move:packlistManager.showQr")}
@@ -3296,9 +3336,9 @@ const PacklisteManager = ({ session }) => {
                   </td>
                 </tr>
                 {isAufgeklappt && (
-                  <tr className="bg-gray-50 dark:bg-canvas-1/20 border-b border-light-border dark:border-dark-border/30">
+                  <tr className="bg-light-surface-1 dark:bg-canvas-1/20 border-b border-light-border dark:border-dark-border/30">
                     <td colSpan="6" className="p-0">
-                      <div className="p-3 space-y-1 bg-gray-100 dark:bg-canvas-1/30 rounded-b-card-sm shadow-inner">
+                      <div className="p-3 space-y-1 bg-light-surface-1 dark:bg-canvas-1/30 rounded-b-card-sm shadow-inner">
                         {kiste.inhalt && kiste.inhalt.length > 0 ? (
                           <ul className="list-disc list-inside text-xs text-light-text-secondary dark:text-dark-text-secondary pl-4 space-y-0.5">
                             {kiste.inhalt.map((item) => (
@@ -3343,7 +3383,7 @@ const PacklisteManager = ({ session }) => {
   );
 
   return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4">
+    <div className="home-glass-modern glass-module auto-glass-cards relative min-h-full min-w-0 max-w-full space-y-4 overflow-x-clip bg-transparent p-4 pb-28 md:p-6 lg:pb-8">
       <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
         <h2 className="text-2xl font-bold text-light-text-main dark:text-dark-text-main">
           {t("move:packlistManager.heading")}
@@ -3354,7 +3394,7 @@ const PacklisteManager = ({ session }) => {
             className={`p-1.5 rounded-card-sm ${
               viewMode === "kacheln"
                 ? "bg-primary-500 text-white dark:bg-primary-600 dark:text-dark-bg"
-                : "bg-light-border text-light-text-secondary dark:bg-dark-border dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-gray-700"
+                : "bg-light-border text-light-text-secondary dark:bg-dark-border dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
             }`}
             title={t("move:packlistManager.tileView")}
           >
@@ -3366,7 +3406,7 @@ const PacklisteManager = ({ session }) => {
               className={`p-1.5 rounded-card-sm ${
                 viewMode === "liste"
                   ? "bg-primary-500 text-white dark:bg-primary-600 dark:text-dark-bg"
-                  : "bg-light-border text-light-text-secondary dark:bg-dark-border dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-gray-700"
+                  : "bg-light-border text-light-text-secondary dark:bg-dark-border dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
               }`}
               title={t("move:packlistManager.listView")}
             >
@@ -3426,7 +3466,7 @@ const PacklisteManager = ({ session }) => {
           placeholder={t("move:packlistManager.searchPlaceholder")}
           value={searchTerm}
           onChange={handleSearchChange}
-          className="w-full pl-9 pr-3 py-2 border border-light-border dark:border-dark-border rounded-card-sm focus:ring-2 focus:ring-secondary-500 shadow-sm text-sm text-light-text-main dark:text-dark-text-main bg-white dark:bg-dark-border placeholder-light-text-secondary dark:placeholder-dark-text-secondary"
+          className="w-full pl-9 pr-3 py-2 border border-light-border dark:border-dark-border rounded-card-sm focus:ring-2 focus:ring-secondary-500 shadow-sm text-sm text-light-text-main dark:text-dark-text-main bg-light-bg dark:bg-canvas-1 placeholder-light-text-secondary dark:placeholder-dark-text-secondary"
         />
         <Search
           className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary"
@@ -3436,7 +3476,7 @@ const PacklisteManager = ({ session }) => {
       {showScanner && (
         <div className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-sm flex flex-col justify-center items-center p-4 z-50">
           {" "}
-          <div className="bg-light-card-bg dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-md relative border border-light-border dark:border-dark-border">
+          <div className="bg-light-card dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-md relative border border-light-border dark:border-dark-border">
             {" "}
             <h3 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main mb-3 text-center">
               QR-Code Scanner
@@ -3470,7 +3510,7 @@ const PacklisteManager = ({ session }) => {
 
       {showKisteModal && (
         <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
-          <div className="mobile-modal-dialog bg-light-card-bg dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-lg overflow-y-auto relative border border-light-border dark:border-dark-border">
+          <div className="mobile-modal-dialog bg-light-card dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-lg overflow-y-auto relative border border-light-border dark:border-dark-border">
             <button
               onClick={() => {
                 setShowKisteModal(false);
@@ -3509,7 +3549,7 @@ const PacklisteManager = ({ session }) => {
                   value={neueKisteName}
                   onChange={(e) => setNeueKisteName(e.target.value)}
                   required
-                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500 dark:focus:border-primary-500"
+                  className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500 dark:focus:border-primary-500"
                 />
               </div>
               <div>
@@ -3525,7 +3565,7 @@ const PacklisteManager = ({ session }) => {
                   onChange={setNeueKisteRaum}
                   options={raumVorschlaege}
                   placeholder={t("move:packlistManager.targetRoomPlaceholder")}
-                  className="border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500 dark:focus:border-primary-500 outline-none border"
+                  className="border-light-border dark:border-dark-border rounded-card-sm text-sm bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500 dark:focus:border-primary-500 outline-none border"
                   optionLabel={(opt) => t(`move:packlistManager.rooms.${opt}`, { defaultValue: opt })}
                   dropdownPortal
                 />
@@ -3626,7 +3666,7 @@ const PacklisteManager = ({ session }) => {
                   )}
                 </div>
 
-                {aktuelleKiste.qr_code_wert && (
+                {(aktuelleKiste.qr_code_wert || qrWirdErzeugt) && (
                   <div className="py-2 border-b border-light-border dark:border-dark-border/50">
                     <button
                       onClick={() =>
@@ -3650,30 +3690,38 @@ const PacklisteManager = ({ session }) => {
                         <h4 className="text-md font-semibold text-light-text-main dark:text-dark-text-main mb-2">
                           QR-Code für diese Kiste
                         </h4>
-                        <div
-                          className="flex justify-center p-2 bg-white rounded-card-sm inline-block"
-                          title=""
-                        >
-                          <QRCodeCanvas
-                            id="kiste-qrcode-canvas"
-                            value={aktuelleKiste.qr_code_wert}
-                            size={128}
-                            bgColor={"#ffffff"}
-                            fgColor={"#1F2937"} // Dunkle Farbe für QR Code, gut auf weiß
-                            level={"H"}
-                          />
-                        </div>
-                        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1 break-all">
-                          {" "}
-                          Wert: {aktuelleKiste.qr_code_wert}{" "}
-                        </p>
-                        <button
-                          onClick={handleDownloadQrCode}
-                          className="mt-2 flex items-center justify-center text-xs bg-light-accent-blue dark:bg-dark-accent-blue text-white px-2.5 py-1 rounded-pill hover:opacity-90 w-full sm:w-auto mx-auto"
-                        >
-                          <Download size={14} className="mr-1.5" />{" "}
-                          Herunterladen
-                        </button>
+                        {aktuelleKiste.qr_code_wert ? (
+                          <>
+                            <div
+                              className="flex justify-center p-2 bg-white rounded-card-sm inline-block"
+                              title=""
+                            >
+                              <QRCodeCanvas
+                                id="kiste-qrcode-canvas"
+                                value={aktuelleKiste.qr_code_wert}
+                                size={128}
+                                bgColor={"#ffffff"}
+                                fgColor={"#1F2937"} // Dunkle Farbe für QR Code, gut auf weiß
+                                level={"H"}
+                              />
+                            </div>
+                            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1 break-all">
+                              {" "}
+                              Wert: {aktuelleKiste.qr_code_wert}{" "}
+                            </p>
+                            <button
+                              onClick={handleDownloadQrCode}
+                              className="mt-2 flex items-center justify-center text-xs bg-light-accent-blue dark:bg-dark-accent-blue text-white px-2.5 py-1 rounded-pill hover:opacity-90 w-full sm:w-auto mx-auto"
+                            >
+                              <Download size={14} className="mr-1.5" />{" "}
+                              Herunterladen
+                            </button>
+                          </>
+                        ) : (
+                          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary py-4">
+                            {t("move:packlistManager.qrGenerating")}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -3711,7 +3759,7 @@ const PacklisteManager = ({ session }) => {
                         onChange={handleGegenstandBeschreibungChange}
                         placeholder={t("move:packlistManager.itemDescription")}
                         required
-                        className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-xs bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500 dark:focus:border-primary-500"
+                        className="w-full px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-xs bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500 dark:focus:border-primary-500"
                       />
                     </div>{" "}
                     <div>
@@ -3731,7 +3779,7 @@ const PacklisteManager = ({ session }) => {
                             parseInt(e.target.value, 10) || 1
                           )
                         }
-                        className="w-16 px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-xs bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500 dark:focus:border-primary-500"
+                        className="w-16 px-2.5 py-1.5 border-light-border dark:border-dark-border rounded-card-sm text-xs bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:ring-2 focus:ring-secondary-500 focus:border-primary-500 dark:focus:border-primary-500"
                       />
                     </div>{" "}
                     <button
@@ -3780,7 +3828,7 @@ const PacklisteManager = ({ session }) => {
                         onChange={setManuelleKategorie}
                         options={standardKategorien}
                         placeholder={t("move:packlistManager.manualCategoryPlaceholder")}
-                        className="border-light-border dark:border-dark-border rounded-card-sm text-xs bg-white dark:bg-dark-border text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500 dark:focus:border-primary-500 outline-none border"
+                        className="border-light-border dark:border-dark-border rounded-card-sm text-xs bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:ring-2 focus:ring-secondary-500 focus:border-primary-500 dark:focus:border-primary-500 outline-none border"
                         optionLabel={(opt) => t(`move:packlistManager.itemCategories.${opt}`, { defaultValue: opt })}
                         dropdownPortal
                       />{" "}
@@ -3804,10 +3852,10 @@ const PacklisteManager = ({ session }) => {
                   {aktuelleKiste.inhalt?.map((item) => (
                     <li
                       key={item.id}
-                      className={`text-xs p-1.5 rounded-card-sm flex justify-between items-center group hover:bg-gray-100 dark:hover:bg-dark-border/50 ${
+                      className={`text-xs p-1.5 rounded-card-sm flex justify-between items-center group hover:bg-light-surface-1 dark:hover:bg-dark-border/50 ${
                         item.ausgepakt_am
                           ? "bg-green-50 dark:bg-green-900/20 text-light-text-secondary dark:text-dark-text-secondary"
-                          : "bg-gray-50 dark:bg-canvas-1/50 text-light-text-secondary dark:text-dark-text-secondary"
+                          : "bg-light-surface-1 dark:bg-canvas-1/50 text-light-text-secondary dark:text-dark-text-secondary"
                       }`}
                     >
                       <div className="flex items-center gap-1.5 flex-1 min-w-0">
@@ -3868,7 +3916,7 @@ const PacklisteManager = ({ session }) => {
                   setShowPhotoSectionInModal(false);
                   setShowQrCodeSectionInModal(false);
               }}
-                className="px-3 py-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary bg-light-border dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-700 rounded-card-sm"
+                className="px-3 py-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary bg-light-border dark:bg-dark-border hover:bg-light-hover dark:hover:bg-canvas-3 rounded-card-sm"
               >
                 {t("move:packlistManager.close")}
               </button>
@@ -3899,7 +3947,7 @@ const PacklisteManager = ({ session }) => {
             />
             <button
               onClick={() => setShowPhotoLightbox(false)}
-              className="absolute -top-2 -right-2 bg-light-card-bg dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main rounded-full p-1 shadow-elevation-2 hover:bg-danger-color hover:text-white"
+              className="absolute -top-2 -right-2 bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main rounded-full p-1 shadow-elevation-2 hover:bg-danger-color hover:text-white"
               title={t("move:packlistManager.close")}
             >
               <XCircle size={28} />

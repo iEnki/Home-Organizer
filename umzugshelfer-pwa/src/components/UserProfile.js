@@ -21,10 +21,16 @@ import useViewport from "../hooks/useViewport";
 import DayNightToggle from "./DayNightToggle";
 import usePushSubscription from "../hooks/usePushSubscription";
 import BottomSheet from "./ui/BottomSheet";
+import OpenAiModelSelect from "./ui/OpenAiModelSelect";
 import { loadAssistantUiConfig, saveAssistantUiConfig } from "../utils/assistantPersistence";
-
-const OPENAI_MODEL_CUSTOM_VALUE = "__custom__";
-const OPENAI_MODEL_PRESETS = ["gpt-4o-mini", "gpt-4o"];
+import useOpenAiModelCatalog from "../hooks/useOpenAiModelCatalog";
+import {
+  isOpenAiModelBlocked,
+  openAiModelNeedsTest,
+  testOpenAiModel,
+} from "../utils/openAiModels";
+// Exakte Anthropic-Modell-IDs (keine Datums-Suffixe anhaengen)
+const CLAUDE_MODEL_PRESETS = ["claude-opus-4-8", "claude-sonnet-5", "claude-haiku-4-5"];
 
 // ── Status-Badge ────────────────────────────────────────────────────────────
 function StatusBadge({ label, farbe }) {
@@ -168,6 +174,22 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
   const [ollamaTestStatus, setOllamaTestStatus] = useState(null);
   const [ollamaModelle,    setOllamaModelle]    = useState([]);
 
+  // LM Studio + Claude
+  const [lmstudioUrl,        setLmstudioUrl]        = useState("");
+  const [lmstudioModel,      setLmstudioModel]      = useState("");
+  const [lmstudioApiKey,     setLmstudioApiKey]     = useState("");
+  const [lmstudioKeySet,     setLmstudioKeySet]     = useState(false);
+  const [lmstudioModelle,    setLmstudioModelle]    = useState([]);
+  const [lmstudioTestStatus, setLmstudioTestStatus] = useState(null);
+  const [lmstudioVisionModel, setLmstudioVisionModel] = useState("");
+  const [anthropicKey,       setAnthropicKey]       = useState("");
+  const [anthropicKeySet,    setAnthropicKeySet]    = useState(false);
+  const [claudeModel,        setClaudeModel]        = useState("");
+  const [kochbuchLmstudioModel,  setKochbuchLmstudioModel]  = useState("");
+  const [kochbuchClaudeModel,    setKochbuchClaudeModel]    = useState("");
+  const [assistantLmstudioModel, setAssistantLmstudioModel] = useState("");
+  const [assistantClaudeModel,   setAssistantClaudeModel]   = useState("");
+
   // KI-Status für Nicht-Admin-Mitglieder
   const [memberKiStatus, setMemberKiStatus] = useState(null);
 
@@ -197,6 +219,13 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
   const [assistantOllamaThinkingEnabled, setAssistantOllamaThinkingEnabled] = useState(false);
   const [assistantKiStatus, setAssistantKiStatus] = useState(null);
   const [assistantEnabled, setAssistantEnabled] = useState(true);
+  const [savedOpenAiModels, setSavedOpenAiModels] = useState({
+    global: "gpt-4o",
+    vision: "gpt-4o",
+    assistant: "",
+    cookbook: "",
+  });
+  const [openAiModelTests, setOpenAiModelTests] = useState({});
 
   // Push
   const {
@@ -209,6 +238,21 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     deaktivieren: pushDeaktivieren,
     refresh:      pushRefresh,
   } = usePushSubscription(userId);
+
+  const generalOpenAiCatalog = useOpenAiModelCatalog(
+    "general",
+    isHouseholdAdmin && (
+      ["ki", "assistent", "kochbuch"].includes(aktivesPanel)
+      || (aktivesPanel === "bildanalyse" && !bildanalyseOpenaiKeySet)
+    ),
+  );
+  const separateVisionOpenAiCatalog = useOpenAiModelCatalog(
+    "vision",
+    isHouseholdAdmin && aktivesPanel === "bildanalyse" && bildanalyseOpenaiKeySet,
+  );
+  const visionOpenAiCatalog = bildanalyseOpenaiKeySet
+    ? separateVisionOpenAiCatalog
+    : generalOpenAiCatalog;
 
   // Einkaufsliste-Reminder
   const [einkaufReminderAktiv, setEinkaufReminderAktiv] = useState(false);
@@ -257,7 +301,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     if (!userId) return;
     supabase
       .from("user_profile")
-      .select("openai_api_key, ki_provider, ollama_base_url, ollama_model, kochbuch_ki_provider, kochbuch_openai_model, kochbuch_ollama_model, kochbuch_ollama_thinking_enabled, einkauf_reminder_aktiv, einkauf_reminder_zeit, umzug_deaktiviert, avatar_url, username")
+      .select("openai_api_key, ki_provider, ollama_base_url, ollama_model, kochbuch_ki_provider, kochbuch_openai_model, kochbuch_ollama_model, kochbuch_ollama_thinking_enabled, kochbuch_lmstudio_model, kochbuch_claude_model, einkauf_reminder_aktiv, einkauf_reminder_zeit, umzug_deaktiviert, avatar_url, username")
       .eq("id", userId)
       .single()
       .then(({ data }) => {
@@ -269,6 +313,8 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         if (data?.kochbuch_openai_model)    setKochbuchOpenaiModel(data.kochbuch_openai_model);
         if (data?.kochbuch_ollama_model)    setKochbuchOllamaModel(data.kochbuch_ollama_model);
         if (data?.kochbuch_ollama_thinking_enabled !== undefined) setKochbuchOllamaThinkingEnabled(!!data.kochbuch_ollama_thinking_enabled);
+        if (data?.kochbuch_lmstudio_model)  setKochbuchLmstudioModel(data.kochbuch_lmstudio_model);
+        if (data?.kochbuch_claude_model)    setKochbuchClaudeModel(data.kochbuch_claude_model);
         if (data?.einkauf_reminder_aktiv !== undefined) setEinkaufReminderAktiv(!!data.einkauf_reminder_aktiv);
         if (data?.einkauf_reminder_zeit)    setEinkaufReminderZeit(data.einkauf_reminder_zeit);
         if (data?.umzug_deaktiviert !== undefined) {
@@ -287,7 +333,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     if (!userId || !isHouseholdAdmin || !householdContext?.household_id) return;
     supabase
       .from("household_settings")
-      .select("openai_model, bildanalyse_modus, bildanalyse_openai_key_set, bildanalyse_openai_model, ollama_vision_model, kochbuch_daily_web_import_limit, kochbuch_daily_video_import_limit, kochbuch_ki_provider, kochbuch_openai_model, kochbuch_ollama_model, kochbuch_ollama_thinking_enabled, assistant_ki_provider, assistant_openai_model, assistant_ollama_model, assistant_ollama_thinking_enabled")
+      .select("openai_model, bildanalyse_modus, bildanalyse_openai_key_set, bildanalyse_openai_model, ollama_vision_model, lmstudio_base_url, lmstudio_model, lmstudio_key_set, lmstudio_vision_model, anthropic_key_set, claude_model, kochbuch_daily_web_import_limit, kochbuch_daily_video_import_limit, kochbuch_ki_provider, kochbuch_openai_model, kochbuch_ollama_model, kochbuch_ollama_thinking_enabled, kochbuch_lmstudio_model, kochbuch_claude_model, assistant_ki_provider, assistant_openai_model, assistant_ollama_model, assistant_ollama_thinking_enabled, assistant_lmstudio_model, assistant_claude_model")
       .eq("household_id", householdContext.household_id)
       .maybeSingle()
       .then(({ data }) => {
@@ -306,6 +352,22 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         if (data?.assistant_openai_model) setAssistantOpenaiModel(data.assistant_openai_model);
         if (data?.assistant_ollama_model) setAssistantOllamaModel(data.assistant_ollama_model);
         if (data?.assistant_ollama_thinking_enabled !== undefined) setAssistantOllamaThinkingEnabled(!!data.assistant_ollama_thinking_enabled);
+        if (data?.lmstudio_base_url)       setLmstudioUrl(data.lmstudio_base_url);
+        if (data?.lmstudio_model)          setLmstudioModel(data.lmstudio_model);
+        if (data?.lmstudio_key_set !== undefined) setLmstudioKeySet(!!data.lmstudio_key_set);
+        if (data?.lmstudio_vision_model)   setLmstudioVisionModel(data.lmstudio_vision_model);
+        if (data?.anthropic_key_set !== undefined) setAnthropicKeySet(!!data.anthropic_key_set);
+        if (data?.claude_model)            setClaudeModel(data.claude_model);
+        if (data?.kochbuch_lmstudio_model) setKochbuchLmstudioModel(data.kochbuch_lmstudio_model);
+        if (data?.kochbuch_claude_model)   setKochbuchClaudeModel(data.kochbuch_claude_model);
+        if (data?.assistant_lmstudio_model) setAssistantLmstudioModel(data.assistant_lmstudio_model);
+        if (data?.assistant_claude_model)   setAssistantClaudeModel(data.assistant_claude_model);
+        setSavedOpenAiModels({
+          global: data?.openai_model || "gpt-4o",
+          vision: data?.bildanalyse_openai_model || data?.openai_model || "gpt-4o",
+          assistant: data?.assistant_openai_model || "",
+          cookbook: data?.kochbuch_openai_model || "",
+        });
       });
   }, [userId, isHouseholdAdmin, householdContext?.household_id]);
 
@@ -441,55 +503,220 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     setAvatarLadend(false);
   };
 
-  const handleApiKeySpeichern = async () => {
+  const catalogForTarget = (target) =>
+    target === "vision" ? visionOpenAiCatalog.models : generalOpenAiCatalog.models;
+  const catalogError = (catalog) =>
+    catalog.errorCode === "FUNCTION_TIMEOUT"
+      ? t("profile:modelSelect.loadTimeout")
+      : catalog.error;
+
+  const handleOpenAiModelChange = (target, setter) => (nextValue) => {
+    setter(nextValue);
+    const needsTest = openAiModelNeedsTest({
+      models: catalogForTarget(target),
+      modelId: nextValue,
+      target,
+      savedModelId: savedOpenAiModels[target],
+    });
+    setOpenAiModelTests((current) => ({
+      ...current,
+      [target]: needsTest
+        ? {
+            status: "required",
+            model: nextValue,
+            message: t("profile:modelSelect.changedRequiresTest"),
+          }
+        : { status: "idle", model: nextValue, message: null },
+    }));
+  };
+
+  const handleOpenAiModelTest = async (target, model) => {
+    const modelId = String(model || "").trim();
+    if (!modelId) return;
+    setOpenAiModelTests((current) => ({
+      ...current,
+      [target]: { status: "testing", model: modelId, message: null },
+    }));
+    try {
+      const result = await testOpenAiModel(target, modelId);
+      setOpenAiModelTests((current) => ({
+        ...current,
+        [target]: {
+          status: "success",
+          model: modelId,
+          latencyMs: result?.latencyMs ?? 0,
+          message: null,
+        },
+      }));
+    } catch (error) {
+      setOpenAiModelTests((current) => ({
+        ...current,
+        [target]: {
+          status: "error",
+          model: modelId,
+          message: error?.message || t("profile:modelSelect.testFailed"),
+        },
+      }));
+    }
+  };
+
+  const ensureOpenAiModelReady = (target, model) => {
+    const modelId = String(model || "").trim();
+    if (!modelId) return true;
+    const models = catalogForTarget(target);
+    if (isOpenAiModelBlocked(models, modelId, target)) {
+      setOpenAiModelTests((current) => ({
+        ...current,
+        [target]: { status: "error", model: modelId, message: t("profile:modelSelect.notSuitable") },
+      }));
+      return false;
+    }
+    const needsTest = openAiModelNeedsTest({
+      models,
+      modelId,
+      target,
+      savedModelId: savedOpenAiModels[target],
+    });
+    const test = openAiModelTests[target];
+    if (needsTest && !(test?.status === "success" && test?.model === modelId)) {
+      setOpenAiModelTests((current) => ({
+        ...current,
+        [target]: { status: "required", model: modelId, message: t("profile:modelSelect.testBeforeSaving") },
+      }));
+      return false;
+    }
+    return true;
+  };
+
+  // Gemeinsamer Speicherpfad fuer alle 4 Provider (openai/ollama/lmstudio/claude).
+  // Secrets (LM Studio-Key, Anthropic-Key): trim() || null = "behalten",
+  // Leerstring wird nur ueber die expliziten Loesch-Buttons gesendet.
+  const handleKiProviderSpeichern = async () => {
+    if (kiProvider === "openai" && !ensureOpenAiModelReady("global", openaiModel)) return;
     setSpeichernStatus(null);
+    setOllamaStatus(null);
+    const profilePatch = { ki_provider: kiProvider };
+    if (kiProvider === "openai") profilePatch.openai_api_key = apiKey.trim();
+    if (kiProvider === "ollama") {
+      profilePatch.ollama_base_url = ollamaUrl.trim();
+      profilePatch.ollama_model = ollamaModel.trim();
+    }
     const { error } = await supabase
       .from("user_profile")
-      .update({ openai_api_key: apiKey.trim(), ki_provider: "openai" })
+      .update(profilePatch)
       .eq("id", userId);
+    let rpcError = null;
     if (!error && isHouseholdAdmin) {
-      await supabase.rpc("set_household_ki_settings", {
-        p_ki_provider: "openai",
+      const { error: e2 } = await supabase.rpc("set_household_ki_settings", {
+        p_ki_provider: kiProvider,
         p_openai_api_key: apiKey.trim() || null,
-        p_ollama_base_url: null,
-        p_ollama_model: null,
+        p_ollama_base_url: ollamaUrl.trim() || null,
+        p_ollama_model: ollamaModel.trim() || "llama3.2",
         p_openai_model: openaiModel.trim() || null,
+        p_lmstudio_base_url: lmstudioUrl.trim() || null,
+        p_lmstudio_model: lmstudioModel.trim() || null,
+        p_lmstudio_api_key: lmstudioApiKey.trim() || null,
+        p_anthropic_api_key: anthropicKey.trim() || null,
+        p_claude_model: claudeModel.trim() || null,
       });
+      rpcError = e2;
+      if (!e2) {
+        if (lmstudioApiKey.trim()) setLmstudioKeySet(true);
+        if (anthropicKey.trim()) setAnthropicKeySet(true);
+        setLmstudioApiKey("");
+        setAnthropicKey("");
+      }
+    }
+    const failed = Boolean(error || rpcError);
+    if (!failed && kiProvider === "openai") {
+      setSavedOpenAiModels((current) => ({ ...current, global: openaiModel.trim() || "gpt-4o" }));
+      generalOpenAiCatalog.refresh();
+    }
+    setSpeichernStatus(failed ? "fehler" : "ok");
+    setOllamaStatus(failed ? "fehler" : "ok");
+    setTimeout(() => {
+      setSpeichernStatus(null);
+      setOllamaStatus(null);
+    }, 3000);
+  };
+
+  const handleApiKeySpeichern = handleKiProviderSpeichern;
+  const handleOllamaSpeichern = handleKiProviderSpeichern;
+
+  const handleAnthropicKeyLoeschen = async () => {
+    const { error } = await supabase.rpc("set_household_ki_settings", {
+      p_ki_provider: kiProvider,
+      p_openai_api_key: apiKey.trim() || null,
+      p_ollama_base_url: ollamaUrl.trim() || null,
+      p_ollama_model: ollamaModel.trim() || "llama3.2",
+      p_openai_model: openaiModel.trim() || null,
+      p_anthropic_api_key: "",
+    });
+    if (!error) {
+      setAnthropicKeySet(false);
+      setAnthropicKey("");
     }
     setSpeichernStatus(error ? "fehler" : "ok");
     setTimeout(() => setSpeichernStatus(null), 3000);
   };
 
-  const handleOllamaSpeichern = async () => {
-    setOllamaStatus(null);
-    const { error } = await supabase
-      .from("user_profile")
-      .update({ ki_provider: kiProvider, ollama_base_url: ollamaUrl.trim(), ollama_model: ollamaModel.trim() })
-      .eq("id", userId);
-    if (!error && isHouseholdAdmin) {
-      await supabase.rpc("set_household_ki_settings", {
-        p_ki_provider: kiProvider,
-        p_openai_api_key: kiProvider === "openai" ? (apiKey.trim() || null) : null,
-        p_ollama_base_url: kiProvider === "ollama" ? (ollamaUrl.trim() || null) : null,
-        p_ollama_model: kiProvider === "ollama" ? (ollamaModel.trim() || "llama3.2") : null,
-        p_openai_model: kiProvider === "openai" ? (openaiModel.trim() || null) : null,
-      });
+  const handleLmstudioKeyLoeschen = async () => {
+    const { error } = await supabase.rpc("set_household_ki_settings", {
+      p_ki_provider: kiProvider,
+      p_openai_api_key: apiKey.trim() || null,
+      p_ollama_base_url: ollamaUrl.trim() || null,
+      p_ollama_model: ollamaModel.trim() || "llama3.2",
+      p_openai_model: openaiModel.trim() || null,
+      p_lmstudio_api_key: "",
+    });
+    if (!error) {
+      setLmstudioKeySet(false);
+      setLmstudioApiKey("");
     }
-    setOllamaStatus(error ? "fehler" : "ok");
-    setTimeout(() => setOllamaStatus(null), 3000);
+    setSpeichernStatus(error ? "fehler" : "ok");
+    setTimeout(() => setSpeichernStatus(null), 3000);
+  };
+
+  // LM Studio nutzt den OpenAI-kompatiblen Modell-Endpoint /v1/models (nicht /api/tags).
+  const handleLmstudioVerbindungTesten = async () => {
+    if (!lmstudioUrl.trim()) return;
+    setLmstudioTestStatus("testing");
+    setLmstudioModelle([]);
+    try {
+      const url = lmstudioUrl.trim().replace(/\/$/, "");
+      const headers = lmstudioApiKey.trim()
+        ? { Authorization: `Bearer ${lmstudioApiKey.trim()}` }
+        : undefined;
+      const response = await fetch(`${url}/v1/models`, { headers, signal: AbortSignal.timeout(5000) });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      const modelle = (data.data || []).map((m) => m.id).filter(Boolean);
+      setLmstudioModelle(modelle);
+      setLmstudioTestStatus("ok");
+    } catch {
+      setLmstudioTestStatus("fehler");
+      setLmstudioModelle([]);
+    }
+    setTimeout(() => setLmstudioTestStatus(null), 8000);
   };
 
   const handleBildanalyseSpeichern = async () => {
+    if (bildanalyseModus === "chatgpt_vision" && !ensureOpenAiModelReady("vision", bildanalyseOpenaiModel)) return;
     setBildanalyseStatus(null);
     const { error } = await supabase.rpc("set_household_bildanalyse_settings", {
       p_modus: bildanalyseModus,
       p_bildanalyse_openai_api_key: bildanalyseOpenaiKey.trim() || null,
       p_ollama_vision_model: bildanalyseModus === "ocr_ollama" ? (ollamaVisionModel.trim() || null) : null,
       p_bildanalyse_openai_model: bildanalyseModus === "chatgpt_vision" ? (bildanalyseOpenaiModel.trim() || null) : null,
+      p_lmstudio_vision_model: bildanalyseModus === "lmstudio_vision" ? (lmstudioVisionModel.trim() || null) : null,
     });
     if (!error) {
       if (bildanalyseOpenaiKey.trim()) setBildanalyseOpenaiKeySet(true);
       setBildanalyseOpenaiKey("");
+      if (bildanalyseModus === "chatgpt_vision") {
+        setSavedOpenAiModels((current) => ({ ...current, vision: bildanalyseOpenaiModel.trim() || current.global }));
+      }
+      visionOpenAiCatalog.refresh();
     }
     setBildanalyseStatus(error ? "fehler" : "ok");
     setTimeout(() => setBildanalyseStatus(null), 3000);
@@ -505,6 +732,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     if (!error) {
       setBildanalyseOpenaiKeySet(false);
       setBildanalyseOpenaiKey("");
+      visionOpenAiCatalog.refresh();
     }
     setBildanalyseStatus(error ? "fehler" : "ok");
     setTimeout(() => setBildanalyseStatus(null), 3000);
@@ -528,12 +756,15 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
   };
 
   const handleKochbuchKiSpeichern = async () => {
+    if (kochbuchKiProvider === "openai" && !ensureOpenAiModelReady("cookbook", kochbuchOpenaiModel)) return;
     setKochbuchKiStatus(null);
     const patch = {
       kochbuch_ki_provider: kochbuchKiProvider,
       kochbuch_openai_model: kochbuchOpenaiModel.trim() || null,
       kochbuch_ollama_model: kochbuchOllamaModel.trim() || null,
       kochbuch_ollama_thinking_enabled: !!kochbuchOllamaThinkingEnabled,
+      kochbuch_lmstudio_model: kochbuchLmstudioModel.trim() || null,
+      kochbuch_claude_model: kochbuchClaudeModel.trim() || null,
       ...(kochbuchKiProvider === "ollama"
         ? {
             ollama_base_url: ollamaUrl.trim() || null,
@@ -554,21 +785,33 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         p_ollama_base_url: kochbuchKiProvider === "ollama" ? (ollamaUrl.trim() || null) : null,
         p_ollama_model: kochbuchKiProvider === "ollama" ? (kochbuchOllamaModel.trim() || ollamaModel.trim() || "llama3.2") : null,
         p_kochbuch_ollama_thinking_enabled: !!kochbuchOllamaThinkingEnabled,
+        p_kochbuch_lmstudio_model: kochbuchLmstudioModel.trim() || null,
+        p_kochbuch_claude_model: kochbuchClaudeModel.trim() || null,
       });
       rpcError = error;
     }
-    setKochbuchKiStatus(profileError || rpcError ? "fehler" : "ok");
+    const failed = Boolean(profileError || rpcError);
+    if (!failed && kochbuchKiProvider === "openai") {
+      setSavedOpenAiModels((current) => ({ ...current, cookbook: kochbuchOpenaiModel.trim() }));
+    }
+    setKochbuchKiStatus(failed ? "fehler" : "ok");
     setTimeout(() => setKochbuchKiStatus(null), 3000);
   };
 
   const handleAssistantKiSpeichern = async () => {
+    if (assistantKiProvider === "openai" && !ensureOpenAiModelReady("assistant", assistantOpenaiModel)) return;
     setAssistantKiStatus(null);
     const { error } = await supabase.rpc("set_household_assistant_ki_settings", {
       p_assistant_ki_provider: assistantKiProvider,
       p_assistant_openai_model: assistantOpenaiModel.trim() || null,
       p_assistant_ollama_model: assistantOllamaModel.trim() || null,
       p_assistant_ollama_thinking_enabled: !!assistantOllamaThinkingEnabled,
+      p_assistant_lmstudio_model: assistantLmstudioModel.trim() || null,
+      p_assistant_claude_model: assistantClaudeModel.trim() || null,
     });
+    if (!error && assistantKiProvider === "openai") {
+      setSavedOpenAiModels((current) => ({ ...current, assistant: assistantOpenaiModel.trim() }));
+    }
     setAssistantKiStatus(error ? "fehler" : "ok");
     setTimeout(() => setAssistantKiStatus(null), 3000);
   };
@@ -836,9 +1079,6 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     text-light-text-main dark:text-dark-text-main
     placeholder-light-text-secondary dark:placeholder-dark-text-secondary
     focus:outline-none focus:ring-2 focus:ring-secondary-500`;
-  const selectCls = `${inputCls} appearance-none`;
-  const openaiModelSelectValue = OPENAI_MODEL_PRESETS.includes(openaiModel) ? openaiModel : OPENAI_MODEL_CUSTOM_VALUE;
-  const bildanalyseModelSelectValue = OPENAI_MODEL_PRESETS.includes(bildanalyseOpenaiModel) ? bildanalyseOpenaiModel : OPENAI_MODEL_CUSTOM_VALUE;
   const effectiveVisionModel = bildanalyseOpenaiModel?.trim() || openaiModel?.trim() || "gpt-4o";
 
   // ── Status-Berechnungen für Karten ────────────────────────────────────────
@@ -847,6 +1087,10 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         ? { label: `OpenAI · ${openaiModel?.trim() || "gpt-4o"}`, farbe: "emerald" }
         : kiProvider === "ollama" && ollamaUrl
         ? { label: t("profile:ki.ollamaConfigured"), farbe: "emerald" }
+        : kiProvider === "lmstudio" && lmstudioUrl
+        ? { label: `LM Studio · ${lmstudioModel?.trim() || "–"}`, farbe: "emerald" }
+        : kiProvider === "claude" && anthropicKeySet
+        ? { label: `Claude · ${claudeModel?.trim() || "claude-opus-4-8"}`, farbe: "emerald" }
         : { label: t("common:status.notConfigured"), farbe: "gray" })
     : (memberKiStatus?.ki_konfiguriert
         ? { label: t("common:status.configured"), farbe: "emerald" }
@@ -871,6 +1115,8 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     chatgpt_vision: `ChatGPT Vision · ${effectiveVisionModel}`,
     ocr_regeln: "OCR + Regeln",
     ocr_ollama: "OCR + Ollama",
+    lmstudio_vision: `LM Studio Vision · ${lmstudioVisionModel?.trim() || lmstudioModel?.trim() || "–"}`,
+    claude_vision: `Claude Vision · ${claudeModel?.trim() || "claude-opus-4-8"}`,
   }[bildanalyseModus] ?? "–";
 
   const mitgliederLabel = haushaltUebersichtLadend
@@ -1189,7 +1435,9 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 </div>
                 <div className="flex items-center justify-between py-2 border-b border-light-border dark:border-dark-border">
                   <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("profile:panelContent.ki.providerLabel")}</span>
-                  <span className="text-sm font-medium text-light-text-main dark:text-dark-text-main capitalize">{memberKiStatus.ki_provider || "–"}</span>
+                  <span className="text-sm font-medium text-light-text-main dark:text-dark-text-main">
+                    {{ openai: "OpenAI", ollama: "Ollama", lmstudio: "LM Studio", claude: "Claude" }[memberKiStatus.ki_provider] || memberKiStatus.ki_provider || "–"}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between py-2">
                   <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("profile:panelContent.ki.imageAnalysisLabel")}</span>
@@ -1214,6 +1462,8 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 {[
                   { id: "openai", label: "OpenAI", desc: "GPT-4o + Whisper" },
                   { id: "ollama", label: "Ollama", desc: t("profile:panelContent.ki.ollamaDesc") },
+                  { id: "lmstudio", label: "LM Studio", desc: t("profile:panelContent.ki.lmstudioDesc") },
+                  { id: "claude", label: "Claude", desc: t("profile:panelContent.ki.claudeDesc") },
                 ].map((p) => (
                   <button
                     key={p.id}
@@ -1269,35 +1519,19 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                         : <><Save size={15} /> {t("common:actions.save")}</>}
                     </button>
                   </div>
-                  <label className="space-y-1.5 block">
-                    <span className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-                      {t("profile:panelContent.ki.openaiModelSection")}
-                    </span>
-                    <select
-                      value={openaiModelSelectValue}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setOpenaiModel(value === OPENAI_MODEL_CUSTOM_VALUE ? "" : value);
-                      }}
-                      className={selectCls}
-                    >
-                      <option value="gpt-4o-mini">{t("profile:panelContent.ki.openaiModelRecommended")}</option>
-                      <option value="gpt-4o">{t("profile:panelContent.ki.openaiModelQuality")}</option>
-                      <option value={OPENAI_MODEL_CUSTOM_VALUE}>{t("profile:panelContent.ki.openaiModelCustom")}</option>
-                    </select>
-                    {openaiModelSelectValue === OPENAI_MODEL_CUSTOM_VALUE && (
-                      <input
-                        type="text"
-                        value={openaiModel}
-                        onChange={(e) => setOpenaiModel(e.target.value)}
-                        placeholder={t("profile:panelContent.ki.openaiModelCustomPlaceholder")}
-                        className={inputCls}
-                      />
-                    )}
-                    <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                      {t("profile:panelContent.ki.openaiModelHint")}
-                    </span>
-                  </label>
+                  <OpenAiModelSelect
+                    value={openaiModel}
+                    onValueChange={handleOpenAiModelChange("global", setOpenaiModel)}
+                    models={generalOpenAiCatalog.models}
+                    target="global"
+                    label={t("profile:panelContent.ki.openaiModelSection")}
+                    hint={t("profile:panelContent.ki.openaiModelHint")}
+                    loading={generalOpenAiCatalog.loading}
+                    error={catalogError(generalOpenAiCatalog)}
+                    onRefresh={generalOpenAiCatalog.refresh}
+                    testState={openAiModelTests.global}
+                    onTest={() => handleOpenAiModelTest("global", openaiModel)}
+                  />
                 </form>
               </div>
             )}
@@ -1378,6 +1612,178 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 </p>
               </div>
             )}
+
+            {kiProvider === "lmstudio" && (
+              <div className="space-y-3">
+                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.ki.lmstudioSection")}</p>
+                <div className="space-y-2">
+                  <div>
+                    <input
+                      type="url"
+                      value={lmstudioUrl}
+                      onChange={(e) => setLmstudioUrl(e.target.value)}
+                      placeholder="http://192.168.1.100:1234"
+                      className={inputCls}
+                    />
+                    <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                      {t("profile:panelContent.ki.lmstudioUrlHint")}
+                    </p>
+                  </div>
+                  <input
+                    type="text"
+                    value={lmstudioModel}
+                    onChange={(e) => setLmstudioModel(e.target.value)}
+                    placeholder={t("profile:panelContent.ki.lmstudioModelPlaceholder")}
+                    className={inputCls}
+                  />
+                  {lmstudioModelle.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {lmstudioModelle.map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => setLmstudioModel(m)}
+                          className={`text-xs px-2 py-0.5 rounded-pill border transition-colors
+                                      ${lmstudioModel === m
+                                        ? "border-secondary-500 bg-secondary-500/15 text-secondary-500"
+                                        : "border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:border-secondary-500/40"
+                                      }`}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="password"
+                      value={lmstudioApiKey}
+                      onChange={(e) => setLmstudioApiKey(e.target.value)}
+                      placeholder={t("profile:panelContent.ki.lmstudioKeyPlaceholder")}
+                      autoComplete="new-password"
+                      className={inputCls}
+                    />
+                    {lmstudioKeySet && (
+                      <button
+                        type="button"
+                        onClick={handleLmstudioKeyLoeschen}
+                        className="shrink-0 text-xs px-2.5 py-2 rounded-pill border border-accent-danger/40 text-accent-danger hover:bg-accent-danger/10 transition-colors"
+                      >
+                        {t("profile:panelContent.ki.deleteKey")}
+                      </button>
+                    )}
+                  </div>
+                  {lmstudioKeySet && (
+                    <p className="text-xs text-accent-success flex items-center gap-1">
+                      <CheckCircle size={13} /> {t("profile:panelContent.ki.keyStored")}
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleLmstudioVerbindungTesten}
+                    disabled={!lmstudioUrl.trim() || lmstudioTestStatus === "testing"}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-pill text-sm font-medium
+                               border border-light-border dark:border-dark-border
+                               text-light-text-main dark:text-dark-text-main
+                               hover:border-secondary-500/50 transition-colors disabled:opacity-40"
+                  >
+                    {lmstudioTestStatus === "testing" ? (
+                      <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    ) : lmstudioTestStatus === "ok" ? (
+                      <Wifi size={14} className="text-accent-success" />
+                    ) : lmstudioTestStatus === "fehler" ? (
+                      <WifiOff size={14} className="text-accent-danger" />
+                    ) : (
+                      <Wifi size={14} />
+                    )}
+                    {lmstudioTestStatus === "ok" ? t("profile:panelContent.ki.connected") : lmstudioTestStatus === "fehler" ? t("profile:panelContent.ki.notReachable") : t("profile:panelContent.ki.testBtn")}
+                  </button>
+                  <button
+                    onClick={handleKiProviderSpeichern}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-pill text-sm font-medium
+                               bg-secondary-500 hover:bg-secondary-600 text-white transition-colors"
+                  >
+                    {ollamaStatus === "ok" ? <><CheckCircle size={14} /> {t("common:status.saved")}</>
+                      : ollamaStatus === "fehler" ? <><AlertCircle size={14} /> {t("common:status.error")}</>
+                      : <><Save size={14} /> {t("common:actions.save")}</>}
+                  </button>
+                </div>
+                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  {t("profile:panelContent.ki.lmstudioNote")}
+                </p>
+              </div>
+            )}
+
+            {kiProvider === "claude" && (
+              <div className="space-y-3">
+                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.ki.claudeSection")}</p>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="password"
+                      value={anthropicKey}
+                      onChange={(e) => setAnthropicKey(e.target.value)}
+                      placeholder="sk-ant-..."
+                      autoComplete="new-password"
+                      className={inputCls}
+                    />
+                    {anthropicKeySet && (
+                      <button
+                        type="button"
+                        onClick={handleAnthropicKeyLoeschen}
+                        className="shrink-0 text-xs px-2.5 py-2 rounded-pill border border-accent-danger/40 text-accent-danger hover:bg-accent-danger/10 transition-colors"
+                      >
+                        {t("profile:panelContent.ki.deleteKey")}
+                      </button>
+                    )}
+                  </div>
+                  {anthropicKeySet && (
+                    <p className="text-xs text-accent-success flex items-center gap-1">
+                      <CheckCircle size={13} /> {t("profile:panelContent.ki.keyStored")}
+                    </p>
+                  )}
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-1.5">
+                      {t("profile:panelContent.ki.claudeModelSection")}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {CLAUDE_MODEL_PRESETS.map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => setClaudeModel(m)}
+                          className={`text-xs px-2 py-0.5 rounded-pill border transition-colors
+                                      ${claudeModel === m
+                                        ? "border-secondary-500 bg-secondary-500/15 text-secondary-500"
+                                        : "border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:border-secondary-500/40"
+                                      }`}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      value={claudeModel}
+                      onChange={(e) => setClaudeModel(e.target.value)}
+                      placeholder="claude-opus-4-8"
+                      className={`${inputCls} mt-2`}
+                    />
+                    <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                      {t("profile:panelContent.ki.claudeModelHint")}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleKiProviderSpeichern}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-pill text-sm font-medium
+                             bg-secondary-500 hover:bg-secondary-600 text-white transition-colors"
+                >
+                  {speichernStatus === "ok" ? <><CheckCircle size={14} /> {t("common:status.saved")}</>
+                    : speichernStatus === "fehler" ? <><AlertCircle size={14} /> {t("common:status.error")}</>
+                    : <><Save size={14} /> {t("common:actions.save")}</>}
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -1394,9 +1800,11 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
             </p>
             <div className="grid grid-cols-2 gap-2">
               {[
-                { id: "chatgpt_vision", label: "ChatGPT Vision",  desc: t("profile:panelContent.imageAnalysis.chatgptVisionDesc") },
-                { id: "ocr_regeln",     label: "OCR + Regeln",    desc: t("profile:panelContent.imageAnalysis.ocrRegelnDesc") },
-                { id: "ocr_ollama",     label: "OCR + Ollama",    desc: t("profile:panelContent.imageAnalysis.ocrOllamaDesc") },
+                { id: "chatgpt_vision",  label: "ChatGPT Vision",   desc: t("profile:panelContent.imageAnalysis.chatgptVisionDesc") },
+                { id: "ocr_regeln",      label: "OCR + Regeln",     desc: t("profile:panelContent.imageAnalysis.ocrRegelnDesc") },
+                { id: "ocr_ollama",      label: "OCR + Ollama",     desc: t("profile:panelContent.imageAnalysis.ocrOllamaDesc") },
+                { id: "lmstudio_vision", label: "LM Studio Vision", desc: t("profile:panelContent.imageAnalysis.lmstudioVisionDesc") },
+                { id: "claude_vision",   label: "Claude Vision",    desc: t("profile:panelContent.imageAnalysis.claudeVisionDesc") },
               ].map((m) => (
                 <button
                   key={m.id}
@@ -1447,35 +1855,19 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                                 placeholder-light-text-secondary dark:placeholder-dark-text-secondary
                                 focus:outline-none focus:border-secondary-500 transition-colors`}
                   />
-                  <label className="space-y-1.5 block">
-                    <span className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-                      {t("profile:panelContent.imageAnalysis.openaiModelSection")}
-                    </span>
-                    <select
-                      value={bildanalyseModelSelectValue}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setBildanalyseOpenaiModel(value === OPENAI_MODEL_CUSTOM_VALUE ? "" : value);
-                      }}
-                      className={selectCls}
-                    >
-                      <option value="gpt-4o-mini">{t("profile:panelContent.ki.openaiModelRecommended")}</option>
-                      <option value="gpt-4o">{t("profile:panelContent.ki.openaiModelQuality")}</option>
-                      <option value={OPENAI_MODEL_CUSTOM_VALUE}>{t("profile:panelContent.ki.openaiModelCustom")}</option>
-                    </select>
-                    {bildanalyseModelSelectValue === OPENAI_MODEL_CUSTOM_VALUE && (
-                      <input
-                        type="text"
-                        value={bildanalyseOpenaiModel}
-                        onChange={(e) => setBildanalyseOpenaiModel(e.target.value)}
-                        placeholder={t("profile:panelContent.ki.openaiModelCustomPlaceholder")}
-                        className={inputCls}
-                      />
-                    )}
-                    <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                      {t("profile:panelContent.imageAnalysis.openaiModelHint")}
-                    </span>
-                  </label>
+                  <OpenAiModelSelect
+                    value={bildanalyseOpenaiModel}
+                    onValueChange={handleOpenAiModelChange("vision", setBildanalyseOpenaiModel)}
+                    models={visionOpenAiCatalog.models}
+                    target="vision"
+                    label={t("profile:panelContent.imageAnalysis.openaiModelSection")}
+                    hint={t("profile:panelContent.imageAnalysis.openaiModelHint")}
+                    loading={visionOpenAiCatalog.loading}
+                    error={catalogError(visionOpenAiCatalog)}
+                    onRefresh={visionOpenAiCatalog.refresh}
+                    testState={openAiModelTests.vision}
+                    onTest={() => handleOpenAiModelTest("vision", bildanalyseOpenaiModel)}
+                  />
                 </form>
                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
                   {t("profile:panelContent.imageAnalysis.apiKeyNote")}
@@ -1499,6 +1891,41 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 />
                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
                   {t("profile:panelContent.imageAnalysis.ollamaModelNote")}
+                </p>
+              </div>
+            )}
+            {bildanalyseModus === "lmstudio_vision" && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.imageAnalysis.lmstudioModelSection")}</p>
+                <input
+                  type="text"
+                  value={lmstudioVisionModel}
+                  onChange={(e) => setLmstudioVisionModel(e.target.value)}
+                  placeholder={lmstudioModel || "qwen2.5-vl-7b-instruct"}
+                  className={`w-full px-3 py-2.5 rounded-card-sm border text-sm
+                              bg-light-surface-1 dark:bg-canvas-2
+                              border-light-border dark:border-dark-border
+                              text-light-text-main dark:text-dark-text-main
+                              placeholder-light-text-secondary dark:placeholder-dark-text-secondary
+                              focus:outline-none focus:border-secondary-500 transition-colors`}
+                />
+                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  {t("profile:panelContent.imageAnalysis.lmstudioModelNote")}
+                </p>
+              </div>
+            )}
+            {bildanalyseModus === "claude_vision" && (
+              <div className="space-y-2 p-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-surface-1 dark:bg-canvas-3">
+                <p className="text-sm text-light-text-main dark:text-dark-text-main">
+                  {t("profile:panelContent.imageAnalysis.claudeVisionNote")}
+                </p>
+                <p className="text-xs flex items-center gap-1.5">
+                  {anthropicKeySet ? (
+                    <span className="flex items-center gap-1 text-accent-success"><CheckCircle size={13} /> {t("profile:panelContent.ki.keyStored")}</span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-accent-danger"><AlertCircle size={13} /> {t("common:status.notConfigured")}</span>
+                  )}
+                  <span className="text-light-text-secondary dark:text-dark-text-secondary">· {claudeModel?.trim() || "claude-opus-4-8"}</span>
                 </p>
               </div>
             )}
@@ -1557,6 +1984,8 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                   { id: "global", label: t("profile:panelContent.assistant.aiProviderGlobal"), desc: t("profile:panelContent.assistant.aiProviderGlobalDesc") },
                   { id: "openai", label: "OpenAI", desc: t("profile:panelContent.assistant.aiProviderOpenaiDesc") },
                   { id: "ollama", label: "Ollama", desc: t("profile:panelContent.assistant.aiProviderOllamaDesc") },
+                  { id: "lmstudio", label: "LM Studio", desc: t("profile:panelContent.assistant.aiProviderLmstudioDesc") },
+                  { id: "claude", label: "Claude", desc: t("profile:panelContent.assistant.aiProviderClaudeDesc") },
                 ].map((p) => (
                   <button
                     key={p.id}
@@ -1574,18 +2003,20 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               </div>
             </div>
             {assistantKiProvider === "openai" && (
-              <label className="space-y-1.5 block">
-                <span className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-                  {t("profile:panelContent.assistant.openaiModel")}
-                </span>
-                <input
-                  type="text"
-                  value={assistantOpenaiModel}
-                  onChange={(e) => setAssistantOpenaiModel(e.target.value)}
-                  placeholder="gpt-4o"
-                  className={inputCls}
-                />
-              </label>
+              <OpenAiModelSelect
+                value={assistantOpenaiModel}
+                onValueChange={handleOpenAiModelChange("assistant", setAssistantOpenaiModel)}
+                models={generalOpenAiCatalog.models}
+                target="assistant"
+                label={t("profile:panelContent.assistant.openaiModel")}
+                hint={t("profile:modelSelect.assistantHint")}
+                loading={generalOpenAiCatalog.loading}
+                error={catalogError(generalOpenAiCatalog)}
+                onRefresh={generalOpenAiCatalog.refresh}
+                testState={openAiModelTests.assistant}
+                onTest={() => handleOpenAiModelTest("assistant", assistantOpenaiModel)}
+                inheritLabel={t("profile:modelSelect.inheritGlobal")}
+              />
             )}
             {assistantKiProvider === "ollama" && (
               <div className="space-y-3">
@@ -1622,6 +2053,56 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 </label>
               </div>
             )}
+            {assistantKiProvider === "lmstudio" && (
+              <label className="space-y-1.5 block">
+                <span className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+                  {t("profile:panelContent.assistant.lmstudioModel")}
+                </span>
+                <input
+                  type="text"
+                  value={assistantLmstudioModel}
+                  onChange={(e) => setAssistantLmstudioModel(e.target.value)}
+                  placeholder={lmstudioModel || "qwen2.5-7b-instruct"}
+                  className={inputCls}
+                />
+                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  {t("profile:panelContent.assistant.lmstudioModelHint")}
+                </p>
+              </label>
+            )}
+            {assistantKiProvider === "claude" && (
+              <label className="space-y-1.5 block">
+                <span className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+                  {t("profile:panelContent.assistant.claudeModel")}
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {CLAUDE_MODEL_PRESETS.map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setAssistantClaudeModel(m)}
+                      className={`text-xs px-2 py-0.5 rounded-pill border transition-colors
+                                  ${assistantClaudeModel === m
+                                    ? "border-secondary-500 bg-secondary-500/15 text-secondary-500"
+                                    : "border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:border-secondary-500/40"
+                                  }`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  value={assistantClaudeModel}
+                  onChange={(e) => setAssistantClaudeModel(e.target.value)}
+                  placeholder={claudeModel || "claude-opus-4-8"}
+                  className={inputCls}
+                />
+                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  {t("profile:panelContent.assistant.claudeModelHint")}
+                </p>
+              </label>
+            )}
             <button
               onClick={handleAssistantKiSpeichern}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-pill text-sm font-medium
@@ -1655,6 +2136,8 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 { id: "global", label: t("profile:panelContent.kochbuch.aiProviderGlobal"), desc: t("profile:panelContent.kochbuch.aiProviderGlobalDesc") },
                 { id: "openai", label: "OpenAI", desc: t("profile:panelContent.kochbuch.aiProviderOpenaiDesc") },
                 { id: "ollama", label: "Ollama", desc: t("profile:panelContent.kochbuch.aiProviderOllamaDesc") },
+                { id: "lmstudio", label: "LM Studio", desc: t("profile:panelContent.kochbuch.aiProviderLmstudioDesc") },
+                { id: "claude", label: "Claude", desc: t("profile:panelContent.kochbuch.aiProviderClaudeDesc") },
               ].map((p) => (
                 <button
                   key={p.id}
@@ -1672,18 +2155,20 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
             </div>
           </div>
           {kochbuchKiProvider === "openai" && (
-            <label className="space-y-1.5 block">
-              <span className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
-                {t("profile:panelContent.kochbuch.openaiModel")}
-              </span>
-              <input
-                type="text"
-                value={kochbuchOpenaiModel}
-                onChange={(e) => setKochbuchOpenaiModel(e.target.value)}
-                placeholder="gpt-4o-mini"
-                className={inputCls}
-              />
-            </label>
+            <OpenAiModelSelect
+              value={kochbuchOpenaiModel}
+              onValueChange={handleOpenAiModelChange("cookbook", setKochbuchOpenaiModel)}
+              models={generalOpenAiCatalog.models}
+              target="cookbook"
+              label={t("profile:panelContent.kochbuch.openaiModel")}
+              hint={t("profile:modelSelect.cookbookHint")}
+              loading={generalOpenAiCatalog.loading}
+              error={catalogError(generalOpenAiCatalog)}
+              onRefresh={generalOpenAiCatalog.refresh}
+              testState={openAiModelTests.cookbook}
+              onTest={() => handleOpenAiModelTest("cookbook", kochbuchOpenaiModel)}
+              inheritLabel={t("profile:modelSelect.inheritGlobal")}
+            />
           )}
           {kochbuchKiProvider === "ollama" && (
             <div className="space-y-3">
@@ -1731,6 +2216,50 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 </span>
               </label>
             </div>
+          )}
+          {kochbuchKiProvider === "lmstudio" && (
+            <label className="space-y-1.5 block">
+              <span className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+                {t("profile:panelContent.kochbuch.lmstudioModel")}
+              </span>
+              <input
+                type="text"
+                value={kochbuchLmstudioModel}
+                onChange={(e) => setKochbuchLmstudioModel(e.target.value)}
+                placeholder={lmstudioModel || "qwen2.5-7b-instruct"}
+                className={inputCls}
+              />
+            </label>
+          )}
+          {kochbuchKiProvider === "claude" && (
+            <label className="space-y-1.5 block">
+              <span className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+                {t("profile:panelContent.kochbuch.claudeModel")}
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {CLAUDE_MODEL_PRESETS.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setKochbuchClaudeModel(m)}
+                    className={`text-xs px-2 py-0.5 rounded-pill border transition-colors
+                                ${kochbuchClaudeModel === m
+                                  ? "border-secondary-500 bg-secondary-500/15 text-secondary-500"
+                                  : "border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:border-secondary-500/40"
+                                }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="text"
+                value={kochbuchClaudeModel}
+                onChange={(e) => setKochbuchClaudeModel(e.target.value)}
+                placeholder={claudeModel || "claude-opus-4-8"}
+                className={inputCls}
+              />
+            </label>
           )}
           <button
             onClick={handleKochbuchKiSpeichern}

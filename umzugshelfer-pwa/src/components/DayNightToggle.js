@@ -68,7 +68,7 @@ const DayNightToggle = ({ className = "", width = 84 }) => {
         </span>
 
         <span className="mountains layer">
-          <svg viewBox="0 0 500 120" preserveAspectRatio="none" role="img" aria-label="Berge">
+          <svg viewBox="0 0 500 120" preserveAspectRatio="none" role="img" aria-label={t("theme.mountains")}>
             <path d="M0 92 L55 43 L92 82 L145 28 L207 96 L258 48 L324 96 L382 35 L500 96 L500 120 L0 120 Z" fill="#b6d8ca" opacity=".70" />
             <path d="M0 104 L48 72 L97 102 L152 60 L217 108 L290 70 L356 107 L421 59 L500 108 L500 120 L0 120 Z" fill="#77c6aa" opacity=".58" />
             <path d="M54 44 L73 63 L40 72 Z M146 29 L166 51 L130 59 Z M383 36 L407 59 L363 65 Z" fill="rgba(255,255,255,.44)" />
@@ -76,7 +76,7 @@ const DayNightToggle = ({ className = "", width = 84 }) => {
         </span>
 
         <span className="forest layer">
-          <svg viewBox="0 0 520 90" preserveAspectRatio="none" role="img" aria-label="Wald">
+          <svg viewBox="0 0 520 90" preserveAspectRatio="none" role="img" aria-label={t("theme.forest")}>
             <path d="M0 62 C45 50 82 58 123 49 C170 39 218 58 260 48 C312 35 350 60 400 49 C453 38 486 52 520 43 L520 90 L0 90 Z" fill="#79cdb4" opacity=".50" />
             <g fill="#45ad8f" opacity=".42">
               <path d="M22 80 l18 -46 l18 46z" />
@@ -94,7 +94,7 @@ const DayNightToggle = ({ className = "", width = 84 }) => {
         </span>
 
         <span className="city layer">
-          <svg viewBox="0 0 520 105" preserveAspectRatio="none" role="img" aria-label="Nächtliche Smart-Home-Stadt">
+          <svg viewBox="0 0 520 105" preserveAspectRatio="none" role="img" aria-label={t("theme.smartHomeCity")}>
             <defs>
               <linearGradient id={cityBackId} x1="0" x2="1" y1="0" y2="1">
                 <stop offset="0" stopColor="#123247" />

@@ -863,7 +863,7 @@ Generiere nun das Umzugstagebuch:`;
       return (
         <div
           key={dokument.id}
-          className="mr-1 mb-1 p-1.5 bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center w-10 h-10"
+          className="mr-1 mb-1 p-1.5 bg-light-surface-1 dark:bg-canvas-3 rounded flex items-center justify-center w-10 h-10"
           title={dokument.dateiname}
         >
           {icon}
@@ -906,14 +906,14 @@ Generiere nun das Umzugstagebuch:`;
           className={`mt-2 inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${
             aufgabe.erledigt
               ? "bg-green-100 text-green-700 dark:bg-green-700 dark:text-green-100"
-              : "bg-gray-200 text-gray-800 dark:bg-gray-600 dark:text-gray-100"
+              : "bg-light-surface-2 text-light-text-main dark:bg-canvas-3 dark:text-dark-text-main"
           }`}
         >
           {aufgabe.erledigt ? "Erledigt" : "Offen"}
         </span>
         {aufgabe.angehaengteDokumenteDetails &&
           aufgabe.angehaengteDokumenteDetails.length > 0 && (
-            <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+            <div className="mt-2 pt-2 border-t border-light-border dark:border-gray-700">
               <h5 className="text-xs font-semibold mb-1 text-gray-600 dark:text-gray-400">
                 Dokumente:
               </h5>
@@ -1118,7 +1118,7 @@ Generiere nun das Umzugstagebuch:`;
           icon: <Info size={18} />,
           badge: "Ereignis",
           badgeClass:
-            "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-100",
+            "bg-light-surface-1 text-light-text-main dark:bg-canvas-3 dark:text-dark-text-main",
           bg: getTailwindColor("accentBlue", theme),
         };
     }
@@ -1186,7 +1186,7 @@ Generiere nun das Umzugstagebuch:`;
   `;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 space-y-4 min-h-screen">
+    <div className="home-glass-modern glass-module auto-glass-cards relative min-h-full min-w-0 max-w-full space-y-4 overflow-x-clip bg-transparent p-4 pb-28 md:p-6 lg:pb-8">
       <style>{timelineGlobalStyles}</style>
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-light-text-main dark:text-dark-text-main flex items-center">
@@ -1208,7 +1208,7 @@ Generiere nun das Umzugstagebuch:`;
                 tagebuchLoading
                   ? theme === "dark"
                     ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    : "bg-light-surface-2 text-gray-500 cursor-not-allowed"
                   : theme === "dark"
                   ? "bg-indigo-600 hover:bg-indigo-700 text-white"
                   : "bg-indigo-500 hover:bg-indigo-600 text-white"
@@ -1240,7 +1240,7 @@ Generiere nun das Umzugstagebuch:`;
             className={`px-4 py-2 text-sm font-semibold rounded-pill flex items-center transition-colors ${
               theme === "dark"
                 ? "bg-gray-600 hover:bg-gray-700 text-white"
-                : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+                : "bg-light-surface-2 hover:bg-light-hover text-light-text-main"
             }`}
             title={t("move:timelineManager.apiKeyManage")}
           >
@@ -1292,8 +1292,8 @@ Generiere nun das Umzugstagebuch:`;
                       ? "bg-orange-500 text-white border-orange-500"
                       : "bg-orange-500 text-white border-orange-500"
                     : theme === "dark"
-                    ? "bg-dark-card-bg text-dark-text-secondary border-dark-border hover:text-dark-text-main"
-                    : "bg-light-card-bg text-light-text-secondary border-light-border hover:text-light-text-main"
+                    ? "bg-canvas-2 text-dark-text-secondary border-dark-border hover:text-dark-text-main"
+                    : "bg-light-card text-light-text-secondary border-light-border hover:text-light-text-main"
                 }`}
               >
                 {chip.label}
@@ -1304,7 +1304,7 @@ Generiere nun das Umzugstagebuch:`;
         </div>
       </header>
       {angezeigteTimelineElemente.length === 0 && !loading && (
-        <div className="text-center py-10 bg-light-card-bg dark:bg-canvas-2 p-6 rounded-card shadow-elevation-2">
+        <div className="text-center py-10 bg-light-card dark:bg-canvas-2 p-6 rounded-card shadow-elevation-2">
           <p className="text-light-text-secondary dark:text-dark-text-secondary">
             Noch keine Ereignisse vorhanden. Füge Aufgaben, Budgetposten,
             {t("move:timelineManager.emptyHint")}
@@ -1348,7 +1348,7 @@ Generiere nun das Umzugstagebuch:`;
             className={`p-6 rounded-card shadow-elevation-3 w-full max-w-md relative border ${
               theme === "dark"
                 ? "dark:bg-canvas-2 border-dark-border"
-                : "bg-light-card-bg border-light-border"
+                : "bg-light-card border-light-border"
             }`}
           >
             <button
