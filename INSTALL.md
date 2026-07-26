@@ -503,9 +503,22 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
+
+        # OpenAI-/Vision-Anfragen können länger als 90 Sekunden dauern.
+        # Der Wert muss über dem Edge-Function-Limit von 180 Sekunden liegen.
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 210s;
+        proxy_read_timeout 210s;
+        send_timeout 210s;
+        client_max_body_size 32m;
     }
 }
 ```
+
+Diese Zeitlimits müssen auf dem äußersten Reverse Proxy gelten, der die
+Supabase-/Kong-Domain veröffentlicht. Läuft dort noch ein Standardlimit von
+60 oder 90 Sekunden, beendet der Proxy eine weiterhin arbeitende
+`ki-vision`-Funktion vorzeitig mit HTTP 499/504.
 
 ### SSL-Zertifikate mit Let's Encrypt
 
@@ -524,7 +537,12 @@ sudo certbot --nginx -d umzug.meine-domain.de -d supa.meine-domain.de
 git pull
 docker compose -f docker-compose.full.yml build --no-cache umzugsplaner-app
 docker compose -f docker-compose.full.yml up -d --force-recreate umzugsplaner-app
+docker compose -f docker-compose.full.yml up -d --no-deps --force-recreate functions
 ```
+
+Der letzte Befehl ist wichtig, wenn sich Compose-Umgebungsvariablen oder Edge
+Functions geändert haben. Alternativ übernimmt `./scripts/manage.sh` den
+Abgleich und prüft dabei auch die internen Auth-/REST-Adressen.
 
 ### Supabase-Services aktualisieren
 

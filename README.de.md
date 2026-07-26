@@ -271,6 +271,13 @@ docker compose -f docker-compose.full.yml build --no-cache umzugsplaner-app
 docker compose -f docker-compose.full.yml up -d --force-recreate umzugsplaner-app
 ```
 
+Bei einer eigenen Supabase-/Kong-Domain muss der äußerste Reverse Proxy für
+KI-Bildanalysen mindestens 210 Sekunden Lese- und Sendezeit erlauben
+(`proxy_read_timeout`, `proxy_send_timeout`, `send_timeout`). Nach Änderungen
+an `docker-compose.full.yml` muss außerdem der Functions-Container mit
+`--force-recreate` neu erstellt werden. `scripts/manage.sh` erledigt und prüft
+dies automatisch.
+
 ## Projektstruktur
 
 ```text
@@ -305,6 +312,7 @@ Typische Ursachen:
 
 - **Alte Oberfläche:** App neu bauen und Browser-/PWA-Cache löschen.
 - **KI- oder OCR-Fehler:** Provider-Konfiguration, Edge-Function-Logs und interne Service-Tokens prüfen.
+- **Vision endet nach exakt 60/90 Sekunden:** Zeitlimit des äußersten Reverse Proxys auf mindestens 210 Sekunden erhöhen.
 - **Push funktioniert nicht:** HTTPS, Berechtigung, VAPID-Werte und `send-push` prüfen.
 - **E-Mail fehlt:** SMTP-/Resend-Konfiguration und Auth-Logs prüfen.
 - **Leere Module oder 401/403:** Haushalt, Mitgliedschaft, RLS und aktuellen Datenbankstand prüfen.
@@ -320,4 +328,8 @@ Typische Ursachen:
 
 ## Lizenz
 
-MIT, siehe [`umzugshelfer-pwa/LICENSE`](umzugshelfer-pwa/LICENSE).
+[PolyForm Noncommercial License 1.0.0](LICENSE). Frei für nicht-kommerzielle Nutzung: Privathaushalte, gemeinnützige Organisationen, Bildungseinrichtungen und öffentliche Stellen dürfen diese Software betreiben und anpassen. Kommerzielle Nutzung — Weiterverkauf, Angebot als kostenpflichtiger Dienst oder Einsatz innerhalb eines gewinnorientierten Unternehmens — ist ohne gesonderte Lizenz nicht gestattet. Für eine kommerzielle Lizenz bitte ein Issue eröffnen.
+
+Das Projekt ist damit „source available", nicht Open Source im Sinne der OSI.
+
+Vor dieser Umstellung veröffentlichte Versionen bleiben unter der MIT-Lizenz verfügbar; diese kann nicht rückwirkend widerrufen werden.

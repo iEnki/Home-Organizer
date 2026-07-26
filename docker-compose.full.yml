@@ -302,6 +302,11 @@ services:
     environment:
       JWT_SECRET: ${JWT_SECRET}
       SUPABASE_URL: http://kong:8000
+      # Edge Functions sprechen Auth und PostgREST intern direkt an. Das
+      # vermeidet zusaetzliche Kong-Roundtrips und Gateway-Timeouts bei
+      # laenger laufenden KI-Anfragen.
+      SUPABASE_AUTH_URL: http://auth:9999
+      SUPABASE_REST_URL: http://rest:3000
       SUPABASE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL}
       SUPABASE_ANON_KEY: ${ANON_KEY}
       SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
