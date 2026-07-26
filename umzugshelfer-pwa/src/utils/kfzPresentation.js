@@ -1,14 +1,16 @@
+import i18n from "../i18n";
+
 const REPLACEMENTS = [
-  [/\bOelwechsel\b/g, "Ölwechsel"],
-  [/\bOelfilter\b/g, "Ölfilter"],
-  [/\bAltoel\b/g, "Altöl"],
-  [/\bZubehoer\b/g, "Zubehör"],
-  [/\bPruefung\b/g, "Prüfung"],
-  [/\bUeberpruefung\b/g, "Überprüfung"],
-  [/\bBremsfluessigkeit\b/g, "Bremsflüssigkeit"],
+  [/\bOelwechsel\b/g, "display.oilChange"],
+  [/\bOelfilter\b/g, "display.oilFilter"],
+  [/\bAltoel\b/g, "display.wasteOil"],
+  [/\bZubehoer\b/g, "display.accessories"],
+  [/\bPruefung\b/g, "display.inspection"],
+  [/\bUeberpruefung\b/g, "display.review"],
+  [/\bBremsfluessigkeit\b/g, "display.brakeFluid"],
 ];
 
 export const formatKfzDisplayText = (value) => REPLACEMENTS.reduce(
-  (text, [pattern, replacement]) => text.replace(pattern, replacement),
+  (text, [pattern, key]) => text.replace(pattern, i18n.t(`kfz:${key}`)),
   String(value ?? ""),
 );

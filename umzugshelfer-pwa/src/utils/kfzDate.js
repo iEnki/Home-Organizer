@@ -8,16 +8,18 @@ const isRealDate = (year, month, day) => {
     && date.getUTCDate() === day;
 };
 
-export const parseLocalizedDate = (value) => {
+export const parseLocalizedDate = (value, messages = {}) => {
+  const formatError = messages.formatError || "Please use DD.MM.YYYY.";
+  const invalidError = messages.invalidError || "This date is invalid.";
   const raw = String(value || "").trim();
   if (!raw) return { iso: "", error: null };
   const match = raw.match(DATE_RE);
-  if (!match) return { iso: "", error: "Bitte TT.MM.JJJJ verwenden." };
+  if (!match) return { iso: "", error: formatError };
   const [, dayText, monthText, yearText] = match;
   const day = Number(dayText);
   const month = Number(monthText);
   const year = Number(yearText);
-  if (!isRealDate(year, month, day)) return { iso: "", error: "Dieses Datum ist ungültig." };
+  if (!isRealDate(year, month, day)) return { iso: "", error: invalidError };
   return { iso: `${yearText}-${monthText}-${dayText}`, error: null };
 };
 

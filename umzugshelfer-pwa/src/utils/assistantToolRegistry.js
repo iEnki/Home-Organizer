@@ -307,8 +307,8 @@ const buildAufgabenTool = () => ({
     properties: {
       bereich: { type: "string", enum: ["home", "umzug", "alle"], description: "App-Bereich (Standard: aktueller Modus)" },
       status: { type: "string", enum: ["offen", "erledigt", "alle"], description: "Standard: offen" },
-      query: textParam("Suchbegriff in der Beschreibung (optional)"),
-      faellig_vor: textParam("Nur Aufgaben faellig vor diesem Datum (yyyy-MM-dd, optional)"),
+      query: textParam("Search term in the description (optional)"),
+      faellig_vor: textParam("Only tasks due before this date (yyyy-MM-dd, optional)"),
       limit: { type: "number" },
     },
   },
@@ -359,7 +359,7 @@ const buildEinkaufslisteTool = () => ({
 const buildBudgetAbfrageTool = () => ({
   name: "budget_abfrage",
   description:
-    "Sucht Budget-Eintraege/Ausgaben/Einnahmen (budget_posten) mit Zeitraum-, Kategorie- und Textfilter.",
+    "Searches budget entries/expenses/income (budget_posten) with date range, category and text filters.",
   parameters: {
     type: "object",
     properties: {
@@ -367,7 +367,7 @@ const buildBudgetAbfrageTool = () => ({
       bis: textParam("Enddatum yyyy-MM-dd (optional)"),
       kategorie: textParam("Kategorie-Filter (optional)"),
       typ: { type: "string", enum: ["ausgabe", "einnahme"], description: "Optional" },
-      query: textParam("Suchbegriff in der Beschreibung (optional)"),
+      query: textParam("Search term in the description (optional)"),
       limit: { type: "number" },
     },
   },
@@ -399,7 +399,7 @@ const buildBudgetAbfrageTool = () => ({
 const buildBudgetZusammenfassungTool = () => ({
   name: "budget_zusammenfassung",
   description:
-    "Aggregiert Budget-Eintraege eines Zeitraums: Summen je Kategorie, Gesamt-Einnahmen/-Ausgaben, Saldo.",
+    "Aggregates budget entries for a date range: totals by category, total income/expenses and balance.",
   parameters: {
     type: "object",
     properties: {
@@ -525,7 +525,7 @@ const buildKfzUebersichtTool = () => ({
 
 const buildKfzTankhistorieTool = () => ({
   name: "kfz_tankhistorie",
-  description: "Tankvorgaenge eines Fahrzeugs (oder aller): Datum, Liter, Betrag, Kilometerstand.",
+  description: "Refuelling history for one vehicle or all vehicles: date, litres, amount and mileage.",
   parameters: {
     type: "object",
     properties: {
@@ -759,7 +759,7 @@ const buildWriteTools = () => [
   }),
   proposeTool({
     name: "aufgabe_vorschlagen",
-    description: "Schlaegt neue Aufgaben vor (Home oder Umzug). Felder: beschreibung, kategorie, prioritaet (Hoch|Mittel|Niedrig), faelligkeitsdatum, bereich (home|umzug).",
+    description: "Proposes new tasks for home or moving workflows. Fields: beschreibung, kategorie, prioritaet (Hoch|Mittel|Niedrig), faelligkeitsdatum, bereich (home|umzug).",
     domain: "aufgaben",
     resolveDomain: (args) => (args.bereich === "umzug" ? "todos" : "aufgaben"),
     parameters: {

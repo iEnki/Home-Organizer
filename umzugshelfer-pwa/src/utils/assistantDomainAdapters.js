@@ -1830,7 +1830,7 @@ export const applyReminderAiItems = async ({ session, items = [] }) => {
 
   for (const item of items) {
     if (!item.erinnerungs_datum) {
-      throw new Error("Eine Erinnerung braucht ein Erinnerungsdatum.");
+      throw new Error("A reminder needs a reminder date.");
     }
     const payload = {
       user_id: userId,
@@ -2004,7 +2004,7 @@ export const applyRecordOpsAiItems = async ({ session, domain, items = [] }) => 
   for (const item of items) {
     const op = item.op === "delete" ? "delete" : "update";
     if (!item.id) {
-      throw new Error("Zum Aendern/Loeschen wird die Datensatz-ID benoetigt (zuerst per Suche nachschlagen).");
+      throw new Error("A record ID is required for update/delete operations; look it up first via search.");
     }
 
     if (op === "delete") {

@@ -1,4 +1,5 @@
 import { supabase } from "../supabaseClient";
+import i18n from "../i18n";
 
 const FUEL_CATEGORY_KEYS = ["tanken", "fuel", "kraftstoff"];
 const FUEL_PRODUCT_PATTERNS = [
@@ -208,7 +209,7 @@ export function buildFuelEntryPayload(importRow, vehicleId, userId) {
     budget_posten_id: importRow.budget_posten_id,
     rechnung_id: importRow.rechnung_id || null,
     dokument_id: importRow.dokument_id || null,
-    notizen: "Automatisch aus Budget erkannt. Kilometerstand und Volltankstatus bitte bestätigen.",
+    notizen: i18n.t("kfz:fuelImports.autoNote"),
   };
 }
 

@@ -1,11 +1,20 @@
 import {
   buildKfzStats,
+  buildMileageHistory,
   calculateConsumptionSegments,
   calculateMileageDistance,
+  isFuelEntryReviewed,
   normalizeKfzTransactions,
 } from "./kfzStats";
 
 describe("kfzStats", () => {
+  test("behandelt bereits gesetzte explizite Tankstatus trotz altem Import-Flag als geprüft", () => {
+    expect(isFuelEntryReviewed({ tankstatus: "voll", verbrauch_bestaetigt: false })).toBe(true);
+    expect(isFuelEntryReviewed({ tankstatus: "teilweise", verbrauch_bestaetigt: false })).toBe(true);
+    expect(isFuelEntryReviewed({ tankstatus: "unbekannt", verbrauch_bestaetigt: false })).toBe(false);
+    expect(isFuelEntryReviewed({ vollgetankt: true, verbrauch_bestaetigt: false })).toBe(false);
+  });
+
   test("summiert Teiltankungen bis zum naechsten Volltankpunkt", () => {
     const segments = calculateConsumptionSegments([
       { id: "a", fahrzeug_id: "v1", datum: "2026-01-01", kilometerstand: 1000, liter: 40, betrag: 64, vollgetankt: true },
@@ -159,6 +168,62 @@ describe("kfzStats", () => {
     expect(stats.totalDistance).toBe(500);
     expect(stats.costPerKm).toBeCloseTo(0.2);
     expect(stats.averageConsumption).toBeNull();
+  });
+
+  test("behandelt fehlende Kilometerstaende aus Tankungen und Services nicht als null Kilometer", () => {
+    const history = buildMileageHistory({
+      mileageEntries: [
+        { id: "m1", fahrzeug_id: "v1", datum: "2026-06-02", kilometerstand: 158000 },
+        { id: "m2", fahrzeug_id: "v1", datum: "2026-06-30", kilometerstand: 158500 },
+      ],
+      fuelEntries: [
+        { id: "f1", fahrzeug_id: "v1", datum: "2026-05-10", kilometerstand: null },
+      ],
+      services: [
+        { id: "s1", fahrzeug_id: "v1", datum: "2026-05-20", kilometerstand: "" },
+      ],
+    });
+
+    expect(history.map((row) => row.id)).toEqual(["mileage:m1", "mileage:m2"]);
+    expect(calculateMileageDistance(history)).toBe(500);
+  });
+
+  test("berechnet Kosten pro Kilometer nur im belegten Kilometerzeitraum", () => {
+    const stats = buildKfzStats({
+      expenses: [
+        { id: "before", fahrzeug_id: "v1", datum: "2026-05-15", betrag: 100, kategorie: "Steuer" },
+        { id: "covered", fahrzeug_id: "v1", datum: "2026-06-15", betrag: 60, kategorie: "Tanken" },
+        { id: "after", fahrzeug_id: "v1", datum: "2026-07-05", betrag: 200, kategorie: "Service" },
+      ],
+      mileageEntries: [
+        { id: "m1", fahrzeug_id: "v1", datum: "2026-06-02", kilometerstand: 158000 },
+        { id: "m2", fahrzeug_id: "v1", datum: "2026-06-30", kilometerstand: 158300 },
+      ],
+      from: "2026-04-01",
+      to: "2026-07-31",
+    });
+
+    expect(stats.totalCost).toBe(360);
+    expect(stats.costPerKmCost).toBe(60);
+    expect(stats.totalDistance).toBe(300);
+    expect(stats.costPerKm).toBeCloseTo(0.2);
+    expect(stats.mileageCoverageStart).toBe("2026-06-02");
+    expect(stats.mileageCoverageEnd).toBe("2026-06-30");
+  });
+
+  test("zeigt ohne zwei belastbare Kilometerstaende keine Kosten pro Kilometer", () => {
+    const stats = buildKfzStats({
+      fuelEntries: [
+        { id: "invoice", fahrzeug_id: "v1", datum: "2026-05-10", betrag: 70, kilometerstand: null },
+      ],
+      mileageEntries: [
+        { id: "m1", fahrzeug_id: "v1", datum: "2026-06-02", kilometerstand: 158000 },
+      ],
+    });
+
+    expect(stats.totalCost).toBe(70);
+    expect(stats.totalDistance).toBe(0);
+    expect(stats.costPerKm).toBeNull();
   });
 
   test("ignoriert Rueckspruenge in der Kilometerhistorie", () => {

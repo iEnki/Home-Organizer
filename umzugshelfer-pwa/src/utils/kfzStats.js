@@ -5,6 +5,12 @@ const number = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const nullableNumber = (value) => {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const positiveNumber = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
@@ -74,12 +80,22 @@ export const normalizeTankStatus = (entry = {}) => {
   return { status: "unbekannt", source: entry.tankstatus_quelle || "legacy" };
 };
 
+/**
+ * Explizit bestätigte Tankstatus reparieren die alte Inkonsistenz, bei der das
+ * Import-Flag trotz manueller Auswahl auf `false` stehen blieb. Ein reiner
+ * Legacy-Wert `vollgetankt` reicht dafür bewusst nicht aus.
+ */
+export const isFuelEntryReviewed = (entry = {}) => (
+  entry.verbrauch_bestaetigt !== false
+  || ["voll", "teilweise"].includes(entry.tankstatus)
+);
+
 export const calculateConsumptionSegments = (fuelEntries, vehicleId = null) => {
   const grouped = new Map();
   fuelEntries
     .filter((entry) => (
       (!vehicleId || entry.fahrzeug_id === vehicleId)
-      && entry.verbrauch_bestaetigt !== false
+      && isFuelEntryReviewed(entry)
       && number(entry.kilometerstand) > 0
       && number(entry.liter) > 0
       && isoDate(entry.datum)
@@ -164,27 +180,28 @@ export const buildMileageHistory = ({
       id: `mileage:${row.id}`,
       vehicleId: row.fahrzeug_id,
       date: row.datum,
-      mileage: number(row.kilometerstand),
+      mileage: nullableNumber(row.kilometerstand),
       source: row.quelle || "manuell",
     })),
     ...fuelEntries.map((row) => ({
       id: `fuel:${row.id}`,
       vehicleId: row.fahrzeug_id,
       date: row.datum,
-      mileage: number(row.kilometerstand),
+      mileage: nullableNumber(row.kilometerstand),
       source: "fuel",
     })),
     ...services.map((row) => ({
       id: `service:${row.id}`,
       vehicleId: row.fahrzeug_id,
       date: row.datum,
-      mileage: number(row.kilometerstand),
+      mileage: nullableNumber(row.kilometerstand),
       source: "service",
     })),
   ].filter((row) => (
     row.vehicleId
     && (!vehicleId || row.vehicleId === vehicleId)
     && isoDate(row.date)
+    && row.mileage !== null
     && row.mileage >= 0
   ));
 
@@ -201,35 +218,66 @@ export const buildMileageHistory = ({
   ));
 };
 
-export const calculateMileageDistance = (history, { vehicleId = null, from = "", to = "" } = {}) => {
+export const calculateMileageCoverage = (history, { vehicleId = null, from = "", to = "" } = {}) => {
   const grouped = new Map();
-  history.filter((row) => !vehicleId || row.vehicleId === vehicleId).forEach((row) => {
-    const rows = grouped.get(row.vehicleId) || [];
-    rows.push(row);
-    grouped.set(row.vehicleId, rows);
-  });
+  history
+    .filter((row) => (
+      (!vehicleId || row.vehicleId === vehicleId)
+      && row.mileage !== null
+      && row.mileage !== undefined
+      && Number.isFinite(Number(row.mileage))
+      && Number(row.mileage) >= 0
+      && isoDate(row.date)
+    ))
+    .forEach((row) => {
+      const rows = grouped.get(row.vehicleId) || [];
+      rows.push({ ...row, mileage: Number(row.mileage) });
+      grouped.set(row.vehicleId, rows);
+    });
 
-  let total = 0;
-  grouped.forEach((rows) => {
+  const coverage = [];
+  grouped.forEach((rows, currentVehicleId) => {
     const sorted = [...rows].sort((a, b) => isoDate(a.date).localeCompare(isoDate(b.date)) || a.mileage - b.mileage);
     const beforeOrAtStart = from ? sorted.filter((row) => isoDate(row.date) <= from).at(-1) : sorted[0];
     const inPeriod = sorted.filter((row) => inRange(row.date, from, to));
     const start = beforeOrAtStart || inPeriod[0];
-    let lastMileage = start?.mileage;
+    if (!start) return;
+
+    let last = start;
     let distance = 0;
+    let readingCount = 1;
     inPeriod.forEach((row) => {
-      if (lastMileage == null) {
-        lastMileage = row.mileage;
-        return;
-      }
-      if (row.mileage >= lastMileage) {
-        distance += row.mileage - lastMileage;
-        lastMileage = row.mileage;
+      if (row === start) return;
+      if (row.mileage >= last.mileage) {
+        distance += row.mileage - last.mileage;
+        last = row;
+        readingCount += 1;
       }
     });
-    total += distance;
+    coverage.push({
+      vehicleId: currentVehicleId,
+      startDate: isoDate(start.date),
+      endDate: isoDate(last.date),
+      startMileage: start.mileage,
+      endMileage: last.mileage,
+      distance,
+      readingCount,
+    });
   });
-  return total;
+  return coverage;
+};
+
+export const calculateMileageDistance = (history, options = {}) => (
+  calculateMileageCoverage(history, options).reduce((sum, row) => sum + row.distance, 0)
+);
+
+const transactionsWithinMileageCoverage = (transactions, coverage) => {
+  const coverageByVehicle = new Map(coverage.map((row) => [row.vehicleId, row]));
+  return transactions.filter((row) => {
+    const vehicleCoverage = coverageByVehicle.get(row.vehicleId);
+    if (!vehicleCoverage || vehicleCoverage.distance <= 0 || vehicleCoverage.readingCount < 2) return false;
+    return inRange(row.date, vehicleCoverage.startDate, vehicleCoverage.endDate);
+  });
 };
 
 export const normalizeKfzTransactions = ({
@@ -327,7 +375,7 @@ export const buildKfzStats = ({
   const consumptionSegments = allConsumptionSegments.filter((row) => inRange(row.toDate, from, to));
   const consumptionFuelEntries = fuelEntries.filter((entry) => (
     (!vehicleId || entry.fahrzeug_id === vehicleId)
-    && entry.verbrauch_bestaetigt !== false
+    && isFuelEntryReviewed(entry)
     && number(entry.kilometerstand) > 0
     && number(entry.liter) > 0
     && isoDate(entry.datum)
@@ -339,7 +387,17 @@ export const buildKfzStats = ({
       ? "waiting_for_full"
       : "no_full_anchor";
   const mileageHistory = buildMileageHistory({ mileageEntries, fuelEntries, services, vehicleId });
-  const totalDistance = calculateMileageDistance(mileageHistory, { vehicleId, from, to });
+  const mileageCoverage = calculateMileageCoverage(mileageHistory, { vehicleId, from, to });
+  const validMileageCoverage = mileageCoverage.filter((row) => row.distance > 0 && row.readingCount >= 2);
+  const totalDistance = validMileageCoverage.reduce((sum, row) => sum + row.distance, 0);
+  const costPerKmTransactions = transactionsWithinMileageCoverage(transactions, validMileageCoverage);
+  const costPerKmCost = costPerKmTransactions.reduce((sum, row) => sum + row.amount, 0);
+  const mileageCoverageStart = validMileageCoverage.length
+    ? validMileageCoverage.map((row) => row.startDate).sort()[0]
+    : null;
+  const mileageCoverageEnd = validMileageCoverage.length
+    ? validMileageCoverage.map((row) => row.endDate).sort().at(-1)
+    : null;
   const consumptionDistance = consumptionSegments.reduce((sum, row) => sum + row.distance, 0);
   const totalLiters = consumptionSegments.reduce((sum, row) => sum + row.liters, 0);
   const totalCost = transactions.reduce((sum, row) => sum + row.amount, 0);
@@ -356,15 +414,22 @@ export const buildKfzStats = ({
     const vehicleRows = transactions.filter((row) => row.vehicleId === vehicle.id);
     const vehicleSegments = consumptionSegments.filter((row) => row.vehicleId === vehicle.id);
     const cost = vehicleRows.reduce((sum, row) => sum + row.amount, 0);
-    const distance = calculateMileageDistance(mileageHistory, { vehicleId: vehicle.id, from, to });
+    const vehicleCoverage = validMileageCoverage.find((row) => row.vehicleId === vehicle.id);
+    const distance = vehicleCoverage?.distance || 0;
+    const coveredCost = vehicleCoverage
+      ? vehicleRows
+        .filter((row) => inRange(row.date, vehicleCoverage.startDate, vehicleCoverage.endDate))
+        .reduce((sum, row) => sum + row.amount, 0)
+      : 0;
     const consumptionKm = vehicleSegments.reduce((sum, row) => sum + row.distance, 0);
     const liters = vehicleSegments.reduce((sum, row) => sum + row.liters, 0);
     return {
       vehicleId: vehicle.id,
       label: [vehicle.name, vehicle.kennzeichen].filter(Boolean).join(" - "),
       cost,
+      costPerKmCost: coveredCost,
       distance,
-      costPerKm: distance > 0 ? cost / distance : null,
+      costPerKm: distance > 0 ? coveredCost / distance : null,
       consumption: consumptionKm > 0 ? (liters / consumptionKm) * 100 : null,
     };
   });
@@ -387,11 +452,16 @@ export const buildKfzStats = ({
     consumptionState,
     fullAnchorCount,
     mileageHistory,
+    mileageCoverage,
+    mileageCoverageStart,
+    mileageCoverageEnd,
     totalCost,
     totalDistance,
+    costPerKmCost,
+    costPerKmTransactions,
     consumptionDistance,
     averageConsumption: consumptionDistance > 0 ? (totalLiters / consumptionDistance) * 100 : null,
-    costPerKm: totalDistance > 0 ? totalCost / totalDistance : null,
+    costPerKm: totalDistance > 0 ? costPerKmCost / totalDistance : null,
     averageMonthlyCost: monthCount > 0 ? totalCost / monthCount : 0,
     monthCount,
     monthly,

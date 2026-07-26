@@ -18,6 +18,17 @@ const intOrNull = (value) => {
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 /**
+ * Eine Speicherung aus dem KFZ-Formular schließt die manuelle Prüfung eines
+ * automatisch importierten Tankvorgangs ab. Verdeckte Import-Flags dürfen
+ * danach nicht weiter den Hinweis "Verbrauch prüfen" auslösen.
+ */
+export const markFuelEntryReviewed = (values = {}) => ({
+  ...values,
+  tankstatus_quelle: "manuell",
+  verbrauch_bestaetigt: true,
+});
+
+/**
  * Legt einen Tankvorgang an oder aktualisiert ihn (gemeinsamer Pfad fuer
  * HomeKfz-Formulare und den globalen Assistenten).
  */

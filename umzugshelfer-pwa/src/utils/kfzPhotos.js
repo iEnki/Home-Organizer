@@ -6,10 +6,10 @@ export const VEHICLE_COVER_ROLE = "vehicle_cover";
 export const VEHICLE_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
 export const VEHICLE_PHOTO_MAX_BYTES = 12 * 1024 * 1024;
 
-export const validateVehiclePhoto = (file) => {
-  if (!file) return "Bitte ein Foto auswählen.";
-  if (!VEHICLE_PHOTO_TYPES.includes(file.type)) return "Unterstuetzt werden JPEG, PNG und WebP.";
-  if (file.size > VEHICLE_PHOTO_MAX_BYTES) return "Das Foto darf maximal 12 MB gross sein.";
+export const validateVehiclePhoto = (file, messages = {}) => {
+  if (!file) return messages.required || "Please choose a photo.";
+  if (!VEHICLE_PHOTO_TYPES.includes(file.type)) return messages.type || "JPEG, PNG and WebP are supported.";
+  if (file.size > VEHICLE_PHOTO_MAX_BYTES) return messages.size || "The photo must be no larger than 12 MB.";
   return "";
 };
 
@@ -36,8 +36,8 @@ export const getVehicleCoverPhoto = (payload) => (
   || null
 );
 
-export async function uploadVehiclePhoto({ file, userId, householdId, vehicleId, makeCover = false }) {
-  const validationError = validateVehiclePhoto(file);
+export async function uploadVehiclePhoto({ file, userId, householdId, vehicleId, makeCover = false, validationMessages = {} }) {
+  const validationError = validateVehiclePhoto(file, validationMessages);
   if (validationError) throw new Error(validationError);
   const document = await uploadKfzDocument({
     file,

@@ -335,7 +335,11 @@ function formatVisionProviderError({ provider, detail, status }) {
     ? "Ollama"
     : provider === "openai"
       ? "OpenAI"
-      : "Der Vision-Anbieter";
+      : provider === "lmstudio"
+        ? "LM Studio"
+        : provider === "claude"
+          ? "Claude"
+          : "Der Vision-Anbieter";
   const rawDetail = String(detail || "").trim();
   const isNameResolution = /name resolution failed|getaddrinfo|enotfound|dns/i.test(rawDetail);
 
@@ -346,11 +350,25 @@ function formatVisionProviderError({ provider, detail, status }) {
     return `${reason} Prüfe die Ollama-URL im Profil unter KI-Assistent. Die URL muss vom Supabase Edge Worker erreichbar sein; localhost, lokale Hostnamen oder nur intern erreichbare Adressen funktionieren dort meist nicht.`;
   }
 
+  if (provider === "lmstudio") {
+    const reason = isNameResolution
+      ? "Die konfigurierte LM Studio-Adresse konnte nicht aufgelöst werden."
+      : "LM Studio Vision ist nicht erreichbar.";
+    return `${reason} Prüfe die LM Studio-URL im Profil unter KI-Einstellungen. Die URL muss vom Supabase Edge Worker erreichbar sein; localhost oder nur intern erreichbare Adressen funktionieren dort meist nicht.`;
+  }
+
   if (provider === "openai") {
     const reason = isNameResolution
       ? "OpenAI konnte vom Vision-Dienst nicht aufgelöst werden."
       : "OpenAI Vision ist nicht erreichbar.";
     return `${reason} Prüfe die API-Erreichbarkeit und versuche es erneut.`;
+  }
+
+  if (provider === "claude") {
+    const reason = isNameResolution
+      ? "Anthropic konnte vom Vision-Dienst nicht aufgelöst werden."
+      : "Claude Vision ist nicht erreichbar.";
+    return `${reason} Prüfe den Anthropic API-Key im Profil unter KI-Einstellungen und versuche es erneut.`;
   }
 
   if (isNameResolution) {
@@ -868,6 +886,43 @@ export async function analyzeWithChatGptVision(base64, mimeType, _session, local
 }
 
 /**
+ * Generische Bildanalyse via ki-vision Edge Function fuer beliebige Modi
+ * (lmstudio_vision, claude_vision, ...).
+ */
+export async function analyzeWithVisionMode(mode, base64, mimeType, locale = "de", label = "Vision-Analyse") {
+  const json = await invokeKiVision(
+    {
+      mode,
+      file_base64: base64,
+      mime_type: mimeType,
+      prompt: KI_RECHNUNG_PROMPT_VISION,
+      locale,
+    },
+    label,
+  );
+
+  const rawText = json?.text ?? json?.choices?.[0]?.message?.content ?? "";
+  const cleaned = cleanKiJsonResponse(rawText, "object");
+
+  let parsed;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch (e) {
+    console.warn(`${label}: JSON-Parse fehlgeschlagen.`, rawText?.slice?.(0, 200));
+    throw new Error("KI-Antwort konnte nicht verarbeitet werden.");
+  }
+
+  return {
+    haendler: parsed.haendler || null,
+    datum: normalisiereDatum(parsed.datum),
+    gesamt: normalizeNumber(parsed.gesamt),
+    positionen: Array.isArray(parsed.positionen) ? parsed.positionen : [],
+    roher_text: rawText,
+    confidence: 0.85,
+  };
+}
+
+/**
  * Analysiert ein Bild mit Ollama Vision via ki-vision Edge Function.
  */
 export async function analyzeWithOllamaVision(base64, mimeType, _session, locale = "de") {
@@ -1044,6 +1099,14 @@ export async function starteAnalyse(file, modus, { kiClient, session, locale = "
 
       case "ocr_ollama":
         roherAnalyse = await analyzeWithOllamaVision(base64, mimeType, session, locale);
+        break;
+
+      case "lmstudio_vision":
+        roherAnalyse = await analyzeWithVisionMode("lmstudio_vision", base64, mimeType, locale, "LM Studio Vision");
+        break;
+
+      case "claude_vision":
+        roherAnalyse = await analyzeWithVisionMode("claude_vision", base64, mimeType, locale, "Claude Vision");
         break;
 
       default:
