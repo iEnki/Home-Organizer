@@ -66,6 +66,7 @@ const UmzugsZeitstrahl = lazy(() => import("./components/UmzugsZeitstrahl"));
 const DokumentenManager = lazy(() => import("./components/DokumentenManager"));
 const UpdatePasswordPage = lazy(() => import("./components/UpdatePasswordPage"));
 const KostenVergleich = lazy(() => import("./components/KostenVergleich"));
+const RenovierungsPlaner = lazy(() => import("./components/RenovierungsPlaner"));
 const UserProfile = lazy(() => import("./components/UserProfile"));
 const KalenderUebersicht = lazy(() => import("./components/KalenderUebersicht"));
 const JoinHouseholdPage = lazy(() => import("./components/JoinHouseholdPage"));
@@ -762,6 +763,7 @@ function App() {
               <Route path="/zeitstrahl"     element={<UmzugsZeitstrahl session={session} />} />
               <Route path="/dokumente"      element={<DokumentenManager session={session} />} />
               <Route path="/kostenvergleich" element={<KostenVergleich session={session} />} />
+              <Route path="/renovierung"    element={<RenovierungsPlaner session={session} />} />
 
               {/* Home Organizer */}
               <Route path="/home"              element={<HomeDashboard session={session} />} />

@@ -74,7 +74,10 @@
   "theme": {
     "colorMode": "Farbmodus",
     "light": "Heller Modus",
-    "dark": "Dunkler Modus"
+    "dark": "Dunkler Modus",
+    "mountains": "Berge",
+    "forest": "Wald",
+    "smartHomeCity": "Nächtliche Smart-Home-Stadt"
   },
   "notifications": {
     "title": "Benachrichtigungen"

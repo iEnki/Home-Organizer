@@ -74,7 +74,10 @@
   "theme": {
     "colorMode": "Colour mode",
     "light": "Light mode",
-    "dark": "Dark mode"
+    "dark": "Dark mode",
+    "mountains": "Mountains",
+    "forest": "Forest",
+    "smartHomeCity": "Night-time smart home city"
   },
   "notifications": {
     "title": "Notifications"

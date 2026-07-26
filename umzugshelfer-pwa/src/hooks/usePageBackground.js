@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
+const SUPPLIES_IMAGE = `vorr${String.fromCharCode(228)}te`;
+
 const DARK_MAP = {
   "/home":              "HomeDashboard_dark",
   "/home/budget":       "Budget_dark",
@@ -13,7 +15,7 @@ const DARK_MAP = {
   "/home/wissen":       "Wissensdatenbank_dark",
   "/home/kochbuch":     "kochbuch_dark",
   "/home/inventar":     "inventar_dark",
-  "/home/vorraete":     "vorräte_dark",
+  "/home/vorraete":     `${SUPPLIES_IMAGE}_dark`,
   "/home/suche":        "suche_dark",
   "/home/projekte":     "Projekte_dark",
   "/home/verlauf":      "Verlauf_dark",
@@ -32,7 +34,7 @@ const DAY_MAP = {
   "/home/wissen":       "Wissensdatenbank_day",
   "/home/kochbuch":     "kochbuch_day",
   "/home/inventar":     "inventar_day",
-  "/home/vorraete":     "vorräte_day",
+  "/home/vorraete":     `${SUPPLIES_IMAGE}_day`,
   "/home/suche":        "suche_day",
   "/home/verlauf":      "Verlauf_day",
   "/kalender":          "Kalender_day",

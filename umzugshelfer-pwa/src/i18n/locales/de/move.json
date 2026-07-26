@@ -481,6 +481,7 @@
     "tileView": "Kachelansicht",
     "listView": "Listenansicht",
     "showQr": "QR-Code anzeigen",
+    "qrGenerating": "QR-Code wird erzeugt …",
     "edit": "Bearbeiten",
     "delete": "Löschen",
     "collapse": "Einklappen",

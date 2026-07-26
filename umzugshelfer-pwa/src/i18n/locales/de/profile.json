@@ -184,7 +184,19 @@
       "openaiModelQuality": "gpt-4o - Qualität, kompatibel",
       "openaiModelCustom": "Benutzerdefiniert",
       "openaiModelCustomPlaceholder": "z. B. gpt-4o-mini",
-      "openaiModelHint": "Dieses Modell wird für den globalen KI-Assistenten verwendet. Custom-Modelle müssen Chat Completions unterstützen."
+      "openaiModelHint": "Dieses Modell wird für den globalen KI-Assistenten verwendet. Custom-Modelle müssen Chat Completions unterstützen.",
+      "lmstudioDesc": "Lokaler LM Studio-Server",
+      "claudeDesc": "Anthropic API",
+      "lmstudioSection": "LM Studio-Server",
+      "lmstudioUrlHint": "Adresse deines LM Studio-Servers, z.B. http://192.168.1.100:1234",
+      "lmstudioModelPlaceholder": "z.B. qwen2.5-7b-instruct",
+      "lmstudioKeyPlaceholder": "API-Key (optional, nur falls der Server einen verlangt)",
+      "lmstudioNote": "LM Studio läuft lokal in deinem Netzwerk — Daten verlassen dein Zuhause nicht.",
+      "claudeSection": "Claude / Anthropic",
+      "claudeModelSection": "Claude-Modell",
+      "claudeModelHint": "Standard: claude-opus-4-8. Modell-IDs exakt übernehmen, keine Datums-Suffixe anhängen.",
+      "deleteKey": "Key löschen",
+      "keyStored": "API-Key ist hinterlegt"
     },
     "imageAnalysis": {
       "intro": "Wähle den Modus für die KI-gestützte Rechnungserkennung. Diese Einstellung gilt für den gesamten Haushalt.",
@@ -200,7 +212,12 @@
       "openaiModelHint": "Dieses Modell muss Bild-Input unterstützen. Es gilt nur für die Rechnungsscanner-Bildanalyse.",
       "ollamaModelSection": "Ollama Vision-Modell",
       "ollamaModelNote": "Separates Modell für die Bildanalyse (muss Vision-Fähigkeiten haben).",
-      "saveSettings": "Einstellungen speichern"
+      "saveSettings": "Einstellungen speichern",
+      "lmstudioVisionDesc": "Lokales Vision-Modell über LM Studio",
+      "claudeVisionDesc": "Bildanalyse mit Claude (Anthropic)",
+      "lmstudioModelSection": "LM Studio Vision-Modell",
+      "lmstudioModelNote": "Vision-fähiges Modell im LM Studio-Server, z.B. qwen2.5-vl. Leer = Text-Modell aus den KI-Einstellungen.",
+      "claudeVisionNote": "Claude Vision nutzt den Anthropic API-Key und das Claude-Modell aus den KI-Einstellungen."
     },
     "push": {
       "intro": "Erhalte Benachrichtigungen auch wenn die App geschlossen ist – für Aufgaben, Vorräte, Wartungen und Deadlines.",
@@ -268,7 +285,11 @@
       "saveAiProvider": "KI-Anbieter speichern",
       "webLimit": "Web-Rezepte pro Tag",
       "videoLimit": "Video-Rezepte pro Tag",
-      "saveLimits": "Limits speichern"
+      "saveLimits": "Limits speichern",
+      "aiProviderLmstudioDesc": "Eigenes LM Studio-Modell fürs Kochbuch",
+      "aiProviderClaudeDesc": "Eigenes Claude-Modell fürs Kochbuch",
+      "lmstudioModel": "LM Studio-Modell",
+      "claudeModel": "Claude-Modell"
     },
     "assistant": {
       "intro": "Der globale Assistent beantwortet Fragen zu deinen Haushaltsdaten und legt auf Wunsch neue Einträge an. Alle Aktionen müssen im Chat bestätigt werden.",
@@ -286,7 +307,43 @@
       "ollamaThinking": "Thinking-Modus erlauben",
       "ollamaThinkingHint": "Nur für Reasoning-Modelle relevant. Standardmäßig deaktiviert für schnellere Antworten.",
       "adminOnlyHint": "Der KI-Anbieter des Assistenten wird vom Haushalts-Admin verwaltet.",
-      "saveAiProvider": "Assistent-KI speichern"
+      "saveAiProvider": "Assistent-KI speichern",
+      "aiProviderLmstudioDesc": "Eigenes LM Studio-Modell für den Assistenten",
+      "aiProviderClaudeDesc": "Eigenes Claude-Modell für den Assistenten",
+      "lmstudioModel": "LM Studio-Modell",
+      "lmstudioModelHint": "Für Tool-Aufrufe wird ein Modell mit Tool-Unterstützung empfohlen (z.B. qwen2.5).",
+      "claudeModel": "Claude-Modell",
+      "claudeModelHint": "Claude unterstützt Tool-Calling nativ — ideal für den Assistenten."
     }
+  },
+  "modelSelect": {
+    "status": {
+      "supported": "Unterstützt",
+      "unknown": "Test erforderlich",
+      "unsupported": "Nicht geeignet",
+      "unavailable": "Nicht verfügbar",
+      "inherited": "Vererbt"
+    },
+    "unavailableDescription": "Gespeichert, aber vom aktuellen API-Key nicht zurückgegeben",
+    "unknownDescription": "Fähigkeit wird von der Models-API nicht ausgewiesen",
+    "inheritedDescription": "Kein separates Modell gespeichert",
+    "loading": "OpenAI-Modelle werden geladen…",
+    "placeholder": "OpenAI-Modell auswählen",
+    "searchPlaceholder": "Modell-ID suchen…",
+    "unavailable": "Modellliste nicht verfügbar",
+    "loadTimeout": "Der Modellkatalog antwortet nicht. Du kannst eine Modell-ID manuell eingeben oder die Liste erneut laden.",
+    "empty": "Keine Modelle gefunden",
+    "useManualId": "Modell-ID manuell verwenden",
+    "refresh": "Modellliste aktualisieren",
+    "testing": "Modell wird getestet…",
+    "test": "Modell testen",
+    "compatible": "Kompatibel ({{latencyMs}} ms)",
+    "testBeforeSaving": "Bitte dieses Modell vor dem Speichern testen.",
+    "changedRequiresTest": "Modell geändert. Unbekannte Fähigkeiten bitte vor dem Speichern testen.",
+    "testFailed": "Modelltest fehlgeschlagen.",
+    "notSuitable": "Dieses Modell ist für den gewählten Einsatzzweck nicht geeignet.",
+    "assistantHint": "Für den Assistenten muss das Modell Function Tools unterstützen.",
+    "cookbookHint": "Für Rezeptimporte muss das Modell strukturierte JSON-Ausgaben unterstützen.",
+    "inheritGlobal": "Globales OpenAI-Modell verwenden"
   }
 }

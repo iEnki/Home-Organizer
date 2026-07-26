@@ -481,6 +481,7 @@
     "tileView": "Tile view",
     "listView": "List view",
     "showQr": "Show QR code",
+    "qrGenerating": "Generating QR code…",
     "edit": "Edit",
     "delete": "Delete",
     "collapse": "Collapse",

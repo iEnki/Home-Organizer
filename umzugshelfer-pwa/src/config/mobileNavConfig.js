@@ -39,6 +39,7 @@ export const MOBILE_NAV_REGISTRY = {
     { key: "budget", labelKey: "nav:items.budget", label: "Budget", path: "/budget", icon: DollarSign, favoriteEligible: true },
     { key: "kontakte", labelKey: "nav:items.contacts", label: "Kontakte", path: "/kontakte", icon: Users, favoriteEligible: true },
     { key: "materialplaner", labelKey: "nav:items.materials", label: "Materialplaner", path: "/materialplaner", icon: Paintbrush, favoriteEligible: true },
+    { key: "renovierung", labelKey: "nav:items.renovation", label: "Renovierung", path: "/renovierung", icon: Wrench, favoriteEligible: true },
     { key: "bedarfsrechner", labelKey: "nav:items.calculator", label: "Bedarfsrechner", path: "/bedarfsrechner", icon: Calculator, favoriteEligible: true },
     { key: "zeitstrahl", labelKey: "nav:items.timeline", label: "Zeitstrahl", path: "/zeitstrahl", icon: CalendarClock, favoriteEligible: true },
     { key: "dokumente", labelKey: "nav:items.documents", label: "Dokumente", path: "/dokumente", icon: FolderOpen, favoriteEligible: true },
@@ -78,6 +79,7 @@ export const MOBILE_NAV_ACCENTS = {
   "/todos":                 "34,211,238",
   "/packliste":             "34,211,238",
   "/materialplaner":        "167,139,250", // Werkzeuge → Violet
+  "/renovierung":           "167,139,250",
   "/bedarfsrechner":        "167,139,250",
   "/zeitstrahl":            "167,139,250",
   "/dokumente":             "167,139,250",
