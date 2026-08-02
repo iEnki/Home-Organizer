@@ -18,7 +18,7 @@ For product features and self-hosting, see the repository-level [German](../READ
 
 ## Requirements
 
-- Node.js 20 recommended
+- Node.js 22 (LTS) recommended — matches the Docker build image
 - npm
 - A reachable Supabase installation with the current database schema and Edge Functions
 
@@ -116,3 +116,15 @@ Keep namespace keys synchronized and run `npm run i18n:check` before shipping. G
 ## Production
 
 The root Docker configuration builds this directory and serves `build/` through Nginx. Use the repository management scripts for deployment and updates rather than running the CRA development server in production.
+
+## Known Build Warnings
+
+`npm install` prints a long list of `npm warn deprecated` messages (`svgo`, `glob`, `inflight`, `abab`, `domexception`, `q`, `eslint@8`, various `@babel/plugin-proposal-*`, …). This is expected and not a defect:
+
+- Every one of them is a **transitive** dependency pulled in by `react-scripts@5.0.1` (Create React App), which has had no release since April 2022. None are direct dependencies, so they cannot be upgraded individually — their versions are pinned inside the CRA dependency tree.
+- They are **build-time only**. The Dockerfile is multi-stage and copies just `/app/build` into the Nginx image, so none of these packages are shipped to users.
+- "Deprecated" means unmaintained, not vulnerable. Use `npm audit` to reason about actual vulnerabilities.
+
+**Never run `npm audit fix --force` in this project.** npm reports the "fix" for `nth-check` as `react-scripts@0.0.0` — an empty placeholder package. The command would silently destroy the build. Prefer targeted upgrades of individual direct dependencies instead.
+
+The remaining `npm audit` findings resolve to `react-scripts` (build tooling) and the `supabase` CLI (a devDependency, never bundled). The only real way to clear the warnings and the bulk of the audit findings is migrating off CRA to Vite — a separate, deliberate project.

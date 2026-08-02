@@ -1,5 +1,7 @@
 # Stage 1: Build der React-Anwendung
-FROM node:18-alpine AS builder
+# Node 22 (LTS): Node 18 ist seit April 2025 End-of-Life und erhält keine
+# Sicherheitspatches mehr. Nur Build-Stage — ausgeliefert wird allein /app/build.
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
