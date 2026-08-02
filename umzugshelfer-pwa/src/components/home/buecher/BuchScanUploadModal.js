@@ -8,6 +8,7 @@ import { normalizeIsbn, isValidIsbn } from "../../../utils/isbn";
 import { erstelleImportBatch } from "../../../utils/buchImportMapping";
 import { getBuchCoverUrl } from "../../../utils/buchCoverUtils";
 import { getBookSearchContext, resolveBookMatches } from "../../../utils/bookSearch";
+import { fetchEdgeFunctionJsonWithAuthRetry } from "../../../utils/edgeFunctionAuth";
 
 const REGAL_PROMPT = `Du bist ein Bucherkennungs-Assistent. Analysiere dieses Regal-Foto und erkenne nur klar lesbare Buchtitel auf den Buchrücken. Antworte ausschließlich mit einem JSON-Objekt (kein Markdown, keine Erklärungen):
 
@@ -226,35 +227,20 @@ export default function BuchScanUploadModal({
     setFehler(null);
     setKandidaten([]);
     try {
-      const { data: { session: sess } } = await supabase.auth.getSession();
-      const token = sess?.access_token;
-      if (!token) throw new Error(t("books:scanUpload.errNotLoggedIn"));
-
       // 1. Bild komprimieren + Base64
       const compressed = await compressImage(datei, 1200);
       const base64 = await fileToBase64(compressed);
 
       // 2. ki-vision aufrufen
-      const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
-      const visionRes = await fetch(`${supabaseUrl}/functions/v1/ki-vision`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+      const visionData = await fetchEdgeFunctionJsonWithAuthRetry("ki-vision", {
+        timeoutMs: 165_000,
+        body: {
           mode: "chatgpt_vision",
           file_base64: base64,
           mime_type: "image/jpeg",
           prompt: REGAL_PROMPT,
-        }),
+        },
       });
-
-      if (visionRes.status === 401) throw new Error(t("books:scanUpload.errAuth"));
-      if (visionRes.status === 409) throw new Error(t("books:scanUpload.errNoKey"));
-      if (!visionRes.ok) throw new Error(t("books:scanUpload.errAnalysisFailed", { status: visionRes.status }));
-
-      const visionData = await visionRes.json();
       const rawText = visionData?.text ?? "";
       const cleaned = cleanKiJsonResponse(rawText, "object");
       let parsed;

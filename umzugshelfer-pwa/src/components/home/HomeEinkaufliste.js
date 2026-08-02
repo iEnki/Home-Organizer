@@ -570,6 +570,13 @@ const HomeEinkaufliste = ({ session }) => {
         source,
         existingEntries: offeneEintraege,
       });
+      if (result.aiStatus === "fallback") {
+        toast.info(
+          t("home:shopping.aiFallbackWarning", {
+            defaultValue: "KI nicht erreichbar – regelbasierte Zuordnung verwendet.",
+          })
+        );
+      }
 
       setPreviewState({
         ...result,
@@ -1481,6 +1488,16 @@ const HomeEinkaufliste = ({ session }) => {
             </div>
 
             <div className="p-4 max-h-[70vh] overflow-auto space-y-3">
+              {previewState.aiStatus === "fallback" ? (
+                <div className="flex items-start gap-2 rounded-card-sm border border-accent-yellow/40 bg-accent-yellow/10 px-3 py-2 text-sm text-light-text-main dark:text-dark-text-main">
+                  <AlertTriangle size={16} className="mt-0.5 shrink-0 text-accent-yellow" />
+                  <span>
+                    {t("home:shopping.aiFallbackWarning", {
+                      defaultValue: "KI nicht erreichbar – regelbasierte Zuordnung verwendet.",
+                    })}
+                  </span>
+                </div>
+              ) : null}
               {previewState.drafts.map((draft) => (
                 <EntryPreviewRow
                   key={draft.client_id}

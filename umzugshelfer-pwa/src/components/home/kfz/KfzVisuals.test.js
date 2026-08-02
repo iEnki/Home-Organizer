@@ -21,6 +21,10 @@ jest.mock("react-chartjs-2", () => ({
 }));
 
 jest.mock("react-i18next", () => ({
+  initReactI18next: {
+    type: "3rdParty",
+    init: jest.fn(),
+  },
   useTranslation: () => ({
     t: (key, values) => values?.count != null ? `${key}:${values.count}` : key,
   }),

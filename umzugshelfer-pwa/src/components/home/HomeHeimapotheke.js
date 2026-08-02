@@ -32,6 +32,7 @@ import { notifyHouseholdEvent } from "../../utils/pushNotifications";
 import { cleanKiJsonResponse, getKiClient } from "../../utils/kiClient";
 import { extractTextFromFile } from "../../utils/rechnungAnalyse";
 import { compressImage, fileToBase64 } from "../../utils/imageTools";
+import { fetchEdgeFunctionJsonWithAuthRetry } from "../../utils/edgeFunctionAuth";
 import {
   MEDICATION_CATEGORIES,
   MEDICATION_FORMS,
@@ -534,29 +535,17 @@ function MedicationPhotoScanner({ onCancel, onImport, saving }) {
     setError("");
     setCandidates([]);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) throw new Error("Nicht eingeloggt.");
-
       const compressed = await compressImage(file, 1400);
       const base64 = await fileToBase64(compressed);
-      const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
-      const response = await fetch(`${supabaseUrl.replace(/\/$/, "")}/functions/v1/ki-vision`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+      const payload = await fetchEdgeFunctionJsonWithAuthRetry("ki-vision", {
+        timeoutMs: 165_000,
+        body: {
           mode: "chatgpt_vision",
           file_base64: base64,
           mime_type: compressed.type || "image/jpeg",
           prompt: MEDICATION_PHOTO_PROMPT,
-        }),
+        },
       });
-      const payload = await response.json().catch(() => ({}));
-      if (response.status === 409) throw new Error(payload?.error || "Bildanalyse ist nicht konfiguriert.");
-      if (!response.ok) throw new Error(payload?.error || `Bildanalyse fehlgeschlagen (${response.status}).`);
 
       const parsed = JSON.parse(cleanKiJsonResponse(payload?.text || "{}", "object"));
       const detected = Array.isArray(parsed?.medikamente) ? parsed.medikamente : [];

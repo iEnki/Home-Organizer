@@ -7,6 +7,10 @@ jest.mock("../../../utils/kfzData", () => ({
   createKfzDocumentUrl: jest.fn(),
 }));
 jest.mock("react-i18next", () => ({
+  initReactI18next: {
+    type: "3rdParty",
+    init: jest.fn(),
+  },
   useTranslation: () => ({
     t: (key, values) => values?.count != null ? `${key}:${values.count}` : values?.value != null ? `${key}:${values.value}` : key,
   }),

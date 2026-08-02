@@ -53,6 +53,18 @@ const normalizeUnit = (value) => {
   return value || "Stück";
 };
 
+const normalizeVorrat = (entry) => ({
+  ...entry,
+  einheit: normalizeUnit(entry?.einheit),
+});
+
+const sortVorraete = (entries) =>
+  [...entries].sort((left, right) =>
+    String(left?.name || "").localeCompare(String(right?.name || ""), "de", {
+      sensitivity: "base",
+    }),
+  );
+
 const VorratForm = ({ initial, onSpeichern, onAbbrechen }) => {
   const { t } = useTranslation(["home", "common"]);
   const [form, setForm] = useState({
@@ -171,7 +183,7 @@ const HomeVorraete = ({ session }) => {
         .eq("user_id", userId)
         .order("name");
       if (error) throw error;
-      setVorraete((data || []).map((entry) => ({ ...entry, einheit: normalizeUnit(entry.einheit) })));
+      setVorraete((data || []).map(normalizeVorrat));
     } catch (e) {
       setFehler(t("home:stockForm.loadError"));
     } finally {
@@ -196,9 +208,18 @@ const HomeVorraete = ({ session }) => {
     try {
       if (modal?.id) {
         const payload = buildVorratPayload(daten, false);
-        const { error } = await supabase.from("home_vorraete").update(payload).eq("id", modal.id);
+        const { data: aktualisierterVorrat, error } = await supabase
+          .from("home_vorraete")
+          .update(payload)
+          .eq("id", modal.id)
+          .select("*")
+          .single();
         if (error) throw error;
-        await notifyHouseholdEvent({
+        const normalized = normalizeVorrat(aktualisierterVorrat);
+        setVorraete((current) =>
+          sortVorraete(current.map((entry) => (entry.id === normalized.id ? normalized : entry))),
+        );
+        void notifyHouseholdEvent({
           userId,
           table: "home_vorraete",
           action: "geaendert",
@@ -212,10 +233,12 @@ const HomeVorraete = ({ session }) => {
         const { data: neuerVorrat, error } = await supabase
           .from("home_vorraete")
           .insert(payload)
-          .select("id, name")
+          .select("*")
           .single();
         if (error) throw error;
-        await notifyHouseholdEvent({
+        const normalized = normalizeVorrat(neuerVorrat);
+        setVorraete((current) => sortVorraete([...current, normalized]));
+        void notifyHouseholdEvent({
           userId,
           table: "home_vorraete",
           action: "erstellt",
@@ -225,27 +248,37 @@ const HomeVorraete = ({ session }) => {
         });
       }
       setModal(null);
-      await ladeDaten();
-      toast.success(t("common:feedback.saved", { defaultValue: "Gespeichert." }));
+      setFehler(null);
+      toast.success(t("home:stockForm.saved"));
     } catch (error) {
       console.error("Vorrat konnte nicht gespeichert werden", error);
-      setFehler(error?.message || t("home:stockForm.saveError", { defaultValue: "Vorrat konnte nicht gespeichert werden." }));
-      toast.error(t("home:stockForm.saveError", { defaultValue: "Vorrat konnte nicht gespeichert werden." }));
+      setFehler(error?.message || t("home:stockForm.saveError"));
+      toast.error(t("home:stockForm.saveError"));
     }
   };
 
   const loesche = async (id) => {
     const vorrat = vorraete.find((eintrag) => eintrag.id === id);
-    await supabase.from("home_vorraete").delete().eq("id", id);
-    await notifyHouseholdEvent({
-      userId,
-      table: "home_vorraete",
-      action: "geloescht",
-      recordName: vorrat?.name,
-      recordId: id,
-      url: "/home/vorraete",
-    });
-    ladeDaten();
+    try {
+      const { error } = await supabase.from("home_vorraete").delete().eq("id", id);
+      if (error) throw error;
+      setVorraete((current) => current.filter((entry) => entry.id !== id));
+      setFehler(null);
+      void notifyHouseholdEvent({
+        userId,
+        table: "home_vorraete",
+        action: "geloescht",
+        recordName: vorrat?.name,
+        recordId: id,
+        url: "/home/vorraete",
+      });
+      toast.success(t("home:stockForm.deleted"));
+    } catch (error) {
+      console.error("Vorrat konnte nicht gelöscht werden", error);
+      const message = error?.message || t("home:stockForm.deleteError");
+      setFehler(message);
+      toast.error(message);
+    }
   };
 
   const erstelleEinkaufslisteFuerRote = async () => {
@@ -384,8 +417,8 @@ const HomeVorraete = ({ session }) => {
                   </div>
                 </div>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => setModal(v)} className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500"><Edit2 size={13} /></button>
-                  <button onClick={() => loesche(v.id)} className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500"><Trash2 size={13} /></button>
+                  <button aria-label={t("common:actions.edit")} onClick={() => setModal(v)} className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500"><Edit2 size={13} /></button>
+                  <button aria-label={t("common:actions.delete")} onClick={() => loesche(v.id)} className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500"><Trash2 size={13} /></button>
                 </div>
               </GlassSurface>
             );
