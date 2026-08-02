@@ -1,6 +1,18 @@
 // Edge-Runtime Hauptfunktion — routet alle /functions/v1/<name> Aufrufe
 // zu den jeweiligen User-Worker-Functions per EdgeRuntime.userWorkers.create()
 
+declare const EdgeRuntime: {
+  userWorkers: {
+    create(options: {
+      servicePath: string;
+      memoryLimitMb: number;
+      workerTimeoutMs: number;
+      noModuleCache: boolean;
+      envVars: string[][];
+    }): Promise<{ fetch(request: Request): Promise<Response> }>;
+  };
+};
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -45,12 +57,24 @@ const WORKER_OVERRIDES: Record<string, { timeoutMs: number; memoryLimitMb: numbe
     timeoutMs: 180_000,
     memoryLimitMb: 256,
   },
+  "ki-chat": {
+    timeoutMs: 180_000,
+    memoryLimitMb: 256,
+  },
   "ki-vision": {
+    timeoutMs: 180_000,
+    memoryLimitMb: 256,
+  },
+  "recipe-transcribe-fallback": {
     timeoutMs: 180_000,
     memoryLimitMb: 256,
   },
   "openai-models": {
     timeoutMs: 60_000,
+    memoryLimitMb: 150,
+  },
+  "send-push": {
+    timeoutMs: 25_000,
     memoryLimitMb: 150,
   },
 };
@@ -95,7 +119,13 @@ Deno.serve(async (req: Request) => {
       ? 404
       : 500;
     return new Response(
-      JSON.stringify({ error: `Funktion '${fnName}' nicht verfügbar: ${msg}` }),
+      JSON.stringify({
+        code: "FUNCTION_UNAVAILABLE",
+        error: `Funktion '${fnName}' nicht verfügbar: ${msg}`,
+        message: `Funktion '${fnName}' nicht verfügbar: ${msg}`,
+        function: fnName,
+        retryable: true,
+      }),
       {
         status,
         headers: { "Content-Type": "application/json", ...corsHeaders },

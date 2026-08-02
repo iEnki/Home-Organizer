@@ -68,7 +68,14 @@ export type ChatResult =
   | {
       ok: false;
       status: number;
-      code: "TOOLS_UNSUPPORTED" | "UPSTREAM_ERROR" | "CLAUDE_REFUSAL";
+      code:
+        | "TOOLS_UNSUPPORTED"
+        | "UPSTREAM_ERROR"
+        | "UPSTREAM_TIMEOUT"
+        | "RATE_LIMITED"
+        | "MODEL_UNAVAILABLE"
+        | "PROVIDER_AUTH_ERROR"
+        | "CLAUDE_REFUSAL";
       message: string;
       retryable: boolean;
     };
@@ -205,6 +212,79 @@ function isOllamaThinkingControlError(message: unknown) {
 
 const isToolsUnsupportedMessage = (message: unknown) =>
   /tool|function.?call/i.test(String(message || ""));
+
+function isAbortError(error: unknown) {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+function providerFailure(
+  providerLabel: string,
+  status: number,
+  message: unknown,
+): Exclude<ChatResult, { ok: true }> {
+  const text = String(message || `${providerLabel} HTTP ${status}`);
+  if (status === 429) {
+    return {
+      ok: false,
+      status,
+      code: "RATE_LIMITED",
+      message: text,
+      retryable: true,
+    };
+  }
+  if (status === 401 || status === 403) {
+    return {
+      ok: false,
+      status,
+      code: "PROVIDER_AUTH_ERROR",
+      message: `${providerLabel} hat den konfigurierten API-Zugang abgelehnt.`,
+      retryable: false,
+    };
+  }
+  if (
+    status === 404
+    || /model.+(?:not found|does not exist|not available|access)/i.test(text)
+  ) {
+    return {
+      ok: false,
+      status,
+      code: "MODEL_UNAVAILABLE",
+      message: text,
+      retryable: false,
+    };
+  }
+  return {
+    ok: false,
+    status,
+    code: "UPSTREAM_ERROR",
+    message: text,
+    retryable: status >= 500,
+  };
+}
+
+function providerTransportFailure(
+  providerLabel: string,
+  error: unknown,
+): Exclude<ChatResult, { ok: true }> {
+  if (isAbortError(error)) {
+    return {
+      ok: false,
+      status: 504,
+      code: "UPSTREAM_TIMEOUT",
+      message: `${providerLabel} hat nicht rechtzeitig geantwortet.`,
+      retryable: true,
+    };
+  }
+  return {
+    ok: false,
+    status: 0,
+    code: "UPSTREAM_ERROR",
+    message: `${providerLabel} nicht erreichbar: ${
+      error instanceof Error ? error.message : String(error)
+    }`,
+    retryable: true,
+  };
+}
 
 export const isOpenAiReasoningModel = (model: string) =>
   /^(?:o\d|gpt-5(?:[.-]|$))/i.test(String(model || "").trim());
@@ -494,22 +574,14 @@ export async function callChatProvider(r: ResolvedProvider, o: ChatOptions): Pro
       );
       json = await res.json().catch(() => ({}));
     } catch (err) {
-      return {
-        ok: false,
-        status: 0,
-        code: "UPSTREAM_ERROR",
-        message: `Anthropic nicht erreichbar: ${err instanceof Error ? err.message : String(err)}`,
-        retryable: true,
-      };
+      return providerTransportFailure("Anthropic", err);
     }
     if (!res.ok) {
-      return {
-        ok: false,
-        status: res.status,
-        code: "UPSTREAM_ERROR",
-        message: json?.error?.message || `Anthropic HTTP ${res.status}`,
-        retryable: res.status >= 500 || res.status === 429,
-      };
+      return providerFailure(
+        "Anthropic",
+        res.status,
+        json?.error?.message || `Anthropic HTTP ${res.status}`,
+      );
     }
     if (json?.stop_reason === "refusal") {
       return {
@@ -536,12 +608,19 @@ export async function callChatProvider(r: ResolvedProvider, o: ChatOptions): Pro
       ...(disableThinking ? { think: false, reasoning_effort: false } : {}),
       ...(useJsonFormat ? { format: "json" } : {}),
       ...(toolsSent ? { tools: o.tools, tool_choice: o.toolChoice ?? "auto" } : {}),
+      ...(typeof o.maxTokens === "number" ? { max_tokens: o.maxTokens } : {}),
     };
-    let { res, json } = await callOpenAiCompatible(r.baseUrl || "", undefined, body, o.timeoutMs);
-    if (!res.ok && disableThinking && isOllamaThinkingControlError(json?.error?.message || json?.error)) {
-      const { think: _t, reasoning_effort: _r, ...withoutThinking } = body;
-      body = withoutThinking;
+    let res: Response;
+    let json: AnyRecord;
+    try {
       ({ res, json } = await callOpenAiCompatible(r.baseUrl || "", undefined, body, o.timeoutMs));
+      if (!res.ok && disableThinking && isOllamaThinkingControlError(json?.error?.message || json?.error)) {
+        const { think: _t, reasoning_effort: _r, ...withoutThinking } = body;
+        body = withoutThinking;
+        ({ res, json } = await callOpenAiCompatible(r.baseUrl || "", undefined, body, o.timeoutMs));
+      }
+    } catch (error) {
+      return providerTransportFailure("Ollama", error);
     }
     if (!res.ok) {
       const message = json?.error?.message || json?.error || `Ollama HTTP ${res.status}`;
@@ -554,13 +633,7 @@ export async function callChatProvider(r: ResolvedProvider, o: ChatOptions): Pro
           retryable: false,
         };
       }
-      return {
-        ok: false,
-        status: res.status,
-        code: "UPSTREAM_ERROR",
-        message: String(message),
-        retryable: res.status >= 500,
-      };
+      return providerFailure("Ollama", res.status, message);
     }
     return { ok: true, json };
   }
@@ -575,6 +648,7 @@ export async function callChatProvider(r: ResolvedProvider, o: ChatOptions): Pro
         temperature: o.temperature ?? 0.2,
         ...(o.responseFormat ? { response_format: o.responseFormat } : {}),
         ...(toolsSent ? { tools: o.tools, tool_choice: o.toolChoice ?? "auto" } : {}),
+        ...(typeof o.maxTokens === "number" ? { max_tokens: o.maxTokens } : {}),
       };
   let res: Response;
   let json: AnyRecord;
@@ -588,15 +662,10 @@ export async function callChatProvider(r: ResolvedProvider, o: ChatOptions): Pro
       }
     }
   } catch (err) {
-    return {
-      ok: false,
-      status: 0,
-      code: "UPSTREAM_ERROR",
-      message: `${r.provider === "lmstudio" ? "LM Studio" : "OpenAI"} nicht erreichbar: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-      retryable: true,
-    };
+    return providerTransportFailure(
+      r.provider === "lmstudio" ? "LM Studio" : "OpenAI",
+      err,
+    );
   }
   if (!res.ok) {
     const message = json?.error?.message || json?.error || `${r.provider} HTTP ${res.status}`;
@@ -609,13 +678,11 @@ export async function callChatProvider(r: ResolvedProvider, o: ChatOptions): Pro
         retryable: false,
       };
     }
-    return {
-      ok: false,
-      status: res.status,
-      code: "UPSTREAM_ERROR",
-      message: String(message),
-      retryable: res.status >= 500 || res.status === 429,
-    };
+    return providerFailure(
+      r.provider === "lmstudio" ? "LM Studio" : "OpenAI",
+      res.status,
+      message,
+    );
   }
   return { ok: true, json };
 }

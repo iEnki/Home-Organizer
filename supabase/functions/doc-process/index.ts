@@ -6,6 +6,12 @@
 // Output: { status: "ok"|"already_done"|"busy"|"failed", doc_type?, wissen_id?, entity_id?, warnings[] }
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  callChatProvider,
+  resolveProvider,
+  type ChatResult,
+  type KiSettingsRow,
+} from "../_shared/kiProviders.ts";
 
 function bytesToBase64(bytes: Uint8Array): string {
   const chunkSize = 8192;
@@ -156,6 +162,59 @@ function parseKiJson(raw: string): Record<string, unknown> {
   }
 }
 
+function decodeXmlText(value: string): string {
+  return value
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&")
+    .trim();
+}
+
+function extractXmlTag(xml: string, tag: string): string | null {
+  const escapedTag = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = new RegExp(
+    `<(?:[\\w.-]+:)?${escapedTag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/(?:[\\w.-]+:)?${escapedTag}\\s*>`,
+    "i",
+  ).exec(xml);
+  if (!match) return null;
+  return decodeXmlText(match[1].replace(/<[^>]+>/g, " "));
+}
+
+async function callDocumentChat(
+  settings: KiSettingsRow,
+  messages: Record<string, unknown>[],
+  {
+    temperature = 0.1,
+    maxTokens = 1_200,
+    responseFormat,
+  }: {
+    temperature?: number;
+    maxTokens?: number;
+    responseFormat?: { type: string; [key: string]: unknown };
+  } = {},
+): Promise<ChatResult> {
+  const resolved = resolveProvider(settings, "global");
+  if (!resolved.configured) {
+    return {
+      ok: false,
+      status: 409,
+      code: "UPSTREAM_ERROR",
+      message: resolved.notConfiguredMessage,
+      retryable: false,
+    };
+  }
+  return await callChatProvider(resolved, {
+    messages,
+    temperature,
+    maxTokens,
+    responseFormat,
+    timeoutMs: 150_000,
+  });
+}
+
 // ── Tag-Normalisierung ────────────────────────────────────────────────────────
 
 function normalisiereTag(name: string | null | undefined): string | null {
@@ -230,8 +289,7 @@ function localizedInvoiceContent(title: string, summary: Record<string, unknown>
 }
 
 async function translateKnowledgeContent(
-  fnHeaders: Record<string, string>,
-  functionsUrl: string,
+  settings: KiSettingsRow,
   source: { title: string; content: string; headline?: string },
   targetLocale: SupportedLocale,
 ): Promise<{ title: string; content: string; headline: string }> {
@@ -243,18 +301,19 @@ Return only valid JSON with keys title, content and headline.
 JSON:
 ${JSON.stringify(source)}`;
 
-  const resp = await fetch(`${functionsUrl}/ki-chat`, {
-    method: "POST",
-    headers: fnHeaders,
-    body: JSON.stringify({
-      purpose: "translation",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.1,
-      response_format: { type: "json_object" },
-    }),
+  const result = await callDocumentChat(settings, [{ role: "user", content: prompt }], {
+    temperature: 0.1,
+    maxTokens: 500,
+    responseFormat: { type: "json_object" },
   });
-  if (!resp.ok) return source;
-  const data = await resp.json() as { choices?: Array<{ message?: { content?: string } }> };
+  if (!result.ok) {
+    return {
+      title: source.title,
+      content: source.content,
+      headline: source.headline || source.content,
+    };
+  }
+  const data = result.json as { choices?: Array<{ message?: { content?: string } }> };
   const raw = data.choices?.[0]?.message?.content ?? "{}";
   const parsed = parseKiJson(raw);
   return {
@@ -265,14 +324,13 @@ ${JSON.stringify(source)}`;
 }
 
 async function localizedContentFromGerman(
-  fnHeaders: Record<string, string>,
-  functionsUrl: string,
+  settings: KiSettingsRow,
   title: string,
   content: string,
   headline = content,
 ) {
   const de = { title, content, headline };
-  const en = await translateKnowledgeContent(fnHeaders, functionsUrl, de, "en-GB");
+  const en = await translateKnowledgeContent(settings, de, "en-GB");
   return { de, "en-GB": en };
 }
 
@@ -389,6 +447,17 @@ Deno.serve(async (req: Request) => {
   }
 
   const householdId: string = membership.household_id;
+  const { data: kiSettingsRow } = await supabaseAdmin
+    .from("household_settings")
+    .select(
+      "bildanalyse_modus,ki_provider,openai_api_key,openai_model,ollama_base_url,ollama_model," +
+        "lmstudio_base_url,lmstudio_model,lmstudio_api_key,anthropic_api_key,claude_model",
+    )
+    .eq("household_id", householdId)
+    .maybeSingle();
+  const kiSettings = (kiSettingsRow || {}) as KiSettingsRow & {
+    bildanalyse_modus?: string | null;
+  };
 
   // ── Input parsen ──────────────────────────────────────────────────────────
   let body: { dokument_id?: string; level?: string; force?: boolean; locale?: string };
@@ -499,21 +568,18 @@ Deno.serve(async (req: Request) => {
           content.includes("urn:oasis:names:specification:ubl") ||
           content.includes("CrossIndustryInvoice")
         ) {
-          const parser = new DOMParser();
-          const xmlDoc = parser.parseFromString(content, "application/xml");
-          if (!xmlDoc.querySelector("parsererror")) {
-            // Minimale Feldextraktion — reicht für NormierteRechnungsDaten
-            const get = (tag: string) => xmlDoc.querySelector(tag)?.textContent?.trim() ?? null;
-            strukturierteDaten = {
-              lieferant:        { name: get("SellerName") ?? get("RegistrationName") ?? get("Name") },
-              rechnungsnummer:  get("ID"),
-              rechnungsdatum:   get("IssueDate"),
-              brutto:           parseFloat(get("TaxInclusiveAmount") ?? get("PayableAmount") ?? "") || null,
-              netto:            parseFloat(get("TaxExclusiveAmount") ?? get("LineExtensionAmount") ?? "") || null,
-              confidence:       0.9,
-              quelle:           "xml_strukturiert" as const,
-            };
-          }
+          // Minimale Feldextraktion — reicht für NormierteRechnungsDaten.
+          // Kein DOMParser: Der ist in der Edge-Deno-Laufzeit nicht garantiert.
+          const get = (tag: string) => extractXmlTag(content, tag);
+          strukturierteDaten = {
+            lieferant:        { name: get("SellerName") ?? get("RegistrationName") ?? get("Name") },
+            rechnungsnummer:  get("ID"),
+            rechnungsdatum:   get("IssueDate"),
+            brutto:           parseFloat(get("TaxInclusiveAmount") ?? get("PayableAmount") ?? "") || null,
+            netto:            parseFloat(get("TaxExclusiveAmount") ?? get("LineExtensionAmount") ?? "") || null,
+            confidence:       0.9,
+            quelle:           "xml_strukturiert" as const,
+          };
         }
       } else {
         // ZUGFeRD heuristic in PDFs
@@ -523,19 +589,15 @@ Deno.serve(async (req: Request) => {
           const xmlEnd   = latin1.search(/<\/(?:rsm:)?CrossIndustryInvoice>/);
           if (xmlStart !== -1 && xmlEnd !== -1) {
             const xmlChunk = latin1.slice(xmlStart, xmlEnd + 50);
-            const parser   = new DOMParser();
-            const xmlDoc   = parser.parseFromString(xmlChunk, "application/xml");
-            if (!xmlDoc.querySelector("parsererror")) {
-              const get = (tag: string) => xmlDoc.querySelector(tag)?.textContent?.trim() ?? null;
-              strukturierteDaten = {
-                lieferant:       { name: get("SellerName") ?? get("Name") },
-                rechnungsnummer: get("ID"),
-                rechnungsdatum:  get("IssueDate"),
-                brutto:          parseFloat(get("GrandTotalAmount") ?? get("DuePayableAmount") ?? "") || null,
-                confidence:      0.85,
-                quelle:          "xml_strukturiert" as const,
-              };
-            }
+            const get = (tag: string) => extractXmlTag(xmlChunk, tag);
+            strukturierteDaten = {
+              lieferant:       { name: get("SellerName") ?? get("Name") },
+              rechnungsnummer: get("ID"),
+              rechnungsdatum:  get("IssueDate"),
+              brutto:          parseFloat(get("GrandTotalAmount") ?? get("DuePayableAmount") ?? "") || null,
+              confidence:      0.85,
+              quelle:          "xml_strukturiert" as const,
+            };
           }
         }
       }
@@ -583,14 +645,7 @@ Deno.serve(async (req: Request) => {
         });
       }
     } else {
-    // Haushalt-Einstellungen laden
-    const { data: settings } = await supabaseAdmin
-      .from("household_settings")
-      .select("bildanalyse_modus")
-      .eq("household_id", householdId)
-      .maybeSingle();
-
-    const modus: string = (settings as { bildanalyse_modus?: string } | null)?.bildanalyse_modus ?? "chatgpt_vision";
+    const modus: string = kiSettings.bildanalyse_modus ?? "chatgpt_vision";
 
     try {
       // Chunked base64 — verhindert O(n²)-Stringkonkatenation bei grossen Dateien
@@ -689,18 +744,14 @@ ${klassiText}`;
   let classificationConfidence = 0;
 
   try {
-    const chatResp = await fetch(`${FUNCTIONS_URL}/ki-chat`, {
-      method:  "POST",
-      headers: fnHeaders,
-      body:    JSON.stringify({
-        messages:    [{ role: "user", content: KLASSIFIKATIONS_PROMPT }],
-        temperature: 0.1,
-        max_tokens:  400,
-      }),
-    });
+    const chatResult = await callDocumentChat(
+      kiSettings,
+      [{ role: "user", content: KLASSIFIKATIONS_PROMPT }],
+      { temperature: 0.1, maxTokens: 400 },
+    );
 
-    if (chatResp.ok) {
-      const chatData = await chatResp.json() as { choices?: Array<{ message?: { content?: string } }> };
+    if (chatResult.ok) {
+      const chatData = chatResult.json as { choices?: Array<{ message?: { content?: string } }> };
       const rawContent = chatData.choices?.[0]?.message?.content ?? "";
 
       try {
@@ -718,7 +769,7 @@ ${klassiText}`;
         warnings.push("Klassifikation: JSON-Parse fehlgeschlagen, Fallback auf 'other'.");
       }
     } else {
-      warnings.push(`ki-chat (Klassifikation): HTTP ${chatResp.status}`);
+      warnings.push(`ki-chat (Klassifikation): ${chatResult.code}`);
     }
   } catch (e) {
     warnings.push(`ki-chat (Klassifikation, exception): ${(e as Error).message}`);
@@ -895,24 +946,23 @@ positionen: Alle erkennbaren Rechnungspositionen. name ist Pflicht; Preise als Z
 Text:
 ${smartTruncate(extrahierterText)}`;
 
-        const resp = await fetch(`${FUNCTIONS_URL}/ki-chat`, {
-          method:  "POST",
-          headers: fnHeaders,
-          body:    JSON.stringify({
-            messages:        [{ role: "user", content: EXTRAKTION_PROMPT }],
-            temperature:     0.1,
-            max_tokens:      1200,
-            response_format: INVOICE_SCHEMA,
-          }),
-        });
+        const result = await callDocumentChat(
+          kiSettings,
+          [{ role: "user", content: EXTRAKTION_PROMPT }],
+          {
+            temperature: 0.1,
+            maxTokens: 1_200,
+            responseFormat: INVOICE_SCHEMA,
+          },
+        );
 
-        if (resp.ok) {
-          const data = await resp.json() as { choices?: Array<{ message?: { content?: string } }> };
+        if (result.ok) {
+          const data = result.json as { choices?: Array<{ message?: { content?: string } }> };
           const raw  = data.choices?.[0]?.message?.content ?? "";
           parsed = parseKiJson(raw);
           if (!parsed.merchant_name) warnings.push("invoice Extraktion: merchant_name fehlt.");
         } else {
-          warnings.push(`ki-chat (invoice Extraktion): HTTP ${resp.status}`);
+          warnings.push(`ki-chat (invoice Extraktion): ${result.code}`);
         }
       }
 
@@ -1124,19 +1174,18 @@ summary: 1–2 Sätze auf Deutsch, die den Vertrag verständlich zusammenfassen 
 Text:
 ${smartTruncate(extrahierterText)}`;
 
-      const resp = await fetch(`${FUNCTIONS_URL}/ki-chat`, {
-        method:  "POST",
-        headers: fnHeaders,
-        body:    JSON.stringify({
-          messages:        [{ role: "user", content: EXTRAKTION_PROMPT }],
-          temperature:     0.1,
-          max_tokens:      500,
-          response_format: CONTRACT_SCHEMA,
-        }),
-      });
+      const result = await callDocumentChat(
+        kiSettings,
+        [{ role: "user", content: EXTRAKTION_PROMPT }],
+        {
+          temperature: 0.1,
+          maxTokens: 500,
+          responseFormat: CONTRACT_SCHEMA,
+        },
+      );
 
-      if (resp.ok) {
-        const data = await resp.json() as { choices?: Array<{ message?: { content?: string } }> };
+      if (result.ok) {
+        const data = result.json as { choices?: Array<{ message?: { content?: string } }> };
         const raw  = data.choices?.[0]?.message?.content ?? "";
         const parsed = parseKiJson(raw);
 
@@ -1189,7 +1238,7 @@ ${smartTruncate(extrahierterText)}`;
           highlights: keyPoints,
           headline: summary,
         };
-        const localizedContent = await localizedContentFromGerman(fnHeaders, FUNCTIONS_URL, titel, inhalt, summary);
+        const localizedContent = await localizedContentFromGerman(kiSettings, titel, inhalt, summary);
 
         if (extractionConfidence >= 0.50) {
           // Reprocess-Schutz: reviewed_at gesetzt → manuell korrigiert
@@ -1272,7 +1321,7 @@ ${smartTruncate(extrahierterText)}`;
           });
         }
       } else {
-        warnings.push(`ki-chat (contract Extraktion): HTTP ${resp.status}`);
+        warnings.push(`ki-chat (contract Extraktion): ${result.code}`);
       }
     } catch (e) {
       warnings.push(`contract (exception): ${(e as Error).message}`);
@@ -1331,19 +1380,18 @@ summary: 1–2 Sätze auf Deutsch mit allen relevanten Infos: Versicherer, Art, 
 Text:
 ${smartTruncate(extrahierterText)}`;
 
-      const resp = await fetch(`${FUNCTIONS_URL}/ki-chat`, {
-        method:  "POST",
-        headers: fnHeaders,
-        body:    JSON.stringify({
-          messages:        [{ role: "user", content: EXTRAKTION_PROMPT }],
-          temperature:     0.1,
-          max_tokens:      500,
-          response_format: POLICY_SCHEMA,
-        }),
-      });
+      const result = await callDocumentChat(
+        kiSettings,
+        [{ role: "user", content: EXTRAKTION_PROMPT }],
+        {
+          temperature: 0.1,
+          maxTokens: 500,
+          responseFormat: POLICY_SCHEMA,
+        },
+      );
 
-      if (resp.ok) {
-        const data = await resp.json() as { choices?: Array<{ message?: { content?: string } }> };
+      if (result.ok) {
+        const data = result.json as { choices?: Array<{ message?: { content?: string } }> };
         const raw  = data.choices?.[0]?.message?.content ?? "";
         const parsed = parseKiJson(raw);
 
@@ -1395,7 +1443,7 @@ ${smartTruncate(extrahierterText)}`;
           coverage_summary: coverageSummary,
           headline: summary,
         };
-        const localizedContent = await localizedContentFromGerman(fnHeaders, FUNCTIONS_URL, titel, inhalt, summary);
+        const localizedContent = await localizedContentFromGerman(kiSettings, titel, inhalt, summary);
 
         const rawVersicherungsart = policyType;
         const normiertArt = normalisiereVersicherungsart(rawVersicherungsart);
@@ -1484,7 +1532,7 @@ ${smartTruncate(extrahierterText)}`;
           });
         }
       } else {
-        warnings.push(`ki-chat (policy Extraktion): HTTP ${resp.status}`);
+        warnings.push(`ki-chat (policy Extraktion): ${result.code}`);
       }
     } catch (e) {
       warnings.push(`policy (exception): ${(e as Error).message}`);
@@ -1505,21 +1553,17 @@ Felder: titel (max 80 Zeichen), inhalt (max 400 Zeichen Zusammenfassung).
 Dokument:
 ${smartTruncate(extrahierterText || dateiname, 2000)}`;
 
-      const resp = await fetch(`${FUNCTIONS_URL}/ki-chat`, {
-        method:  "POST",
-        headers: fnHeaders,
-        body:    JSON.stringify({
-          messages:    [{ role: "user", content: ZUSAMMENFASSUNG_PROMPT }],
-          temperature: 0.3,
-          max_tokens:  300,
-        }),
-      });
+      const result = await callDocumentChat(
+        kiSettings,
+        [{ role: "user", content: ZUSAMMENFASSUNG_PROMPT }],
+        { temperature: 0.3, maxTokens: 300 },
+      );
 
       let titel  = dateiname;
       let inhalt = "";
 
-      if (resp.ok) {
-        const data = await resp.json() as { choices?: Array<{ message?: { content?: string } }> };
+      if (result.ok) {
+        const data = result.json as { choices?: Array<{ message?: { content?: string } }> };
         const raw  = data.choices?.[0]?.message?.content ?? "";
         try {
           const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
@@ -1530,7 +1574,7 @@ ${smartTruncate(extrahierterText || dateiname, 2000)}`;
           warnings.push("other Zusammenfassung: JSON-Parse fehlgeschlagen.");
         }
       } else {
-        warnings.push(`ki-chat (other): HTTP ${resp.status}`);
+        warnings.push(`ki-chat (other): ${result.code}`);
       }
       const otherSummary = {
         kind: "document",
@@ -1539,7 +1583,7 @@ ${smartTruncate(extrahierterText || dateiname, 2000)}`;
         title: titel,
         headline: inhalt,
       };
-      const localizedContent = await localizedContentFromGerman(fnHeaders, FUNCTIONS_URL, titel, inhalt, inhalt);
+      const localizedContent = await localizedContentFromGerman(kiSettings, titel, inhalt, inhalt);
 
       wissenId = await safeUpsertHomeWissen(supabaseAdmin, {
         household_id: householdId,

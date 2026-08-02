@@ -6,6 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+const TRANSCRIPTION_TIMEOUT_MS = 150_000;
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -62,11 +63,32 @@ Deno.serve(async (req: Request) => {
   form.append("model", String(settings.kochbuch_openai_transcription_model || "gpt-4o-mini-transcribe"));
   form.append("response_format", "json");
 
-  const openaiRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-    method: "POST",
-    headers: { "Authorization": `Bearer ${settings.openai_api_key}` },
-    body: form,
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TRANSCRIPTION_TIMEOUT_MS);
+  let openaiRes: Response;
+  try {
+    openaiRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${settings.openai_api_key}` },
+      body: form,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      return jsonResponse({
+        error: "OpenAI hat nicht rechtzeitig auf die Transkription geantwortet.",
+        code: "UPSTREAM_TIMEOUT",
+        retryable: true,
+      }, 504);
+    }
+    return jsonResponse({
+      error: error instanceof Error ? error.message : "OpenAI ist nicht erreichbar.",
+      code: "UPSTREAM_ERROR",
+      retryable: true,
+    }, 502);
+  } finally {
+    clearTimeout(timeout);
+  }
   const json = await openaiRes.json().catch(() => ({}));
   if (!openaiRes.ok) {
     return jsonResponse({ error: json?.error?.message || `OpenAI HTTP ${openaiRes.status}` }, 502);

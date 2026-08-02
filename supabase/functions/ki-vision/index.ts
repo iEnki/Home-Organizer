@@ -21,13 +21,19 @@ import {
   callOpenAiVisionResponse,
   extractOpenAiResponseText,
 } from "../_shared/openaiModels.ts";
+import {
+  fetchFirstAvailableSupabaseJson,
+  requireSupabaseOk,
+  requiredEnv,
+  supabaseRestHeaders,
+  supabaseServiceCandidates,
+} from "../_shared/supabaseHttp.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 const VISION_PROVIDER_TIMEOUT_MS = 150_000;
-const SUPABASE_REQUEST_TIMEOUT_MS = 6_000;
 const FUNCTION_VERSION = "ki-vision-2026-07-26.2";
 
 function jsonResponse(body: unknown, status = 200) {
@@ -84,91 +90,10 @@ function safeErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
-function env(name: string) {
-  const value = Deno.env.get(name);
-  if (!value) throw new Error(`${name} fehlt.`);
-  return value;
-}
-
-function restHeaders(token: string) {
-  return {
-    "apikey": token,
-    "Authorization": `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
-}
-
-async function fetchSupabaseJson(url: string, init: RequestInit) {
-  const controller = new AbortController();
-  const timeout = setTimeout(
-    () => controller.abort(),
-    SUPABASE_REQUEST_TIMEOUT_MS,
-  );
-  try {
-    const response = await fetch(url, { ...init, signal: controller.signal });
-    const text = await response.text().catch(() => "");
-    let payload: any = null;
-    if (text) {
-      try {
-        payload = JSON.parse(text);
-      } catch {
-        payload = { message: text };
-      }
-    }
-    return { response, payload };
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-async function fetchFirstAvailableSupabaseJson(
-  urls: string[],
-  init: RequestInit,
-) {
-  let lastError: unknown = null;
-  for (const url of [...new Set(urls.filter(Boolean))]) {
-    try {
-      const result = await fetchSupabaseJson(url, init);
-      if (!result.response.ok) {
-        throw new Error(
-          result.payload?.message
-            || result.payload?.error
-            || `HTTP ${result.response.status}`,
-        );
-      }
-      return result.payload;
-    } catch (error) {
-      // HTTP-Antworten duerfen nicht ueber einen zweiten Endpunkt wiederholt
-      // werden. Nur bei einem Transportfehler wird der Kong-Fallback versucht.
-      if (
-        error instanceof Error
-        && !["AbortError", "TypeError"].includes(error.name)
-      ) {
-        throw error;
-      }
-      lastError = error;
-    }
-  }
-  throw lastError || new Error("Supabase-Dienst ist nicht erreichbar.");
-}
-
-function serviceCandidates(
-  internalBaseUrl: string | undefined,
-  internalPath: string,
-  publicPath: string,
-) {
-  const supabaseUrl = env("SUPABASE_URL").replace(/\/$/, "");
-  const candidates: string[] = [];
-  const internalBase = internalBaseUrl?.trim().replace(/\/$/, "");
-  if (internalBase) candidates.push(`${internalBase}${internalPath}`);
-  candidates.push(`${supabaseUrl}${publicPath}`);
-  return candidates;
-}
-
 async function getAuthenticatedUser(authHeader: string) {
-  const anonKey = env("SUPABASE_ANON_KEY");
-  return await fetchFirstAvailableSupabaseJson(
-    serviceCandidates(
+  const anonKey = requiredEnv("SUPABASE_ANON_KEY");
+  return requireSupabaseOk(await fetchFirstAvailableSupabaseJson(
+    supabaseServiceCandidates(
       Deno.env.get("SUPABASE_AUTH_URL"),
       "/user",
       "/auth/v1/user",
@@ -180,41 +105,41 @@ async function getAuthenticatedUser(authHeader: string) {
         "Authorization": authHeader,
       },
     },
-  );
+  ));
 }
 
 async function loadMembership(userId: string) {
-  const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
+  const serviceKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
   const query = `/household_members?select=household_id&user_id=eq.${encodeURIComponent(userId)}&limit=1`;
-  const rows = await fetchFirstAvailableSupabaseJson(
-    serviceCandidates(
+  const rows = requireSupabaseOk(await fetchFirstAvailableSupabaseJson(
+    supabaseServiceCandidates(
       Deno.env.get("SUPABASE_REST_URL"),
       query,
       `/rest/v1${query}`,
     ),
     {
       method: "GET",
-      headers: restHeaders(serviceKey),
+      headers: supabaseRestHeaders(serviceKey),
     },
-  );
+  ));
   return Array.isArray(rows) ? rows[0] : null;
 }
 
 async function loadVisionSettings(householdId: string) {
-  const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
+  const serviceKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
   const select = "bildanalyse_openai_api_key,openai_api_key,openai_model,bildanalyse_openai_model,ollama_base_url,ollama_model,ollama_vision_model,lmstudio_base_url,lmstudio_api_key,lmstudio_model,lmstudio_vision_model,anthropic_api_key,claude_model";
   const query = `/household_settings?select=${encodeURIComponent(select)}&household_id=eq.${encodeURIComponent(householdId)}&limit=1`;
-  const rows = await fetchFirstAvailableSupabaseJson(
-    serviceCandidates(
+  const rows = requireSupabaseOk(await fetchFirstAvailableSupabaseJson(
+    supabaseServiceCandidates(
       Deno.env.get("SUPABASE_REST_URL"),
       query,
       `/rest/v1${query}`,
     ),
     {
       method: "GET",
-      headers: restHeaders(serviceKey),
+      headers: supabaseRestHeaders(serviceKey),
     },
-  );
+  ));
   return Array.isArray(rows) ? rows[0] : null;
 }
 

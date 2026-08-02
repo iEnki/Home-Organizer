@@ -1,4 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  callChatProvider,
+  resolveProvider,
+  type KiSettingsRow,
+} from "../_shared/kiProviders.ts";
 
 function bytesToBase64(bytes: Uint8Array): string {
   const chunkSize = 8192;
@@ -213,6 +218,18 @@ Deno.serve(async (request) => {
     .maybeSingle();
   if (!membership?.household_id) return json({ error: "Kein Haushalt vorhanden." }, 409);
 
+  const { data: settings } = await admin
+    .from("household_settings")
+    .select(
+      "bildanalyse_modus,ki_provider,openai_api_key,openai_model,ollama_base_url,ollama_model," +
+        "lmstudio_base_url,lmstudio_model,lmstudio_api_key,anthropic_api_key,claude_model",
+    )
+    .eq("household_id", membership.household_id)
+    .maybeSingle();
+  const kiSettings = (settings || {}) as KiSettingsRow & {
+    bildanalyse_modus?: string | null;
+  };
+
   const payload = await request.json().catch(() => ({}));
   const documentId = String(payload?.dokument_id || "");
   const locale = payload?.locale === "en-GB" || payload?.locale === "en" ? "en-GB" : "de";
@@ -248,11 +265,6 @@ Deno.serve(async (request) => {
         return json({ error: (error as Error).message, warnings }, 502);
       }
     } else if (String(document.datei_typ || "").startsWith("image/")) {
-      const { data: settings } = await admin
-        .from("household_settings")
-        .select("bildanalyse_modus")
-        .eq("household_id", membership.household_id)
-        .maybeSingle();
       const functionsUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1`;
       const visionResponse = await fetch(`${functionsUrl}/ki-vision`, {
         method: "POST",
@@ -262,7 +274,7 @@ Deno.serve(async (request) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          mode: settings?.bildanalyse_modus || "chatgpt_vision",
+          mode: kiSettings.bildanalyse_modus || "chatgpt_vision",
           file_base64: bytesToBase64(bytes),
           mime_type: document.datei_typ,
           file_name: document.dateiname,
@@ -273,7 +285,7 @@ Deno.serve(async (request) => {
       const visionData = await visionResponse.json().catch(() => ({}));
       if (!visionResponse.ok) return json({ error: visionData?.error || `Bildanalyse HTTP ${visionResponse.status}` }, 502);
       extractedText = visionData?.text || visionData?.choices?.[0]?.message?.content || "";
-      extractor = visionData?.extractor || settings?.bildanalyse_modus || "vision";
+      extractor = visionData?.extractor || kiSettings.bildanalyse_modus || "vision";
       warnings.push(...(Array.isArray(visionData?.warnings) ? visionData.warnings : []));
     } else {
       return json({ error: "Unterstuetzt werden PDF-, JPEG-, PNG- und WebP-Dateien." }, 415);
@@ -291,7 +303,6 @@ Deno.serve(async (request) => {
     },
   }).eq("id", documentId);
 
-  const functionsUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1`;
   const language = locale === "en-GB" ? "English (United Kingdom)" : "German";
   const prompt = `You analyse vehicle service invoices, workshop receipts and inspection reports.
 Return only JSON matching the supplied schema. Natural-language fields must be in ${language}.
@@ -303,22 +314,27 @@ Typical grounded suggestions include oil service, seasonal tyre change, wheel-nu
 
 Document text:
 ${extractedText.slice(0, 18000)}`;
-  const aiResponse = await fetch(`${functionsUrl}/ki-chat`, {
-    method: "POST",
-    headers: {
-      Authorization: authHeader,
-      apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.1,
-      max_tokens: 3500,
-      response_format: schema,
-    }),
+  const resolved = resolveProvider(kiSettings, "global");
+  if (!resolved.configured) {
+    return json({ error: resolved.notConfiguredMessage, warnings }, 409);
+  }
+  const aiResult = await callChatProvider(resolved, {
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.1,
+    maxTokens: 3_500,
+    responseFormat: schema,
+    timeoutMs: 150_000,
   });
-  const aiData = await aiResponse.json().catch(() => ({}));
-  if (!aiResponse.ok) return json({ error: aiData?.message || aiData?.error || `KI HTTP ${aiResponse.status}`, warnings }, 502);
+  if (!aiResult.ok) {
+    return json({
+      error: aiResult.message,
+      code: aiResult.code,
+      provider_status: aiResult.status,
+      retryable: aiResult.retryable,
+      warnings,
+    }, aiResult.code === "UPSTREAM_TIMEOUT" ? 504 : 502);
+  }
+  const aiData = aiResult.json;
 
   let result: Record<string, any>;
   try {

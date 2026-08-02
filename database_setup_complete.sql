@@ -1210,6 +1210,7 @@ SET
   );
 
 CREATE INDEX IF NOT EXISTS idx_home_einkaufliste_user_id  ON public.home_einkaufliste(user_id);
+CREATE INDEX IF NOT EXISTS idx_home_einkaufliste_vorrat_id ON public.home_einkaufliste(vorrat_id);
 CREATE INDEX IF NOT EXISTS idx_home_einkaufliste_erledigt ON public.home_einkaufliste(erledigt);
 CREATE INDEX IF NOT EXISTS idx_home_einkaufliste_normalized_name ON public.home_einkaufliste(normalized_name);
 CREATE INDEX IF NOT EXISTS idx_home_einkaufliste_hauptkategorie ON public.home_einkaufliste(hauptkategorie);
@@ -4955,6 +4956,7 @@ CREATE INDEX IF NOT EXISTS idx_home_rezepte_thumbnail_storage_path
 CREATE INDEX IF NOT EXISTS idx_home_rezept_zutaten_rezept_id ON public.home_rezept_zutaten(rezept_id);
 CREATE INDEX IF NOT EXISTS idx_home_rezept_zutaten_household_id ON public.home_rezept_zutaten(household_id);
 CREATE INDEX IF NOT EXISTS idx_home_rezept_zutaten_normalized_name ON public.home_rezept_zutaten(normalized_name);
+CREATE INDEX IF NOT EXISTS idx_home_rezept_zutaten_matched_vorrat_id ON public.home_rezept_zutaten(matched_vorrat_id);
 CREATE INDEX IF NOT EXISTS idx_home_rezept_import_jobs_household_id ON public.home_rezept_import_jobs(household_id);
 CREATE INDEX IF NOT EXISTS idx_home_rezept_import_jobs_status ON public.home_rezept_import_jobs(status);
 CREATE INDEX IF NOT EXISTS idx_home_rezept_import_jobs_created_at ON public.home_rezept_import_jobs(created_at DESC);
@@ -6440,5 +6442,315 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.assistant_ui_config TO authentica
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.ai_chat_threads TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.ai_chat_messages TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.ai_action_receipts TO authenticated;
+
+select pg_notify('pgrst', 'reload schema');
+
+-- ============================================================
+-- KI-Provider-Ausbau: LM Studio + Claude/Anthropic (2026-07)
+-- Neue Provider fuer Text-KI (ki-chat, Assistent, Kochbuch)
+-- und Bildanalyse (ki-vision: lmstudio_vision, claude_vision)
+-- ============================================================
+
+ALTER TABLE public.household_settings
+  ADD COLUMN IF NOT EXISTS lmstudio_base_url        text,
+  ADD COLUMN IF NOT EXISTS lmstudio_model           text,
+  ADD COLUMN IF NOT EXISTS lmstudio_api_key         text,
+  ADD COLUMN IF NOT EXISTS lmstudio_vision_model    text,
+  ADD COLUMN IF NOT EXISTS anthropic_api_key        text,
+  ADD COLUMN IF NOT EXISTS claude_model             text,
+  ADD COLUMN IF NOT EXISTS kochbuch_lmstudio_model  text,
+  ADD COLUMN IF NOT EXISTS kochbuch_claude_model    text,
+  ADD COLUMN IF NOT EXISTS assistant_lmstudio_model text,
+  ADD COLUMN IF NOT EXISTS assistant_claude_model   text;
+
+ALTER TABLE public.household_settings
+  ADD COLUMN IF NOT EXISTS lmstudio_key_set boolean
+  GENERATED ALWAYS AS (lmstudio_api_key IS NOT NULL) STORED;
+ALTER TABLE public.household_settings
+  ADD COLUMN IF NOT EXISTS anthropic_key_set boolean
+  GENERATED ALWAYS AS (anthropic_api_key IS NOT NULL) STORED;
+
+-- Column-Level Security: Secrets nie an den Browser ausliefern
+REVOKE SELECT (lmstudio_api_key)  ON TABLE public.household_settings FROM anon, authenticated;
+REVOKE UPDATE (lmstudio_api_key)  ON TABLE public.household_settings FROM anon, authenticated;
+REVOKE SELECT (anthropic_api_key) ON TABLE public.household_settings FROM anon, authenticated;
+REVOKE UPDATE (anthropic_api_key) ON TABLE public.household_settings FROM anon, authenticated;
+
+-- user_profile-Spiegel (nur Kochbuch-Modelle, keine Secrets)
+ALTER TABLE public.user_profile
+  ADD COLUMN IF NOT EXISTS kochbuch_lmstudio_model text,
+  ADD COLUMN IF NOT EXISTS kochbuch_claude_model   text;
+
+-- Provider-CHECKs um lmstudio + claude erweitern
+ALTER TABLE public.household_settings
+  DROP CONSTRAINT IF EXISTS household_settings_kochbuch_ki_provider_check,
+  ADD CONSTRAINT household_settings_kochbuch_ki_provider_check
+    CHECK (kochbuch_ki_provider IN ('global', 'openai', 'ollama', 'lmstudio', 'claude'));
+
+ALTER TABLE public.user_profile
+  DROP CONSTRAINT IF EXISTS user_profile_kochbuch_ki_provider_check,
+  ADD CONSTRAINT user_profile_kochbuch_ki_provider_check
+    CHECK (kochbuch_ki_provider IN ('global', 'openai', 'ollama', 'lmstudio', 'claude'));
+
+ALTER TABLE public.household_settings
+  DROP CONSTRAINT IF EXISTS household_settings_assistant_ki_provider_check,
+  ADD CONSTRAINT household_settings_assistant_ki_provider_check
+    CHECK (assistant_ki_provider IN ('global', 'openai', 'ollama', 'lmstudio', 'claude'));
+
+-- RPC: set_household_ki_settings (erweitert)
+DROP FUNCTION IF EXISTS public.set_household_ki_settings(text, text, text, text, text);
+CREATE OR REPLACE FUNCTION public.set_household_ki_settings(
+  p_ki_provider text,
+  p_openai_api_key text,
+  p_ollama_base_url text,
+  p_ollama_model text,
+  p_openai_model text DEFAULT NULL,
+  p_lmstudio_base_url text DEFAULT NULL,
+  p_lmstudio_model text DEFAULT NULL,
+  p_lmstudio_api_key text DEFAULT NULL,   -- NULL = behalten, Leerstring = loeschen
+  p_anthropic_api_key text DEFAULT NULL,  -- NULL = behalten, Leerstring = loeschen
+  p_claude_model text DEFAULT NULL
+)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE v_household_id uuid;
+BEGIN
+  v_household_id := public.get_current_household_id();
+  IF v_household_id IS NULL OR NOT public.is_household_admin(v_household_id) THEN
+    RAISE EXCEPTION 'Nur Admin darf KI-Einstellungen aendern.';
+  END IF;
+
+  INSERT INTO public.household_settings (
+    household_id, ki_provider, openai_api_key, openai_model, ollama_base_url, ollama_model,
+    lmstudio_base_url, lmstudio_model, lmstudio_api_key,
+    anthropic_api_key, claude_model, updated_by
+  ) VALUES (
+    v_household_id,
+    COALESCE(NULLIF(BTRIM(p_ki_provider), ''), 'openai'),
+    NULLIF(BTRIM(p_openai_api_key), ''),
+    NULLIF(BTRIM(p_openai_model), ''),
+    NULLIF(BTRIM(p_ollama_base_url), ''),
+    COALESCE(NULLIF(BTRIM(p_ollama_model), ''), 'llama3.2'),
+    NULLIF(BTRIM(p_lmstudio_base_url), ''),
+    NULLIF(BTRIM(p_lmstudio_model), ''),
+    NULLIF(BTRIM(p_lmstudio_api_key), ''),
+    NULLIF(BTRIM(p_anthropic_api_key), ''),
+    NULLIF(BTRIM(p_claude_model), ''),
+    (SELECT auth.uid())
+  )
+  ON CONFLICT (household_id) DO UPDATE
+  SET ki_provider     = EXCLUDED.ki_provider,
+      openai_api_key  = EXCLUDED.openai_api_key,
+      openai_model    = EXCLUDED.openai_model,
+      ollama_base_url = EXCLUDED.ollama_base_url,
+      ollama_model    = EXCLUDED.ollama_model,
+      lmstudio_base_url = COALESCE(NULLIF(BTRIM(p_lmstudio_base_url), ''), public.household_settings.lmstudio_base_url),
+      lmstudio_model    = COALESCE(NULLIF(BTRIM(p_lmstudio_model), ''), public.household_settings.lmstudio_model),
+      lmstudio_api_key  = CASE
+        WHEN p_lmstudio_api_key IS NULL THEN public.household_settings.lmstudio_api_key
+        WHEN BTRIM(p_lmstudio_api_key) = '' THEN NULL
+        ELSE BTRIM(p_lmstudio_api_key)
+      END,
+      anthropic_api_key = CASE
+        WHEN p_anthropic_api_key IS NULL THEN public.household_settings.anthropic_api_key
+        WHEN BTRIM(p_anthropic_api_key) = '' THEN NULL
+        ELSE BTRIM(p_anthropic_api_key)
+      END,
+      claude_model = COALESCE(NULLIF(BTRIM(p_claude_model), ''), public.household_settings.claude_model),
+      updated_by   = (SELECT auth.uid()),
+      updated_at   = NOW();
+
+  RETURN true;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.set_household_ki_settings(text, text, text, text, text, text, text, text, text, text) FROM public;
+GRANT EXECUTE ON FUNCTION public.set_household_ki_settings(text, text, text, text, text, text, text, text, text, text) TO authenticated;
+
+-- RPC: set_household_kochbuch_ai_settings (erweitert)
+DROP FUNCTION IF EXISTS public.set_household_kochbuch_ai_settings(text, text, text, text, text, boolean);
+CREATE OR REPLACE FUNCTION public.set_household_kochbuch_ai_settings(
+  p_kochbuch_ki_provider text,
+  p_kochbuch_openai_model text,
+  p_kochbuch_ollama_model text,
+  p_ollama_base_url text DEFAULT NULL,
+  p_ollama_model text DEFAULT NULL,
+  p_kochbuch_ollama_thinking_enabled boolean DEFAULT false,
+  p_kochbuch_lmstudio_model text DEFAULT NULL,
+  p_kochbuch_claude_model text DEFAULT NULL
+)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE v_household_id uuid;
+BEGIN
+  SELECT household_id INTO v_household_id
+  FROM public.household_members
+  WHERE user_id = auth.uid() AND role = 'admin'
+  LIMIT 1;
+
+  IF v_household_id IS NULL THEN
+    RAISE EXCEPTION 'Nur Admin darf Kochbuch-Einstellungen aendern.';
+  END IF;
+
+  INSERT INTO public.household_settings (
+    household_id, kochbuch_ki_provider, kochbuch_openai_model, kochbuch_ollama_model,
+    kochbuch_ollama_thinking_enabled, kochbuch_lmstudio_model, kochbuch_claude_model,
+    ollama_base_url, ollama_model, updated_by
+  ) VALUES (
+    v_household_id,
+    COALESCE(NULLIF(BTRIM(p_kochbuch_ki_provider), ''), 'global'),
+    NULLIF(BTRIM(p_kochbuch_openai_model), ''),
+    NULLIF(BTRIM(p_kochbuch_ollama_model), ''),
+    COALESCE(p_kochbuch_ollama_thinking_enabled, false),
+    NULLIF(BTRIM(p_kochbuch_lmstudio_model), ''),
+    NULLIF(BTRIM(p_kochbuch_claude_model), ''),
+    NULLIF(BTRIM(p_ollama_base_url), ''),
+    COALESCE(NULLIF(BTRIM(p_ollama_model), ''), NULLIF(BTRIM(p_kochbuch_ollama_model), ''), 'llama3.2'),
+    auth.uid()
+  )
+  ON CONFLICT (household_id) DO UPDATE
+  SET kochbuch_ki_provider = EXCLUDED.kochbuch_ki_provider,
+      kochbuch_openai_model = EXCLUDED.kochbuch_openai_model,
+      kochbuch_ollama_model = EXCLUDED.kochbuch_ollama_model,
+      kochbuch_ollama_thinking_enabled = EXCLUDED.kochbuch_ollama_thinking_enabled,
+      kochbuch_lmstudio_model = COALESCE(NULLIF(BTRIM(p_kochbuch_lmstudio_model), ''), public.household_settings.kochbuch_lmstudio_model),
+      kochbuch_claude_model = COALESCE(NULLIF(BTRIM(p_kochbuch_claude_model), ''), public.household_settings.kochbuch_claude_model),
+      ollama_base_url = COALESCE(EXCLUDED.ollama_base_url, public.household_settings.ollama_base_url),
+      ollama_model = COALESCE(EXCLUDED.ollama_model, public.household_settings.ollama_model),
+      updated_by = auth.uid(),
+      updated_at = NOW();
+
+  RETURN true;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.set_household_kochbuch_ai_settings(text, text, text, text, text, boolean, text, text) FROM public;
+GRANT EXECUTE ON FUNCTION public.set_household_kochbuch_ai_settings(text, text, text, text, text, boolean, text, text) TO authenticated;
+
+-- RPC: set_household_assistant_ki_settings (erweitert)
+DROP FUNCTION IF EXISTS public.set_household_assistant_ki_settings(text, text, text, boolean);
+CREATE OR REPLACE FUNCTION public.set_household_assistant_ki_settings(
+  p_assistant_ki_provider text,
+  p_assistant_openai_model text,
+  p_assistant_ollama_model text,
+  p_assistant_ollama_thinking_enabled boolean DEFAULT false,
+  p_assistant_lmstudio_model text DEFAULT NULL,
+  p_assistant_claude_model text DEFAULT NULL
+)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE v_household_id uuid;
+BEGIN
+  SELECT household_id INTO v_household_id
+  FROM public.household_members
+  WHERE user_id = auth.uid() AND role = 'admin'
+  LIMIT 1;
+
+  IF v_household_id IS NULL THEN
+    RAISE EXCEPTION 'Nur Admin darf Assistent-Einstellungen aendern.';
+  END IF;
+
+  INSERT INTO public.household_settings (
+    household_id, assistant_ki_provider, assistant_openai_model, assistant_ollama_model,
+    assistant_ollama_thinking_enabled, assistant_lmstudio_model, assistant_claude_model, updated_by
+  ) VALUES (
+    v_household_id,
+    COALESCE(NULLIF(BTRIM(p_assistant_ki_provider), ''), 'global'),
+    NULLIF(BTRIM(p_assistant_openai_model), ''),
+    NULLIF(BTRIM(p_assistant_ollama_model), ''),
+    COALESCE(p_assistant_ollama_thinking_enabled, false),
+    NULLIF(BTRIM(p_assistant_lmstudio_model), ''),
+    NULLIF(BTRIM(p_assistant_claude_model), ''),
+    auth.uid()
+  )
+  ON CONFLICT (household_id) DO UPDATE
+  SET assistant_ki_provider = EXCLUDED.assistant_ki_provider,
+      assistant_openai_model = EXCLUDED.assistant_openai_model,
+      assistant_ollama_model = EXCLUDED.assistant_ollama_model,
+      assistant_ollama_thinking_enabled = EXCLUDED.assistant_ollama_thinking_enabled,
+      assistant_lmstudio_model = COALESCE(NULLIF(BTRIM(p_assistant_lmstudio_model), ''), public.household_settings.assistant_lmstudio_model),
+      assistant_claude_model = COALESCE(NULLIF(BTRIM(p_assistant_claude_model), ''), public.household_settings.assistant_claude_model),
+      updated_by = auth.uid(),
+      updated_at = NOW();
+
+  RETURN true;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.set_household_assistant_ki_settings(text, text, text, boolean, text, text) FROM public;
+GRANT EXECUTE ON FUNCTION public.set_household_assistant_ki_settings(text, text, text, boolean, text, text) TO authenticated;
+
+-- RPC: set_household_bildanalyse_settings (+ LM Studio Vision)
+DROP FUNCTION IF EXISTS public.set_household_bildanalyse_settings(text, text, text, text);
+CREATE OR REPLACE FUNCTION public.set_household_bildanalyse_settings(
+  p_modus                      text,
+  p_bildanalyse_openai_api_key text DEFAULT NULL,
+  p_ollama_vision_model        text DEFAULT NULL,
+  p_bildanalyse_openai_model   text DEFAULT NULL,
+  p_lmstudio_vision_model      text DEFAULT NULL
+)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE v_household_id uuid;
+BEGIN
+  SELECT household_id INTO v_household_id
+  FROM public.household_members
+  WHERE user_id = auth.uid() AND role = 'admin'
+  LIMIT 1;
+
+  IF v_household_id IS NULL THEN
+    RAISE EXCEPTION 'Nur Admin darf Bildanalyse-Einstellungen aendern.';
+  END IF;
+
+  INSERT INTO public.household_settings (household_id, bildanalyse_modus, bildanalyse_openai_api_key, ollama_vision_model, bildanalyse_openai_model, lmstudio_vision_model)
+  VALUES (v_household_id, p_modus, p_bildanalyse_openai_api_key, p_ollama_vision_model, NULLIF(BTRIM(p_bildanalyse_openai_model), ''), NULLIF(BTRIM(p_lmstudio_vision_model), ''))
+  ON CONFLICT (household_id) DO UPDATE
+  SET bildanalyse_modus              = EXCLUDED.bildanalyse_modus,
+      bildanalyse_openai_api_key     = CASE
+        WHEN p_bildanalyse_openai_api_key IS NULL THEN public.household_settings.bildanalyse_openai_api_key
+        WHEN p_bildanalyse_openai_api_key = ''    THEN NULL
+        ELSE p_bildanalyse_openai_api_key
+      END,
+      ollama_vision_model            = COALESCE(p_ollama_vision_model, public.household_settings.ollama_vision_model),
+      bildanalyse_openai_model       = CASE
+        WHEN p_bildanalyse_openai_model IS NULL THEN public.household_settings.bildanalyse_openai_model
+        ELSE NULLIF(BTRIM(p_bildanalyse_openai_model), '')
+      END,
+      lmstudio_vision_model          = COALESCE(NULLIF(BTRIM(p_lmstudio_vision_model), ''), public.household_settings.lmstudio_vision_model),
+      updated_at                     = NOW();
+END;
+$$;
+REVOKE ALL ON FUNCTION public.set_household_bildanalyse_settings(text, text, text, text, text) FROM public;
+GRANT EXECUTE ON FUNCTION public.set_household_bildanalyse_settings(text, text, text, text, text) TO authenticated;
+
+-- RPC: get_household_ki_status (konfiguriert erweitert)
+CREATE OR REPLACE FUNCTION public.get_household_ki_status()
+RETURNS TABLE (
+  ki_provider             text,
+  ki_konfiguriert         boolean,
+  bildanalyse_modus       text,
+  bildanalyse_key_gesetzt boolean
+)
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = ''
+AS $$
+  WITH hh AS (
+    SELECT public.get_current_household_id() AS household_id
+  )
+  SELECT
+    COALESCE(hs.ki_provider, 'openai')                                        AS ki_provider,
+    COALESCE(
+      hs.openai_api_key IS NOT NULL
+      OR hs.ollama_base_url IS NOT NULL
+      OR hs.lmstudio_base_url IS NOT NULL
+      OR hs.anthropic_api_key IS NOT NULL,
+      false
+    )                                                                          AS ki_konfiguriert,
+    COALESCE(hs.bildanalyse_modus, 'chatgpt_vision')                          AS bildanalyse_modus,
+    COALESCE(hs.bildanalyse_openai_key_set, false)                            AS bildanalyse_key_gesetzt
+  FROM hh
+  LEFT JOIN public.household_settings hs ON hs.household_id = hh.household_id;
+$$;
 
 select pg_notify('pgrst', 'reload schema');

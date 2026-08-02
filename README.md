@@ -48,4 +48,8 @@ During fullstack installation, the management script offers to apply [`database_
 
 ## License
 
-MIT, see [`umzugshelfer-pwa/LICENSE`](umzugshelfer-pwa/LICENSE).
+[PolyForm Noncommercial License 1.0.0](LICENSE). Free for noncommercial use: private households, charitable organizations, educational institutions and public bodies may run and modify this software. Commercial use — including reselling it, offering it as a paid service, or using it inside a for-profit company — is not permitted without a separate license. For commercial licensing, please open an issue.
+
+This is source-available, not open source in the OSI sense.
+
+Versions released before this change remain available under the MIT license, which cannot be revoked retroactively.

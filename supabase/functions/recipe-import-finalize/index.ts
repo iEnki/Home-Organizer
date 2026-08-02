@@ -5,11 +5,8 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
-  ANTHROPIC_API_URL,
-  anthropicHeaders,
-  fromAnthropicResponse,
+  callChatProvider,
   resolveProvider,
-  toAnthropicRequest,
   type KiSettingsRow,
 } from "../_shared/kiProviders.ts";
 
@@ -19,6 +16,7 @@ const corsHeaders = {
 };
 const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 const OLLAMA_ANALYSIS_TIMEOUT_MS = 85_000;
+const CLOUD_ANALYSIS_TIMEOUT_MS = 150_000;
 // Lokale Provider (Ollama, LM Studio) bekommen ein hartes Analyse-Timeout,
 // danach kann der Nutzer den Import mit OpenAI fortsetzen.
 const LOCAL_AI_PROVIDERS = new Set(["ollama", "lmstudio"]);
@@ -449,140 +447,46 @@ function resolveCookbookAi(settings: Record<string, unknown> | null | undefined,
   };
 }
 
-function injectJsonInstruction(messages: unknown[], disableThinking = true) {
-  const instruction = disableThinking
-    ? "Return only valid JSON. No explanation text, no Markdown, no code fences. Do not use thinking or reasoning output."
-    : "Return only valid JSON. No explanation text, no Markdown, no code fences.";
-  const patched = [...messages] as Array<Record<string, unknown>>;
-  const idx = patched.findIndex((message) => message?.role === "system" && typeof message?.content === "string");
-  if (idx >= 0) {
-    patched[idx] = { ...patched[idx], content: `${patched[idx].content}\n\n${instruction}` };
-    return patched;
-  }
-  return [{ role: "system", content: instruction }, ...patched];
-}
-
-function isOllamaThinkingControlError(message: unknown) {
-  const text = String(message || "").toLowerCase();
-  return text.includes("think") || text.includes("reasoning_effort") || text.includes("reasoning effort");
-}
-
 async function callKiJson(settings: Record<string, unknown>, messages: unknown[], temperature = 0.1, forceProvider?: string) {
-  const ai = resolveCookbookAi(settings, forceProvider);
-  if (!ai.configured) throw new Error(ai.error);
+  const resolved = resolveProvider(
+    settings as KiSettingsRow,
+    "kochbuch",
+    { forceProvider },
+  );
+  if (!resolved.configured) throw new Error(resolved.notConfiguredMessage);
 
-  const isLocalProvider = LOCAL_AI_PROVIDERS.has(ai.provider);
-  const isClaude = ai.provider === "claude";
-  const endpoint = isClaude
-    ? ANTHROPIC_API_URL
-    : isLocalProvider
-    ? `${ai.baseUrl}/v1/chat/completions`
-    : "https://api.openai.com/v1/chat/completions";
-  const headers: Record<string, string> = isClaude
-    ? anthropicHeaders(ai.apiKey)
-    : { "Content-Type": "application/json" };
-  if (!isClaude && ai.apiKey) headers.Authorization = `Bearer ${ai.apiKey}`;
-  const disableOllamaThinking = ai.provider === "ollama" && !Boolean(settings?.kochbuch_ollama_thinking_enabled);
-
-  let requestBody: Record<string, unknown>;
-  if (ai.provider === "ollama") {
-    requestBody = {
-      model: ai.model,
-      messages: injectJsonInstruction(messages, disableOllamaThinking),
-      temperature,
-      format: "json",
-      ...(disableOllamaThinking ? { think: false, reasoning_effort: false } : {}),
-    };
-  } else if (isClaude) {
-    // Anthropic: max_tokens Pflicht, KEIN temperature (claude-opus-4-8 lehnt es ab).
-    requestBody = toAnthropicRequest({
-      model: ai.model,
-      messages: messages as Record<string, unknown>[],
-      responseFormat: { type: "json_object" },
-    });
-  } else {
-    // openai + lmstudio (OpenAI-kompatibel)
-    requestBody = {
-      model: ai.model,
-      messages,
-      temperature,
-      response_format: { type: "json_object" },
-    };
+  const result = await callChatProvider(resolved, {
+    messages: messages as Record<string, unknown>[],
+    responseFormat: { type: "json_object" },
+    temperature,
+    maxTokens: 4_096,
+    timeoutMs: LOCAL_AI_PROVIDERS.has(resolved.provider)
+      ? OLLAMA_ANALYSIS_TIMEOUT_MS
+      : CLOUD_ANALYSIS_TIMEOUT_MS,
+  });
+  if (!result.ok) {
+    const error = new Error(result.message);
+    error.name = result.code;
+    throw error;
   }
 
-  const fetchCompletion = async (body: Record<string, unknown>) => {
-    const controller = new AbortController();
-    const timeoutId = isLocalProvider
-      ? setTimeout(() => controller.abort("local-ai-timeout"), OLLAMA_ANALYSIS_TIMEOUT_MS)
-      : null;
-
-    try {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-      const responseText = await response.text().catch(() => "");
-      return { response, responseText };
-    } catch (err) {
-      if (isLocalProvider && controller.signal.aborted) {
-        const timeoutError = new Error(`${ai.provider === "lmstudio" ? "LM Studio" : "Ollama"} analysis timed out.`);
-        timeoutError.name = "LocalAiTimeoutError";
-        throw timeoutError;
-      }
-      throw err;
-    } finally {
-      if (timeoutId) clearTimeout(timeoutId);
-    }
-  };
-
-  const parseResponseText = (responseText: string) => {
-    try {
-      return responseText ? JSON.parse(responseText) : {};
-    } catch {
-      throw new Error(`${ai.provider} returned non-JSON response: ${truncate(responseText)}`);
-    }
-  };
-
-  let { response, responseText } = await fetchCompletion(requestBody);
-  let json: any = parseResponseText(responseText);
-
-  if (!response.ok && ai.provider === "ollama" && disableOllamaThinking && isOllamaThinkingControlError(json?.error?.message || json?.error)) {
-    const { think, reasoning_effort, ...bodyWithoutThinkingControls } = requestBody;
-    requestBody = bodyWithoutThinkingControls;
-    const retry = await fetchCompletion(requestBody);
-    response = retry.response;
-    responseText = retry.responseText;
-    json = parseResponseText(responseText);
-  }
-
-  if (!response.ok) {
-    throw new Error(json?.error?.message || json?.error || `${ai.provider} HTTP ${response.status}`);
-  }
-
-  if (isClaude) {
-    if (json?.stop_reason === "refusal") {
-      throw new Error("Claude hat die Rezeptanalyse aus Sicherheitsgruenden abgelehnt.");
-    }
-    json = fromAnthropicResponse(json);
-  }
+  const json = result.json;
 
   const content = json?.choices?.[0]?.message?.content;
   if (!content || typeof content !== "string") {
-    throw new Error(`${ai.provider} returned no message content.`);
+    throw new Error(`${resolved.provider} returned no message content.`);
   }
 
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(cleanJson(content)) as Record<string, unknown>;
   } catch (err) {
-    throw new Error(`${ai.provider} returned invalid recipe JSON: ${truncate(content)} (${err instanceof Error ? err.message : String(err)})`);
+    throw new Error(`${resolved.provider} returned invalid recipe JSON: ${truncate(content)} (${err instanceof Error ? err.message : String(err)})`);
   }
 
   return {
-    provider: ai.provider,
-    model: ai.model,
+    provider: resolved.provider,
+    model: resolved.model,
     raw: json,
     parsed,
   };

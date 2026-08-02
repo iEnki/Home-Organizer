@@ -9,6 +9,12 @@ import {
   callChatProvider,
   type ResolvedProvider,
 } from "../_shared/kiProviders.ts";
+import {
+  fetchFirstAvailableSupabaseJson,
+  requiredEnv,
+  supabaseRestHeaders,
+  supabaseServiceCandidates,
+} from "../_shared/supabaseHttp.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,7 +22,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 const FUNCTION_VERSION = "openai-models-2026-07-26.3";
-const SUPABASE_REQUEST_TIMEOUT_MS = 6_000;
 const TEST_IMAGE_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=";
 
@@ -25,12 +30,6 @@ function jsonResponse(body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
-}
-
-function env(name: string) {
-  const value = Deno.env.get(name);
-  if (!value) throw new Error(`${name} fehlt.`);
-  return value;
 }
 
 function upstreamMessage(payload: any, status: number) {
@@ -45,70 +44,18 @@ function upstreamErrorCode(status: number, payload: any) {
   return String(payload?.error?.code || "OPENAI_REQUEST_FAILED").toUpperCase();
 }
 
-function restHeaders(token: string) {
-  return {
-    "apikey": token,
-    "Authorization": `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
-}
-
-async function fetchSupabaseJson(url: string, init: RequestInit) {
-  const controller = new AbortController();
-  const timeout = setTimeout(
-    () => controller.abort(),
-    SUPABASE_REQUEST_TIMEOUT_MS,
-  );
-  try {
-    const response = await fetch(url, { ...init, signal: controller.signal });
-    const text = await response.text().catch(() => "");
-    let payload: any = null;
-    if (text) {
-      try {
-        payload = JSON.parse(text);
-      } catch {
-        payload = { message: text };
-      }
-    }
-    return { response, payload };
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-async function fetchFirstAvailableSupabaseJson(
-  urls: string[],
-  init: RequestInit,
-) {
-  let lastError: unknown = null;
-  for (const url of [...new Set(urls.filter(Boolean))]) {
-    try {
-      return await fetchSupabaseJson(url, init);
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  throw lastError || new Error("Supabase-Dienst ist nicht erreichbar.");
-}
-
 async function loadAdminContext(authHeader: string) {
-  const supabaseUrl = env("SUPABASE_URL").replace(/\/$/, "");
-  const anonKey = env("SUPABASE_ANON_KEY");
-  const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
-  const authBaseUrl = (
-    Deno.env.get("SUPABASE_AUTH_URL") || "http://auth:9999"
-  ).replace(/\/$/, "");
-  const restBaseUrl = (
-    Deno.env.get("SUPABASE_REST_URL") || "http://rest:3000"
-  ).replace(/\/$/, "");
+  const anonKey = requiredEnv("SUPABASE_ANON_KEY");
+  const serviceKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
 
   let userResult;
   try {
     userResult = await fetchFirstAvailableSupabaseJson(
-      [
-        `${authBaseUrl}/user`,
-        `${supabaseUrl}/auth/v1/user`,
-      ],
+      supabaseServiceCandidates(
+        Deno.env.get("SUPABASE_AUTH_URL"),
+        "/user",
+        "/auth/v1/user",
+      ),
       {
         method: "GET",
         headers: {
@@ -146,13 +93,14 @@ async function loadAdminContext(authHeader: string) {
   let membershipResult;
   try {
     membershipResult = await fetchFirstAvailableSupabaseJson(
-      [
-        `${restBaseUrl}${membershipQuery}`,
-        `${supabaseUrl}/rest/v1${membershipQuery}`,
-      ],
+      supabaseServiceCandidates(
+        Deno.env.get("SUPABASE_REST_URL"),
+        membershipQuery,
+        `/rest/v1${membershipQuery}`,
+      ),
       {
         method: "GET",
-        headers: restHeaders(serviceKey),
+        headers: supabaseRestHeaders(serviceKey),
       },
     );
   } catch (error) {
@@ -204,13 +152,14 @@ async function loadAdminContext(authHeader: string) {
   let settingsResult;
   try {
     settingsResult = await fetchFirstAvailableSupabaseJson(
-      [
-        `${restBaseUrl}${settingsQuery}`,
-        `${supabaseUrl}/rest/v1${settingsQuery}`,
-      ],
+      supabaseServiceCandidates(
+        Deno.env.get("SUPABASE_REST_URL"),
+        settingsQuery,
+        `/rest/v1${settingsQuery}`,
+      ),
       {
         method: "GET",
-        headers: restHeaders(serviceKey),
+        headers: supabaseRestHeaders(serviceKey),
       },
     );
   } catch (error) {
