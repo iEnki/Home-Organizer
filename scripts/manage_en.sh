@@ -46,6 +46,20 @@ success() { echo -e "${GREEN}✅ $1${NC}"; }
 header()  { echo -e "\n${BOLD}${GREEN}$1${NC}"; echo "$(printf '=%.0s' {1..60})"; }
 dim()     { echo -e "${DIM}$1${NC}"; }
 
+print_supabase_proxy_timeout_notice() {
+  local public_url
+  public_url="$(env_get "SUPABASE_PUBLIC_URL" 2>/dev/null || true)"
+  [[ "$public_url" != https://* ]] && return 0
+  echo ""
+  warn "Reverse proxy: AI image analysis can take longer than 90 seconds."
+  echo "  The Supabase/Kong domain requires these settings in its location block:"
+  echo "    proxy_connect_timeout 30s;"
+  echo "    proxy_send_timeout 210s;"
+  echo "    proxy_read_timeout 210s;"
+  echo "    send_timeout 210s;"
+  echo "    client_max_body_size 32m;"
+}
+
 weiter() {
   echo ""
   read -rp "  Press Enter to return to the main menu..." _PAUSE
@@ -113,6 +127,25 @@ deploy_edge_functions_to_volumes() {
   mkdir -p volumes/functions
   cp -R supabase/functions/. volumes/functions/
   DEPLOYED=$(find supabase/functions -mindepth 2 -maxdepth 2 -type f -name 'index.ts' 2>/dev/null | wc -l)
+  local source_file relative_file
+  while IFS= read -r source_file; do
+    relative_file="${source_file#supabase/functions/}"
+    if [[ ! -f "volumes/functions/${relative_file}" ]] \
+      || ! cmp -s "$source_file" "volumes/functions/${relative_file}"; then
+      warn "Edge Functions sync is incomplete: ${relative_file}"
+      return 1
+    fi
+  done < <(find supabase/functions -type f)
+  if ! grep -A3 -F '"ki-chat": {' volumes/functions/main/index.ts \
+    | grep -q 'timeoutMs: 180_000'; then
+    warn "The 180-second worker override for ki-chat is missing from the deployment."
+    return 1
+  fi
+  if ! grep -A3 -F '"send-push": {' volumes/functions/main/index.ts \
+    | grep -q 'timeoutMs: 25_000'; then
+    warn "The 25-second worker override for send-push is missing from the deployment."
+    return 1
+  fi
   echo "    OK ${DEPLOYED} Edge Functions including shared modules"
 }
 
@@ -142,6 +175,20 @@ run_sql_with_fallback() {
   fi
 
   rm -f "$log_file"; return 1
+}
+
+apply_fast_mutation_hotfix() {
+  local sql_file="scripts/hotfix_2026_07_29_fast_mutations.sql"
+  [[ "$IS_VOLLSTACK" != "true" ]] && return 0
+  if [[ ! -f "$sql_file" ]]; then
+    warn "Performance hotfix is missing: ${sql_file}"
+    return 1
+  fi
+  if ! run_sql_in_db_container "$sql_file"; then
+    warn "Performance indexes could not be applied."
+    return 1
+  fi
+  success "Performance indexes for fast save and delete operations are active."
 }
 
 ensure_kong_entrypoint_script() {
@@ -244,6 +291,17 @@ check_recipe_parser_context() {
   return 0
 }
 
+check_edge_internal_service_config() {
+  [[ "$IS_VOLLSTACK" != "true" ]] && return 0
+  if ! grep -qE '^[[:space:]]+SUPABASE_AUTH_URL:[[:space:]]+http://auth:9999[[:space:]]*$' "$COMPOSE_FILE" 2>/dev/null \
+    || ! grep -qE '^[[:space:]]+SUPABASE_REST_URL:[[:space:]]+http://rest:3000[[:space:]]*$' "$COMPOSE_FILE" 2>/dev/null; then
+    warn "SUPABASE_AUTH_URL or SUPABASE_REST_URL is missing from the Functions service."
+    echo "  Update docker-compose.full.yml before restarting Edge Functions."
+    return 1
+  fi
+  return 0
+}
+
 ensure_fullstack_update_prereqs() {
   [[ "$IS_VOLLSTACK" != "true" ]] && return 0
   if [[ ! -f "volumes/api/kong-entrypoint.sh" ]]; then
@@ -251,7 +309,7 @@ ensure_fullstack_update_prereqs() {
     ensure_kong_entrypoint_script
     KONG_RELOAD_REASON="${KONG_RELOAD_REASON:-kong-entrypoint regenerated}"
   fi
-  check_recipe_parser_context
+  check_recipe_parser_context && check_edge_internal_service_config
 }
 
 reload_kong_if_needed() {
@@ -368,11 +426,26 @@ print_edge_functions_diagnostics() {
 
 verify_edge_functions_running() {
   [[ "$IS_VOLLSTACK" != "true" ]] && return 0
-  if container_is_running supabase-edge-functions; then
-    return 0
+  if ! container_is_running supabase-edge-functions; then
+    print_edge_functions_diagnostics
+    return 1
   fi
-  print_edge_functions_diagnostics
-  return 1
+
+  local configured_env
+  configured_env="$(docker inspect supabase-edge-functions --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null || true)"
+  if ! grep -qx 'SUPABASE_AUTH_URL=http://auth:9999' <<< "$configured_env" \
+    || ! grep -qx 'SUPABASE_REST_URL=http://rest:3000' <<< "$configured_env"; then
+    warn "The Functions container is running, but the direct internal Supabase URLs are missing."
+    echo "  Apply them again with:"
+    echo "    docker compose -f ${COMPOSE_FILE} up -d --no-deps --force-recreate functions"
+    return 1
+  fi
+  if ! grep -A3 -F '"send-push": {' volumes/functions/main/index.ts \
+    | grep -q 'timeoutMs: 25_000'; then
+    warn "The Functions container is running, but the send-push worker override is missing."
+    return 1
+  fi
+  return 0
 }
 
 restart_edge_functions() {
@@ -405,7 +478,8 @@ restart_edge_functions() {
 
   # Wait briefly so an immediately crashing runtime process is detected.
   sleep 3
-  verify_edge_functions_running
+  verify_edge_functions_running || return 1
+  print_supabase_proxy_timeout_notice
 }
 
 print_url_role_warnings() {
@@ -1329,6 +1403,13 @@ modus_update() {
         if [[ "${CONFIRM,,}" == "n" ]]; then echo "  Cancelled."; weiter; continue; fi
 
         echo ""
+        info "Enabling performance indexes..."
+        apply_fast_mutation_hotfix || {
+          warn "Update cancelled: database hotfix failed."
+          weiter; continue
+        }
+
+        echo ""
         info "Updating Edge Functions..."
         DEPLOYED=0; deploy_edge_functions_to_volumes
         [[ $DEPLOYED -gt 0 ]] && success "${DEPLOYED} function(s) updated." || dim "  No function files found."
@@ -1507,6 +1588,13 @@ modus_update() {
         echo ""
         read -p "  Continue? [J/n]: " CONFIRM
         if [[ "${CONFIRM,,}" == "n" ]]; then echo "  Cancelled."; weiter; continue; fi
+
+        echo ""
+        info "Enabling performance indexes..."
+        apply_fast_mutation_hotfix || {
+          warn "Full server sync cancelled: database hotfix failed."
+          weiter; continue
+        }
 
         echo ""
         info "Updating Edge Functions..."
@@ -2420,6 +2508,7 @@ APPONLY_CREDS
   echo -e "  Schema:          ${CYAN}${DB_SCHEMA_STATUS}${NC}"
   echo ""
   echo -e "  ${BOLD}Management and updates: ./scripts/manage_en.sh${NC}"
+  print_supabase_proxy_timeout_notice
   weiter
   break   # Installation abgeschlossen → zurück zum Hauptmenü
   done

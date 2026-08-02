@@ -30,6 +30,26 @@ err()     { echo -e "${RED}x FEHLER: $1${NC}"; exit 1; }
 success() { echo -e "${GREEN}OK $1${NC}"; }
 header()  { echo -e "\n${BOLD}${GREEN}$1${NC}"; echo "$(printf '=%.0s' {1..60})"; }
 
+print_supabase_proxy_timeout_notice() {
+  local public_proxy=false
+  if [[ "${MODE:-}" == "vollstack" && "${INSTALL_ACCESS_MODE:-}" == "domain" ]]; then
+    public_proxy=true
+  elif [[ "${COMPOSE_FILE:-}" == "docker-compose.full.yml" ]] \
+    && grep -qE '^SUPABASE_PUBLIC_URL=https://' .env 2>/dev/null; then
+    public_proxy=true
+  fi
+  [[ "$public_proxy" != "true" ]] && return 0
+  echo ""
+  warn "Reverse Proxy: KI-Bildanalysen koennen laenger als 90 Sekunden dauern."
+  echo "  Fuer die Supabase-/Kong-Domain im location-Block setzen:"
+  echo "    proxy_connect_timeout 30s;"
+  echo "    proxy_send_timeout 210s;"
+  echo "    proxy_read_timeout 210s;"
+  echo "    send_timeout 210s;"
+  echo "    client_max_body_size 32m;"
+  echo "  Danach die Proxy-Konfiguration testen und neu laden."
+}
+
 cd "$PROJECT_DIR"
 
 deploy_edge_functions_to_volumes() {
@@ -37,6 +57,20 @@ deploy_edge_functions_to_volumes() {
   mkdir -p volumes/functions
   cp -R supabase/functions/. volumes/functions/
   deployed=$(find supabase/functions -mindepth 2 -maxdepth 2 -type f -name 'index.ts' | wc -l)
+  local source_file relative_file
+  while IFS= read -r source_file; do
+    relative_file="${source_file#supabase/functions/}"
+    if [[ ! -f "volumes/functions/${relative_file}" ]] \
+      || ! cmp -s "$source_file" "volumes/functions/${relative_file}"; then
+      warn "Edge-Functions-Sync unvollstaendig: ${relative_file}"
+      return 1
+    fi
+  done < <(find supabase/functions -type f)
+  if ! grep -A3 -F '"ki-chat": {' volumes/functions/main/index.ts \
+    | grep -q 'timeoutMs: 180_000'; then
+    warn "Der 180-Sekunden-Worker-Override fuer ki-chat fehlt im Deployment."
+    return 1
+  fi
   echo "    OK ${deployed} Edge Functions inklusive gemeinsamer Module"
 
   if [[ $deployed -eq 0 ]]; then
@@ -329,6 +363,19 @@ if [[ "$MODE" == "rebuild" ]]; then
 
   info "Starte Container neu..."
   docker compose -f "$COMPOSE_FILE" up -d --force-recreate umzugsplaner-app
+
+  if [[ "$COMPOSE_FILE" == "docker-compose.full.yml" ]]; then
+    info "Synchronisiere und aktualisiere Edge Functions..."
+    deploy_edge_functions_to_volumes
+    docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate functions
+
+    FUNCTIONS_ENV="$(docker inspect supabase-edge-functions --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null || true)"
+    if ! grep -qx 'SUPABASE_AUTH_URL=http://auth:9999' <<< "$FUNCTIONS_ENV" \
+      || ! grep -qx 'SUPABASE_REST_URL=http://rest:3000' <<< "$FUNCTIONS_ENV"; then
+      err "Functions-Container wurde ohne direkte interne Supabase-Adressen erstellt."
+    fi
+    print_supabase_proxy_timeout_notice
+  fi
 
   success "App erfolgreich neu gebaut und gestartet."
   exit 0
@@ -1176,4 +1223,5 @@ fi
 echo ""
 echo -e "  ${BOLD}Nachtraegliche Konfiguration jederzeit:${NC}"
 echo "    ./scripts/install.sh"
+print_supabase_proxy_timeout_notice
 echo ""

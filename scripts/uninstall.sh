@@ -97,17 +97,24 @@ backup_erstellen() {
 }
 
 deploy_edge_functions_to_volumes() {
-  DEPLOYED=0
-  while IFS= read -r fn_index; do
-    local fn_dir
-    fn_dir="$(dirname "$fn_index")"
-    local fn_name
-    fn_name="$(basename "$fn_dir")"
-    mkdir -p "volumes/functions/${fn_name}"
-    cp "$fn_index" "volumes/functions/${fn_name}/index.ts"
-    echo "    OK ${fn_name}"
-    DEPLOYED=$((DEPLOYED + 1))
-  done < <(find supabase/functions -mindepth 2 -maxdepth 2 -type f -name 'index.ts' | sort)
+  mkdir -p volumes/functions
+  cp -R supabase/functions/. volumes/functions/
+  DEPLOYED=$(find supabase/functions -mindepth 2 -maxdepth 2 -type f -name 'index.ts' 2>/dev/null | wc -l)
+  local source_file relative_file
+  while IFS= read -r source_file; do
+    relative_file="${source_file#supabase/functions/}"
+    if [[ ! -f "volumes/functions/${relative_file}" ]] \
+      || ! cmp -s "$source_file" "volumes/functions/${relative_file}"; then
+      warn "Edge-Functions-Sync unvollstaendig: ${relative_file}"
+      return 1
+    fi
+  done < <(find supabase/functions -type f)
+  if ! grep -A3 -F '"ki-chat": {' volumes/functions/main/index.ts \
+    | grep -q 'timeoutMs: 180_000'; then
+    warn "Der 180-Sekunden-Worker-Override fuer ki-chat fehlt im Deployment."
+    return 1
+  fi
+  echo "    OK ${DEPLOYED} Edge Functions inklusive gemeinsamer Module"
 }
 
 # ============================================================
