@@ -4,17 +4,11 @@
  * Nutzt serverseitigen Edge-Proxy (household settings), kein API-Key im Browser.
  */
 
-import { supabase } from "../supabaseClient";
 import { getSpeechRecognitionLocale } from "./intlFormatters";
-
-const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
-
-const buildFunctionsUrl = (fnName) => {
-  if (!SUPABASE_URL) {
-    throw new Error("REACT_APP_SUPABASE_URL fehlt.");
-  }
-  return `${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/${fnName}`;
-};
+import {
+  EdgeFunctionRequestError,
+  fetchEdgeFunctionJsonWithAuthRetry,
+} from "./edgeFunctionAuth";
 
 export class KiProxyError extends Error {
   constructor({ code = "KI_PROXY_ERROR", message, provider = null, status = null, retryable = false, details = null } = {}) {
@@ -28,77 +22,44 @@ export class KiProxyError extends Error {
   }
 }
 
-const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
-
-const parseErrorResponse = async (response) => {
-  const contentType = response.headers.get("content-type") || "";
-  if (contentType.includes("application/json")) {
-    const json = await response.json().catch(() => null);
-    if (isObject(json)) return json;
-  }
-  const text = await response.text().catch(() => "");
-  if (text) {
-    return { message: text };
-  }
-  return null;
-};
-
 const edgeChatClient = {
   chat: {
     completions: {
-      create: async ({ model, messages, temperature, response_format, context, tools, tool_choice }) => {
-        const doFetch = async (token) =>
-          fetch(buildFunctionsUrl("ki-chat"), {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${token}`,
-            },
-            body: JSON.stringify({
+      create: async ({
+        model,
+        messages,
+        temperature,
+        response_format,
+        context,
+        tools,
+        tool_choice,
+        max_tokens,
+        timeout_ms,
+      }) => {
+        try {
+          return await fetchEdgeFunctionJsonWithAuthRetry("ki-chat", {
+            timeoutMs: timeout_ms || 105_000,
+            body: {
               model,
               messages,
               temperature,
               response_format,
               context,
+              max_tokens,
               ...(Array.isArray(tools) && tools.length > 0 ? { tools, tool_choice } : {}),
-            }),
+            },
           });
-
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) {
-          throw new Error("Nicht eingeloggt.");
-        }
-
-        let response = await doFetch(session.access_token);
-
-        // Bei 401: Session refreshen und einmal retry
-        if (response.status === 401) {
-          const { data: { session: freshSession }, error: refreshError } =
-            await supabase.auth.refreshSession();
-          if (refreshError || !freshSession?.access_token) {
-            throw new Error("Sitzung abgelaufen. Bitte neu anmelden.");
-          }
-          response = await doFetch(freshSession.access_token);
-        }
-
-        const payload = response.ok
-          ? await response.json().catch(() => ({}))
-          : await parseErrorResponse(response);
-        if (!response.ok) {
+        } catch (error) {
+          if (!(error instanceof EdgeFunctionRequestError)) throw error;
           throw new KiProxyError({
-            code: payload?.code || (response.status === 401 ? "AUTH_REQUIRED" : "KI_PROXY_ERROR"),
-            message:
-              payload?.message ||
-              payload?.error ||
-              `KI-Proxy Fehler (${response.status})`,
-            provider: payload?.provider || null,
-            status: payload?.status || response.status,
-            retryable: Boolean(payload?.retryable),
-            details: payload,
+            code: error.code,
+            message: error.message,
+            provider: error.details?.provider || null,
+            status: error.status,
+            retryable: error.retryable,
+            details: error.details,
           });
         }
-
-        return payload;
       },
     },
   },

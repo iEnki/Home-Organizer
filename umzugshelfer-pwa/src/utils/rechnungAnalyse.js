@@ -19,7 +19,7 @@
 
 import { cleanKiJsonResponse } from "./kiClient";
 import { compressImage, fileToBase64 } from "./imageTools";
-import { supabase } from "../supabaseClient";
+import { invokeEdgeFunctionWithAuthRetry } from "./edgeFunctionAuth";
 
 // ============================================================
 // Konstanten: Klassifizierungs-System
@@ -382,6 +382,12 @@ export function normalizeVisionError({ status, payload = {}, fallbackLabel = "Vi
   const provider = payload?.provider || null;
   const code = payload?.code || ([502, 503, 504].includes(status) ? "vision_service_unavailable" : null);
   const detail = payload?.error?.message || payload?.error || payload?.message || "";
+  if (status === 401) {
+    return createVisionAnalysisError(
+      "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an und starte die Analyse noch einmal.",
+      { status, code: code || "AUTH_REQUIRED", provider },
+    );
+  }
   if (status === 409) {
     return createVisionAnalysisError(detail || "Bildanalyse ist nicht konfiguriert.", { status, code: "vision_not_configured", provider });
   }
@@ -436,13 +442,13 @@ async function parseFunctionError(error) {
     status: error?.status || 503,
     payload: {
       error: error?.message || "Vision-Dienst nicht erreichbar.",
-      code: error?.name === "FunctionsFetchError" ? "vision_service_unavailable" : undefined,
+      code: error?.code || (error?.name === "FunctionsFetchError" ? "vision_service_unavailable" : undefined),
     },
   };
 }
 
 async function invokeKiVision(body, fallbackLabel) {
-  const { data, error } = await supabase.functions.invoke("ki-vision", { body });
+  const { data, error } = await invokeEdgeFunctionWithAuthRetry("ki-vision", { body });
   if (error) {
     const parsed = await parseFunctionError(error);
     throw normalizeVisionError({ ...parsed, fallbackLabel });

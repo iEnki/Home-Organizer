@@ -1134,6 +1134,8 @@ export const prepareShoppingBatch = async ({
       draft.review_noetig ||
       (!draft.unterkategorie && parseNumericValue(draft.confidence, 0) < 0.92)
   );
+  let aiStatus = uncertainDrafts.length > 0 ? "pending" : "not-needed";
+  const warnings = [];
 
   if (uncertainDrafts.length > 0) {
     try {
@@ -1158,8 +1160,13 @@ export const prepareShoppingBatch = async ({
           ),
         })
       );
-    } catch (_error) {
-      // Fallback bleibt auf regelbasierter Zuordnung.
+      aiStatus = "used";
+    } catch (error) {
+      aiStatus = "fallback";
+      warnings.push({
+        code: error?.code || "SHOPPING_AI_UNAVAILABLE",
+        message: error?.message || "KI nicht erreichbar – regelbasierte Zuordnung verwendet.",
+      });
     }
   }
 
@@ -1170,6 +1177,8 @@ export const prepareShoppingBatch = async ({
     drafts: dedupedDrafts,
     duplicates,
     existingEntries: existingOpenEntries,
+    aiStatus,
+    warnings,
   };
 };
 

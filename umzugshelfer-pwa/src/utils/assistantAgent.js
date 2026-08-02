@@ -24,6 +24,8 @@ export class AgentToolsUnsupportedError extends Error {
 
 const MAX_HISTORY_MESSAGES = 12;
 const TOOL_RESULT_MAX_CHARS = 4000;
+const ASSISTANT_TOTAL_BUDGET_MS = 180_000;
+const ASSISTANT_REQUEST_TIMEOUT_MS = 105_000;
 
 const buildSystemPrompt = ({ appMode, pathname, locale }) => {
   const today = new Date().toISOString().split("T")[0];
@@ -104,8 +106,20 @@ export const runAssistantAgent = async ({
   const toolTrace = [];
   let proposalCreated = false;
   let proposalSummary = "";
+  const deadlineAt = Date.now() + ASSISTANT_TOTAL_BUDGET_MS;
 
   for (let iteration = 0; iteration < maxIterations; iteration += 1) {
+    const remainingMs = deadlineAt - Date.now();
+    if (remainingMs <= 0) {
+      return {
+        finalText:
+          locale === "en-GB"
+            ? "The AI request took too long. Please try again or narrow down the question."
+            : "Die KI-Anfrage hat zu lange gedauert. Bitte versuche es erneut oder grenze die Frage ein.",
+        toolTrace,
+        proposalCreated,
+      };
+    }
     let response;
     try {
       response = await client.chat.completions.create({
@@ -115,6 +129,8 @@ export const runAssistantAgent = async ({
         temperature: 0.2,
         tools,
         tool_choice: "auto",
+        max_tokens: 4096,
+        timeout_ms: Math.min(ASSISTANT_REQUEST_TIMEOUT_MS, remainingMs),
       });
     } catch (error) {
       if (error instanceof KiProxyError && error.code === "TOOLS_UNSUPPORTED") {

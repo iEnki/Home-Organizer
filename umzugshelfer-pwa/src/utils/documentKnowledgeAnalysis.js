@@ -2,8 +2,7 @@ import { getKiClient, cleanKiJsonResponse } from "./kiClient";
 import { extractTextFromFile } from "./rechnungAnalyse";
 import { fileToBase64 } from "./imageTools";
 import { buildInvoiceKnowledgeContent, normalizeKnowledgeLocale } from "./localizedKnowledge";
-
-const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
+import { fetchEdgeFunctionJsonWithAuthRetry } from "./edgeFunctionAuth";
 
 export const WISSEN_KATEGORIEN = [
   "Versicherungen",
@@ -263,30 +262,17 @@ export const normalizeDocumentKnowledgeAnalysis = (raw, dok, source) => {
   };
 };
 
-const callVisionAnalysis = async ({ base64, mimeType, session, dateiname, locale = "de" }) => {
-  if (!SUPABASE_URL) {
-    throw new Error("REACT_APP_SUPABASE_URL fehlt.");
-  }
-
-  const response = await fetch(`${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/ki-vision`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${session.access_token}`,
-    },
-    body: JSON.stringify({
+const callVisionAnalysis = async ({ base64, mimeType, dateiname, locale = "de" }) => {
+  const json = await fetchEdgeFunctionJsonWithAuthRetry("ki-vision", {
+    timeoutMs: 165_000,
+    body: {
       mode: "chatgpt_vision",
       file_base64: base64,
       mime_type: mimeType,
       prompt: buildVisionPrompt(dateiname, locale),
       locale,
-    }),
+    },
   });
-
-  const json = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(json?.error || `Bildanalyse fehlgeschlagen (${response.status})`);
-  }
   return parseJsonObject(json?.text || "");
 };
 

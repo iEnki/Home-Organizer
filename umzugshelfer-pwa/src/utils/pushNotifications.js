@@ -1,5 +1,8 @@
 import { getActiveHouseholdId, supabase } from "../supabaseClient";
 import { logVerlauf, logVerlaufBatch } from "./homeVerlauf";
+import { fetchEdgeFunctionJsonWithAuthRetry } from "./edgeFunctionAuth";
+
+const PUSH_CLIENT_TIMEOUT_MS = 12_000;
 
 const TABLE_META = {
   home_orte: { singular: "Ort", plural: "Orte", url: "/home/inventar" },
@@ -192,44 +195,41 @@ export async function sendPushToUserIds({
     return { requested: 0, sent: 0, failed: 0 };
   }
 
-  const results = await Promise.all(
-    uniqueUserIds.map(async (userId) => {
-      try {
-        const { data, error } = await supabase.functions.invoke("send-push", {
-          body: {
-            user_id: userId,
-            title,
-            body,
-            url,
-            tag,
-          },
-        });
-
-        if (error) {
-          return { ok: false, userId, sent: 0, error };
-        }
-
-        const sent = Number.isFinite(Number(data?.sent)) ? Number(data.sent) : 0;
-        return {
-          ok: sent > 0,
-          userId,
-          sent,
-          removed: Number.isFinite(Number(data?.removed)) ? Number(data.removed) : 0,
-          message: data?.message,
-        };
-      } catch (error) {
-        return { ok: false, userId, sent: 0, error };
-      }
-    }),
-  );
-
-  const sent = results.reduce((sum, result) => sum + Math.min(Number(result.sent) || 0, 1), 0);
-  return {
-    requested: uniqueUserIds.length,
-    sent,
-    failed: uniqueUserIds.length - sent,
-    results,
-  };
+  try {
+    const data = await fetchEdgeFunctionJsonWithAuthRetry("send-push", {
+      body: {
+        user_id: uniqueUserIds[0],
+        user_ids: uniqueUserIds,
+        title,
+        body,
+        url,
+        tag,
+      },
+      timeoutMs: PUSH_CLIENT_TIMEOUT_MS,
+    });
+    const sent = Math.min(
+      uniqueUserIds.length,
+      Math.max(0, Number(data?.sentUsers ?? data?.sent_users ?? data?.sent) || 0),
+    );
+    const failed = Math.max(
+      0,
+      Number(data?.failedUsers ?? data?.failed_users ?? uniqueUserIds.length - sent) || 0,
+    );
+    return {
+      requested: uniqueUserIds.length,
+      sent,
+      failed,
+      removed: Number(data?.removed) || 0,
+      result: data,
+    };
+  } catch (error) {
+    return {
+      requested: uniqueUserIds.length,
+      sent: 0,
+      failed: uniqueUserIds.length,
+      error,
+    };
+  }
 }
 
 export async function sendPushToHouseholdMembers({
@@ -244,7 +244,7 @@ export async function sendPushToHouseholdMembers({
   return sendPushToUserIds({ userIds: memberIds, title, body, url, tag });
 }
 
-export async function notifyHouseholdEvent({
+async function notifyHouseholdEventBlocking({
   supabaseClient = supabase,
   userId,
   actorUserId = userId,
@@ -321,7 +321,24 @@ export async function notifyHouseholdEvent({
   }
 }
 
-export async function notifyHouseholdBatchEvent({
+export async function notifyHouseholdEvent(options = {}) {
+  if (options.delivery === "blocking") {
+    return notifyHouseholdEventBlocking(options);
+  }
+
+  void notifyHouseholdEventBlocking(options).catch((error) => {
+    console.warn("[Push] Hintergrund-Benachrichtigung fehlgeschlagen.", error);
+  });
+  return {
+    scheduled: true,
+    historyLogged: false,
+    pushAttempted: false,
+    pushSent: false,
+    recipientCount: 0,
+  };
+}
+
+async function notifyHouseholdBatchEventBlocking({
   supabaseClient = supabase,
   userId,
   actorUserId = userId,
@@ -408,4 +425,21 @@ export async function notifyHouseholdBatchEvent({
     console.warn("[Push] Batch-Benachrichtigung fehlgeschlagen.", error);
     return result;
   }
+}
+
+export async function notifyHouseholdBatchEvent(options = {}) {
+  if (options.delivery === "blocking") {
+    return notifyHouseholdBatchEventBlocking(options);
+  }
+
+  void notifyHouseholdBatchEventBlocking(options).catch((error) => {
+    console.warn("[Push] Hintergrund-Batch-Benachrichtigung fehlgeschlagen.", error);
+  });
+  return {
+    scheduled: true,
+    historyLogged: 0,
+    pushAttempted: false,
+    pushSent: false,
+    recipientCount: 0,
+  };
 }
