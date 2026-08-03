@@ -1,5 +1,8 @@
 CREDENTIALS.txt
 .env
+volumes/
+*.log
+*.tar.gz
 
 # Local dependencies and generated build output
 node_modules/
