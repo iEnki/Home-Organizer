@@ -9,6 +9,16 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const UPSTREAM_TIMEOUT_MS = 5500;
+const MAX_COVER_BYTES = 5 * 1024 * 1024;
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 interface CoverCandidate {
   id: string;
   url: string;
@@ -415,7 +425,7 @@ function dedup(results: BookResult[]): BookResult[] {
   return out;
 }
 
-async function fetchWithTimeout(url: string, timeoutMs = 12000): Promise<Response> {
+async function fetchWithTimeout(url: string, timeoutMs = UPSTREAM_TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -513,6 +523,61 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  if (body.action === "persist-cover") {
+    const householdId = String(body.household_id || "").trim();
+    const bookId = String(body.book_id || "").trim();
+    const coverUrl = sanitizeExternalUrl(String(body.cover_url || ""));
+    if (!householdId || !bookId || !coverUrl) {
+      return jsonResponse({ error: "Ungültige Cover-Anfrage" }, 400);
+    }
+
+    const { data: book, error: bookError } = await supabase
+      .from("home_buecher")
+      .select("id, household_id")
+      .eq("id", bookId)
+      .eq("household_id", householdId)
+      .maybeSingle();
+    if (bookError || !book) {
+      return jsonResponse({ error: "Buch nicht gefunden oder Zugriff verweigert" }, 403);
+    }
+
+    try {
+      const imageResponse = await fetchWithTimeout(coverUrl);
+      if (!imageResponse.ok) {
+        return jsonResponse({ error: `Cover-Quelle HTTP ${imageResponse.status}` }, 502);
+      }
+      const contentType = (imageResponse.headers.get("content-type") || "").split(";")[0].toLowerCase();
+      if (!contentType.startsWith("image/")) {
+        return jsonResponse({ error: "Die Cover-Quelle liefert kein Bild" }, 422);
+      }
+      const bytes = new Uint8Array(await imageResponse.arrayBuffer());
+      if (!bytes.byteLength || bytes.byteLength > MAX_COVER_BYTES) {
+        return jsonResponse({ error: "Das Cover ist leer oder größer als 5 MB" }, 422);
+      }
+      const extensionByType: Record<string, string> = {
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/webp": "webp",
+        "image/gif": "gif",
+      };
+      const extension = extensionByType[contentType] || "jpg";
+      const storagePath = `${householdId}/${bookId}/${Date.now()}.${extension}`;
+      const { error: uploadError } = await supabase.storage
+        .from("book-covers")
+        .upload(storagePath, bytes, { contentType, upsert: false });
+      if (uploadError) return jsonResponse({ error: uploadError.message }, 500);
+
+      const { data: publicData } = supabase.storage.from("book-covers").getPublicUrl(storagePath);
+      if (!publicData?.publicUrl) return jsonResponse({ error: "Cover-URL konnte nicht erzeugt werden" }, 500);
+      return jsonResponse({ publicUrl: publicData.publicUrl, storagePath });
+    } catch (error) {
+      const message = error instanceof Error && error.name === "AbortError"
+        ? "Cover-Quelle hat nicht rechtzeitig geantwortet"
+        : (error instanceof Error ? error.message : "Cover konnte nicht gespeichert werden");
+      return jsonResponse({ error: message }, 502);
+    }
+  }
+
   const query: string = (body.query ?? "").trim();
   const mode: string = body.mode ?? "title";
   const limit: number = Math.min(body.limit ?? 10, 20);
@@ -551,14 +616,10 @@ Deno.serve(async (req: Request) => {
     return fallbacks;
   }
 
-  let allResults = await runSearch(query);
-
-  if (allResults.length === 0 && mode !== "isbn") {
-    for (const fallback of buildFallbackQueries()) {
-      allResults = await runSearch(fallback);
-      if (allResults.length > 0) break;
-    }
-  }
+  const queries = mode === "isbn"
+    ? [query]
+    : Array.from(new Set([query, ...buildFallbackQueries()].map((entry) => entry.trim()).filter(Boolean))).slice(0, 3);
+  const allResults = (await Promise.all(queries.map(runSearch))).flat();
 
   const scored = allResults
     .map((r) => {

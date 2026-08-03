@@ -9,11 +9,10 @@ const corsHeaders = {
 };
 
 const MAX_BYTES = 20 * 1024 * 1024;
-const FETCH_TIMEOUT_MS = 12000;
+const FETCH_TIMEOUT_MS = 4500;
 const BASG_API_ROOT = "https://medikamente.basg.gv.at/api/api/v1/medication";
 const BASG_DOCUMENT_ROOT = "https://medikamente.basg.gv.at/documents";
-const BASG_API_TOKEN =
-  "YXy/c2LDk28vDsNqrukqoBfvNmNFOEoEnt-rA/FoCgBv5K?GRn4mec2xc!mzs6VnUWmCFI338l0G0vTGSeZcMFUZYBFclIx?5iu!CgQcujZygafyoj0D?hkWxx-6PqRVyOz6zM?MIIVyo?2CRZq8ViA-AoVFKJZe0H5iYamMzXS8pZ5BUp0HPM1DM7YkoInFZIT-AkNoEhbr9oXisGrlEI45sV43drXBqGxVGFjuobYkty?Pd4tgTyFOWWOYQKy=";
+const BASG_API_TOKEN = Deno.env.get("BASG_API_TOKEN")?.trim() || "";
 const USER_AGENT =
   "Home-Organizer-Heimapotheke/1.0 (+private medication leaflet archive)";
 
@@ -223,6 +222,7 @@ async function fetchWithTimeout(url: string): Promise<Response> {
 }
 
 async function fetchBasgJson(url: string, init: RequestInit = {}): Promise<Response> {
+  if (!BASG_API_TOKEN) throw new Error("BASG_API_TOKEN fehlt");
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -492,6 +492,7 @@ async function fetchBasgDetail(item: BasgSearchItem): Promise<BasgSearchItem> {
 }
 
 async function searchBasgLeafletCandidates(medication: Record<string, unknown>, tokens: string[]): Promise<Candidate[]> {
+  if (!BASG_API_TOKEN) throw new Error("BASG_API_TOKEN fehlt");
   const name = String(medication.name || "").trim();
   const substance = String(medication.wirkstoff || "").trim();
   const requestBodies = [
@@ -502,41 +503,56 @@ async function searchBasgLeafletCandidates(medication: Record<string, unknown>, 
   const seenUrls = new Set<string>();
   const candidates: Candidate[] = [];
 
-  const seenRequests = new Set<string>();
-  for (const body of requestBodies) {
-    const requestKey = JSON.stringify(body);
-    if (seenRequests.has(requestKey)) continue;
-    seenRequests.add(requestKey);
-
-    const response = await fetchBasgJson(`${BASG_API_ROOT}/search?page=1&size=12`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) throw new Error(`BASG Suche HTTP ${response.status}`);
-    const payload = await response.json() as { items?: BasgSearchItem[] };
-    for (const searchItem of payload.items || []) {
-      const item = await fetchBasgDetail(searchItem);
-      const url = basgDocumentUrl(item);
-      if (!url || seenUrls.has(url)) continue;
-      seenUrls.add(url);
-      const metadata = basgMetadata(item, url);
-      const label = [
-        item.name,
-        item.authNumber,
-        ...(item.substances || []),
-        item.packageLeaflet?.type,
-        item.packageLeaflet?.validityDate,
-      ].filter(Boolean).join(" ");
-      candidates.push({
-        url,
-        source: "BASG Medikamenten-Informationssystem",
-        official: true,
-        depth: 0,
-        label,
-        scoreHint: scoreLabel(label, tokens),
-        metadata,
+  const uniqueBodies = Array.from(
+    new Map(requestBodies.map((body) => [JSON.stringify(body), body])).values(),
+  );
+  const searchResults = await Promise.all(uniqueBodies.map(async (body) => {
+    try {
+      const response = await fetchBasgJson(`${BASG_API_ROOT}/search?page=1&size=12`, {
+        method: "POST",
+        body: JSON.stringify(body),
       });
+      if (!response.ok) return [];
+      const payload = await response.json() as { items?: BasgSearchItem[] };
+      return payload.items || [];
+    } catch {
+      return [];
     }
+  }));
+  const uniqueItems = Array.from(
+    new Map(searchResults.flat().map((item) => [item.id || `${item.authNumber}:${item.name}`, item])).values(),
+  ).slice(0, 8);
+  const detailedItems = await Promise.all(
+    uniqueItems.map(async (item) => {
+      try {
+        return await fetchBasgDetail(item);
+      } catch {
+        return item;
+      }
+    }),
+  );
+
+  for (const item of detailedItems) {
+    const url = basgDocumentUrl(item);
+    if (!url || seenUrls.has(url)) continue;
+    seenUrls.add(url);
+    const metadata = basgMetadata(item, url);
+    const label = [
+      item.name,
+      item.authNumber,
+      ...(item.substances || []),
+      item.packageLeaflet?.type,
+      item.packageLeaflet?.validityDate,
+    ].filter(Boolean).join(" ");
+    candidates.push({
+      url,
+      source: "BASG Medikamenten-Informationssystem",
+      official: true,
+      depth: 0,
+      label,
+      scoreHint: scoreLabel(label, tokens),
+      metadata,
+    });
   }
 
   return candidates
