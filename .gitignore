@@ -3,6 +3,7 @@ CREDENTIALS.txt
 volumes/
 *.log
 *.tar.gz
+**/Pläne/
 
 # Local dependencies and generated build output
 node_modules/
