@@ -136,6 +136,21 @@ export const UMZUG_ROUTE_PREFIXES = [
 export const isUmzugRoutePath = (pathname = "") =>
   UMZUG_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 
+export const resolveGlobalSearchMode = (appMode, pathname = "") =>
+  isUmzugRoutePath(pathname) ? "umzug" : appMode;
+
+const scopeSearchQuery = (query, householdId, userId) =>
+  householdId ? query.eq("household_id", householdId) : query.eq("user_id", userId);
+
+export const isInvalidRefreshTokenError = (error) => {
+  const message = String(error?.message || error || "").toLowerCase();
+  return message.includes("refresh token") && (
+    message.includes("invalid") ||
+    message.includes("not found") ||
+    message.includes("already used")
+  );
+};
+
 const SmartRedirect = () => {
   const { appMode, modusGeladen } = useAppMode();
   // Warten bis Modus aus Supabase geladen — verhindert Flash auf /dashboard bei gecleared localStorage
@@ -400,7 +415,8 @@ const AuthenticatedShell = ({
       const q = begriff.trim().toLowerCase();
       try {
         const ergebnisse = [];
-        if (appMode === "home") {
+        const searchMode = resolveGlobalSearchMode(appMode, location.pathname);
+        if (searchMode === "home") {
           const [objRes, vorratRes, medikamentRes, rezeptRes, geraetRes, fahrzeugRes, todoRes] = await Promise.all([
             supabase.from("home_objekte").select("id, name, status").eq("user_id", userId).ilike("name", `%${q}%`).limit(3),
             supabase.from("home_vorraete").select("id, name, kategorie").eq("user_id", userId).ilike("name", `%${q}%`).limit(3),
@@ -423,20 +439,24 @@ const AuthenticatedShell = ({
             supabase.from("todo_aufgaben").select("id, beschreibung, kategorie").eq("user_id", userId).ilike("beschreibung", `%${q}%`).limit(4),
             supabase.from("pack_kisten").select("id, name, raum_neu").eq("user_id", userId).ilike("name", `%${q}%`).limit(4),
             supabase.from("dokumente").select("id, dateiname").eq("user_id", userId).ilike("dateiname", `%${q}%`).limit(4),
-            supabase.from("packliste_items").select("id, name, pack_kisten(name)").eq("user_id", userId).ilike("name", `%${q}%`).limit(4),
+            scopeSearchQuery(
+              supabase.from("pack_gegenstaende").select("id, beschreibung, pack_kisten(name)"),
+              householdContext?.household_id,
+              userId,
+            ).ilike("beschreibung", `%${q}%`).limit(4),
           ]);
           (kontakteRes.data    || []).forEach((k) => ergebnisse.push({ modul: t("nav:searchModules.contact"),    text: k.name,          sub: k.typ,                               link: "/kontakte" }));
           (todosRes.data       || []).forEach((row) => ergebnisse.push({ modul: t("nav:searchModules.todo"),      text: row.beschreibung,  sub: row.kategorie,                         link: "/todos" }));
           (kistenRes.data      || []).forEach((k) => ergebnisse.push({ modul: t("nav:searchModules.box"),        text: k.name,          sub: k.raum_neu,                          link: "/packliste" }));
           (dokRes.data         || []).forEach((d) => ergebnisse.push({ modul: t("nav:searchModules.document"),   text: d.dateiname,     sub: null,                                link: "/dokumente" }));
-          (kistenInhaltRes.data|| []).forEach((i) => ergebnisse.push({ modul: t("nav:searchModules.boxContent"), text: i.name,          sub: i.pack_kisten?.name ?? null,         link: "/packliste" }));
+          (kistenInhaltRes.data|| []).forEach((i) => ergebnisse.push({ modul: t("nav:searchModules.boxContent"), text: i.beschreibung,  sub: i.pack_kisten?.name ?? null,         link: "/packliste" }));
         }
         setSuchergebnisse(ergebnisse);
-      } catch (_err) {
-        // silent fail
+      } catch (error) {
+        console.warn("[App] Globale Suche fehlgeschlagen:", error);
       }
     },
-    [userId, appMode, t]
+    [userId, appMode, householdContext?.household_id, location.pathname, t]
   );
 
   const handleSuchInput = (val) => {
@@ -572,10 +592,32 @@ function App() {
   const [mobileNavFavorites, setMobileNavFavorites] = useState(() => sanitizeMobileNavFavorites(null));
   useEffect(() => {
     // Initialen Session-Status prüfen
-    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
-      setSession(initialSession);
-      setLoadingAuth(false);
-    });
+    let cancelled = false;
+
+    const loadInitialSession = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          if (isInvalidRefreshTokenError(error)) {
+            await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+          } else {
+            console.warn("[App] Session konnte nicht geladen werden:", error);
+          }
+        }
+        if (!cancelled) setSession(error ? null : data?.session ?? null);
+      } catch (error) {
+        if (isInvalidRefreshTokenError(error)) {
+          await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+        } else {
+          console.warn("[App] Session konnte nicht geladen werden:", error);
+        }
+        if (!cancelled) setSession(null);
+      } finally {
+        if (!cancelled) setLoadingAuth(false);
+      }
+    };
+
+    loadInitialSession();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
@@ -587,6 +629,7 @@ function App() {
     );
 
     return () => {
+      cancelled = true;
       if (authListener?.subscription) {
         authListener.subscription.unsubscribe();
       }
