@@ -540,6 +540,8 @@ const KontaktManager = ({ session }) => {
                       key={stern}
                       type="button"
                       onClick={() => setBewertung(bewertung === stern ? 0 : stern)}
+                      aria-label={`${stern} von 5 Sternen`}
+                      aria-pressed={stern <= bewertung}
                       className="p-0.5 hover:scale-110 transition-transform"
                     >
                       <Star
