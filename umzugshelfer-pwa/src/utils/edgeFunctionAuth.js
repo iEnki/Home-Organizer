@@ -63,6 +63,8 @@ export async function fetchEdgeFunctionJsonWithAuthRetry(
     body,
     headers = {},
     timeoutMs = 105_000,
+    timeoutMessage = "Die Anfrage hat nicht rechtzeitig geantwortet.",
+    networkMessage = "Der Dienst ist derzeit nicht erreichbar.",
   } = {},
 ) {
   const { data: { session } } = await supabase.auth.getSession();
@@ -93,14 +95,14 @@ export async function fetchEdgeFunctionJsonWithAuthRetry(
       if (error?.name === "AbortError") {
         throw new EdgeFunctionRequestError({
           code: "CLIENT_TIMEOUT",
-          message: "Die KI-Anfrage hat nicht rechtzeitig geantwortet.",
+          message: timeoutMessage,
           status: 504,
           retryable: true,
         });
       }
       throw new EdgeFunctionRequestError({
         code: "NETWORK_ERROR",
-        message: "Der KI-Dienst ist derzeit nicht erreichbar.",
+        message: networkMessage,
         status: 0,
         retryable: true,
         details: error,

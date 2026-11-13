@@ -84,19 +84,6 @@ export function sanitizeExternalUrl(rawUrl) {
   }
 }
 
-function isSameOriginOrManagedUrl(rawUrl) {
-  try {
-    const url = new URL(rawUrl);
-    const currentHost = typeof window !== "undefined" ? window.location.hostname : null;
-    return Boolean(
-      (SUPABASE_HOST && url.hostname === SUPABASE_HOST) ||
-      (currentHost && url.hostname === currentHost),
-    );
-  } catch {
-    return false;
-  }
-}
-
 function buildCoverCandidates(result) {
   const raw = Array.isArray(result?.coverCandidates) ? result.coverCandidates : [];
   const fallback = [
@@ -181,7 +168,8 @@ export async function searchBooks({
   });
 
   if (!res.ok) {
-    throw new Error(`Buchsuche fehlgeschlagen (${res.status}).`);
+    const payload = await res.json().catch(() => null);
+    throw new Error(payload?.error || `Buchsuche fehlgeschlagen (${res.status}).`);
   }
 
   const data = await res.json();
@@ -435,31 +423,31 @@ export async function persistSelectedBookCover({
   householdId,
   bookId,
   selectedCoverUrl,
+  token,
 }) {
   const safeCoverUrl = sanitizeExternalUrl(selectedCoverUrl);
   if (!householdId || !bookId || !safeCoverUrl) return null;
-  if (!isSameOriginOrManagedUrl(safeCoverUrl)) return null;
 
-  try {
-    const imageRes = await fetch(safeCoverUrl);
-    if (!imageRes.ok) return null;
-    const blob = await imageRes.blob();
-    const ext = blob.type?.split("/")[1] || "jpg";
-    const path = `${householdId}/${bookId}/${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("book-covers").upload(path, blob, {
-      upsert: true,
-      contentType: blob.type || "image/jpeg",
-    });
-    if (error) return null;
-    const { data } = supabase.storage.from("book-covers").getPublicUrl(path);
-    if (!data?.publicUrl) return null;
-    return {
-      publicUrl: data.publicUrl,
-      storagePath: path,
-    };
-  } catch {
-    return null;
+  const authToken = token ?? await getAccessToken();
+  if (!authToken) throw new Error("Nicht eingeloggt.");
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/book-search`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${authToken}`,
+    },
+    body: JSON.stringify({
+      action: "persist-cover",
+      household_id: householdId,
+      book_id: bookId,
+      cover_url: safeCoverUrl,
+    }),
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(payload?.error || `Cover konnte nicht gespeichert werden (${response.status}).`);
   }
+  return payload?.publicUrl ? payload : null;
 }
 
 export async function removePersistedBookCover(selectedCover = null) {
