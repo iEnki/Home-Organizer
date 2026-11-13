@@ -96,11 +96,18 @@ export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen,
 
     const effectiveCoverUrl = coverUrl ?? getBuchCoverUrl(selected);
     const update = buildBookMetadataUpdate(buch, selected, effectiveCoverUrl);
-    const persistedCover = await persistSelectedBookCover({
-      householdId: buch.household_id,
-      bookId: buch.id,
-      selectedCoverUrl: effectiveCoverUrl,
-    });
+    let persistedCover = null;
+    try {
+      persistedCover = await persistSelectedBookCover({
+        householdId: buch.household_id,
+        bookId: buch.id,
+        selectedCoverUrl: effectiveCoverUrl,
+      });
+    } catch (error) {
+      console.warn("[Bücher] Cover konnte nicht gespeichert werden:", error);
+      setRefreshStatus("fehler");
+      return;
+    }
 
     if (persistedCover?.publicUrl) {
       update.cover_url = persistedCover.publicUrl;

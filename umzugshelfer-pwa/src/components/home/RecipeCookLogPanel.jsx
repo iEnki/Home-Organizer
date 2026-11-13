@@ -127,10 +127,10 @@ export default function RecipeCookLogPanel({ supabase, userId, recipe, toast, qu
                   )}
                 </div>
                 <div className="flex gap-1">
-                  <button type="button" onClick={() => { setForm({ ...emptyForm, ...entry, bewertung: entry.bewertung || "" }); setOpen(true); }} className="p-1 text-light-text-secondary hover:text-primary-500 dark:text-dark-text-secondary">
+                  <button type="button" aria-label={t("cookLog.edit", { defaultValue: "Kochprotokoll bearbeiten" })} onClick={() => { setForm({ ...emptyForm, ...entry, bewertung: entry.bewertung || "" }); setOpen(true); }} className="p-1 text-light-text-secondary hover:text-primary-500 dark:text-dark-text-secondary">
                     <Pencil size={13} />
                   </button>
-                  <button type="button" onClick={() => remove(entry)} className="p-1 text-light-text-secondary hover:text-red-500 dark:text-dark-text-secondary">
+                  <button type="button" aria-label={t("cookLog.delete", { defaultValue: "Kochprotokoll löschen" })} onClick={() => remove(entry)} className="p-1 text-light-text-secondary hover:text-red-500 dark:text-dark-text-secondary">
                     <Trash2 size={13} />
                   </button>
                 </div>

@@ -845,11 +845,12 @@ export default function HomeHeimapotheke({ session }) {
 
   const mirrorLeafletFromInternet = async (medication, { force = false } = {}) => {
     if (!medication?.id || (medication.beipackzettel_dokument_id && !force)) return null;
-    const { data, error } = await supabase.functions.invoke("medication-leaflet-fetch", {
+    return fetchEdgeFunctionJsonWithAuthRetry("medication-leaflet-fetch", {
       body: { medikament_id: medication.id, household_id: medication.household_id || householdId, name: medication.name, wirkstoff: medication.wirkstoff, darreichungsform: medication.darreichungsform, packungsgroesse: medication.packungsgroesse, beipackzettel_url: medication.beipackzettel_url, offizielle_quelle: medication.offizielle_quelle, force },
+      timeoutMs: 20_000,
+      timeoutMessage: "Die Beipackzettel-Suche hat nicht rechtzeitig geantwortet.",
+      networkMessage: "Die Beipackzettel-Suche ist derzeit nicht erreichbar.",
     });
-    if (error) throw error;
-    return data || null;
   };
 
   const openLeafletDocument = useCallback(async (medication) => {
@@ -913,7 +914,11 @@ export default function HomeHeimapotheke({ session }) {
         toast.success("Beipackzettel gespeichert.");
         await loadData();
       } else {
-        toast.error("Kein passender Beipackzettel gefunden. Bitte Link eintragen oder PDF hochladen.");
+        const warning = Array.isArray(result?.warnings) ? result.warnings[0] : null;
+        const message = warning?.includes("BASG_API_TOKEN fehlt")
+          ? "Die BASG-Suche ist noch nicht konfiguriert. Bitte BASG_API_TOKEN als Server-Secret hinterlegen."
+          : "Kein passender Beipackzettel gefunden. Bitte Link eintragen oder PDF hochladen.";
+        toast.error(message);
       }
     } catch (error) {
       toast.error(error?.message || "Beipackzettel konnte nicht gespeichert werden.");

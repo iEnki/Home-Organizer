@@ -10,7 +10,7 @@ import {
 import { getBuchCoverUrl } from "../../../utils/buchCoverUtils";
 import { pruefeAufDubletten } from "../../../utils/buchDuplikate";
 import { normalizeIsbn, isValidIsbn } from "../../../utils/isbn";
-import { getBookSearchContext, removePersistedBookCover, resolveBookMatches, searchBooks } from "../../../utils/bookSearch";
+import { getBookSearchContext, persistSelectedBookCover, removePersistedBookCover, resolveBookMatches, searchBooks } from "../../../utils/bookSearch";
 import { notifyHouseholdEvent } from "../../../utils/pushNotifications";
 import BuchScannerModal from "./BuchScannerModal";
 import BuchCoverSucheModal from "./BuchCoverSucheModal";
@@ -313,18 +313,21 @@ export default function BuchFormModal({
         api_payload:      form.api_payload ?? null,
       };
 
+      let savedBookId = buch?.id ?? null;
+
       if (istNeu) {
         payload.user_id = userId;
         payload.created_by_user_id = userId;
         const { data, error } = await supabase.from("home_buecher").insert(payload).select("id").single();
         if (error) throw error;
+        savedBookId = data?.id ?? null;
         await notifyHouseholdEvent({
           supabaseClient: supabase,
           userId,
           table: "home_buecher",
           action: "erstellt",
           recordName: payload.titel,
-          recordId: data?.id,
+          recordId: savedBookId,
           url: "/home/inventar?tab=buecher",
         });
       } else {
@@ -345,7 +348,43 @@ export default function BuchFormModal({
         });
       }
 
-      if (shouldRemovePreviousStoredCover) {
+      let persistedCover = null;
+      const existingStoredCover = form.api_payload?.selectedCover;
+      const coverAlreadyPersisted = Boolean(
+        existingStoredCover?.storagePath &&
+        existingStoredCover?.storedUrl &&
+        existingStoredCover.storedUrl === finalCoverUrl,
+      );
+      if (householdId && savedBookId && finalCoverUrl && !coverAlreadyPersisted) {
+        try {
+          persistedCover = await persistSelectedBookCover({
+            householdId,
+            bookId: savedBookId,
+            selectedCoverUrl: finalCoverUrl,
+          });
+          if (persistedCover?.publicUrl) {
+            const selectedCover = {
+              ...(existingStoredCover ?? {}),
+              url: finalCoverUrl,
+              storedUrl: persistedCover.publicUrl,
+              storagePath: persistedCover.storagePath ?? null,
+            };
+            const { error: coverUpdateError } = await supabase
+              .from("home_buecher")
+              .update({
+                cover_url: persistedCover.publicUrl,
+                thumbnail_url: persistedCover.publicUrl,
+                api_payload: { ...(form.api_payload ?? {}), selectedCover },
+              })
+              .eq("id", savedBookId);
+            if (coverUpdateError) throw coverUpdateError;
+          }
+        } catch (coverError) {
+          console.warn("[Bücher] Cover konnte nicht in den eigenen Speicher übernommen werden:", coverError);
+        }
+      }
+
+      if (shouldRemovePreviousStoredCover && (!finalCoverUrl || persistedCover?.publicUrl)) {
         await removePersistedBookCover(buch?.api_payload?.selectedCover ?? null);
       }
 
