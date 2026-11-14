@@ -1,3 +1,4 @@
+import OverlayPortal from "./ui/OverlayPortal";
 import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom"; // Hinzugefügt
@@ -663,7 +664,7 @@ const BudgetTracker = ({ session }) => {
       {/* Neue Gesamtzahlen-Übersicht */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         <div className="bg-light-card dark:bg-canvas-2 p-3 rounded-card border border-light-border dark:border-dark-border text-center">
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
             {t("budget:tracker.totalPlanned")}
           </p>
           <p className="text-xl font-bold text-primary-500">
@@ -671,7 +672,7 @@ const BudgetTracker = ({ session }) => {
           </p>
         </div>
         <div className="bg-light-card dark:bg-canvas-2 p-3 rounded-card border border-light-border dark:border-dark-border text-center">
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
             {t("budget:tracker.totalPaid")}
           </p>
           <p className="text-xl font-bold text-light-accent-purple dark:text-dark-accent-purple">
@@ -679,7 +680,7 @@ const BudgetTracker = ({ session }) => {
           </p>
         </div>
         <div className="bg-light-card dark:bg-canvas-2 p-3 rounded-card border border-light-border dark:border-dark-border text-center">
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
             {t("budget:tracker.totalOpen")}
           </p>
           <p
@@ -1144,11 +1145,11 @@ const BudgetTracker = ({ session }) => {
                             <h4 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
                               {p.beschreibung}
                             </h4>
-                            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                               {t(`budget:tracker.categories.${p.kategorie}`, { defaultValue: p.kategorie })} - {t("budget:tracker.cardPlanned")}{" "}
                               {formatGermanCurrency(p.betrag)} €
                             </p>
-                            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                               {t("budget:tracker.cardDue")}{" "}
                               {formatDateForDisplay(p.datum)}
                               {p.lieferdatum &&
@@ -1216,7 +1217,7 @@ const BudgetTracker = ({ session }) => {
                             {p.teilzahlungen.map((tz) => (
                               <li
                                 key={tz.id}
-                                className="flex justify-between items-center group text-[11px]"
+                                className="flex justify-between items-center group text-xs"
                               >
                                 <span>
                                   {formatDateForDisplay(tz.datum_teilzahlung)}
@@ -1235,7 +1236,7 @@ const BudgetTracker = ({ session }) => {
                                   onClick={() => handleDeleteTeilzahlung(tz.id)}
                                   disabled={!userId}
                                   title="Löschen"
-                                  className="ml-1 p-0.5 text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-600 opacity-0 group-hover:opacity-100"
+                                  className="ml-1 p-0.5 text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-600 opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100"
                                 >
                                   <Trash2 size={12} />
                                 </button>
@@ -1254,9 +1255,9 @@ const BudgetTracker = ({ session }) => {
       </div>
 
       {showPostenModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-3 z-50">
+        <OverlayPortal><div data-app-dialog="" className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-3 z-50">
           <div className="bg-light-card dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-md relative border border-light-border dark:border-dark-border">
-            <button
+            <button aria-label="Schließen"
               onClick={resetForm}
               className="absolute top-2.5 right-2.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
             >
@@ -1360,7 +1361,7 @@ const BudgetTracker = ({ session }) => {
                   </label>
                 </div>
                 {editingPostenId && (
-                  <p className="text-[11px] mt-1 text-light-text-secondary dark:text-dark-text-secondary">
+                  <p className="text-sm mt-1 text-light-text-secondary dark:text-dark-text-secondary">
                     {t("budget:tracker.fields.partialNote")}
                   </p>
                 )}
@@ -1413,12 +1414,12 @@ const BudgetTracker = ({ session }) => {
               </div>
             </form>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
       {showTeilzahlungModalFor && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-3 z-50">
+        <OverlayPortal><div data-app-dialog="" className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-3 z-50">
           <div className="bg-light-card dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-sm relative border border-light-border dark:border-dark-border">
-            <button
+            <button aria-label="Schließen"
               onClick={() => setShowTeilzahlungModalFor(null)}
               className="absolute top-2.5 right-2.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
             >
@@ -1495,7 +1496,7 @@ const BudgetTracker = ({ session }) => {
               </div>
             </form>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
     </div>
   );

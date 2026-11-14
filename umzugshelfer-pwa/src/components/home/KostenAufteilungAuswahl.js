@@ -96,7 +96,7 @@ export default function KostenAufteilungAuswahl({
               Kostenaufteilung
             </p>
           </div>
-          <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+          <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
             Teile diese Ausgabe im Haushalt auf.
           </p>
         </div>
@@ -117,7 +117,7 @@ export default function KostenAufteilungAuswahl({
             <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
               Vorgestreckt von
             </label>
-            <select
+            <select aria-label="Vorgestreckt von"
               value={vorgestrecktVon || ""}
               onChange={(event) => onVorgestrecktVonChange(event.target.value || null)}
               className={inputCls}
@@ -133,7 +133,7 @@ export default function KostenAufteilungAuswahl({
 
           {!isEqualOnly && (
             <div>
-              <p className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">
+              <p className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">
                 Aufteilungsmodus
               </p>
               <div className="flex gap-4">
@@ -166,7 +166,7 @@ export default function KostenAufteilungAuswahl({
 
           {effectiveSplitMode === "equal" && (
             <div>
-              <p className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">
+              <p className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">
                 Beteiligte
               </p>
               <div className="space-y-2">
@@ -197,7 +197,7 @@ export default function KostenAufteilungAuswahl({
 
           {!isEqualOnly && effectiveSplitMode === "fixed" && (
             <div>
-              <p className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">
+              <p className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">
                 Feste Anteile
               </p>
               <div className="space-y-2">
@@ -232,7 +232,7 @@ export default function KostenAufteilungAuswahl({
                         {renderPersonLabel(eintrag)}
                       </span>
                       <div className="flex items-center gap-1">
-                        <input
+                        <input aria-label="0,00"
                           type="number"
                           step="0.01"
                           min="0"
@@ -260,7 +260,7 @@ export default function KostenAufteilungAuswahl({
 
           {!isEqualOnly && effectiveSplitMode === "percent" && (
             <div>
-              <p className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">
+              <p className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">
                 Prozentanteile
               </p>
               <div className="space-y-2">
@@ -280,7 +280,7 @@ export default function KostenAufteilungAuswahl({
                         )}
                       </span>
                       <div className="flex items-center gap-1">
-                        <input
+                        <input aria-label="0"
                           type="number"
                           step="0.01"
                           min="0"
@@ -327,7 +327,7 @@ export default function KostenAufteilungAuswahl({
           )}
 
           <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">
+            <p className="text-sm font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">
               Vorschau
             </p>
             {betragNum <= 0 ? (

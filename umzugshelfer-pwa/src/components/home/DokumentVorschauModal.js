@@ -1,3 +1,4 @@
+import OverlayPortal from "../ui/OverlayPortal";
 import React, { useState, useEffect } from "react";
 import { X, Loader2, Download, FileText, AlertTriangle } from "lucide-react";
 import { supabase } from "../../supabaseClient";
@@ -31,8 +32,8 @@ const DokumentVorschauModal = ({ storagePfad, dateiname, datei_typ, onSchliessen
   const istPdf = datei_typ === "application/pdf";
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex flex-col bg-black/80 backdrop-blur-sm pt-safe pb-safe"
+    <OverlayPortal><div
+      data-app-dialog="" className="fixed inset-0 z-[200] flex flex-col bg-black/80 backdrop-blur-sm pt-safe pb-safe"
       onClick={(e) => { if (e.target === e.currentTarget) onSchliessen(); }}
     >
       {/* Header */}
@@ -51,7 +52,7 @@ const DokumentVorschauModal = ({ storagePfad, dateiname, datei_typ, onSchliessen
               <Download size={12} /> Herunterladen
             </a>
           )}
-          <button
+          <button aria-label="Schließen"
             onClick={onSchliessen}
             className="w-8 h-8 flex items-center justify-center rounded-card-sm hover:bg-canvas-3 text-dark-text-secondary"
           >
@@ -73,7 +74,7 @@ const DokumentVorschauModal = ({ storagePfad, dateiname, datei_typ, onSchliessen
           <div className="flex flex-col items-center gap-3 text-dark-text-secondary max-w-sm text-center">
             <AlertTriangle size={32} className="text-accent-danger" />
             <p className="text-sm">Vorschau konnte nicht geladen werden.</p>
-            <p className="text-xs text-dark-text-secondary opacity-60">{fehler}</p>
+            <p className="text-sm text-dark-text-secondary opacity-60">{fehler}</p>
           </div>
         )}
 
@@ -111,7 +112,7 @@ const DokumentVorschauModal = ({ storagePfad, dateiname, datei_typ, onSchliessen
           </>
         )}
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 };
 

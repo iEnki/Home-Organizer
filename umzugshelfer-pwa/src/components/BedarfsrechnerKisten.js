@@ -83,7 +83,7 @@ const BedarfsrechnerKisten = () => {
                 <label htmlFor={boxId} className={labelClass}>
                   {t(`move:calculator.boxes.types.${boxId}.name`)}
                 </label>
-                <input
+                <input aria-label="0"
                   type="text"
                   id={boxId}
                   value={manualQuantities[boxId]}
@@ -151,7 +151,7 @@ const BedarfsrechnerKisten = () => {
             </span>
           </p>
           {totalManualBoxes > 0 && estimatedMinBoxes > 0 && (
-            <p className="flex justify-between text-xs mt-1">
+            <p className="flex justify-between text-sm mt-1">
               <span className="text-light-text-secondary dark:text-dark-text-secondary">
                 {t("move:calculator.boxes.difference")}
               </span>

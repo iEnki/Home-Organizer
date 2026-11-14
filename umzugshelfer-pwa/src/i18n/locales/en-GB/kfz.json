@@ -167,7 +167,13 @@
     "noDates": "No urgent dates",
     "recent": "Recent activity",
     "showAll": "All",
-    "noActivity": "No activity in this period yet."
+    "noActivity": "No activity in this period yet.",
+    "moreOptions": "More filters and vehicle options",
+    "sections": "Vehicle sections",
+    "period": "Period",
+    "showCosts": "Open costs",
+    "vehicleDetails": "Vehicle details and photos",
+    "clearCostFilter": "{{category}} filter active – reset"
   },
   "fuelStatus": {
     "question": "Was the tank full after refuelling up to the automatic nozzle stop?",
@@ -347,6 +353,11 @@
       "cleanup": "The temporary document could not be deleted.",
       "required": "Vehicle and invoice date are required.",
       "save": "The service could not be saved."
-    }
+    },
+    "photo": "Photograph service receipt",
+    "chooseFile": "Choose image or PDF",
+    "retry": "Analyse again",
+    "preview": "Show original document",
+    "moreDetails": "Additional invoice details"
   }
 }

@@ -164,7 +164,8 @@
       "twoWeeks": "2 weeks",
       "month": "Month",
       "all": "All"
-    }
+    },
+    "moreFilters": "More filters"
   },
   "lists": {
     "title": "Recipe lists",

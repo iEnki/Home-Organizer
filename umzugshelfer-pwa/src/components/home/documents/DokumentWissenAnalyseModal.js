@@ -1,3 +1,4 @@
+import OverlayPortal from "../../ui/OverlayPortal";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -334,18 +335,18 @@ export default function DokumentWissenAnalyseModal({
   const detailPairs = analysisResult?.analysis?.details || [];
 
   return (
-    <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
-      <div className="mobile-modal-dialog w-full max-w-3xl bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 flex min-h-0 flex-col">
+    <OverlayPortal><div data-app-dialog="" className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
+      <div className="document-archive-dialog mobile-modal-dialog w-full max-w-3xl bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 flex min-h-0 flex-col">
         <div className="shrink-0 flex items-center justify-between px-5 pt-5 pb-4 border-b border-light-border dark:border-dark-border">
           <div className="min-w-0">
             <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
               <Sparkles size={16} className="text-amber-500" /> Dokument als Wissen analysieren
             </h2>
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1 truncate">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1 truncate">
               {dok?.dateiname}
             </p>
           </div>
-          <button
+          <button aria-label="Schließen"
             onClick={onSchliessen}
             className="w-8 h-8 flex items-center justify-center rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary"
           >
@@ -368,7 +369,7 @@ export default function DokumentWissenAnalyseModal({
                 <div className="space-y-2">
                   <p>{error}</p>
                   {lockState === "busy" ? null : (
-                    <p className="text-xs opacity-80">
+                    <p className="text-sm opacity-80">
                       Du kannst das Dokument später erneut analysieren oder manuell als Wissen erfassen.
                     </p>
                   )}
@@ -394,7 +395,7 @@ export default function DokumentWissenAnalyseModal({
                     <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
                       Titel
                     </label>
-                    <input
+                    <input aria-label="Titel"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-amber-500"
@@ -406,7 +407,7 @@ export default function DokumentWissenAnalyseModal({
                       <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
                         Wissenskategorie
                       </label>
-                      <select
+                      <select aria-label="Wissenskategorie"
                         value={category}
                         onChange={(e) => setCategory(e.target.value)}
                         className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none"
@@ -418,7 +419,7 @@ export default function DokumentWissenAnalyseModal({
                       <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
                         Dokumenttyp
                       </label>
-                      <select
+                      <select aria-label="Dokumenttyp"
                         value={documentType}
                         onChange={(e) => setDocumentType(e.target.value)}
                         className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none"
@@ -434,7 +435,7 @@ export default function DokumentWissenAnalyseModal({
                     <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
                       Tags
                     </label>
-                    <input
+                    <input aria-label="Tags"
                       value={tagsInput}
                       onChange={(e) => setTagsInput(e.target.value)}
                       placeholder="versicherung, hausrat, kuendigung"
@@ -446,7 +447,7 @@ export default function DokumentWissenAnalyseModal({
                     <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
                       Detailtext
                     </label>
-                    <textarea
+                    <textarea aria-label="Detailtext"
                       value={manualContent}
                       onChange={(e) => setManualContent(e.target.value)}
                       rows={8}
@@ -459,7 +460,7 @@ export default function DokumentWissenAnalyseModal({
                   <div className="rounded-card border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 p-4 space-y-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-[11px] uppercase tracking-wide text-amber-500 font-semibold">
+                        <p className="text-sm text-amber-500 font-semibold">
                           {CARD_CLASS_LABELS[analysisResult.analysis.documentClass] || "Dokument"}
                           {analysisResult.analysis.documentSubtype ? ` · ${analysisResult.analysis.documentSubtype}` : ""}
                         </p>
@@ -468,7 +469,7 @@ export default function DokumentWissenAnalyseModal({
                         </h3>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">
+                        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                           Confidence
                         </p>
                         <p className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
@@ -508,7 +509,7 @@ export default function DokumentWissenAnalyseModal({
                         {previewTags.map((tag) => (
                           <span
                             key={tag}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-pill bg-primary-500/10 text-primary-500 text-[11px]"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-pill bg-primary-500/10 text-primary-500 text-xs"
                           >
                             <Tag size={10} /> {tag}
                           </span>
@@ -531,7 +532,7 @@ export default function DokumentWissenAnalyseModal({
                         ))}
                       </div>
                     ) : (
-                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                      <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                         Keine strukturierten Details erkannt.
                       </p>
                     )}
@@ -556,7 +557,7 @@ export default function DokumentWissenAnalyseModal({
           )}
         </div>
 
-        <div className="shrink-0 flex gap-2 px-5 py-4 border-t border-light-border dark:border-dark-border">
+        <div className="document-dialog-actions shrink-0 flex flex-wrap gap-2 px-5 py-4 border-t border-light-border dark:border-dark-border">
           <button
             onClick={onSchliessen}
             className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main"
@@ -582,6 +583,6 @@ export default function DokumentWissenAnalyseModal({
           </button>
         </div>
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 }

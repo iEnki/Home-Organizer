@@ -14,14 +14,14 @@ export default function BudgetCashflowList({ items, total, count }) {
     <section className="overflow-hidden rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2">
       <div className="flex items-center justify-between gap-2 border-b border-light-border dark:border-dark-border px-4 py-3">
         <div>
-          <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+          <p className="text-sm uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
             Vorschau
           </p>
-          <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
+          <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
             Cashflow - Naechste 30 Tage
           </h3>
         </div>
-        <span className="rounded-full bg-light-border dark:bg-canvas-3 px-1.5 py-0.5 text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
+        <span className="rounded-full bg-light-border dark:bg-canvas-3 px-1.5 py-0.5 text-xs text-light-text-secondary dark:text-dark-text-secondary">
           {count}
         </span>
       </div>

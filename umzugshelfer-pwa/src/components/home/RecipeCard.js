@@ -21,20 +21,18 @@ export default function RecipeCard({ recipe, display, ingredients = [], onOpen, 
 
   return (
     <GlassSurface
-      as="button"
-      type="button"
-      onClick={() => onOpen(recipe)}
+      as="article"
       whileTap={reduced ? {} : { scale: 0.97 }}
       className="w-full overflow-hidden text-left"
     >
       {/* Flaches Vorschaubild, damit mehr Rezepte im sichtbaren Bereich bleiben. */}
-      <div className="relative aspect-[16/9] overflow-hidden bg-light-surface-2 dark:bg-canvas-3">
+      <button type="button" aria-label={display?.title || recipe.titel} onClick={() => onOpen(recipe)} className="relative block w-full aspect-[16/9] overflow-hidden bg-light-surface-2 dark:bg-canvas-3">
         {/* Fallback — immer sichtbar, wird vom Bild überdeckt */}
         <div className="flex h-full flex-col items-center justify-center gap-1.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-card-sm bg-primary-500/10">
             <ChefHat size={16} className="text-primary-500" />
           </div>
-          <span className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
+          <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
             {recipe.quelle_plattform || recipe.import_typ || t("card.fallback")}
           </span>
         </div>
@@ -47,17 +45,17 @@ export default function RecipeCard({ recipe, display, ingredients = [], onOpen, 
             onError={(e) => { e.currentTarget.style.display = "none"; }}
           />
         )}
-      </div>
+      </button>
 
       <div className="space-y-1.5 p-2.5 lg:space-y-2 lg:p-3">
         {/* Title + Favorite */}
         <div className="flex items-start gap-1.5">
           <div className="min-w-0 flex-1">
-            <h3 className="line-clamp-2 text-xs font-semibold leading-snug text-light-text-main dark:text-dark-text-main">
-              {display?.title || recipe.titel}
+            <h3 className="line-clamp-2 text-base font-semibold leading-snug text-light-text-main dark:text-dark-text-main">
+              <button type="button" className="recipe-title-action text-left" onClick={() => onOpen(recipe)}>{display?.title || recipe.titel}</button>
             </h3>
             {/* Platform — only md+ */}
-            <p className="mt-0.5 hidden truncate text-[10px] text-light-text-secondary dark:text-dark-text-secondary md:block">
+            <p className="mt-0.5 hidden truncate text-sm text-light-text-secondary dark:text-dark-text-secondary md:block">
               {recipe.quelle_plattform ||
                 (recipe.import_typ === "manuell" ? t("card.manual") : t("card.cookbook"))}
             </p>
@@ -65,7 +63,7 @@ export default function RecipeCard({ recipe, display, ingredients = [], onOpen, 
           <motion.button
             type="button"
             onClick={(e) => { e.stopPropagation(); onToggleFavorite?.(recipe); }}
-            whileTap={reduced ? {} : { scale: 0.75 }}
+            whileTap={reduced ? {} : { scale: 0.97 }}
             className={`flex-shrink-0 rounded-card-sm p-1 transition-colors ${
               recipe.favorisiert
                 ? "bg-red-500/10 text-red-500"
@@ -79,7 +77,7 @@ export default function RecipeCard({ recipe, display, ingredients = [], onOpen, 
 
         {/* Description — lg+ only */}
         {(display?.description || recipe.beschreibung) && (
-          <p className="hidden line-clamp-2 text-xs leading-relaxed text-light-text-secondary dark:text-dark-text-secondary lg:block">
+          <p className="hidden line-clamp-2 text-sm leading-relaxed text-light-text-secondary dark:text-dark-text-secondary lg:block">
             {display?.description || recipe.beschreibung}
           </p>
         )}
@@ -90,13 +88,13 @@ export default function RecipeCard({ recipe, display, ingredients = [], onOpen, 
             {visibleTags.map((tag) => (
               <span
                 key={tag}
-                className="inline-flex items-center rounded-full bg-primary-500/10 px-1.5 py-0.5 text-[10px] text-primary-600 dark:text-primary-400"
+                className="inline-flex items-center rounded-full bg-primary-500/10 px-1.5 py-0.5 text-xs text-primary-600 dark:text-primary-400"
               >
                 {tag}
               </span>
             ))}
             {tags.length > 2 && (
-              <span className="inline-flex items-center rounded-full bg-light-border px-1.5 py-0.5 text-[10px] text-light-text-secondary dark:bg-canvas-3 dark:text-dark-text-secondary">
+              <span className="inline-flex items-center rounded-full bg-light-border px-1.5 py-0.5 text-xs text-light-text-secondary dark:bg-canvas-3 dark:text-dark-text-secondary">
                 +{tags.length - 2}
               </span>
             )}
@@ -105,14 +103,14 @@ export default function RecipeCard({ recipe, display, ingredients = [], onOpen, 
 
         {/* Gruppe badge — lg+ only */}
         {recipe.gruppe && (
-          <span className="hidden w-fit rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300 lg:inline-flex">
+          <span className="hidden w-fit rounded-full bg-amber-500/10 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300 lg:inline-flex">
             {recipe.gruppe}
           </span>
         )}
 
         {/* Nutrition — lg+ only */}
         {nutritionParts.length > 0 && (
-          <p className="hidden truncate text-[10px] text-light-text-secondary dark:text-dark-text-secondary lg:block">
+          <p className="hidden truncate text-sm text-light-text-secondary dark:text-dark-text-secondary lg:block">
             {nutritionParts.join(" | ")}
           </p>
         )}
@@ -120,7 +118,7 @@ export default function RecipeCard({ recipe, display, ingredients = [], onOpen, 
         {/* Meta badges — always visible */}
         <RecipeQualityBadges recipe={recipe} ingredients={ingredients} t={t} limit={2} />
 
-        <div className="flex flex-wrap gap-1 text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
+        <div className="flex flex-wrap gap-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
           <span className="inline-flex items-center gap-0.5 rounded-pill bg-light-bg px-1.5 py-0.5 dark:bg-canvas-1">
             <Users size={9} /> {recipe.portionen || 4}
           </span>

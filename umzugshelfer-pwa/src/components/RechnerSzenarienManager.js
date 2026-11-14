@@ -85,10 +85,10 @@ const RechnerSzenarienManager = ({ session }) => {
       {showForm && (
         <div className={cardBase}>
           <div className="flex justify-between items-center mb-3">
-            <h3 className="font-semibold text-light-text-main dark:text-dark-text-main text-sm">
+            <h3 className="font-semibold text-light-text-main dark:text-dark-text-main text-base">
               {t("move:calculator.scenarios.newScenario")}
             </h3>
-            <button onClick={() => setShowForm(false)}>
+            <button aria-label={t("common:actions.close")} onClick={() => setShowForm(false)}>
               <XCircle size={18} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-danger-color" />
             </button>
           </div>
@@ -98,7 +98,7 @@ const RechnerSzenarienManager = ({ session }) => {
                 <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5">
                   {t("move:calculator.scenarios.name")}
                 </label>
-                <input
+                <input aria-label={t("move:calculator.scenarios.name")}
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -111,7 +111,7 @@ const RechnerSzenarienManager = ({ session }) => {
                 <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5">
                   {t("move:calculator.scenarios.type")}
                 </label>
-                <select
+                <select aria-label={t("move:calculator.scenarios.type")}
                   value={rechnerTyp}
                   onChange={(e) => setRechnerTyp(e.target.value)}
                   className="w-full px-2.5 py-1.5 border border-light-border dark:border-dark-border rounded-card-sm text-sm bg-white dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:ring-1 focus:ring-light-accent-green dark:focus:ring-dark-accent-green"
@@ -128,7 +128,7 @@ const RechnerSzenarienManager = ({ session }) => {
               <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5">
                 {t("move:calculator.scenarios.resultAmount")}
               </label>
-              <input
+              <input aria-label={t("move:calculator.scenarios.resultAmount")}
                 type="text"
                 value={ergebnis}
                 onChange={(e) => setErgebnis(e.target.value)}
@@ -140,7 +140,7 @@ const RechnerSzenarienManager = ({ session }) => {
               <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5">
                 {t("move:calculator.scenarios.notes")}
               </label>
-              <textarea
+              <textarea aria-label={t("move:calculator.scenarios.notes")}
                 value={notizen}
                 onChange={(e) => setNotizen(e.target.value)}
                 rows={2}
@@ -191,11 +191,11 @@ const RechnerSzenarienManager = ({ session }) => {
                 </div>
                 {s.ergebnis && <p className="text-sm font-medium text-light-accent-green dark:text-dark-accent-green">{s.ergebnis}</p>}
                 {s.notizen && (
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5 whitespace-pre-line">
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-0.5 whitespace-pre-line">
                     {s.notizen}
                   </p>
                 )}
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1 opacity-60">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1 opacity-60">
                   {new Date(s.created_at).toLocaleDateString(i18n.language === "en-GB" ? "en-GB" : "de-DE")}
                 </p>
               </div>

@@ -1,3 +1,4 @@
+import OverlayPortal from "../../ui/OverlayPortal";
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Bookmark, Check, Pencil, Save, Star, Trash2, X } from "lucide-react";
@@ -30,7 +31,7 @@ function ViewRow({
 
         <div className="min-w-0 flex-1">
           {renameId === view.id ? (
-            <input
+            <input aria-label={t("budget:savedViews.namePlaceholder")}
               autoFocus
               value={renameValue}
               onChange={(event) => onRenameValueChange(event.target.value)}
@@ -43,20 +44,20 @@ function ViewRow({
                 {view.name}
               </p>
               {view.is_default && (
-                <span className="inline-flex items-center gap-1 rounded-pill border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300">
+                <span className="inline-flex items-center gap-1 rounded-pill border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-600 dark:text-amber-300">
                   <Star size={10} />
                   {t("budget:savedViews.default")}
                 </span>
               )}
               {isActive && (
-                <span className="inline-flex items-center gap-1 rounded-pill border border-primary-500/20 bg-primary-500/10 px-2 py-0.5 text-[11px] text-primary-500">
+                <span className="inline-flex items-center gap-1 rounded-pill border border-primary-500/20 bg-primary-500/10 px-2 py-0.5 text-xs text-primary-500">
                   <Check size={10} />
                   {t("common:status.active")}
                 </span>
               )}
             </div>
           )}
-          <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+          <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
             {t("budget:savedViews.updatedAt", {
               date: new Date(view.updated_at || view.created_at || Date.now()).toLocaleString("de-AT"),
             })}
@@ -209,7 +210,7 @@ export default function BudgetSavedViewsSheet({
   };
 
   return (
-    <div className="fixed inset-0 z-[130]">
+    <OverlayPortal><div data-app-dialog="" className="fixed inset-0 z-[130]">
       <button
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
@@ -238,14 +239,14 @@ export default function BudgetSavedViewsSheet({
 
         <div className="space-y-4 p-4">
           <div className="rounded-card border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 p-4">
-            <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
+            <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
               {t("budget:savedViews.saveCurrentTitle")}
             </h3>
-            <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+            <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
               {t("budget:savedViews.saveCurrentDescription")}
             </p>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <input
+              <input aria-label={t("budget:savedViews.newNamePlaceholder")}
                 value={newName}
                 onChange={(event) => setNewName(event.target.value)}
                 placeholder={t("budget:savedViews.newNamePlaceholder")}
@@ -307,6 +308,6 @@ export default function BudgetSavedViewsSheet({
           )}
         </div>
       </section>
-    </div>
+    </div></OverlayPortal>
   );
 }

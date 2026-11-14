@@ -105,8 +105,8 @@ const Topbar = ({
     >
       <div className="flex items-center gap-3 topbar-safe-x h-[72px]">
       {/* Seitentitel + Modus-Badge */}
-      <div className="flex items-center gap-2 shrink-0 min-w-0">
-        <h1 className="text-base sm:text-xl font-semibold truncate">
+      <div className="flex items-center gap-2 flex-1 md:flex-none min-w-0">
+        <h1 className="text-sm sm:text-xl font-semibold min-w-0 whitespace-normal break-words leading-tight">
           <SparklesText
             key={pageTitle}
             text={pageTitle}
@@ -119,7 +119,7 @@ const Topbar = ({
       </div>
 
       {/* Spacer */}
-      <div className="flex-1" />
+      <div className="hidden md:block flex-1" />
 
       {/* Suchfeld (md+) */}
       <div
@@ -130,7 +130,7 @@ const Topbar = ({
           size={15}
           className="absolute left-3 text-light-text-secondary dark:text-dark-text-secondary pointer-events-none z-10"
         />
-        <input
+        <input aria-label={t("search.placeholderWithShortcut")}
           type="text"
           value={searchValue}
           onChange={handleChange}
@@ -178,7 +178,7 @@ const Topbar = ({
                     {r.text}
                   </p>
                   {r.sub && (
-                    <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">
+                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary truncate">
                       {r.sub}
                     </p>
                   )}
@@ -190,7 +190,7 @@ const Topbar = ({
       </div>
 
       {/* Rechte Aktionsgruppe */}
-      <div className="flex items-center gap-2 ml-2">
+      <div className="flex shrink-0 items-center gap-1 sm:gap-2 ml-0 sm:ml-2">
         <button
           onClick={onOpenMobileSearch}
           className="md:hidden w-10 h-10 rounded-sidebar-tile flex items-center justify-center
@@ -205,7 +205,7 @@ const Topbar = ({
           <Search size={18} />
         </button>
 
-        <DayNightToggle />
+        <DayNightToggle className="hidden md:inline-flex" />
 
         {/* KI-Assistent-Button */}
         {onOpenAssistant && (
@@ -264,7 +264,7 @@ const Topbar = ({
               <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main leading-none">
                 {name}
               </p>
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5 truncate max-w-[140px]">
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-0.5 truncate max-w-[140px]">
                 {email}
               </p>
             </div>
@@ -301,7 +301,7 @@ const Topbar = ({
                          shadow-elevation-2 overflow-hidden z-50"
             >
               <div className="px-3 pt-3 pb-2 border-b border-light-border dark:border-dark-border">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">
+                <p className="text-sm font-semibold uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">
                   {t("profile.householdAndResidents")}
                 </p>
                 <div className="space-y-1">
@@ -332,10 +332,11 @@ const Topbar = ({
                 </div>
               </div>
 
+              <div className="md:hidden flex items-center justify-between px-3 py-2 border-b border-light-border dark:border-dark-border"><span className="text-sm">{t("theme.light")} / {t("theme.dark")}</span><DayNightToggle /></div>
               {/* Haushaltsmitglieder (nur wenn > 1) */}
               {mitglieder.length > 1 && (
                 <div className="px-3 pt-3 pb-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">
+                  <p className="text-sm font-semibold uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">
                     {t("profile.household")}
                   </p>
                   <div className="space-y-1.5">
@@ -346,12 +347,12 @@ const Topbar = ({
                           {m.avatar_url ? (
                             <img src={m.avatar_url} alt={m.display_name || ""} className="w-7 h-7 rounded-full object-cover shrink-0" />
                           ) : (
-                            <div className="w-7 h-7 rounded-full bg-primary-500 text-white text-[11px] font-semibold flex items-center justify-center shrink-0">
+                            <div className="w-7 h-7 rounded-full bg-primary-500 text-white text-xs font-semibold flex items-center justify-center shrink-0">
                               {ini}
                             </div>
                           )}
                           <div className="min-w-0 flex-1">
-                            <p className="text-xs font-medium text-light-text-main dark:text-dark-text-main truncate">
+                            <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main truncate">
                               {m.display_name || m.email || t("profile.member")}{m.is_current_user ? ` (${t("profile.you")})` : ""}
                             </p>
                           </div>

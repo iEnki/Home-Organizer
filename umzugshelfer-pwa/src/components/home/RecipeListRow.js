@@ -29,7 +29,7 @@ export default function RecipeListRow({ recipe, display, ingredients = [], onOpe
       type="button"
       onClick={() => onOpen(recipe)}
       variants={reduced ? {} : listRowVariants}
-      whileTap={reduced ? {} : { scale: 0.99 }}
+      whileTap={reduced ? {} : { scale: .97 }}
       className="flex w-full items-center gap-3 rounded-card-sm px-3 py-2.5 text-left"
     >
       {/* Thumbnail */}
@@ -58,26 +58,26 @@ export default function RecipeListRow({ recipe, display, ingredients = [], onOpe
             {recipe.quelle_plattform || (recipe.import_typ === "manuell" ? t("card.manual") : t("card.cookbook"))}
           </span>
           {minutes && (
-            <span className="flex-shrink-0 inline-flex items-center gap-1 text-[11px] text-light-text-secondary dark:text-dark-text-secondary">
+            <span className="flex-shrink-0 inline-flex items-center gap-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
               <Clock size={10} /> {minutes}m
             </span>
           )}
-          <span className="flex-shrink-0 inline-flex items-center gap-1 text-[11px] text-light-text-secondary dark:text-dark-text-secondary">
+          <span className="flex-shrink-0 inline-flex items-center gap-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
             <Users size={10} /> {recipe.portionen || 4}
           </span>
         </div>
         {tags[0] && (
-          <span className="mt-0.5 hidden sm:inline-flex items-center rounded-full bg-primary-500/10 px-1.5 py-0.5 text-[10px] text-primary-600 dark:text-primary-400">
+          <span className="mt-0.5 hidden sm:inline-flex items-center rounded-full bg-primary-500/10 px-1.5 py-0.5 text-xs text-primary-600 dark:text-primary-400">
             {tags[0]}
           </span>
         )}
         {recipe.gruppe && (
-          <span className="ml-1 mt-0.5 hidden sm:inline-flex items-center rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-300">
+          <span className="ml-1 mt-0.5 hidden sm:inline-flex items-center rounded-full bg-amber-500/10 px-1.5 py-0.5 text-xs text-amber-700 dark:text-amber-300">
             {recipe.gruppe}
           </span>
         )}
         {nutritionParts.length > 0 && (
-          <span className="ml-1 mt-0.5 hidden sm:inline text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
+          <span className="ml-1 mt-0.5 hidden sm:inline text-xs text-light-text-secondary dark:text-dark-text-secondary">
             {nutritionParts[0]}
           </span>
         )}
@@ -88,7 +88,7 @@ export default function RecipeListRow({ recipe, display, ingredients = [], onOpe
       <motion.button
         type="button"
         onClick={(e) => { e.stopPropagation(); onToggleFavorite?.(recipe); }}
-        whileTap={reduced ? {} : { scale: 0.75 }}
+        whileTap={reduced ? {} : { scale: .97 }}
         className={`flex-shrink-0 rounded-card-sm p-1.5 transition-colors ${
           recipe.favorisiert
             ? "text-red-500"

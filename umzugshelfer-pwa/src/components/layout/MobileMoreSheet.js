@@ -1,3 +1,5 @@
+import OverlayPortal from "../ui/OverlayPortal";
+import { AnimatePresence, motion, useDragControls, useReducedMotion } from "framer-motion";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { X, Repeat, Settings } from "lucide-react";
@@ -14,6 +16,8 @@ const MobileMoreSheet = ({
   onOpenNavSettings,
 }) => {
   const { t } = useTranslation(["nav"]);
+  const dragControls = useDragControls();
+  const reduced = useReducedMotion();
   useEffect(() => {
     if (!open) return undefined;
     const onEscape = (e) => {
@@ -27,7 +31,7 @@ const MobileMoreSheet = ({
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+
 
   const registry  = MOBILE_NAV_REGISTRY[appMode] || MOBILE_NAV_REGISTRY.home;
   const favKeySet = new Set(mobileNavFavorites?.[appMode] ?? []);
@@ -39,21 +43,23 @@ const MobileMoreSheet = ({
   };
 
   return (
-    <div className="lg:hidden fixed inset-0 z-[120]">
+    <AnimatePresence>{open && <OverlayPortal><div data-app-dialog="" className="lg:hidden fixed inset-0 z-[120]">
       <button
         className="absolute inset-0 bg-canvas-0/65 backdrop-blur-sm animate-fade-in"
         aria-label={t("nav:mobile.closeMenu")}
         onClick={onClose}
       />
 
-      <section
+      <motion.section drag="y" dragListener={false} dragControls={dragControls} dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.18 }}
+        onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 600) onClose(); }}
+        initial={reduced ? { opacity: 0 } : { y: "100%" }} animate={{ y: 0, opacity: 1 }} exit={reduced ? { opacity: 0 } : { y: "100%" }} transition={{ type: "spring", stiffness: 400, damping: 40 }}
         className="absolute inset-x-0 bottom-0 rounded-t-card border-t border-light-border/70 dark:border-white/[0.10]
                    bg-white/60 dark:bg-canvas-1/55 glass-chrome
-                   shadow-elevation-3 max-h-[82dvh] overflow-y-auto animate-slide-in-up"
+                   shadow-elevation-3 max-h-[82dvh] overflow-y-auto"
         style={{ paddingBottom: "calc(var(--safe-area-bottom) + 0.75rem)" }}
       >
         {/* Drag-Handle */}
-        <div className="pt-2.5 flex justify-center">
+        <div onPointerDown={e => dragControls.start(e)} style={{ touchAction: "none" }} className="min-h-[44px] flex items-center justify-center cursor-grab">
           <div className="h-1 w-9 rounded-pill bg-light-border dark:bg-white/15" />
         </div>
 
@@ -99,7 +105,7 @@ const MobileMoreSheet = ({
                 </span>
                 <span className="text-sm font-medium flex-1">{t(item.labelKey, { defaultValue: item.label })}</span>
                 {isFavorite && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-pill
+                  <span className="text-xs px-1.5 py-0.5 rounded-pill
                                    bg-primary-500/10 text-primary-500 border border-primary-500/20 shrink-0">
                     {t("nav:mobile.bottomBar")}
                   </span>
@@ -132,8 +138,8 @@ const MobileMoreSheet = ({
             <span className="text-sm font-medium">{modeLabel}</span>
           </button>
         </div>
-      </section>
-    </div>
+      </motion.section>
+    </div></OverlayPortal>}</AnimatePresence>
   );
 };
 

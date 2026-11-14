@@ -1,3 +1,4 @@
+import OverlayPortal from "../ui/OverlayPortal";
 import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, Trash2, Edit2, X } from "lucide-react";
@@ -147,7 +148,7 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
           <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
             {t("budget:splitDefaults.title")}
           </h3>
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
             {t("budget:splitDefaults.subtitle")}
           </p>
         </div>
@@ -182,7 +183,7 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
                   <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">
                     {eintrag.kategorie}
                   </p>
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                     {t(`budget:splitDefaults.mode${eintrag.split_mode.charAt(0).toUpperCase()}${eintrag.split_mode.slice(1)}`, { defaultValue: eintrag.split_mode })}
                     {payer ? ` · ${t("budget:splitDefaults.payer")}: ${payer.emoji} ${getBewohnerDisplayName(payer)}` : ''}
                     {teilnehmer.length > 0 ? ` · ${teilnehmer.map(b => b.emoji).join('')}` : ''}
@@ -212,20 +213,20 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
 
       {/* Bearbeitungs-Modal */}
       {editModal && (
-        <div className="mobile-modal-overlay fixed inset-0 z-[110] flex justify-center bg-black/60 backdrop-blur-sm">
+        <OverlayPortal><div data-app-dialog="" className="mobile-modal-overlay fixed inset-0 z-[110] flex justify-center bg-black/60 backdrop-blur-sm">
           <GlassSurface interactive={false} className="mobile-modal-dialog max-w-md w-full flex min-h-0 flex-col">
             <div className="shrink-0 flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
                 {editModal.id ? t("budget:splitDefaults.editTitle") : t("budget:splitDefaults.newTitle")}
               </h3>
-              <button onClick={() => setEditModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main">
+              <button aria-label="Schließen" onClick={() => setEditModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main">
                 <X size={18} />
               </button>
             </div>
             <div className="mobile-modal-body flex-1 p-4 space-y-3">
               <div>
                 <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:splitDefaults.category")}</label>
-                <select
+                <select aria-label={t("budget:splitDefaults.category")}
                   value={editModal.kategorie}
                   onChange={e => setEditModal(prev => ({ ...prev, kategorie: e.target.value }))}
                   className={INPUT_CLS}
@@ -271,7 +272,7 @@ export default function BudgetSplitDefaults({ householdId, bewohner = [], katego
               </button>
             </div>
           </GlassSurface>
-        </div>
+        </div></OverlayPortal>
       )}
     </GlassSurface>
   );

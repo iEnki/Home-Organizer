@@ -110,7 +110,7 @@ function Field({ id, label, value, setValue, inputClass, labelClass, placeholder
   return (
     <div>
       <label htmlFor={id} className={labelClass}>{label}</label>
-      <input type="number" id={id} value={value} onChange={(e) => setValue(e.target.value)} className={inputClass} placeholder={placeholder} />
+      <input aria-label={placeholder} type="number" id={id} value={value} onChange={(e) => setValue(e.target.value)} className={inputClass} placeholder={placeholder} />
     </div>
   );
 }

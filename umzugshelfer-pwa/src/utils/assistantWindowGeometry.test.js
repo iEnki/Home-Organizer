@@ -38,7 +38,7 @@ describe("assistantWindowGeometry", () => {
     // Schnell nach unten (velocity > 0) von 0.8 -> naechstkleinerer Snap
     expect(nearestSnapPoint(0.8, [0.45, 0.82, 1], 2)).toBe(0.45);
     // Schnell nach oben von 0.5 -> naechstgroesserer Snap
-    expect(nearestSnapPoint(0.5, [0.45, 0.82, 1], -2)).toBe(0.82);
+    expect(nearestSnapPoint(0.5, [0.45, 0.82, 1], -2)).toBe(1);
     // Fling ueber die Grenzen hinaus bleibt am Rand
     expect(nearestSnapPoint(0.4, [0.45, 0.82, 1], 3)).toBe(0.45);
     expect(nearestSnapPoint(0.99, [0.45, 0.82, 1], -3)).toBe(1);

@@ -566,7 +566,7 @@ export const applyLegacyShoppingFields = (entry) => {
     ? ruleSuggestion?.confidence
     : explicitSubCategory
       ? 0.95
-      : ruleSuggestion?.confidence ?? (legacy.review_noetig ?? 0.6 : 0.8);
+      : ruleSuggestion?.confidence ?? (legacy.review_noetig ? 0.6 : 0.8);
   const confidence = Math.min(
     Math.max(parseNumericValue(entry?.confidence, confidenceFallback), 0),
     0.99

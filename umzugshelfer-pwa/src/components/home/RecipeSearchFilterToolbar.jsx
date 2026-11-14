@@ -156,7 +156,9 @@ export default function RecipeSearchFilterToolbar({
             placeholder={t("toolbar.filter.all")}
             triggerClassName="flex-shrink-0"
           />
-          <SearchableSelect
+          <details className="contents">
+            <summary className="cursor-pointer rounded-card-sm border border-light-border dark:border-dark-border px-3 py-3 text-sm">{t("toolbar.moreFilters")}{hasActiveFilters ? " · ✓" : ""}</summary>
+            <div className="flex flex-wrap items-center gap-2 w-full">          <SearchableSelect
             value={gruppenValue}
             onValueChange={onGruppenChange}
             items={groupItems}
@@ -204,7 +206,8 @@ export default function RecipeSearchFilterToolbar({
               className="rounded-card-sm border border-light-border bg-light-bg px-2 py-1.5 text-xs text-light-text-main focus:border-primary-500 focus:outline-none [color-scheme:light] dark:border-dark-border dark:bg-canvas-1 dark:text-dark-text-main dark:[color-scheme:dark]"
             />
           </div>
-
+</div>
+          </details>
           {hasActiveFilters && (
             <button
               type="button"

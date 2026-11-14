@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import React, { createContext, useContext, useState, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { CheckCircle2, XCircle, Info, X } from "lucide-react";
@@ -25,10 +26,11 @@ const STYLES = {
 };
 
 // ── ToastContainer (intern) ───────────────────────────────────────────────────
-const ToastContainer = ({ toasts, onRemove }) => (
+const ToastContainer = ({ toasts, onRemove }) => createPortal(
   <div
     className="fixed right-4 sm:right-6 z-[500] flex flex-col gap-2 pointer-events-none"
     style={{ bottom: "calc(var(--mobile-bottom-offset, 0px) + 1.5rem)" }}
+    data-live-region=""
     aria-live="polite"
     aria-label="Benachrichtigungen"
   >
@@ -57,7 +59,7 @@ const ToastContainer = ({ toasts, onRemove }) => (
         </motion.div>
       ))}
     </AnimatePresence>
-  </div>
+  </div>, document.body
 );
 
 // ── Provider ──────────────────────────────────────────────────────────────────

@@ -75,6 +75,7 @@ export default function LocalizedDateField({
         </button>
         <input
           ref={pickerRef}
+          aria-hidden="true"
           type="date"
           value={value || ""}
           onChange={(event) => {

@@ -93,7 +93,7 @@ export default function BudgetGoalRow({
             className="absolute inset-0 flex items-center justify-center"
             style={{ transform: "rotate(90deg)" }}
           >
-            <span className="text-[10px] font-bold tabular-nums text-light-text-main dark:text-dark-text-main">
+            <span className="text-xs font-bold tabular-nums text-light-text-main dark:text-dark-text-main">
               {meta.progress.toFixed(0)}%
             </span>
           </div>
@@ -108,11 +108,11 @@ export default function BudgetGoalRow({
                 <p className="truncate text-sm font-semibold text-light-text-main dark:text-dark-text-main">
                   {ziel.name}
                 </p>
-                <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${status.className}`}>
+                <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-xs font-medium ${status.className}`}>
                   {t(status.labelKey)}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+              <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                 {ziel.zieldatum
                   ? tage === 0
                     ? t("budget:goals.dueToday")
@@ -197,7 +197,7 @@ export default function BudgetGoalRow({
             {t("budget:goals.deposit")}
           </button>
         ) : (
-          <p className="text-xs font-semibold text-green-500">
+          <p className="text-sm font-semibold text-green-500">
             🎉 {t("budget:goals.reached")}
           </p>
         )}

@@ -1,9 +1,10 @@
+import OverlayPortal from "../ui/OverlayPortal";
 import React from "react";
 import { Truck, Home } from "lucide-react";
 
 const HomeOnboarding = ({ onWaehleUmzug, onWaehleHome }) => {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <OverlayPortal><div data-app-dialog="" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-light-card dark:bg-dark-card rounded-2xl shadow-2xl max-w-lg w-full p-8 border border-light-border dark:border-dark-border">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-light-text-main dark:text-dark-text-main mb-2">
@@ -26,7 +27,7 @@ const HomeOnboarding = ({ onWaehleUmzug, onWaehleHome }) => {
             <h3 className="font-semibold text-light-text-main dark:text-dark-text-main mb-1 text-center">
               Umzug planen
             </h3>
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary text-center">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary text-center">
               Packlisten, Budget, Kontakte und alles rund um deinen Umzug
             </p>
           </button>
@@ -42,17 +43,17 @@ const HomeOnboarding = ({ onWaehleUmzug, onWaehleHome }) => {
             <h3 className="font-semibold text-light-text-main dark:text-dark-text-main mb-1 text-center">
               Haushalt organisieren
             </h3>
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary text-center">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary text-center">
               Inventar verwalten, Vorräte tracken, Geräte pflegen
             </p>
           </button>
         </div>
 
-        <p className="text-center text-xs text-light-text-secondary dark:text-dark-text-secondary mt-6">
+        <p className="text-center text-sm text-light-text-secondary dark:text-dark-text-secondary mt-6">
           Du kannst den Modus jederzeit über die Navigation wechseln.
         </p>
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 };
 

@@ -85,7 +85,7 @@ const BedarfsrechnerVolumen = ({ onVolumeCalculated }) => {
             <label htmlFor={item.id} className={`${labelClass} col-span-2`}>
               {t(`move:calculator.volume.items.${item.id}`)}
             </label>
-            <input
+            <input aria-label="0"
               type="number"
               id={item.id}
               value={quantities[item.id]}
@@ -107,7 +107,7 @@ const BedarfsrechnerVolumen = ({ onVolumeCalculated }) => {
             {totalVolume.toFixed(2)} m³
           </span>
         </p>
-        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1">
+        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1">
           {t("move:calculator.volume.note")}
         </p>
       </div>

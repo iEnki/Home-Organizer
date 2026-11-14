@@ -64,19 +64,19 @@ function JobRow({ job, queuePosition, onReview, onRetry, onContinueOpenAi, busy 
               {title}
             </p>
             {queuePosition ? (
-              <span className="rounded-pill bg-light-card px-2 py-0.5 text-[11px] text-light-text-secondary dark:bg-canvas-2 dark:text-dark-text-secondary">
+              <span className="rounded-pill bg-light-card px-2 py-0.5 text-xs text-light-text-secondary dark:bg-canvas-2 dark:text-dark-text-secondary">
                 Platz {queuePosition}
               </span>
             ) : null}
           </div>
-          <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+          <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
             {statusLabel(displayStatus)} / {job.quelle_plattform || "web"} / {formatDate(job.created_at)}
           </p>
           {job.progress_message ? (
-            <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">{job.progress_message}</p>
+            <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">{job.progress_message}</p>
           ) : null}
           {errorMessage ? (
-            <p className="mt-2 rounded-card-sm border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-600 dark:text-red-300">{errorMessage}</p>
+            <p className="mt-2 rounded-card-sm border border-red-500/30 bg-red-500/10 p-2 text-sm text-red-600 dark:text-red-300">{errorMessage}</p>
           ) : null}
           {displayStatus !== "done" && displayStatus !== "failed" ? (
             <div className="mt-2 h-1.5 overflow-hidden rounded-pill bg-light-border dark:bg-dark-border">

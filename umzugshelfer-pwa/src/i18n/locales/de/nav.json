@@ -28,7 +28,8 @@
     "knowledge": "Wissensdatenbank",
     "cookbook": "Kochbuch",
     "scanInvoice": "Rechnung scannen",
-    "documentArchive": "Dokumentenarchiv"
+    "documentArchive": "Dokumentenarchiv",
+    "renovation": "Renovierung"
   },
   "items": {
     "home": "Home",
@@ -88,5 +89,6 @@
     "document": "Dokument",
     "recipe": "Rezept",
     "boxContent": "Kisteninhalt"
-  }
+  },
+  "sidebarToggle": "Navigation auf- oder zuklappen"
 }

@@ -1,3 +1,4 @@
+import OverlayPortal from "./ui/OverlayPortal";
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useTranslation } from "react-i18next";
@@ -42,7 +43,7 @@ function StatusBadge({ label, farbe }) {
     amber:   "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
   }[farbe] ?? "bg-light-border/60 dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary border-light-border dark:border-dark-border";
   return (
-    <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-pill font-medium border ${cls}`}>
+    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-pill font-medium border ${cls}`}>
       {label}
     </span>
   );
@@ -84,7 +85,7 @@ function ModulKarte({ icon, titel, status, statusFarbe, beschreibung, aktionLabe
         {status && <StatusBadge label={status} farbe={statusFarbe ?? "gray"} />}
       </div>
       {beschreibung && (
-        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary leading-snug line-clamp-2">
+        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary leading-snug line-clamp-2">
           {beschreibung}
         </p>
       )}
@@ -101,7 +102,7 @@ function ModulKarte({ icon, titel, status, statusFarbe, beschreibung, aktionLabe
 function GruppenLabel({ children }) {
   return (
     <div className="mb-3 flex items-center gap-3 px-1">
-      <p className="whitespace-nowrap text-[11px] font-semibold uppercase tracking-widest text-light-text-secondary dark:text-dark-text-secondary">
+      <p className="whitespace-nowrap text-sm font-semibold uppercase tracking-widest text-light-text-secondary dark:text-dark-text-secondary">
         {children}
       </p>
       <div className="h-px flex-1 bg-light-border dark:bg-dark-border" />
@@ -1146,7 +1147,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">{t("theme.colorMode")}</p>
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
               {t("locale.current", { language: t("theme." + theme) })}
             </p>
           </div>
@@ -1156,7 +1157,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">{t("locale.title")}</p>
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
                 {t("locale.description")}
               </p>
             </div>
@@ -1177,8 +1178,8 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               ))}
             </div>
           </div>
-          {localeStatus === "ok" && <p className="text-xs text-accent-success mt-2">{t("locale.updated")}</p>}
-          {localeStatus === "fehler" && <p className="text-xs text-accent-danger mt-2">{t("locale.updateFailed")}</p>}
+          {localeStatus === "ok" && <p className="text-sm text-accent-success mt-2">{t("locale.updated")}</p>}
+          {localeStatus === "fehler" && <p className="text-sm text-accent-danger mt-2">{t("locale.updateFailed")}</p>}
         </div>
       </div>
     );
@@ -1203,12 +1204,12 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
             <Truck size={28} />
             <div className="text-center">
               <p className="text-sm font-semibold">{t("profile:panelContent.appMode.movers")}</p>
-              <p className="text-xs opacity-70 mt-0.5">
+              <p className="text-sm opacity-70 mt-0.5">
                 {umzugDeaktiviertLokal ? t("profile:panelContent.appMode.moversDisabled") : t("profile:panelContent.appMode.moversDesc")}
               </p>
             </div>
             {appMode === "umzug" && !umzugDeaktiviertLokal && (
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-pill bg-primary-500 text-white">{t("profile:panelContent.appMode.active")}</span>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-pill bg-primary-500 text-white">{t("profile:panelContent.appMode.active")}</span>
             )}
           </button>
           <button
@@ -1222,16 +1223,16 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
             <Home size={28} />
             <div className="text-center">
               <p className="text-sm font-semibold">{t("profile:panelContent.appMode.homeOrg")}</p>
-              <p className="text-xs opacity-70 mt-0.5">{t("profile:panelContent.appMode.homeOrgDesc")}</p>
+              <p className="text-sm opacity-70 mt-0.5">{t("profile:panelContent.appMode.homeOrgDesc")}</p>
             </div>
             {appMode === "home" && (
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-pill bg-secondary-500 text-white">{t("profile:panelContent.appMode.active")}</span>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-pill bg-secondary-500 text-white">{t("profile:panelContent.appMode.active")}</span>
             )}
           </button>
         </div>
         {umzugDeaktiviertLokal ? (
           <div className="p-3 rounded-card-sm bg-accent-success/10 border border-accent-success/30">
-            <p className="text-xs text-accent-success mb-2.5 leading-snug">
+            <p className="text-sm text-accent-success mb-2.5 leading-snug">
               {t("profile:panelContent.appMode.deactivatedInfo")}
             </p>
             <button
@@ -1245,7 +1246,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
           </div>
         ) : appMode === "home" ? (
           <div className="p-3 rounded-card-sm bg-light-surface-1 dark:bg-canvas-3 border border-light-border dark:border-dark-border">
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-2.5 leading-snug">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-2.5 leading-snug">
               {t("profile:panelContent.appMode.deactivateInfo")}
             </p>
             <button
@@ -1275,9 +1276,9 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                            focus:outline-none focus:ring-1 focus:ring-primary-500"
                 autoFocus
               />
-              <button onClick={handleHaushaltsNameSpeichern} className="text-primary-500 hover:text-primary-400 transition-colors"><Check size={14} /></button>
-              <button onClick={() => { setHaushaltsNameBearbeiten(false); setHaushaltsName(householdContext?.household_name || ""); }} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger transition-colors"><X size={14} /></button>
-              {haushaltsNameStatus === "fehler" && <span className="text-[10px] text-accent-danger">{t("common:status.error")}</span>}
+              <button aria-label="Bestätigen" onClick={handleHaushaltsNameSpeichern} className="text-primary-500 hover:text-primary-400 transition-colors"><Check size={14} /></button>
+              <button aria-label="Schließen" onClick={() => { setHaushaltsNameBearbeiten(false); setHaushaltsName(householdContext?.household_name || ""); }} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger transition-colors"><X size={14} /></button>
+              {haushaltsNameStatus === "fehler" && <span className="text-xs text-accent-danger">{t("common:status.error")}</span>}
             </div>
           ) : (
             <div className="flex items-center gap-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary">
@@ -1314,7 +1315,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
             <div className="h-14 rounded-card-sm bg-light-surface-1 dark:bg-canvas-3 animate-pulse" />
           </div>
         ) : haushaltUebersichtFehler ? (
-          <p className="text-xs text-accent-danger flex items-center gap-1.5">
+          <p className="text-sm text-accent-danger flex items-center gap-1.5">
             <AlertCircle size={13} /> {haushaltUebersichtFehler}
           </p>
         ) : (
@@ -1338,18 +1339,18 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                       <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main truncate">
                         {mitglied.display_name || t("common:profile.member")} {mitglied.is_current_user ? t("profile:panelContent.household.youSuffix") : ""}
                       </p>
-                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">
+                      <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary truncate">
                         {mitglied.email || t("profile:panelContent.household.noEmail")}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     {mitglied.role === "admin" ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-pill text-[11px] font-medium bg-secondary-500/10 text-secondary-500 border border-secondary-500/30">
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-pill text-xs font-medium bg-secondary-500/10 text-secondary-500 border border-secondary-500/30">
                         <Crown size={11} /> {t("common:profile.admin")}
                       </span>
                     ) : (
-                      <span className="px-2 py-1 rounded-pill text-[11px] font-medium bg-light-bg dark:bg-canvas-2 text-light-text-secondary dark:text-dark-text-secondary border border-light-border dark:border-dark-border">
+                      <span className="px-2 py-1 rounded-pill text-xs font-medium bg-light-bg dark:bg-canvas-2 text-light-text-secondary dark:text-dark-text-secondary border border-light-border dark:border-dark-border">
                         {t("common:profile.member")}
                       </span>
                     )}
@@ -1377,7 +1378,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
           {t("profile:panelContent.invite.intro")}
         </p>
         <div className="flex flex-col sm:flex-row gap-2">
-          <input
+          <input aria-label="person@email.de"
             type="email"
             value={inviteEmail}
             onChange={(e) => setInviteEmail(e.target.value)}
@@ -1396,8 +1397,8 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         </div>
         {inviteLink && (
           <div className="p-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-surface-1 dark:bg-canvas-3">
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("profile:panelContent.invite.linkLabel")}</p>
-            <p className="text-xs break-all text-light-text-main dark:text-dark-text-main">{inviteLink}</p>
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("profile:panelContent.invite.linkLabel")}</p>
+            <p className="text-sm break-all text-light-text-main dark:text-dark-text-main">{inviteLink}</p>
             <button
               onClick={handleInviteLinkKopieren}
               className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-xs font-medium
@@ -1407,12 +1408,12 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
             </button>
           </div>
         )}
-        {inviteStatus === "ok" && <p className="text-xs text-accent-success flex items-center gap-1"><CheckCircle size={13} /> {t("profile:panelContent.invite.created")}</p>}
-        {inviteStatus === "copied" && <p className="text-xs text-accent-success flex items-center gap-1"><CheckCircle size={13} /> {t("profile:panelContent.invite.copied")}</p>}
-        {inviteStatus === "fehler" && <p className="text-xs text-accent-danger flex items-center gap-1"><AlertCircle size={13} /> {inviteFehler || t("profile:panelContent.invite.error")}</p>}
-        {inviteMailStatus === "sending" && <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("profile:panelContent.invite.mailSending")}</p>}
-        {inviteMailStatus === "sent" && <p className="text-xs text-accent-success flex items-center gap-1"><CheckCircle size={13} /> {inviteMailHinweis}</p>}
-        {inviteMailStatus === "failed" && <p className="text-xs text-accent-danger flex items-center gap-1"><AlertCircle size={13} /> {inviteMailHinweis}</p>}
+        {inviteStatus === "ok" && <p className="text-sm text-accent-success flex items-center gap-1"><CheckCircle size={13} /> {t("profile:panelContent.invite.created")}</p>}
+        {inviteStatus === "copied" && <p className="text-sm text-accent-success flex items-center gap-1"><CheckCircle size={13} /> {t("profile:panelContent.invite.copied")}</p>}
+        {inviteStatus === "fehler" && <p className="text-sm text-accent-danger flex items-center gap-1"><AlertCircle size={13} /> {inviteFehler || t("profile:panelContent.invite.error")}</p>}
+        {inviteMailStatus === "sending" && <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("profile:panelContent.invite.mailSending")}</p>}
+        {inviteMailStatus === "sent" && <p className="text-sm text-accent-success flex items-center gap-1"><CheckCircle size={13} /> {inviteMailHinweis}</p>}
+        {inviteMailStatus === "failed" && <p className="text-sm text-accent-danger flex items-center gap-1"><AlertCircle size={13} /> {inviteMailHinweis}</p>}
       </div>
     );
 
@@ -1420,7 +1421,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
       <div className="space-y-5">
         {!isHouseholdAdmin ? (
           <>
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-4">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-4">
               {t("profile:panelContent.ki.memberIntro")}
             </p>
             {memberKiStatus ? (
@@ -1457,7 +1458,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         ) : (
           <>
             <div>
-              <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2 uppercase tracking-wide">{t("profile:panelContent.ki.providerSection")}</p>
+              <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2 uppercase tracking-wide">{t("profile:panelContent.ki.providerSection")}</p>
               <div className="grid grid-cols-2 gap-2">
                 {[
                   { id: "openai", label: "OpenAI", desc: "GPT-4o + Whisper" },
@@ -1483,7 +1484,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
 
             {kiProvider === "openai" && (
               <div className="space-y-2">
-                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.ki.apiKeySection")}</p>
+                <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.ki.apiKeySection")}</p>
                 <form
                   className="space-y-3"
                   onSubmit={(event) => {
@@ -1493,7 +1494,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 >
                   <div className="flex gap-2">
                     <div className="relative flex-1">
-                      <input
+                      <input aria-label="sk-..."
                         type={apiKeyVisible ? "text" : "password"}
                         value={apiKey}
                         onChange={(e) => setApiKey(e.target.value)}
@@ -1538,21 +1539,21 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
 
             {kiProvider === "ollama" && (
               <div className="space-y-3">
-                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.ki.ollamaServerSection")}</p>
+                <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.ki.ollamaServerSection")}</p>
                 <div className="space-y-2">
                   <div>
-                    <input
+                    <input aria-label="http://192.168.1.100:11434"
                       type="url"
                       value={ollamaUrl}
                       onChange={(e) => setOllamaUrl(e.target.value)}
                       placeholder="http://192.168.1.100:11434"
                       className={inputCls}
                     />
-                    <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                    <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                       {t("profile:panelContent.ki.ollamaUrlHint")}
                     </p>
                   </div>
-                  <input
+                  <input aria-label="llama3.2"
                     type="text"
                     value={ollamaModel}
                     onChange={(e) => setOllamaModel(e.target.value)}
@@ -1607,7 +1608,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                       : <><Save size={14} /> {t("common:actions.save")}</>}
                   </button>
                 </div>
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                   {t("profile:panelContent.ki.ollamaNote")}
                 </p>
               </div>
@@ -1615,21 +1616,21 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
 
             {kiProvider === "lmstudio" && (
               <div className="space-y-3">
-                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.ki.lmstudioSection")}</p>
+                <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.ki.lmstudioSection")}</p>
                 <div className="space-y-2">
                   <div>
-                    <input
+                    <input aria-label="http://192.168.1.100:1234"
                       type="url"
                       value={lmstudioUrl}
                       onChange={(e) => setLmstudioUrl(e.target.value)}
                       placeholder="http://192.168.1.100:1234"
                       className={inputCls}
                     />
-                    <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                    <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                       {t("profile:panelContent.ki.lmstudioUrlHint")}
                     </p>
                   </div>
-                  <input
+                  <input aria-label={t("profile:panelContent.ki.lmstudioModelPlaceholder")}
                     type="text"
                     value={lmstudioModel}
                     onChange={(e) => setLmstudioModel(e.target.value)}
@@ -1654,7 +1655,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                     </div>
                   )}
                   <div className="flex items-center gap-2">
-                    <input
+                    <input aria-label={t("profile:panelContent.ki.lmstudioKeyPlaceholder")}
                       type="password"
                       value={lmstudioApiKey}
                       onChange={(e) => setLmstudioApiKey(e.target.value)}
@@ -1673,7 +1674,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                     )}
                   </div>
                   {lmstudioKeySet && (
-                    <p className="text-xs text-accent-success flex items-center gap-1">
+                    <p className="text-sm text-accent-success flex items-center gap-1">
                       <CheckCircle size={13} /> {t("profile:panelContent.ki.keyStored")}
                     </p>
                   )}
@@ -1708,7 +1709,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                       : <><Save size={14} /> {t("common:actions.save")}</>}
                   </button>
                 </div>
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                   {t("profile:panelContent.ki.lmstudioNote")}
                 </p>
               </div>
@@ -1716,10 +1717,10 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
 
             {kiProvider === "claude" && (
               <div className="space-y-3">
-                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.ki.claudeSection")}</p>
+                <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.ki.claudeSection")}</p>
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <input
+                    <input aria-label="sk-ant-..."
                       type="password"
                       value={anthropicKey}
                       onChange={(e) => setAnthropicKey(e.target.value)}
@@ -1738,12 +1739,12 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                     )}
                   </div>
                   {anthropicKeySet && (
-                    <p className="text-xs text-accent-success flex items-center gap-1">
+                    <p className="text-sm text-accent-success flex items-center gap-1">
                       <CheckCircle size={13} /> {t("profile:panelContent.ki.keyStored")}
                     </p>
                   )}
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-1.5">
+                    <p className="text-sm font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-1.5">
                       {t("profile:panelContent.ki.claudeModelSection")}
                     </p>
                     <div className="flex flex-wrap gap-1.5">
@@ -1761,14 +1762,14 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                         </button>
                       ))}
                     </div>
-                    <input
+                    <input aria-label="claude-opus-4-8"
                       type="text"
                       value={claudeModel}
                       onChange={(e) => setClaudeModel(e.target.value)}
                       placeholder="claude-opus-4-8"
                       className={`${inputCls} mt-2`}
                     />
-                    <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                    <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                       {t("profile:panelContent.ki.claudeModelHint")}
                     </p>
                   </div>
@@ -1795,7 +1796,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
           <div className="h-20 bg-light-surface-1 dark:bg-canvas-3 rounded-card-sm animate-pulse" />
         ) : (
           <>
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
               {t("profile:panelContent.imageAnalysis.intro")}
             </p>
             <div className="grid grid-cols-2 gap-2">
@@ -1822,10 +1823,10 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
             </div>
             {bildanalyseModus === "chatgpt_vision" && (
               <div className="space-y-2">
-                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.imageAnalysis.apiKeySection")}</p>
+                <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.imageAnalysis.apiKeySection")}</p>
                 {bildanalyseOpenaiKeySet && (
                   <div className="flex items-center gap-3">
-                    <p className="text-xs text-accent-success flex items-center gap-1.5"><CheckCircle size={13} /> {t("profile:panelContent.imageAnalysis.keySet")} <span className="font-mono">***</span></p>
+                    <p className="text-sm text-accent-success flex items-center gap-1.5"><CheckCircle size={13} /> {t("profile:panelContent.imageAnalysis.keySet")} <span className="font-mono">***</span></p>
                     <button
                       onClick={handleOpenaiKeyLoeschen}
                       disabled={loescheOpenaiKey}
@@ -1842,7 +1843,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                     handleBildanalyseSpeichern();
                   }}
                 >
-                  <input
+                  <input aria-label={bildanalyseOpenaiKeySet ? t("profile:panelContent.imageAnalysis.replaceKeyPlaceholder") : "sk-..."}
                     type="password"
                     autoComplete="new-password"
                     value={bildanalyseOpenaiKey}
@@ -1869,15 +1870,15 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                     onTest={() => handleOpenAiModelTest("vision", bildanalyseOpenaiModel)}
                   />
                 </form>
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                   {t("profile:panelContent.imageAnalysis.apiKeyNote")}
                 </p>
               </div>
             )}
             {bildanalyseModus === "ocr_ollama" && (
               <div className="space-y-2">
-                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.imageAnalysis.ollamaModelSection")}</p>
-                <input
+                <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.imageAnalysis.ollamaModelSection")}</p>
+                <input aria-label="z.B. llava, llama3.2-vision, bakllava"
                   type="text"
                   value={ollamaVisionModel}
                   onChange={(e) => setOllamaVisionModel(e.target.value)}
@@ -1889,15 +1890,15 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                               placeholder-light-text-secondary dark:placeholder-dark-text-secondary
                               focus:outline-none focus:border-secondary-500 transition-colors`}
                 />
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                   {t("profile:panelContent.imageAnalysis.ollamaModelNote")}
                 </p>
               </div>
             )}
             {bildanalyseModus === "lmstudio_vision" && (
               <div className="space-y-2">
-                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.imageAnalysis.lmstudioModelSection")}</p>
-                <input
+                <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">{t("profile:panelContent.imageAnalysis.lmstudioModelSection")}</p>
+                <input aria-label={lmstudioModel || "qwen2.5-vl-7b-instruct"}
                   type="text"
                   value={lmstudioVisionModel}
                   onChange={(e) => setLmstudioVisionModel(e.target.value)}
@@ -1909,7 +1910,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                               placeholder-light-text-secondary dark:placeholder-dark-text-secondary
                               focus:outline-none focus:border-secondary-500 transition-colors`}
                 />
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                   {t("profile:panelContent.imageAnalysis.lmstudioModelNote")}
                 </p>
               </div>
@@ -1919,7 +1920,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 <p className="text-sm text-light-text-main dark:text-dark-text-main">
                   {t("profile:panelContent.imageAnalysis.claudeVisionNote")}
                 </p>
-                <p className="text-xs flex items-center gap-1.5">
+                <p className="text-sm flex items-center gap-1.5">
                   {anthropicKeySet ? (
                     <span className="flex items-center gap-1 text-accent-success"><CheckCircle size={13} /> {t("profile:panelContent.ki.keyStored")}</span>
                   ) : (
@@ -1951,7 +1952,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
 
         {/* Persönlicher Ein/Aus-Schalter — für alle Nutzer */}
         <div className="space-y-2 p-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-surface-1 dark:bg-canvas-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+          <p className="text-sm font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
             {t("profile:panelContent.assistant.personalSection")}
           </p>
           <label className="flex items-start gap-3">
@@ -1976,7 +1977,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         {isHouseholdAdmin ? (
           <div className="space-y-3 p-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-surface-1 dark:bg-canvas-3">
             <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">
+              <p className="text-sm font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">
                 {t("profile:panelContent.assistant.aiProviderSection")}
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -2031,7 +2032,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                     placeholder={ollamaModel || "qwen2.5"}
                     className={inputCls}
                   />
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                     {t("profile:panelContent.assistant.ollamaModelHint")}
                   </p>
                 </label>
@@ -2065,7 +2066,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                   placeholder={lmstudioModel || "qwen2.5-7b-instruct"}
                   className={inputCls}
                 />
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                   {t("profile:panelContent.assistant.lmstudioModelHint")}
                 </p>
               </label>
@@ -2098,7 +2099,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                   placeholder={claudeModel || "claude-opus-4-8"}
                   className={inputCls}
                 />
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                   {t("profile:panelContent.assistant.claudeModelHint")}
                 </p>
               </label>
@@ -2114,7 +2115,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
             </button>
           </div>
         ) : (
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
             {t("profile:panelContent.assistant.adminOnlyHint")}
           </p>
         )}
@@ -2128,7 +2129,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         </p>
         <div className="space-y-3 p-3 rounded-card-sm border border-light-border dark:border-dark-border bg-light-surface-1 dark:bg-canvas-3">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">
+            <p className="text-sm font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">
               {t("profile:panelContent.kochbuch.aiProviderSection")}
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -2183,7 +2184,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                   placeholder="http://192.168.1.100:11434"
                   className={inputCls}
                 />
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                   {t("profile:panelContent.kochbuch.ollamaUrlHint")}
                 </p>
               </label>
@@ -2321,7 +2322,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         {isIOS && !isStandalone && (
           <div className="flex gap-2.5 p-3 rounded-card-sm bg-accent-yellow/10 border border-accent-yellow/30">
             <BellRing size={16} className="text-accent-yellow shrink-0 mt-0.5" />
-            <p className="text-xs text-accent-yellow leading-relaxed">
+            <p className="text-sm text-accent-yellow leading-relaxed">
               {t("profile:panelContent.push.iosHint")}
             </p>
           </div>
@@ -2372,14 +2373,14 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               </button>
             )}
             {pushBerechtigung === "denied" && (
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                 {t("profile:panelContent.push.permissionHint")}
               </p>
             )}
           </div>
         )}
         {pushFehler && (
-          <p className="text-xs text-accent-danger flex items-center gap-1.5">
+          <p className="text-sm text-accent-danger flex items-center gap-1.5">
             <AlertCircle size={13} /> {pushFehler}
           </p>
         )}
@@ -2400,7 +2401,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
             {einkaufReminderAktiv && (
               <div className="flex items-center gap-3 pl-7">
                 <label className="text-sm text-light-text-secondary dark:text-dark-text-secondary whitespace-nowrap">{t("profile:panelContent.push.timeUtc")}</label>
-                <input
+                <input aria-label={t("profile:panelContent.push.timeUtc")}
                   type="time"
                   value={einkaufReminderZeit}
                   onChange={(e) => setEinkaufReminderZeit(e.target.value)}
@@ -2466,7 +2467,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
             >
               {tourReset ? <><CheckCircle size={15} /> {t("profile:panelContent.tours.resetDone")}</> : <><RotateCcw size={15} /> {t("profile:panelContent.tours.resetAll")}</>}
             </button>
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
               {t("profile:panelContent.tours.autoStartNote")}
             </p>
           </div>
@@ -2502,7 +2503,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
         </p>
         {navEdit && ["home", "umzug"].map((mode) => (
           <div key={mode} className="space-y-2">
-            <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">
+            <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">
               {mode === "home" ? t("common:app.name") : t("common:app.moveName")}
             </p>
             <div className="space-y-1.5">
@@ -2546,7 +2547,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
             {navPickerModus === mode && navPickerSlotIdx !== null && (
               <div className="mt-2 p-3 rounded-card-sm border border-secondary-500/30 bg-secondary-500/5">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-medium text-secondary-500">{t("profile:panelContent.mobileNav.chooseModule")}</p>
+                  <p className="text-sm font-medium text-secondary-500">{t("profile:panelContent.mobileNav.chooseModule")}</p>
                   <button
                     onClick={() => { setNavPickerModus(null); setNavPickerSlotIdx(null); }}
                     className="text-xs text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
@@ -2596,8 +2597,8 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               : navSaveStatus === "fehler" ? <><AlertCircle size={15} /> {t("common:status.error")}</>
               : <><Save size={15} /> {t("common:actions.save")}</>}
           </button>
-          {navSaveStatus === "ok" && <p className="text-xs text-accent-success">{t("profile:panelContent.mobileNav.navUpdated")}</p>}
-          {navSaveStatus === "fehler" && <p className="text-xs text-accent-danger">{t("common:actions.saveFailed")}</p>}
+          {navSaveStatus === "ok" && <p className="text-sm text-accent-success">{t("profile:panelContent.mobileNav.navUpdated")}</p>}
+          {navSaveStatus === "fehler" && <p className="text-sm text-accent-danger">{t("common:actions.saveFailed")}</p>}
         </div>
       </div>
     );
@@ -2605,7 +2606,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
     if (key === "account") return (
       <div className="space-y-5">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">{t("profile:panelContent.account.passwordSection")}</p>
+          <p className="text-sm font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">{t("profile:panelContent.account.passwordSection")}</p>
           <button
             onClick={handlePasswortReset}
             className="flex items-center gap-2 px-4 py-2.5 rounded-pill text-sm font-medium
@@ -2617,15 +2618,15 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
             <KeyRound size={14} /> {t("profile:panelContent.account.sendResetMail")}
           </button>
           {passwortStatus === "ok" && (
-            <p className="text-xs text-accent-success mt-2 flex items-center gap-1">
+            <p className="text-sm text-accent-success mt-2 flex items-center gap-1">
               <CheckCircle size={12} /> {t("profile:panelContent.account.emailSent")}
             </p>
           )}
         </div>
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">{t("profile:panelContent.account.emailSection")}</p>
+          <p className="text-sm font-medium uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary mb-2">{t("profile:panelContent.account.emailSection")}</p>
           <div className="flex gap-2">
-            <input
+            <input aria-label="neue@email.de"
               type="email"
               value={neueEmail}
               onChange={(e) => setNeueEmail(e.target.value)}
@@ -2642,8 +2643,8 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               <Save size={14} /> {t("common:actions.change")}
             </button>
           </div>
-          {emailStatus === "ok" && <p className="text-xs text-accent-success mt-2 flex items-center gap-1"><CheckCircle size={12} /> {t("profile:panelContent.account.emailConfirmSent")}</p>}
-          {emailStatus === "fehler" && <p className="text-xs text-accent-danger mt-2 flex items-center gap-1"><AlertCircle size={12} /> {t("profile:panelContent.account.emailChangeFailed")}</p>}
+          {emailStatus === "ok" && <p className="text-sm text-accent-success mt-2 flex items-center gap-1"><CheckCircle size={12} /> {t("profile:panelContent.account.emailConfirmSent")}</p>}
+          {emailStatus === "fehler" && <p className="text-sm text-accent-danger mt-2 flex items-center gap-1"><AlertCircle size={12} /> {t("profile:panelContent.account.emailChangeFailed")}</p>}
         </div>
         <div className="pt-2 border-t border-light-border dark:border-dark-border">
           {!loeschenBestaetigung ? (
@@ -2655,7 +2656,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
             </button>
           ) : (
             <div className="p-3 bg-accent-danger/10 border border-accent-danger/30 rounded-card-sm space-y-3">
-              <p className="text-xs text-accent-danger font-medium leading-snug">
+              <p className="text-sm text-accent-danger font-medium leading-snug">
                 {t("profile:panelContent.account.deleteWarning")}
               </p>
               <div className="flex gap-2">
@@ -2719,7 +2720,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
 
       {/* Mitglied entfernen — Bestätigungs-Modal */}
       {mitgliedZuEntfernen && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 p-4">
+        <OverlayPortal><div data-app-dialog="" className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 p-4">
           <div className="bg-light-card-bg dark:bg-canvas-2 rounded-card shadow-elevation-4 p-6 max-w-sm w-full space-y-4">
             <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">{t("profile:panelContent.household.removeTitle")}</h3>
             <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
@@ -2742,18 +2743,18 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               </button>
             </div>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
 
       {/* Desktop-Modal */}
       <AnimatePresence>
       {aktivesPanel && isDesktop && (
-        <motion.div
+        <OverlayPortal><motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.18 }}
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
+          data-app-dialog="" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
         >
           <motion.div
             initial={reduced ? false : { opacity: 0, scale: 0.95, y: 18 }}
@@ -2768,7 +2769,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               <h2 className="font-semibold text-light-text-main dark:text-dark-text-main">
                 {panelTitel[aktivesPanel]}
               </h2>
-              <button
+              <button aria-label="Schließen"
                 onClick={() => setAktivesPanel(null)}
                 className="w-9 h-9 rounded-card-sm flex items-center justify-center
                            text-light-text-secondary dark:text-dark-text-secondary
@@ -2781,7 +2782,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               {renderPanelInhalt(aktivesPanel)}
             </div>
           </motion.div>
-        </motion.div>
+        </motion.div></OverlayPortal>
       )}
       </AnimatePresence>
 
@@ -2826,10 +2827,10 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                                  focus:outline-none focus:ring-2 focus:ring-primary-500"
                       autoFocus
                     />
-                    <button onClick={handleNameSpeichern} className="p-1.5 rounded-card-sm bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors">
+                    <button aria-label="Bestätigen" onClick={handleNameSpeichern} className="p-1.5 rounded-card-sm bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors">
                       <Check size={15} />
                     </button>
-                    <button onClick={() => { setNameBearbeiten(false); setDisplayName(nameRaw); }} className="p-1.5 rounded-card-sm bg-light-surface-1 dark:bg-canvas-3 text-light-text-secondary hover:bg-light-border dark:hover:bg-dark-border transition-colors">
+                    <button aria-label="Schließen" onClick={() => { setNameBearbeiten(false); setDisplayName(nameRaw); }} className="p-1.5 rounded-card-sm bg-light-surface-1 dark:bg-canvas-3 text-light-text-secondary hover:bg-light-border dark:hover:bg-dark-border transition-colors">
                       <X size={15} />
                     </button>
                   </div>
@@ -2838,14 +2839,14 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                     <h2 className="text-base font-bold truncate bg-gradient-to-r from-primary-500 to-secondary-500 bg-clip-text text-transparent">
                       {displayName}
                     </h2>
-                    <button onClick={() => setNameBearbeiten(true)} className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 transition-colors shrink-0">
+                    <button aria-label="Bearbeiten" onClick={() => setNameBearbeiten(true)} className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 transition-colors shrink-0">
                       <Pencil size={13} />
                     </button>
                   </div>
                 )}
-                {nameSpeichernStatus === "ok" && <p className="text-[11px] text-accent-success mt-0.5">Gespeichert</p>}
-                {nameSpeichernStatus === "fehler" && <p className="text-[11px] text-accent-danger mt-0.5">Fehler beim Speichern</p>}
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">{email}</p>
+                {nameSpeichernStatus === "ok" && <p className="text-sm text-accent-success mt-0.5">Gespeichert</p>}
+                {nameSpeichernStatus === "fehler" && <p className="text-sm text-accent-danger mt-0.5">Fehler beim Speichern</p>}
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary truncate">{email}</p>
               </div>
               <StatusBadge label={isHouseholdAdmin ? "Admin" : "Mitglied"} farbe={isHouseholdAdmin ? "primary" : "gray"} />
             </div>
@@ -2859,7 +2860,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                 { label: t("profile:chips.household"), badge: { label: mitgliederLabel, farbe: "primary" }, icon: <Users size={11} /> },
               ].map(({ label, badge, icon }) => (
                 <div key={label} className="bg-light-card dark:bg-canvas-2 px-3 py-2.5">
-                  <p className="flex items-center gap-1 text-[10px] text-light-text-secondary dark:text-dark-text-secondary mb-1">
+                  <p className="flex items-center gap-1 text-sm text-light-text-secondary dark:text-dark-text-secondary mb-1">
                     {icon} {label}
                   </p>
                   <StatusBadge label={badge.label} farbe={badge.farbe} />
@@ -3093,10 +3094,10 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                                focus:outline-none focus:ring-2 focus:ring-primary-500"
                     autoFocus
                   />
-                  <button onClick={handleNameSpeichern} className="p-1.5 rounded-card-sm bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors">
+                  <button aria-label="Bestätigen" onClick={handleNameSpeichern} className="p-1.5 rounded-card-sm bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors">
                     <Check size={15} />
                   </button>
-                  <button onClick={() => { setNameBearbeiten(false); setDisplayName(nameRaw); }} className="p-1.5 rounded-card-sm text-light-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors">
+                  <button aria-label="Schließen" onClick={() => { setNameBearbeiten(false); setDisplayName(nameRaw); }} className="p-1.5 rounded-card-sm text-light-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3 transition-colors">
                     <X size={15} />
                   </button>
                 </div>
@@ -3105,14 +3106,14 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
                   <h2 className="text-sm font-bold truncate bg-gradient-to-r from-primary-500 to-secondary-500 bg-clip-text text-transparent">
                     {displayName}
                   </h2>
-                  <button onClick={() => setNameBearbeiten(true)} className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 transition-colors shrink-0">
+                  <button aria-label="Bearbeiten" onClick={() => setNameBearbeiten(true)} className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 transition-colors shrink-0">
                     <Pencil size={12} />
                   </button>
                 </div>
               )}
-              {nameSpeichernStatus === "ok" && <p className="text-[11px] text-accent-success">Gespeichert</p>}
-              {nameSpeichernStatus === "fehler" && <p className="text-[11px] text-accent-danger">Fehler</p>}
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">{email}</p>
+              {nameSpeichernStatus === "ok" && <p className="text-sm text-accent-success">Gespeichert</p>}
+              {nameSpeichernStatus === "fehler" && <p className="text-sm text-accent-danger">Fehler</p>}
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary truncate">{email}</p>
             </div>
             <StatusBadge label={isHouseholdAdmin ? "Admin" : "Mitglied"} farbe={isHouseholdAdmin ? "primary" : "gray"} />
           </div>
@@ -3138,7 +3139,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
             <motion.button
               key={a.key}
               onClick={() => setAktivesPanel(a.key)}
-              whileTap={reduced ? {} : { scale: 0.95 }}
+              whileTap={reduced ? {} : { scale: .97 }}
               className="flex flex-col items-center gap-1.5 px-4 py-3 rounded-card-sm shrink-0
                          bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border
                          text-light-text-secondary dark:text-dark-text-secondary
@@ -3147,7 +3148,7 @@ const UserProfile = ({ session, householdContext, mobileNavFavorites, onMobileNa
               <div className={`flex h-8 w-8 items-center justify-center rounded-card-sm ${iconBgMap[a.farbe] ?? iconBgMap.secondary}`}>
                 {a.icon}
               </div>
-              <span className="text-[11px] font-medium whitespace-nowrap">{a.label}</span>
+              <span className="text-xs font-medium whitespace-nowrap">{a.label}</span>
             </motion.button>
           ))}
         </div>

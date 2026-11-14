@@ -170,7 +170,7 @@ export default function RecipeListenModal({ open, onClose, recipes, supabase, us
               {creating && (
                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                   <div className="flex gap-1 p-1 pb-1.5">
-                    <input
+                    <input aria-label={t("lists.namePlaceholder")}
                       autoFocus
                       value={creatingName}
                       onChange={(event) => setCreatingName(event.target.value)}
@@ -181,10 +181,10 @@ export default function RecipeListenModal({ open, onClose, recipes, supabase, us
                       placeholder={t("lists.namePlaceholder")}
                       className="flex-1 min-w-0 rounded-card-sm border border-primary-500/50 bg-light-bg px-2 py-1.5 text-xs text-light-text-main focus:border-primary-500 focus:outline-none dark:bg-canvas-1 dark:text-dark-text-main"
                     />
-                    <button type="button" onClick={handleCreateList} disabled={!creatingName.trim()} className="flex-shrink-0 rounded-card-sm bg-primary-500 p-1.5 text-white disabled:opacity-40 hover:bg-primary-600 transition-colors">
+                    <button aria-label="Bestätigen" type="button" onClick={handleCreateList} disabled={!creatingName.trim()} className="flex-shrink-0 rounded-card-sm bg-primary-500 p-1.5 text-white disabled:opacity-40 hover:bg-primary-600 transition-colors">
                       <Check size={12} />
                     </button>
-                    <button type="button" onClick={() => { setCreating(false); setCreatingName(""); }} className="flex-shrink-0 rounded-card-sm p-1.5 text-light-text-secondary hover:bg-light-hover dark:text-dark-text-secondary dark:hover:bg-canvas-3 transition-colors">
+                    <button aria-label="Schließen" type="button" onClick={() => { setCreating(false); setCreatingName(""); }} className="flex-shrink-0 rounded-card-sm p-1.5 text-light-text-secondary hover:bg-light-hover dark:text-dark-text-secondary dark:hover:bg-canvas-3 transition-colors">
                       <X size={12} />
                     </button>
                   </div>
@@ -195,8 +195,8 @@ export default function RecipeListenModal({ open, onClose, recipes, supabase, us
             {listen.length === 0 && !creating && (
               <div className="py-8 text-center">
                 <BookMarked size={28} className="mx-auto mb-2 text-light-text-secondary/40 dark:text-dark-text-secondary/40" />
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("lists.empty")}</p>
-                <p className="mt-0.5 text-[10px] text-light-text-secondary/60 dark:text-dark-text-secondary/60">{t("lists.createFirst")}</p>
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("lists.empty")}</p>
+                <p className="mt-0.5 text-sm text-light-text-secondary/60 dark:text-dark-text-secondary/60">{t("lists.createFirst")}</p>
               </div>
             )}
 
@@ -215,10 +215,10 @@ export default function RecipeListenModal({ open, onClose, recipes, supabase, us
                         }}
                         className="flex-1 min-w-0 rounded-card-sm border border-primary-500/50 bg-light-bg px-2 py-1.5 text-xs text-light-text-main focus:border-primary-500 focus:outline-none dark:bg-canvas-1 dark:text-dark-text-main"
                       />
-                      <button type="button" onClick={handleRenameList} className="flex-shrink-0 rounded-card-sm bg-primary-500 p-1.5 text-white hover:bg-primary-600 transition-colors">
+                      <button aria-label="Bestätigen" type="button" onClick={handleRenameList} className="flex-shrink-0 rounded-card-sm bg-primary-500 p-1.5 text-white hover:bg-primary-600 transition-colors">
                         <Check size={12} />
                       </button>
-                      <button type="button" onClick={() => { setRenamingList(null); setRenameValue(""); }} className="flex-shrink-0 rounded-card-sm p-1.5 text-light-text-secondary hover:bg-light-hover dark:text-dark-text-secondary dark:hover:bg-canvas-3 transition-colors">
+                      <button aria-label="Schließen" type="button" onClick={() => { setRenamingList(null); setRenameValue(""); }} className="flex-shrink-0 rounded-card-sm p-1.5 text-light-text-secondary hover:bg-light-hover dark:text-dark-text-secondary dark:hover:bg-canvas-3 transition-colors">
                         <X size={12} />
                       </button>
                     </div>
@@ -232,8 +232,8 @@ export default function RecipeListenModal({ open, onClose, recipes, supabase, us
                       onClick={() => { setSelectedList(list.name); setPickerOpen(false); }}
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-medium">{list.name}</p>
-                        <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
+                        <p className="truncate text-sm font-medium">{list.name}</p>
+                        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                           {t("lists.recipeCount", { count: list.count })}
                         </p>
                       </div>
@@ -272,7 +272,7 @@ export default function RecipeListenModal({ open, onClose, recipes, supabase, us
             <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
               <BookMarked size={32} className="text-light-text-secondary/30 dark:text-dark-text-secondary/30" />
               <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">{t("lists.selectList")}</p>
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("lists.selectHint")}</p>
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("lists.selectHint")}</p>
             </div>
           ) : (
             <>
@@ -293,7 +293,7 @@ export default function RecipeListenModal({ open, onClose, recipes, supabase, us
                     <div className="p-2">
                       <div className="relative">
                         <Search size={11} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary" />
-                        <input
+                        <input aria-label={t("lists.searchRecipe")}
                           autoFocus
                           value={pickerSearch}
                           onChange={(event) => setPickerSearch(event.target.value)}
@@ -304,7 +304,7 @@ export default function RecipeListenModal({ open, onClose, recipes, supabase, us
                     </div>
                     <div className="max-h-32 overflow-y-auto px-2 pb-2 space-y-0.5">
                       {availableToAdd.length === 0 ? (
-                        <p className="py-2 text-center text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("lists.noMoreRecipes")}</p>
+                        <p className="py-2 text-center text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("lists.noMoreRecipes")}</p>
                       ) : (
                         availableToAdd.map((recipe) => (
                           <button
@@ -334,7 +334,7 @@ export default function RecipeListenModal({ open, onClose, recipes, supabase, us
                 {listRecipes.length === 0 ? (
                   <div className="flex h-full flex-col items-center justify-center gap-2 py-8 text-center">
                     <ChefHat size={28} className="text-light-text-secondary/30 dark:text-dark-text-secondary/30" />
-                    <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("lists.noRecipesInList")}</p>
+                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("lists.noRecipesInList")}</p>
                   </div>
                 ) : (
                   <AnimatePresence>
@@ -356,9 +356,9 @@ export default function RecipeListenModal({ open, onClose, recipes, supabase, us
                           </div>
                         )}
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-xs font-medium text-light-text-main dark:text-dark-text-main">{recipe.titel}</p>
+                          <p className="truncate text-sm font-medium text-light-text-main dark:text-dark-text-main">{recipe.titel}</p>
                           {recipe.quelle_plattform && (
-                            <p className="truncate text-[10px] text-light-text-secondary dark:text-dark-text-secondary">{recipe.quelle_plattform}</p>
+                            <p className="truncate text-sm text-light-text-secondary dark:text-dark-text-secondary">{recipe.quelle_plattform}</p>
                           )}
                         </div>
                         <button

@@ -122,15 +122,15 @@ export default function RecipeImportModal({ open, onClose, onReviewReady }) {
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">{t("importModal.urlLabel")}</label>
-          <input className={inputCls} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." />
+          <input aria-label={t("importModal.urlLabel")} className={inputCls} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." />
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">{t("importModal.locationLabel")}</label>
-          <input className={inputCls} value={location} onChange={(e) => setLocation(e.target.value)} />
+          <input aria-label={t("importModal.locationLabel")} className={inputCls} value={location} onChange={(e) => setLocation(e.target.value)} />
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">{t("importModal.modeLabel")}</label>
-          <select className={inputCls} value={mode} onChange={(e) => setMode(e.target.value)}>
+          <select aria-label={t("importModal.modeLabel")} className={inputCls} value={mode} onChange={(e) => setMode(e.target.value)}>
             <option value="web">{t("importModal.modes.web")}</option>
             <option value="metadata">{t("importModal.modes.metadata")}</option>
             <option value="transcript">{t("importModal.modes.transcript")}</option>
@@ -142,7 +142,7 @@ export default function RecipeImportModal({ open, onClose, onReviewReady }) {
             <div className="h-2 overflow-hidden rounded-pill bg-light-border dark:bg-dark-border">
               <div className="h-full bg-primary-500 transition-all" style={{ width: `${Math.max(5, Math.min(100, progress))}%` }} />
             </div>
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
               {status}
               {job?.transcription_device ? ` (${job.transcription_engine || t("importModal.defaultEngine")} ${job.transcription_device}/${job.transcription_compute_type || ""})` : ""}
             </p>
@@ -151,7 +151,7 @@ export default function RecipeImportModal({ open, onClose, onReviewReady }) {
         {needsOpenAiFallback && (
           <div className="rounded-card-sm border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
             <p className="font-medium">{t("importModal.openAiFallbackTitle")}</p>
-            <p className="mt-1 text-xs">{t("importModal.openAiFallbackHint")}</p>
+            <p className="mt-1 text-sm">{t("importModal.openAiFallbackHint")}</p>
           </div>
         )}
         {error && (

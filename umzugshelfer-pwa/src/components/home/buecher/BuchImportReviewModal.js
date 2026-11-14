@@ -49,13 +49,13 @@ function KandidatZeile({ kandidat, onStatusChange, t }) {
         <div className="flex-1 min-w-0">
           {bearbeiten ? (
             <div className="space-y-1.5">
-              <input
+              <input aria-label="Titel"
                 value={titel}
                 onChange={(e) => setTitel(e.target.value)}
                 placeholder="Titel"
                 className="w-full px-2 py-1 text-xs rounded border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
               />
-              <input
+              <input aria-label="Autor"
                 value={autor}
                 onChange={(e) => setAutor(e.target.value)}
                 placeholder="Autor"
@@ -65,7 +65,7 @@ function KandidatZeile({ kandidat, onStatusChange, t }) {
           ) : (
             <>
               <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main truncate">{v.titel ?? "(kein Titel)"}</p>
-              {v.autor_anzeige && <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">{v.autor_anzeige}</p>}
+              {v.autor_anzeige && <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary truncate">{v.autor_anzeige}</p>}
             </>
           )}
           <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -292,13 +292,13 @@ export default function BuchImportReviewModal({
         <div className="shrink-0 border-b border-light-border dark:border-dark-border px-4 py-3 flex items-center justify-between">
           <div>
             <h2 className="font-semibold text-light-text-main dark:text-dark-text-main text-sm">{t("books:importReview.title")}</h2>
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
               {t("books:importReview.candidateCount", { count: kandidaten.length })}
               {ausstehende > 0 ? ` · ${t("books:importReview.pendingCount", { count: ausstehende })}` : ""}
               {bestaetigte > 0 ? ` · ${t("books:importReview.confirmedCount", { count: bestaetigte })}` : ""}
             </p>
           </div>
-          <button onClick={onAbbrechen} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger">
+          <button aria-label="Schließen" onClick={onAbbrechen} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger">
             <X size={18} />
           </button>
         </div>

@@ -1,3 +1,4 @@
+import OverlayPortal from "../../ui/OverlayPortal";
 import React, { useEffect } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -32,7 +33,7 @@ const MobileFilterSheet = ({
   if (!open) return null;
 
   return (
-    <div className="md:hidden fixed inset-0 z-[125]">
+    <OverlayPortal><div data-app-dialog="" className="md:hidden fixed inset-0 z-[125]">
       <button
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
@@ -66,7 +67,7 @@ const MobileFilterSheet = ({
             <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
               {t("home:inventorySheets.status")}
             </label>
-            <select
+            <select aria-label={t("home:inventorySheets.status")}
               value={statusFilter}
               onChange={(e) => onStatusChange(e.target.value)}
               className="w-full px-3 py-2.5 text-sm rounded-card-sm border border-light-border dark:border-dark-border
@@ -86,7 +87,7 @@ const MobileFilterSheet = ({
               <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
                 {t("home:inventorySheets.residents")}
               </label>
-              <select
+              <select aria-label={t("home:inventorySheets.residents")}
                 value={bewohnerFilter}
                 onChange={(e) => onBewohnerChange(e.target.value)}
                 className="w-full px-3 py-2.5 text-sm rounded-card-sm border border-light-border dark:border-dark-border
@@ -119,7 +120,7 @@ const MobileFilterSheet = ({
           </div>
         </div>
       </section>
-    </div>
+    </div></OverlayPortal>
   );
 };
 

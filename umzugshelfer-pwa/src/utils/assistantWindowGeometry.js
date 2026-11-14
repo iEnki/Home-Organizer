@@ -26,21 +26,12 @@ export const nearestSnapPoint = (ratio, snapPoints = [0.45, 0.82, 1], velocity =
   const sorted = [...snapPoints].sort((a, b) => a - b);
   if (sorted.length === 0) return ratio;
 
-  const FLING_THRESHOLD = 0.9; // vh-Anteile pro Sekunde
-  if (Math.abs(velocity) >= FLING_THRESHOLD) {
-    if (velocity > 0) {
-      // Nach unten: naechstkleinerer Snap
-      const lower = [...sorted].reverse().find((point) => point < ratio - 0.02);
-      return lower ?? sorted[0];
-    }
-    const higher = sorted.find((point) => point > ratio + 0.02);
-    return higher ?? sorted[sorted.length - 1];
-  }
-
+  // Exponential momentum projection, velocity measured in viewport-heights/second.
+  const projected = ratio - (velocity / 1000) * 0.998 / (1 - 0.998);
   let best = sorted[0];
-  let bestDistance = Math.abs(ratio - best);
+  let bestDistance = Math.abs(projected - best);
   sorted.forEach((point) => {
-    const distance = Math.abs(ratio - point);
+    const distance = Math.abs(projected - point);
     if (distance < bestDistance) {
       best = point;
       bestDistance = distance;

@@ -106,7 +106,7 @@ export default function BudgetBulkEditModal({
     >
       <div className="rounded-card-sm border border-primary-500/20 bg-primary-500/10 px-3 py-3 text-sm text-light-text-main dark:text-dark-text-main">
         <p className="font-medium">{entries.length} Budgetposten ausgewählt</p>
-        <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+        <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
           {validInvoices.length} verknüpfte Rechnungen · {positionCount} Rechnungspositionen
         </p>
       </div>

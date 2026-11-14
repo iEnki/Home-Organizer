@@ -1,3 +1,4 @@
+import OverlayPortal from "../ui/OverlayPortal";
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
@@ -114,11 +115,11 @@ const effektiveKategorie = (dok) => {
 };
 
 // ── Motion-Varianten ─────────────────────────────────────────────────────────
-const sectionVariants   = { hidden: {}, show: { transition: { staggerChildren: 0.09, delayChildren: 0.05 } } };
-const cardVariants      = { hidden: { opacity: 0, y: 18 }, show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 320, damping: 30 } } };
+const sectionVariants = { hidden: {}, show: {} };
+const cardVariants = { hidden: { opacity: 1 }, show: { opacity: 1 } };
 const warnVariants      = { hidden: { opacity: 0, y: -10, scaleY: 0.92 }, show: { opacity: 1, y: 0, scaleY: 1, transition: { type: "spring", stiffness: 400, damping: 30 } }, exit: { opacity: 0, y: -8, scaleY: 0.95, transition: { duration: 0.18 } } };
 const modalOverlayVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { duration: 0.18 } }, exit: { opacity: 0, transition: { duration: 0.15 } } };
-const modalDialogVariants  = { hidden: { opacity: 0, scale: 0.95, y: 16 }, show: { opacity: 1, scale: 1, y: 0, transition: { type: "spring", stiffness: 380, damping: 32 } }, exit: { opacity: 0, scale: 0.96, y: 10, transition: { duration: 0.16 } } };
+const modalDialogVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { duration: 0.15 } }, exit: { opacity: 0, transition: { duration: 0.15 } } };
 
 // ── Upload-Modal ──────────────────────────────────────────────────────────────
 const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
@@ -184,15 +185,15 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
   };
 
   return (
-    <motion.div
+    <OverlayPortal><motion.div
       variants={reduced ? {} : modalOverlayVariants}
       initial="hidden" animate="show" exit="exit"
-      className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm"
+      data-app-dialog="" className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm"
       onClick={onSchliessen}
     >
       <motion.div
         variants={reduced ? {} : modalDialogVariants}
-        className="mobile-modal-dialog w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 flex min-h-0 flex-col"
+        className="document-archive-dialog mobile-modal-dialog w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 flex min-h-0 flex-col"
         onClick={(e) => e.stopPropagation()}
       >
 
@@ -201,7 +202,7 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
           <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
             <Upload size={16} className="text-primary-500" /> {t("documents:uploadModal.title")}
           </h2>
-          <button
+          <button aria-label="Schließen"
             onClick={onSchliessen}
             className="w-8 h-8 flex items-center justify-center rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary"
           >
@@ -213,6 +214,9 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
         <div className="mobile-modal-body flex-1 px-5 pt-4 pb-2 space-y-4">
           {/* Dropzone */}
           <div
+            role="button"
+            tabIndex={0}
+            onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileRef.current?.click(); } }}
             onDrop={handleDrop}
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
@@ -238,7 +242,7 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
               </p>
             )}
             {datei && (
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1">
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1">
                 {Math.round(datei.size / 1024)} KB
               </p>
             )}
@@ -249,7 +253,7 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
             <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
               {t("documents:uploadModal.category")}
             </label>
-            <select
+            <select aria-label={t("documents:uploadModal.category")}
               value={kategorie}
               onChange={(e) => setKategorie(e.target.value)}
               className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
@@ -263,7 +267,7 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
             <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
               {t("documents:uploadModal.description")}
             </label>
-            <input
+            <input aria-label={t("documents:uploadModal.description")}
               value={beschreibung}
               onChange={(e) => setBeschreibung(e.target.value)}
               placeholder={t("documents:uploadModal.descriptionPlaceholder")}
@@ -296,7 +300,7 @@ const UploadModal = ({ userId, onSchliessen, onErfolgreich }) => {
           </button>
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div></OverlayPortal>
   );
 };
 
@@ -338,32 +342,32 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
   };
 
   return (
-    <motion.div
+    <OverlayPortal><motion.div
       variants={reduced ? {} : modalOverlayVariants}
       initial="hidden" animate="show" exit="exit"
-      className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm"
+      data-app-dialog="" className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm"
       onClick={onSchliessen}
     >
       <motion.div
         variants={reduced ? {} : modalDialogVariants}
-        className="mobile-modal-dialog w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4 overflow-y-auto"
+        className="document-archive-dialog mobile-modal-dialog w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 flex min-h-0 flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between">
+        <div className="shrink-0 border-b border-light-border dark:border-dark-border px-5 py-4"><div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
             <BookOpen size={16} className="text-amber-500" /> {t("home:dokumente.wissensModal.title")}
           </h2>
-          <button
+          <button aria-label="Schließen"
             onClick={onSchliessen}
             className="w-8 h-8 flex items-center justify-center rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary"
           >
             <X size={16} />
           </button>
-        </div>
+        </div></div><div className="document-dialog-scroll flex-1 space-y-4 px-5 py-4">
 
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("home:dokumente.wissensModal.titleLabel")}</label>
-          <input
+          <input aria-label={t("home:dokumente.wissensModal.titleLabel")}
             value={titel}
             onChange={(e) => setTitel(e.target.value)}
             className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-amber-500"
@@ -372,7 +376,7 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
 
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("home:dokumente.wissensModal.category")}</label>
-          <select
+          <select aria-label={t("home:dokumente.wissensModal.category")}
             value={kategorie}
             onChange={(e) => setKategorie(e.target.value)}
             className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none"
@@ -383,7 +387,7 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
 
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("home:dokumente.wissensModal.content")}</label>
-          <textarea
+          <textarea aria-label={t("home:dokumente.wissensModal.content")}
             value={inhalt}
             onChange={(e) => setInhalt(e.target.value)}
             rows={3}
@@ -396,7 +400,7 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
           <div className="p-2 text-xs text-red-600 dark:text-red-400">{fehler}</div>
         )}
 
-        <div className="flex gap-2">
+        </div><div className="shrink-0 border-t border-light-border dark:border-dark-border px-5 py-4"><div className="flex gap-2">
           <button
             onClick={onSchliessen}
             className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main"
@@ -411,9 +415,9 @@ const WissensEintragModal = ({ dok, userId, onSchliessen, onErfolgreich }) => {
             {speichern ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
             {t("common:actions.save")}
           </button>
-        </div>
+        </div></div>
       </motion.div>
-    </motion.div>
+    </motion.div></OverlayPortal>
   );
 };
 
@@ -437,36 +441,36 @@ const BudgetZuordnungModal = ({ dok, initial, onSchliessen, onSpeichern, speiche
   };
 
   return (
-    <motion.div
+    <OverlayPortal><motion.div
       variants={reduced ? {} : modalOverlayVariants}
       initial="hidden" animate="show" exit="exit"
-      className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm"
+      data-app-dialog="" className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm"
       onClick={onSchliessen}
     >
       <motion.div
         variants={reduced ? {} : modalDialogVariants}
-        className="mobile-modal-dialog w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4 overflow-y-auto"
+        className="document-archive-dialog mobile-modal-dialog w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 flex min-h-0 flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between">
+        <div className="shrink-0 border-b border-light-border dark:border-dark-border px-5 py-4"><div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
             <Plus size={16} className="text-primary-500" /> {t("home:dokumente.budgetModal.title")}
           </h2>
-          <button
+          <button aria-label="Schließen"
             onClick={onSchliessen}
             className="w-8 h-8 flex items-center justify-center rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary"
           >
             <X size={16} />
           </button>
-        </div>
+        </div></div><div className="document-dialog-scroll flex-1 space-y-4 px-5 py-4">
 
-        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">
+        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary truncate">
           Dokument: {dok?.dateiname}
         </p>
 
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("home:dokumente.budgetModal.description")}</label>
-          <input
+          <input aria-label={t("home:dokumente.budgetModal.description")}
             value={beschreibung}
             onChange={(e) => setBeschreibung(e.target.value)}
             placeholder={t("home:dokumente.budgetModal.descriptionPlaceholder")}
@@ -474,10 +478,10 @@ const BudgetZuordnungModal = ({ dok, initial, onSchliessen, onSpeichern, speiche
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="document-card-grid">
           <div>
             <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("home:dokumente.budgetModal.amount")}</label>
-            <input
+            <input aria-label={t("home:dokumente.budgetModal.amount")}
               type="number"
               step="0.01"
               min="0"
@@ -489,7 +493,7 @@ const BudgetZuordnungModal = ({ dok, initial, onSchliessen, onSpeichern, speiche
           </div>
           <div>
             <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("home:dokumente.budgetModal.date")}</label>
-            <input
+            <input aria-label={t("home:dokumente.budgetModal.date")}
               type="date"
               value={datum || ""}
               onChange={(e) => setDatum(e.target.value)}
@@ -500,7 +504,7 @@ const BudgetZuordnungModal = ({ dok, initial, onSchliessen, onSpeichern, speiche
 
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("home:dokumente.budgetModal.category")}</label>
-          <select
+          <select aria-label={t("home:dokumente.budgetModal.category")}
             value={kategorie}
             onChange={(e) => setKategorie(e.target.value)}
             className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
@@ -509,7 +513,7 @@ const BudgetZuordnungModal = ({ dok, initial, onSchliessen, onSpeichern, speiche
           </select>
         </div>
 
-        <div className="flex gap-2">
+        </div><div className="shrink-0 border-t border-light-border dark:border-dark-border px-5 py-4"><div className="flex gap-2">
           <button
             onClick={onSchliessen}
             disabled={speichern}
@@ -525,9 +529,9 @@ const BudgetZuordnungModal = ({ dok, initial, onSchliessen, onSpeichern, speiche
             {speichern ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
             {t("common:actions.save")}
           </button>
-        </div>
+        </div></div>
       </motion.div>
-    </motion.div>
+    </motion.div></OverlayPortal>
   );
 };
 
@@ -582,15 +586,15 @@ const BearbeitenModal = ({ dok, userId, onSchliessen, onGespeichert }) => {
   };
 
   return (
-    <motion.div
+    <OverlayPortal><motion.div
       variants={reduced ? {} : modalOverlayVariants}
       initial="hidden" animate="show" exit="exit"
-      className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm"
+      data-app-dialog="" className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm"
       onClick={onSchliessen}
     >
       <motion.div
         variants={reduced ? {} : modalDialogVariants}
-        className="mobile-modal-dialog w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 flex min-h-0 flex-col"
+        className="document-archive-dialog mobile-modal-dialog w-full max-w-md bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 flex min-h-0 flex-col"
         onClick={(e) => e.stopPropagation()}
       >
 
@@ -599,7 +603,7 @@ const BearbeitenModal = ({ dok, userId, onSchliessen, onGespeichert }) => {
           <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
             <Pencil size={16} className="text-primary-500" /> {t("home:dokumente.editModal.title")}
           </h2>
-          <button
+          <button aria-label="Schließen"
             onClick={onSchliessen}
             className="w-8 h-8 flex items-center justify-center rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary"
           >
@@ -608,12 +612,12 @@ const BearbeitenModal = ({ dok, userId, onSchliessen, onGespeichert }) => {
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 pt-4 pb-2 space-y-4">
+        <div className="document-dialog-scroll flex-1 px-5 pt-4 pb-2 space-y-4">
           <div>
             <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
               {t("home:dokumente.editModal.filename")}
             </label>
-            <input
+            <input aria-label={t("home:dokumente.editModal.filename")}
               value={dateiname}
               onChange={(e) => setDateiname(e.target.value)}
               className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
@@ -624,7 +628,7 @@ const BearbeitenModal = ({ dok, userId, onSchliessen, onGespeichert }) => {
             <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
               {t("home:dokumente.editModal.description")}
             </label>
-            <input
+            <input aria-label={t("home:dokumente.editModal.description")}
               value={beschreibung}
               onChange={(e) => setBeschreibung(e.target.value)}
               placeholder={t("home:dokumente.editModal.descriptionPlaceholder")}
@@ -636,7 +640,7 @@ const BearbeitenModal = ({ dok, userId, onSchliessen, onGespeichert }) => {
             <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
               {t("home:dokumente.editModal.category")}
             </label>
-            <select
+            <select aria-label={t("home:dokumente.editModal.category")}
               value={kategorie}
               onChange={(e) => setKategorie(e.target.value)}
               className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
@@ -650,7 +654,7 @@ const BearbeitenModal = ({ dok, userId, onSchliessen, onGespeichert }) => {
               <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
                 {t("home:dokumente.editModal.invoiceDate")}
               </label>
-              <input
+              <input aria-label={t("home:dokumente.editModal.invoiceDate")}
                 type="date"
                 value={rechnungsDatum || ""}
                 onChange={(e) => setRechnungsDatum(e.target.value)}
@@ -684,7 +688,7 @@ const BearbeitenModal = ({ dok, userId, onSchliessen, onGespeichert }) => {
           </button>
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div></OverlayPortal>
   );
 };
 
@@ -726,30 +730,28 @@ const DokumentKarte = ({
       as="article"
       data-dokument-id={dok.id}
       variants={cardVariants}
-      className={`relative p-4 overflow-hidden ${
+      className={`document-card relative min-w-0 p-4 overflow-hidden ${
         highlighted
           ? "border-primary-500 ring-2 ring-primary-500/30 shadow-glow-primary"
           : ""
       }`}
     >
-      <span className={`absolute left-0 top-0 bottom-0 w-[3px] ${katObj.accent} opacity-60`} aria-hidden="true" />
       <div className="flex items-start gap-3">
         <div className={`w-10 h-10 rounded-card-sm flex items-center justify-center flex-shrink-0 ${katObj.icon}`}>
           {dateiIcon()}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main truncate">
+          <p className="break-words text-base font-semibold text-light-text-main dark:text-dark-text-main">
             {dok.dateiname}
           </p>
           {beschreibungOhneHinweis && (
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate mt-0.5">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary truncate mt-0.5">
               {beschreibungOhneHinweis}
             </p>
           )}
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
             {kat && (
               <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${katObj.badge}`}>
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${katObj.dot}`} aria-hidden="true" />
                 {kat}
               </span>
             )}
@@ -770,9 +772,9 @@ const DokumentKarte = ({
                   : `${(dok.groesse_kb / 1024).toFixed(1)} MB`}
               </span>
             )}
-            <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+            {dok.erstellt_am && <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
               {new Date(dok.erstellt_am).toLocaleDateString("de-DE")}
-            </span>
+            </span>}
           </div>
         </div>
       </div>
@@ -812,10 +814,10 @@ const DokumentKarte = ({
               </div>
             )}
             <div className="min-w-0">
-              <p className="text-xs font-medium text-light-text-main dark:text-dark-text-main">
+              <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">
                 {hatPdfVorschau ? "PDF Vorschau" : istRechnungKategorie(dok) ? "Rechnungsvorschau" : "Bildvorschau"}
               </p>
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                 {vorschauOffen ? "Zum Schliessen erneut klicken" : "Zum Oeffnen klicken"}
               </p>
             </div>
@@ -834,7 +836,7 @@ const DokumentKarte = ({
                     </button>
                     <button
                       onClick={() => setZoom(1)}
-                      className="px-1.5 text-[10px] text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 min-w-[36px] text-center"
+                      className="px-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 min-w-[36px] text-center"
                     >
                       {Math.round(zoom * 100)}%
                     </button>
@@ -845,7 +847,7 @@ const DokumentKarte = ({
                       <ZoomIn size={12} />
                     </button>
                   </div>
-                  <button
+                  <button aria-label="Schließen"
                     onClick={() => { setVorschauOffen(false); setZoom(1); }}
                     className="w-6 h-6 flex items-center justify-center rounded hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary"
                   >
@@ -877,7 +879,7 @@ const DokumentKarte = ({
           <motion.button
             onClick={() => onDownload(dok.storage_pfad, dok.dateiname)}
             disabled={laedtDownload}
-            whileTap={{ scale: 0.92 }}
+            whileTap={{ scale: .97 }}
             className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors disabled:opacity-50"
           >
             <Download size={12} /> Herunterladen
@@ -885,7 +887,7 @@ const DokumentKarte = ({
           {(!istRechnung || !dok.hat_wissen) && (
             <motion.button
               onClick={() => onWissen(dok)}
-              whileTap={{ scale: 0.92 }}
+              whileTap={{ scale: .97 }}
               className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors"
             >
               <BookOpen size={12} /> Als Wissen
@@ -904,7 +906,7 @@ const DokumentKarte = ({
             ) : (
               <motion.button
                 onClick={() => onZumBudget(dok)}
-                whileTap={{ scale: 0.92 }}
+                whileTap={{ scale: .97 }}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm bg-primary-500/10 text-primary-500 hover:bg-primary-500/20 transition-colors"
               >
                 <Plus size={12} /> Zum Budget hinzufügen
@@ -915,14 +917,14 @@ const DokumentKarte = ({
         <div className="ml-auto flex items-center gap-1.5 shrink-0">
           <motion.button
             onClick={() => onBearbeiten(dok)}
-            whileTap={{ scale: 0.88 }}
+            whileTap={{ scale: .97 }}
             className="flex items-center px-2.5 py-1.5 text-xs rounded-card-sm bg-light-hover dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main transition-colors"
           >
             <Pencil size={12} />
           </motion.button>
           <motion.button
             onClick={() => onLoeschen(dok.id, dok.storage_pfad, dok.dateiname)}
-            whileTap={{ scale: 0.88 }}
+            whileTap={{ scale: .97 }}
             className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-card-sm text-red-500 hover:bg-red-500/10 transition-colors"
           >
             <Trash2 size={12} />
@@ -959,23 +961,23 @@ const VorschauModal = ({ dok, vorschauUrl, loadPreviewUrl, onSchliessen }) => {
   const istPdf  = istPdfDatei(dok);
 
   return (
-    <motion.div
+    <OverlayPortal><motion.div
       variants={reduced ? {} : modalOverlayVariants}
       initial="hidden" animate="show" exit="exit"
-      className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      data-app-dialog="" className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
       onClick={onSchliessen}
     >
       <motion.div
         variants={reduced ? {} : modalDialogVariants}
-        className="relative w-full max-w-3xl bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 flex flex-col max-h-[90vh]"
+        className="document-archive-dialog relative w-full max-w-3xl bg-light-card dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-light-border dark:border-dark-border">
-          <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main truncate pr-4">
+          <h2 className="min-w-0 break-words text-sm font-medium text-light-text-main dark:text-dark-text-main pr-4">
             {dok.dateiname}
-          </p>
-          <button
+          </h2>
+          <button aria-label="Schließen"
             onClick={onSchliessen}
             className="w-8 h-8 flex items-center justify-center rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary flex-shrink-0"
           >
@@ -984,7 +986,7 @@ const VorschauModal = ({ dok, vorschauUrl, loadPreviewUrl, onSchliessen }) => {
         </div>
 
         {/* Inhalt */}
-        <div className="flex-1 overflow-auto p-4 flex items-center justify-center min-h-[200px]">
+        <div className="document-dialog-scroll flex-1 p-4 flex items-center justify-center">
           {laedt ? (
             <Loader2 size={32} className="animate-spin text-light-text-secondary dark:text-dark-text-secondary" />
           ) : !url ? (
@@ -1015,7 +1017,7 @@ const VorschauModal = ({ dok, vorschauUrl, loadPreviewUrl, onSchliessen }) => {
           )}
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div></OverlayPortal>
   );
 };
 
@@ -1448,13 +1450,13 @@ const HomeDokumente = ({ session }) => {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <GlassModule>
+    <GlassModule className="document-archive-page">
 
       {/* Header */}
       <motion.div
         data-tour="tour-dokumente-header"
         className="flex items-center gap-2"
-        initial={reduced ? false : { opacity: 0, y: -12 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: "spring", stiffness: 350, damping: 26, delay: 0.05 }}
       >
@@ -1488,7 +1490,7 @@ const HomeDokumente = ({ session }) => {
             className="p-3 rounded-card bg-red-500/10 border border-red-500/30 flex items-center gap-2 text-sm text-red-600 dark:text-red-400 origin-top"
           >
             <AlertTriangle size={14} /> {fehler}
-            <button onClick={() => setFehler(null)} className="ml-auto"><X size={14} /></button>
+            <button aria-label="Schließen" onClick={() => setFehler(null)} className="ml-auto"><X size={14} /></button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1514,7 +1516,7 @@ const HomeDokumente = ({ session }) => {
         kategorieZaehlung={kategorieZaehlung}
         anzahlGefiltert={sichtbareDokumente.length}
         onUpload={() => setUploadModalOffen(true)}
-      />
+      >
 
       {/* Hauptinhalt */}
       {loading ? (
@@ -1572,7 +1574,7 @@ const HomeDokumente = ({ session }) => {
               : "Noch keine Dokumente hochgeladen."}
           </p>
           {!suchbegriff && kategorieFilter === "Alle" && monatFilter === "alle" && jahrFilter === "alle" && (
-            <p className="text-xs mt-1 opacity-70">
+            <p className="text-sm mt-1 opacity-70">
               Klicke auf „Hochladen", um dein erstes Dokument hinzuzufügen.
             </p>
           )}
@@ -1594,7 +1596,7 @@ const HomeDokumente = ({ session }) => {
       ) : (
         <motion.div
           data-tour="tour-dokumente-liste"
-          className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+          className="document-card-grid"
           variants={reduced ? {} : sectionVariants}
           initial="hidden"
           animate="show"
@@ -1616,6 +1618,8 @@ const HomeDokumente = ({ session }) => {
           ))}
         </motion.div>
       )}
+
+      </DokumentFilterBar>
 
       {/* Vorschau-Modal */}
       <AnimatePresence>

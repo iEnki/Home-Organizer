@@ -33,11 +33,11 @@ function KpiCard({ label, value, icon: Icon, accentFrom, accentTo, subValue, del
         {value}
       </p>
       {subValue && (
-        <p className="mt-0.5 text-xs tabular-nums text-light-text-secondary dark:text-dark-text-secondary truncate">
+        <p className="mt-0.5 text-sm tabular-nums text-light-text-secondary dark:text-dark-text-secondary truncate">
           {subValue}
         </p>
       )}
-      <p className="mt-0.5 text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+      <p className="mt-0.5 text-sm uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
         {label}
       </p>
     </GlassSurface>

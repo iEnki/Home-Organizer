@@ -53,10 +53,10 @@ export default function BuchKarte({ buch, onBearbeiten, onVerleihen, onLoeschen,
         )}
 
         {/* Ambient overlay on hover */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300" />
 
         {/* Status badge */}
-        <div className={`absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider backdrop-blur-sm ${statusCfg.badge}`}>
+        <div className={`absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs font-bold uppercase tracking-wider backdrop-blur-sm ${statusCfg.badge}`}>
           <span className={`h-1 w-1 rounded-full shrink-0 ${statusCfg.dot}`} />
           {statusLabel}
         </div>
@@ -64,18 +64,18 @@ export default function BuchKarte({ buch, onBearbeiten, onVerleihen, onLoeschen,
 
       {/* Info */}
       <div className="px-2.5 py-2.5">
-        <p className="text-[11px] font-semibold text-light-text-main dark:text-dark-text-main leading-snug line-clamp-2 mb-0.5">
+        <p className="text-sm font-semibold text-light-text-main dark:text-dark-text-main leading-snug line-clamp-2 mb-0.5">
           {buch.titel}
         </p>
         {buch.autor_anzeige && (
-          <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary truncate">
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary truncate">
             {buch.autor_anzeige}
           </p>
         )}
       </div>
 
       {/* 3-dot menu */}
-      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+      <div className="absolute top-2 right-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
         <button
           onClick={(e) => { e.stopPropagation(); setMenuOffen((v) => !v); }}
           className="p-1.5 rounded-card-sm bg-black/50 hover:bg-black/70 text-white transition-colors"

@@ -1,3 +1,4 @@
+import OverlayPortal from "../ui/OverlayPortal";
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Shield, AlertTriangle, CheckCircle, Edit2, ExternalLink,
@@ -119,13 +120,13 @@ const EditModal = ({ polizze, userId, onSchliessen, onGespeichert }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-safe bg-black/60 backdrop-blur-sm">
+    <OverlayPortal><div data-app-dialog="" className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-safe bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-lg bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
             <Edit2 size={16} className="text-primary-500" /> Polizze bearbeiten
           </h2>
-          <button
+          <button aria-label="Schließen"
             onClick={onSchliessen}
             className="w-8 h-8 flex items-center justify-center rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary"
           >
@@ -138,7 +139,7 @@ const EditModal = ({ polizze, userId, onSchliessen, onGespeichert }) => {
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
             Versicherungsart
           </label>
-          <select
+          <select aria-label="Versicherungsart"
             name="versicherungsart"
             value={form.versicherungsart}
             onChange={handleChange}
@@ -164,7 +165,7 @@ const EditModal = ({ polizze, userId, onSchliessen, onGespeichert }) => {
             <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
               {label}
             </label>
-            <input
+            <input aria-label={label}
               type={type}
               name={name}
               value={form[name]}
@@ -179,7 +180,7 @@ const EditModal = ({ polizze, userId, onSchliessen, onGespeichert }) => {
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
             Prämienintervall
           </label>
-          <select
+          <select aria-label="Prämienintervall"
             name="praemien_intervall"
             value={form.praemien_intervall}
             onChange={handleChange}
@@ -213,7 +214,7 @@ const EditModal = ({ polizze, userId, onSchliessen, onGespeichert }) => {
           </button>
         </div>
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 };
 
@@ -245,14 +246,14 @@ const DetailModal = ({ polizze, onSchliessen, onBearbeiten }) => {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-safe bg-black/60 backdrop-blur-sm">
+    <OverlayPortal><div data-app-dialog="" className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-safe bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-lg bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
             <Shield size={16} className="text-primary-500" />
             {polizze.versicherer || "Versicherung"}
           </h2>
-          <button
+          <button aria-label="Schließen"
             onClick={onSchliessen}
             className="w-8 h-8 flex items-center justify-center rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary"
           >
@@ -302,7 +303,7 @@ const DetailModal = ({ polizze, onSchliessen, onBearbeiten }) => {
           </button>
         </div>
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 };
 
@@ -322,19 +323,19 @@ const PolizzeKarte = ({ polizze, onClick }) => {
           <p className="text-sm font-semibold text-light-text-main dark:text-dark-text-main truncate">
             {polizze.versicherer || "Unbekannter Versicherer"}
           </p>
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
             {VERSICHERUNGSART_LABELS[polizze.versicherungsart] || polizze.versicherungsart || "Sonstige"}
             {polizze.polizzen_nummer && ` · ${polizze.polizzen_nummer}`}
           </p>
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0">
           {polizze.review_required && !polizze.reviewed_at && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-yellow-500/10 text-yellow-600 dark:text-yellow-400">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500/10 text-yellow-600 dark:text-yellow-400">
               <AlertTriangle size={9} /> Prüfen
             </span>
           )}
           {laeuftBaldAb && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-500/10 text-red-500">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-500">
               {tageEnd === 0 ? "Heute" : `in ${tageEnd} Tagen`}
             </span>
           )}
@@ -446,7 +447,7 @@ const HomeVersicherungen = ({ session }) => {
       {fehler && (
         <div className="p-3 rounded-card bg-red-500/10 border border-red-500/30 flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
           <AlertTriangle size={14} /> {fehler}
-          <button onClick={() => setFehler(null)} className="ml-auto"><X size={14} /></button>
+          <button aria-label="Schließen" onClick={() => setFehler(null)} className="ml-auto"><X size={14} /></button>
         </div>
       )}
 
@@ -474,7 +475,7 @@ const HomeVersicherungen = ({ session }) => {
               }`}
             >
               {tab.label}
-              <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${aktTab === tab.id ? "bg-white/20" : "bg-light-border dark:bg-canvas-3"}`}>
+              <span className={`px-1.5 py-0.5 rounded-full text-xs ${aktTab === tab.id ? "bg-white/20" : "bg-light-border dark:bg-canvas-3"}`}>
                 {anzahl}
               </span>
             </button>
@@ -486,7 +487,7 @@ const HomeVersicherungen = ({ session }) => {
       {vorhandeneArten.length > 1 && (
         <div className="flex items-center gap-2">
           <label className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Art:</label>
-          <select
+          <select aria-label="Art:"
             value={artFilter}
             onChange={(e) => setArtFilter(e.target.value)}
             className="px-2 py-1 text-xs rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
@@ -509,7 +510,7 @@ const HomeVersicherungen = ({ session }) => {
           <Shield size={40} className="mx-auto mb-3 opacity-20" />
           <p className="text-sm">Keine Versicherungen in dieser Kategorie.</p>
           {aktTab === "alle" && artFilter === "alle" && (
-            <p className="text-xs mt-1 opacity-70">
+            <p className="text-sm mt-1 opacity-70">
               Lade Versicherungspolizzen als Dokument hoch und wähle &quot;Vollständig extrahieren&quot;.
             </p>
           )}

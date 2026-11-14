@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FileText, File, Eye, Pencil, MoreVertical, BookOpen, Plus, Trash2, Loader2, Wallet } from "lucide-react";
@@ -6,20 +7,8 @@ import { getDokDatum } from "../../../utils/dokumentArchiv";
 import GlassSurface from "../../ui/GlassSurface";
 
 const listItemVariants = {
-  hidden: { opacity: 0, y: 8 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.25 } },
-};
-
-const KATEGORIE_FARBEN = {
-  Rechnung:     { icon: "bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/20",     badge: "bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/20",         dot: "bg-blue-400"     },
-  Vertrag:      { icon: "bg-purple-500/20 text-purple-400 ring-1 ring-purple-500/20", badge: "bg-purple-500/10 text-purple-500 dark:text-purple-400 border border-purple-500/20", dot: "bg-purple-400"   },
-  Handbuch:     { icon: "bg-green-500/20 text-green-400 ring-1 ring-green-500/20",   badge: "bg-green-500/10 text-green-500 dark:text-green-400 border border-green-500/20",     dot: "bg-green-400"    },
-  Garantie:     { icon: "bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/20",   badge: "bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/20",     dot: "bg-amber-400"    },
-  Versicherung: { icon: "bg-teal-500/20 text-teal-400 ring-1 ring-teal-500/20",     badge: "bg-teal-500/10 text-teal-500 dark:text-teal-400 border border-teal-500/20",         dot: "bg-teal-400"     },
-  Behörde:      { icon: "bg-red-500/20 text-red-400 ring-1 ring-red-500/20",         badge: "bg-red-500/10 text-red-500 dark:text-red-400 border border-red-500/20",             dot: "bg-red-400"      },
-  Gesundheit:   { icon: "bg-pink-500/20 text-pink-400 ring-1 ring-pink-500/20",     badge: "bg-pink-500/10 text-pink-500 dark:text-pink-400 border border-pink-500/20",         dot: "bg-pink-400"     },
-  Medikamente:  { icon: "bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/20", badge: "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/20", dot: "bg-emerald-400" },
-  Sonstiges:    { icon: "bg-slate-500/10 text-slate-400 ring-1 ring-slate-500/20",   badge: "bg-slate-500/10 text-slate-400 border border-slate-500/20",                         dot: "bg-slate-400"    },
+  hidden: { opacity: 1 },
+  show: { opacity: 1 },
 };
 
 const istRechnungKategorie = (dok) => {
@@ -72,17 +61,16 @@ export default function DokumentZeile({
   isHighlighted,
 }) {
   const { t } = useTranslation(["documents","common"]);
-  void t;
+  const label = key => t(`documents:archiveLayout.${key}`);
 
   const reduced = useReducedMotion();
   const [menuOffen, setMenuOffen] = useState(false);
   const [laedt, setLaedt] = useState(false);
-  const [menuOeffnetNachOben, setMenuOeffnetNachOben] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({});
   const menuButtonRef = useRef(null);
   const menuRef = useRef(null);
 
   const kat = effektiveKategorie(dok);
-  const katObj = KATEGORIE_FARBEN[kat] || KATEGORIE_FARBEN.Sonstiges;
   const istRechnung = istRechnungKategorie(dok);
   const rechnungIstImBudget = istRechnung && dok.im_budget;
   const rechnungIstWissen = istRechnung && dok.hat_wissen;
@@ -101,7 +89,7 @@ export default function DokumentZeile({
     if (dok.rechnung_info.rechnungsdatum) parts.push(formatDatum(dok.rechnung_info.rechnungsdatum));
     const betrag = formatBetrag(dok.rechnung_info.brutto);
     if (betrag) parts.push(betrag);
-    untertext = parts.join(" · ") || null;
+    untertext = parts.length ? parts : null;
   } else if (beschreibungOhneHinweis) {
     untertext = beschreibungOhneHinweis;
   }
@@ -133,16 +121,18 @@ export default function DokumentZeile({
       const platzOben = triggerRect.top - topInset;
       const platzUnten = window.innerHeight - triggerRect.bottom - bottomInset;
 
-      setMenuOeffnetNachOben(
-        platzUnten < menuHeight + gap && platzOben > platzUnten
-      );
+      const above = platzUnten < menuHeight + gap && platzOben > platzUnten;
+      setMenuPosition({ top: above ? Math.max(topInset, triggerRect.top - menuHeight - gap) : triggerRect.bottom + gap, left: Math.max(8, Math.min(triggerRect.right - 176, window.innerWidth - 184)) });
     };
 
+    const closeOnEscape = event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setMenuOffen(false); menuButtonRef.current?.focus(); } };
     updateMenuPosition();
+    window.addEventListener("keydown", closeOnEscape);
     window.addEventListener("resize", updateMenuPosition);
     window.addEventListener("scroll", updateMenuPosition, true);
 
     return () => {
+      window.removeEventListener("keydown", closeOnEscape);
       window.removeEventListener("resize", updateMenuPosition);
       window.removeEventListener("scroll", updateMenuPosition, true);
     };
@@ -153,65 +143,42 @@ export default function DokumentZeile({
       as="article"
       data-dokument-id={dok.id}
       onClick={() => onVorschau?.(dok)}
+      interactive={false}
       variants={reduced ? {} : listItemVariants}
-      className={`relative flex min-w-0 max-w-full items-center gap-3 rounded-card-sm border-l-2 pl-2.5 pr-3 py-2.5 cursor-pointer
+      className={`document-row relative min-w-0 max-w-full cursor-pointer
         ${isHighlighted
           ? "bg-primary-500/5 ring-1 ring-inset ring-primary-500/30 border-l-primary-500"
           : "border-l-transparent"
         }
         ${menuOffen ? "z-[202]" : ""}`}
     >
-      {/* Datei-Icon */}
-      <div className={`w-9 h-9 rounded-card-sm flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-105 ${katObj.icon}`}>
-        <DateiIcon dok={dok} />
+      <div className="document-file-icon"><DateiIcon dok={dok} /></div>
+      <div className="document-row-title">
+        <button type="button" className="document-title-button" title={haupttext} onClick={e => { e.stopPropagation(); onVorschau?.(dok); }}>{haupttext}</button>
+        {haupttext !== dok.dateiname && <p className="document-row-filename" title={dok.dateiname}>{dok.dateiname}</p>}
+        {untertext && <p className="document-row-description">{Array.isArray(untertext) ? untertext.map((part, index) => <span key={index}>{part}</span>) : untertext}</p>}
+      </div>
+      <div className="document-row-meta">
+      <span className="document-row-date">{datum ? formatDatum(datum) : ""}</span>
+      <div className="document-row-category">{kat && <span>{t(`documents:categories.${kat}`, { defaultValue: kat })}</span>}</div>
+      <div className="document-row-status">
+        {rechnungIstImBudget && <span><Wallet size={14} aria-hidden="true" />{label("inBudget")}</span>}
+        {rechnungIstWissen && <span><BookOpen size={14} aria-hidden="true" />{label("asKnowledge")}</span>}
       </div>
 
-      {/* Hauptinhalt */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main truncate leading-snug">
-          {haupttext}
-        </p>
-        {untertext && (
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate mt-0.5">
-            {untertext}
-          </p>
-        )}
-      </div>
-
-      {/* Datum */}
-      {datum && (
-        <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary whitespace-nowrap flex-shrink-0 hidden sm:block">
-          {formatDatum(datum)}
-        </span>
-      )}
-
-      {/* Badges */}
-      <div className="flex items-center gap-1.5 flex-shrink-0">
-        {kat && (
-          <span className={`hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium ${katObj.badge}`}>
-            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${katObj.dot}`} aria-hidden="true" />
-            {kat}
-          </span>
-        )}
-        {rechnungIstImBudget && (
-          <Wallet size={13} className="text-green-500 flex-shrink-0" title="Im Budget" />
-        )}
-        {rechnungIstWissen && (
-          <BookOpen size={13} className="text-amber-500 flex-shrink-0" title="In Wissen" />
-        )}
       </div>
 
       {/* Aktionen — immer sichtbar auf Mobile, bei hover auf Desktop */}
       <div
-        className="flex items-center gap-0.5 flex-shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+        className="document-row-actions"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Vorschau */}
         <motion.button
           onClick={handleVorschauKlick}
-          whileTap={reduced ? {} : { scale: 0.88 }}
+          whileTap={reduced ? {} : { scale: .97 }}
           className="w-7 h-7 flex items-center justify-center rounded-lg text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-border dark:hover:bg-canvas-2 hover:text-primary-500 transition-colors"
-          title="Vorschau"
+          title={t("documents:preview")} aria-label={t("documents:preview")}
         >
           {laedt ? <Loader2 size={13} className="animate-spin" /> : <Eye size={13} />}
         </motion.button>
@@ -219,9 +186,9 @@ export default function DokumentZeile({
         {/* Bearbeiten */}
         <motion.button
           onClick={() => onBearbeiten?.(dok)}
-          whileTap={reduced ? {} : { scale: 0.88 }}
+          whileTap={reduced ? {} : { scale: .97 }}
           className="w-7 h-7 flex items-center justify-center rounded-lg text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-border dark:hover:bg-canvas-2 transition-colors"
-          title="Bearbeiten"
+          title={label("edit")} aria-label={label("edit")}
         >
           <Pencil size={13} />
         </motion.button>
@@ -231,14 +198,14 @@ export default function DokumentZeile({
           <motion.button
             ref={menuButtonRef}
             onClick={() => setMenuOffen((p) => !p)}
-            whileTap={reduced ? {} : { scale: 0.88 }}
+            whileTap={reduced ? {} : { scale: .97 }}
             className="w-7 h-7 flex items-center justify-center rounded-lg text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-border dark:hover:bg-canvas-2 transition-colors"
-            title="Weitere Aktionen"
+            title={label("moreActions")} aria-label={label("moreActions")} aria-expanded={menuOffen}
           >
             <MoreVertical size={13} />
           </motion.button>
 
-          <AnimatePresence>
+          {createPortal(<AnimatePresence>
             {menuOffen && (
               <>
                 {/* Backdrop */}
@@ -250,9 +217,8 @@ export default function DokumentZeile({
                   animate={{ opacity: 1, scale: 1 }}
                   exit={reduced ? {} : { opacity: 0, scale: 0.92, transition: { duration: 0.12 } }}
                   transition={{ type: "spring", stiffness: 420, damping: 28 }}
-                  className={`absolute right-0 z-[201] w-44 bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border rounded-card-sm shadow-elevation-2 py-1 text-sm ${
-                    menuOeffnetNachOben ? "bottom-8" : "top-8"
-                  }`}
+                  className="fixed z-[201] w-44 bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border rounded-card-sm shadow-elevation-2 py-1 text-sm"
+                  style={menuPosition}
                   onClick={(e) => e.stopPropagation()}
                 >
                   {(!istRechnung || !dok.hat_wissen) && (
@@ -291,7 +257,7 @@ export default function DokumentZeile({
                 </motion.div>
               </>
             )}
-          </AnimatePresence>
+          </AnimatePresence>, document.body)}
         </div>
       </div>
     </GlassSurface>

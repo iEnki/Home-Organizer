@@ -1,3 +1,4 @@
+import OverlayPortal from "../ui/OverlayPortal";
 import React, { useState, useEffect, useCallback } from "react";
 import { Users, Plus, Trash2, Edit2, X, Check, Loader2, AlertCircle, Crown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -166,7 +167,7 @@ const HomeBewohner = ({ session }) => {
       return;
     }
 
-    if (!window.confirm(`"${b.name}" wirklich l?schen? Bestehende Zuordnungen bleiben erhalten.`)) return;
+    if (!window.confirm(`"${b.name}" wirklich löschen? Bestehende Zuordnungen bleiben erhalten.`)) return;
 
     const { error } = await supabase.from("home_bewohner").delete().eq("id", b.id);
     if (error) {
@@ -222,7 +223,7 @@ const HomeBewohner = ({ session }) => {
         <div className="text-center py-16 text-light-text-secondary dark:text-dark-text-secondary">
           <Users size={44} className="mx-auto mb-3 opacity-25" />
           <p className="text-sm font-medium mb-1">Noch keine Bewohner</p>
-          <p className="text-xs mb-4">Fuege zusaetzliche Bewohner hinzu (z. B. Kinder oder Haustiere).</p>
+          <p className="text-sm mb-4">Fuege zusaetzliche Bewohner hinzu (z. B. Kinder oder Haustiere).</p>
           <button
             onClick={oeffneNeu}
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-pill text-sm"
@@ -257,12 +258,12 @@ const HomeBewohner = ({ session }) => {
                       {b.is_current_user ? " (Du)" : ""}
                     </p>
                     {b.is_household_member && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill text-[10px] font-semibold bg-primary-500/10 text-primary-500 border border-primary-500/30">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill text-xs font-semibold bg-primary-500/10 text-primary-500 border border-primary-500/30">
                         Haushalt
                       </span>
                     )}
                     {b.is_admin && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill text-[10px] font-semibold bg-secondary-500/15 text-secondary-500 border border-secondary-500/30">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill text-xs font-semibold bg-secondary-500/15 text-secondary-500 border border-secondary-500/30">
                         <Crown size={10} />
                         Admin
                       </span>
@@ -270,7 +271,7 @@ const HomeBewohner = ({ session }) => {
                   </div>
 
                   {b.email && (
-                    <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate mt-0.5">
+                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary truncate mt-0.5">
                       {b.email}
                     </p>
                   )}
@@ -292,14 +293,14 @@ const HomeBewohner = ({ session }) => {
                 </div>
 
                 {!b.linked_user_id && (
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
+                  <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                    <button aria-label="Bearbeiten"
                       onClick={() => oeffneEdit(b)}
                       className="p-1.5 rounded-card-sm text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500 hover:bg-blue-500/10 transition-colors"
                     >
                       <Edit2 size={14} />
                     </button>
-                    <button
+                    <button aria-label="Löschen"
                       onClick={() => loesche(b)}
                       className="p-1.5 rounded-card-sm text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500 hover:bg-red-500/10 transition-colors"
                     >
@@ -314,7 +315,7 @@ const HomeBewohner = ({ session }) => {
       )}
 
       {bewohner.length > 0 && (
-        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary text-center pt-2">
+        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary text-center pt-2">
           Haushaltsmitglieder sind automatisch enthalten. Zusatzbewohner koennen frei verwaltet werden.
         </p>
       )}
@@ -330,12 +331,12 @@ const HomeBewohner = ({ session }) => {
 
       <AnimatePresence>
         {modal !== null && (
-          <motion.div
+          <OverlayPortal><motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm"
+            data-app-dialog="" className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 12 }}
@@ -348,7 +349,7 @@ const HomeBewohner = ({ session }) => {
                 <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
                   {modal.id ? "Bewohner bearbeiten" : "Bewohner hinzufuegen"}
                 </h3>
-                <button onClick={() => setModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main">
+                <button aria-label="Schließen" onClick={() => setModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main">
                   <X size={18} />
                 </button>
               </div>
@@ -365,7 +366,7 @@ const HomeBewohner = ({ session }) => {
 
                 <div>
                   <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Name *</label>
-                  <input
+                  <input aria-label="Name *"
                     value={form.name}
                     onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
                     onKeyDown={(e) => e.key === "Enter" && speichern()}
@@ -420,12 +421,12 @@ const HomeBewohner = ({ session }) => {
                     disabled={!form.name.trim() || saving}
                     className="flex-1 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill disabled:opacity-50"
                   >
-                    {saving ? "Speichern..." : modal.id ? "Aktualisieren" : "Hinzuf?gen"}
+                    {saving ? "Speichern..." : modal.id ? "Aktualisieren" : "Hinzufügen"}
                   </button>
                 </div>
               </div>
             </motion.div>
-          </motion.div>
+          </motion.div></OverlayPortal>
         )}
       </AnimatePresence>
     </div>

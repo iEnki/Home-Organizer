@@ -121,7 +121,7 @@ export default function RecipeCookLogPanel({ supabase, userId, recipe, toast, qu
                 <div>
                   <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">{entry.gekocht_am}</p>
                   {entry.bewertung && (
-                    <p className="mt-0.5 inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-300">
+                    <p className="mt-0.5 inline-flex items-center gap-1 text-sm text-amber-600 dark:text-amber-300">
                       <Star size={12} fill="currentColor" /> {entry.bewertung}/5
                     </p>
                   )}

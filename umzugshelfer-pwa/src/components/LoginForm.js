@@ -1,3 +1,4 @@
+import OverlayPortal from "./ui/OverlayPortal";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../supabaseClient";
@@ -105,7 +106,7 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
 
   return (
     <>
-      <div className="max-w-md w-full space-y-8 bg-light-card-bg dark:bg-dark-card-bg p-10 rounded-xl shadow-2xl border border-light-border dark:border-dark-border">
+      <div className="relative max-w-md w-full space-y-8 bg-light-card-bg dark:bg-dark-card-bg p-10 rounded-xl shadow-2xl border border-light-border dark:border-dark-border">
         {closeLoginModal && (
           <button
             onClick={closeLoginModal}
@@ -136,7 +137,7 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
                   aria-hidden="true"
                 />
               </div>
-              <input
+              <input aria-label={t("auth:login.emailLabel")}
                 id="email-address"
                 name="email"
                 type="email"
@@ -156,7 +157,7 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
                   aria-hidden="true"
                 />
               </div>
-              <input
+              <input aria-label={t("auth:login.passwordLabel")}
                 id="password"
                 name="password"
                 type="password"
@@ -208,11 +209,11 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
       </div>
 
       {showForgotPasswordModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+        <OverlayPortal><div data-app-dialog="" className="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
           {" "}
           {/* Erhöhter z-index */}
           <div className="bg-light-card-bg dark:bg-dark-card-bg p-6 sm:p-8 rounded-lg shadow-xl w-full max-w-md relative border border-light-border dark:border-dark-border">
-            <button
+            <button aria-label="Schließen"
               onClick={() => setShowForgotPasswordModal(false)}
               className="absolute top-3 right-3 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
             >
@@ -282,7 +283,7 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
               {t("auth:reset.back")}
             </button>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
     </>
   );

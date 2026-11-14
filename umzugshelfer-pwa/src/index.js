@@ -2,6 +2,7 @@ import { Buffer } from "buffer";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";
+import "./design-system.css";
 import i18n from "./i18n";
 import { installUiAutoTranslation } from "./i18n/uiAutoTranslate";
 import App from "./App";
@@ -13,22 +14,6 @@ import { LocaleProvider } from "./contexts/LocaleContext";
 // Make Buffer available globally for libraries that might expect it (e.g., for PDF generation)
 window.Buffer = Buffer;
 installUiAutoTranslation(i18n);
-
-// Keep the PWA viewport stable on mobile: no pinch zoom, no double-tap zoom,
-// while preserving normal vertical scrolling inside pages and modals.
-if (typeof window !== "undefined" && typeof document !== "undefined") {
-  let lastTouchEnd = 0;
-  document.addEventListener("gesturestart", (event) => event.preventDefault(), { passive: false });
-  document.addEventListener("gesturechange", (event) => event.preventDefault(), { passive: false });
-  document.addEventListener("touchmove", (event) => {
-    if (event.touches && event.touches.length > 1) event.preventDefault();
-  }, { passive: false });
-  document.addEventListener("touchend", (event) => {
-    const now = Date.now();
-    if (now - lastTouchEnd <= 300) event.preventDefault();
-    lastTouchEnd = now;
-  }, { passive: false });
-}
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(

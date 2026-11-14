@@ -80,11 +80,11 @@ const BedarfsrechnerDaemmstoff = () => {
           <div key={item.id} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end p-2 border border-light-border dark:border-dark-border/50 rounded-card-sm">
             <div>
               <label htmlFor={`areaLength-${item.id}`} className={smallLabelClass}>{t("move:calculator.insulation.areaLength", { index: index + 1 })}</label>
-              <input type="number" id={`areaLength-${item.id}`} value={item.length} onChange={(e) => handleAreaItemChange(item.id, "length", e.target.value)} className={smallInputClass} placeholder="z. B. 5" />
+              <input aria-label="z. B. 5" type="number" id={`areaLength-${item.id}`} value={item.length} onChange={(e) => handleAreaItemChange(item.id, "length", e.target.value)} className={smallInputClass} placeholder="z. B. 5" />
             </div>
             <div>
               <label htmlFor={`areaWidth-${item.id}`} className={smallLabelClass}>{t("move:calculator.insulation.areaWidth", { index: index + 1 })}</label>
-              <input type="number" id={`areaWidth-${item.id}`} value={item.width} onChange={(e) => handleAreaItemChange(item.id, "width", e.target.value)} className={smallInputClass} placeholder="z. B. 4" />
+              <input aria-label="z. B. 4" type="number" id={`areaWidth-${item.id}`} value={item.width} onChange={(e) => handleAreaItemChange(item.id, "width", e.target.value)} className={smallInputClass} placeholder="z. B. 4" />
             </div>
             <div className="flex justify-end">
               {areaItems.length > 1 && (
@@ -130,7 +130,7 @@ function Field({ id, label, value, setValue, inputClass, labelClass, placeholder
   return (
     <div>
       <label htmlFor={id} className={labelClass}>{label}</label>
-      <input type="number" id={id} value={value} onChange={(e) => setValue(e.target.value)} className={inputClass} placeholder={placeholder} />
+      <input aria-label={placeholder} type="number" id={id} value={value} onChange={(e) => setValue(e.target.value)} className={inputClass} placeholder={placeholder} />
     </div>
   );
 }

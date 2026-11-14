@@ -167,7 +167,13 @@
     "noDates": "Keine dringenden Termine",
     "recent": "Letzte Aktivitäten",
     "showAll": "Alle",
-    "noActivity": "Noch keine Aktivitäten im Zeitraum."
+    "noActivity": "Noch keine Aktivitäten im Zeitraum.",
+    "moreOptions": "Weitere Filter und Fahrzeugoptionen",
+    "sections": "Kfz-Bereiche",
+    "period": "Zeitraum",
+    "showCosts": "Kosten öffnen",
+    "vehicleDetails": "Fahrzeugdetails und Fotos",
+    "clearCostFilter": "Filter {{category}} aktiv – zurücksetzen"
   },
   "fuelStatus": {
     "question": "War der Tank nach dem Tanken bis zum automatischen Zapfpistolen-Stopp voll?",
@@ -347,6 +353,11 @@
       "cleanup": "Der temporäre Beleg konnte nicht gelöscht werden.",
       "required": "Fahrzeug und Rechnungsdatum sind erforderlich.",
       "save": "Der Service konnte nicht gespeichert werden."
-    }
+    },
+    "photo": "Servicebeleg fotografieren",
+    "chooseFile": "Bild oder PDF auswählen",
+    "retry": "Erneut analysieren",
+    "preview": "Originalbeleg anzeigen",
+    "moreDetails": "Zusätzliche Rechnungsangaben"
   }
 }

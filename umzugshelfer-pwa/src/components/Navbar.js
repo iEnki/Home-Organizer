@@ -233,7 +233,7 @@ const Navbar = ({ session, setSession }) => {
           <div className="flex-1 max-w-sm mx-4 relative hidden md:block" ref={suchContainerRef}>
             <div className="relative">
               <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary pointer-events-none" />
-              <input
+              <input aria-label="Suchen..."
                 type="text"
                 value={suchbegriff}
                 onChange={handleSuchInput}
@@ -245,7 +245,7 @@ const Navbar = ({ session, setSession }) => {
             {suchOffen && (
               <div className="absolute top-full mt-1 left-0 bg-light-card-bg dark:bg-dark-card-bg border border-light-border dark:border-dark-border rounded-lg shadow-xl z-50 max-h-96 overflow-y-auto w-max min-w-full max-w-sm">
                 {suchergebnisse.length === 0 && !suchLaed && (
-                  <p className="px-3 py-2 text-xs text-light-text-secondary dark:text-dark-text-secondary whitespace-nowrap">Keine Ergebnisse</p>
+                  <p className="px-3 py-2 text-sm text-light-text-secondary dark:text-dark-text-secondary whitespace-nowrap">Keine Ergebnisse</p>
                 )}
                 {suchergebnisse.map((r, idx) => (
                   <button
@@ -258,7 +258,7 @@ const Navbar = ({ session, setSession }) => {
                     </span>
                     <div>
                       <p className="text-sm text-light-text-main dark:text-dark-text-main whitespace-nowrap">{r.text}</p>
-                      {r.sub && <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary whitespace-nowrap">{r.sub}</p>}
+                      {r.sub && <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary whitespace-nowrap">{r.sub}</p>}
                     </div>
                   </button>
                 ))}

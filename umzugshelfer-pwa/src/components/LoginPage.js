@@ -1,3 +1,4 @@
+import OverlayPortal from "./ui/OverlayPortal";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -88,14 +89,14 @@ const HomePage = ({ setSession }) => {
   return (
     <div className="text-light-text-main dark:text-dark-text-main min-h-screen">
       <nav className="bg-light-bg dark:bg-dark-bg shadow-md sticky top-0 z-40">
-        <div className="container mx-auto px-6 py-3 flex justify-between items-center gap-4">
+        <div className="container mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
           <Link
             to="/"
-            className="text-2xl font-bold text-light-accent-green dark:text-dark-accent-green hover:opacity-80"
+            className="text-xl sm:text-2xl font-bold text-light-accent-green dark:text-dark-accent-green hover:opacity-80"
           >
             {t("landing.brand")}
           </Link>
-          <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2 items-center">
+          <div className="flex flex-wrap gap-2 items-center justify-end">
             <LocaleToggle />
             <button
               onClick={() => setShowLoginModal(true)}
@@ -238,13 +239,13 @@ const HomePage = ({ setSession }) => {
       </footer>
 
       {showLoginModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <OverlayPortal><div data-app-dialog="" className="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <LoginForm
             setSession={setSession}
             onLoginSuccess={handleLoginSuccess}
             closeLoginModal={() => setShowLoginModal(false)}
           />
-        </div>
+        </div></OverlayPortal>
       )}
     </div>
   );

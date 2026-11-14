@@ -15,10 +15,10 @@ export default function BudgetAccountKpiStrip({ items }) {
   return (
     <GlassSurface className="overflow-hidden" interactive={false}>
       <div className="border-b border-light-border dark:border-dark-border px-4 py-3">
-        <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+        <p className="text-sm uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
           Zahlungsquellen
         </p>
-        <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
+        <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
           Ausgaben nach Konto
         </h3>
       </div>
@@ -31,7 +31,7 @@ export default function BudgetAccountKpiStrip({ items }) {
                 className="h-2.5 w-2.5 rounded-full"
                 style={{ backgroundColor: item.farbe || "#10B981" }}
               />
-              <p className="truncate text-xs font-medium text-light-text-main dark:text-dark-text-main">
+              <p className="truncate text-sm font-medium text-light-text-main dark:text-dark-text-main">
                 {item.name}
               </p>
             </div>

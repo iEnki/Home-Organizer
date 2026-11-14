@@ -1,3 +1,4 @@
+import OverlayPortal from "./ui/OverlayPortal";
 import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../supabaseClient";
@@ -1659,7 +1660,7 @@ const TodoListenManager = ({ session }) => {
         />
       )}
       {showFormModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4 pb-safe z-50">
+        <OverlayPortal><div data-app-dialog="" className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4 pb-safe z-50">
           <div className="bg-light-card dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-md max-h-[90vh] overflow-y-auto relative border border-light-border dark:border-dark-border">
             <button
               onClick={resetForm}
@@ -1921,7 +1922,7 @@ const TodoListenManager = ({ session }) => {
               </div>
             </form>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
       {Object.keys(gruppierteAufgaben).length === 0 &&
         !loading &&
@@ -1955,9 +1956,9 @@ const TodoListenManager = ({ session }) => {
         index={lightboxIndex}
       />
       {showVorlagenModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4 pb-safe z-50">
+        <OverlayPortal><div data-app-dialog="" className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4 pb-safe z-50">
           <div className="bg-light-card dark:bg-canvas-2 p-5 rounded-card shadow-elevation-3 w-full max-w-md max-h-[90vh] overflow-y-auto relative border border-light-border dark:border-dark-border">
-            <button
+            <button aria-label="Schließen"
               onClick={() => setShowVorlagenModal(false)}
               className="absolute top-2.5 right-2.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
             >
@@ -1967,8 +1968,8 @@ const TodoListenManager = ({ session }) => {
               {t("move:todosManager.templates.title")}
             </h3>
             <form onSubmit={handleVorlageErstellen} className="space-y-2 mb-5 pb-4 border-b border-light-border dark:border-dark-border">
-              <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">{t("move:todosManager.templates.create")}</p>
-              <input
+              <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary">{t("move:todosManager.templates.create")}</p>
+              <input aria-label={t("move:todosManager.templates.descriptionPlaceholder")}
                 type="text"
                 placeholder={t("move:todosManager.templates.descriptionPlaceholder")}
                 value={neueVorlageBeschreibung}
@@ -2002,11 +2003,11 @@ const TodoListenManager = ({ session }) => {
               </button>
             </form>
             <div className="space-y-2">
-              <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">
+              <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">
                 {t("move:todosManager.templates.savedCount", { count: meineVorlagen.length })}
               </p>
               {meineVorlagen.length === 0 ? (
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary text-center py-3">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary text-center py-3">
                   {t("move:todosManager.templates.empty")}
                 </p>
               ) : (
@@ -2017,7 +2018,7 @@ const TodoListenManager = ({ session }) => {
                   >
                     <div>
                       <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">{v.beschreibung}</p>
-                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{v.kategorie} · {v.prioritaet}</p>
+                      <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{v.kategorie} · {v.prioritaet}</p>
                     </div>
                     <button
                       onClick={() => handleVorlageLoeschen(v.id)}
@@ -2031,7 +2032,7 @@ const TodoListenManager = ({ session }) => {
               )}
             </div>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
       {showDokumentenModal && aktuelleAufgabeFuerDokumente && (
         <DokumentenZuordnungModal

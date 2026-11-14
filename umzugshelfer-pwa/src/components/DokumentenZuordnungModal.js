@@ -1,3 +1,4 @@
+import OverlayPortal from "./ui/OverlayPortal";
 import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "../supabaseClient";
 import { useDropzone } from "react-dropzone";
@@ -147,7 +148,7 @@ const DokumentenZuordnungModal = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-4 z-50">
+    <OverlayPortal><div data-app-dialog="" className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-4 z-50">
       <div
         className={`relative w-full max-w-2xl p-6 rounded-lg shadow-xl border ${
           theme === "dark"
@@ -155,7 +156,7 @@ const DokumentenZuordnungModal = ({
             : "bg-light-card-bg border-light-border text-light-text-main"
         }`}
       >
-        <button
+        <button aria-label="Schließen"
           onClick={onClose}
           className={`absolute top-3 right-3 p-1 rounded-full hover:bg-opacity-20 ${
             theme === "dark"
@@ -210,11 +211,11 @@ const DokumentenZuordnungModal = ({
           </div>
           {selectedFile && (
             <div className="mt-3">
-              <p className="text-xs">
+              <p className="text-sm">
                 Ausgewählt: {selectedFile.name} (
                 {Math.round(selectedFile.size / 1024)} KB)
               </p>
-              <input
+              <input aria-label="Optionale Beschreibung..."
                 type="text"
                 placeholder="Optionale Beschreibung..."
                 value={beschreibung}
@@ -251,9 +252,9 @@ const DokumentenZuordnungModal = ({
           <h4 className="text-md font-semibold mb-2">
             Vorhandene Dokumente zuordnen
           </h4>
-          {loading && <p className="text-xs">Lade Dokumentenliste...</p>}
+          {loading && <p className="text-sm">Lade Dokumentenliste...</p>}
           {!loading && alleDokumente.length === 0 && (
-            <p className="text-xs">Keine weiteren Dokumente vorhanden.</p>
+            <p className="text-sm">Keine weiteren Dokumente vorhanden.</p>
           )}
           <div className="max-h-60 overflow-y-auto space-y-1 pr-2">
             {alleDokumente.map((doc) => (
@@ -291,7 +292,7 @@ const DokumentenZuordnungModal = ({
           </div>
         </div>
 
-        {error && <p className="text-red-500 text-xs mt-2 mb-2">{error}</p>}
+        {error && <p className="text-red-500 text-sm mt-2 mb-2">{error}</p>}
 
         <div
           className={`flex justify-end space-x-3 pt-4 border-t mt-4 ${
@@ -320,7 +321,7 @@ const DokumentenZuordnungModal = ({
           </button>
         </div>
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 };
 

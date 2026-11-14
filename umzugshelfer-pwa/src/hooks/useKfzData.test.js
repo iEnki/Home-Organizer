@@ -1,3 +1,4 @@
+import React from "react";
 import { renderHook, waitFor } from "@testing-library/react";
 import useKfzData from "./useKfzData";
 import { supabase } from "../supabaseClient";
@@ -68,3 +69,10 @@ describe("useKfzData", () => {
     expect(result.current.data.vehicles).toEqual([{ id: "household-2" }]);
   });
 });
+
+ test("finishes loading after StrictMode effect replay", async () => {
+  supabase.from.mockImplementation((table) => queryFor(table, async () => ({data: table === "home_fahrzeuge" ? [{id:"vehicle-strict"}] : [],error:null})));
+  const {result} = renderHook(() => useKfzData({householdId:"household-1",userId:"user-1"}), {wrapper:React.StrictMode});
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  expect(result.current.data.vehicles).toEqual([{id:"vehicle-strict"}]);
+ });

@@ -54,14 +54,14 @@ export default function GeraetFilterBar({
               size={14}
               className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary"
             />
-            <input
+            <input aria-label={t("home:devicesForm.searchPlaceholder")}
               value={suchbegriff}
               onChange={(event) => onSuche(event.target.value)}
               placeholder={t("home:devicesForm.searchPlaceholder")}
               className="w-full rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 py-2 pl-9 pr-8 text-sm text-light-text-main dark:text-dark-text-main focus:border-primary-500 focus:outline-none"
             />
             {suchbegriff && (
-              <button
+              <button aria-label="Schließen"
                 onClick={() => onSuche("")}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
               >
@@ -88,7 +88,7 @@ export default function GeraetFilterBar({
             }`}
           >
             {t("home:householdTasks.all", { defaultValue: "All" })}
-            <span className={`text-[10px] ${statusFilter === "alle" ? "opacity-80" : "opacity-60"}`}>
+            <span className={`text-xs ${statusFilter === "alle" ? "opacity-80" : "opacity-60"}`}>
               {gesamtAnzahl}
             </span>
           </button>
@@ -109,7 +109,7 @@ export default function GeraetFilterBar({
                 }`}
               >
                 {statusLabel(key, label)}
-                <span className={`text-[10px] ${aktiv ? "opacity-80" : "opacity-60"}`}>{anzahl}</span>
+                <span className={`text-xs ${aktiv ? "opacity-80" : "opacity-60"}`}>{anzahl}</span>
               </button>
             );
           })}
@@ -169,7 +169,7 @@ export default function GeraetFilterBar({
             {statusFilter !== "alle" && (
               <span className="inline-flex items-center gap-1 rounded-full border border-primary-500/20 bg-primary-500/10 px-2 py-0.5 text-xs text-primary-500">
                 {statusLabel(statusFilter)}
-                <button onClick={() => onStatus("alle")} className="hover:text-primary-600">
+                <button aria-label="Schließen" onClick={() => onStatus("alle")} className="hover:text-primary-600">
                   <X size={10} />
                 </button>
               </span>
@@ -178,7 +178,7 @@ export default function GeraetFilterBar({
             {kategorieFilter !== "Alle" && (
               <span className="inline-flex items-center gap-1 rounded-full border border-primary-500/20 bg-primary-500/10 px-2 py-0.5 text-xs text-primary-500">
                 {getDeviceCategoryLabel(kategorieFilter, i18n.language)}
-                <button onClick={() => onKategorie("Alle")} className="hover:text-primary-600">
+                <button aria-label="Schließen" onClick={() => onKategorie("Alle")} className="hover:text-primary-600">
                   <X size={10} />
                 </button>
               </span>
@@ -191,7 +191,7 @@ export default function GeraetFilterBar({
                   : sortierung === "kaufdatum_desc"
                     ? t("home:devicesForm.purchaseDate")
                     : t("home:devicesSort.recentlyCreated", { defaultValue: "Recently created" })}
-                <button onClick={() => onSortierung("frist")} className="hover:text-primary-600">
+                <button aria-label="Schließen" onClick={() => onSortierung("frist")} className="hover:text-primary-600">
                   <X size={10} />
                 </button>
               </span>

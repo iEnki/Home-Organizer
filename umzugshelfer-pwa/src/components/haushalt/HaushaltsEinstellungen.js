@@ -111,7 +111,7 @@ const HaushaltsEinstellungen = () => {
             <label className="block text-sm font-medium text-light-text-main dark:text-dark-text-main mb-1.5">
               {t("household:settings.householdName")}
             </label>
-            <input
+            <input aria-label={t("household:settings.householdName")}
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -125,7 +125,7 @@ const HaushaltsEinstellungen = () => {
             <label className="block text-sm font-medium text-light-text-main dark:text-dark-text-main mb-1.5">
               {t("household:settings.appMode")}
             </label>
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-2">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-2">
               {t("household:settings.appModeHint")}
             </p>
             <div className="flex gap-2 flex-wrap">
@@ -160,11 +160,11 @@ const HaushaltsEinstellungen = () => {
             <label className="block text-sm font-medium text-light-text-main dark:text-dark-text-main mb-1.5">
               {t("household:settings.apiKeyLabel")}
             </label>
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-2">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-2">
               {t("household:settings.apiKeyHint")}
             </p>
             <div className="relative">
-              <input
+              <input aria-label="sk-..."
                 type={keySichtbar ? "text" : "password"}
                 value={openaiKey}
                 onChange={(e) => setOpenaiKey(e.target.value)}

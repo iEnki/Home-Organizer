@@ -257,7 +257,7 @@ export default function HaushaltVerwaltung({ session }) {
             <code className="flex-1 text-xs text-light-text-secondary dark:text-dark-text-secondary bg-light-bg dark:bg-canvas-1 px-2 py-1 rounded border border-light-border dark:border-dark-border break-all">
               {inviteLink}
             </code>
-            <button
+            <button aria-label="Kopieren"
               onClick={() => { navigator.clipboard.writeText(inviteLink); zeigeMeldung("ok", "Link kopiert!"); }}
               className="p-2 rounded-lg bg-blue-500/20 text-blue-700 dark:text-blue-300 hover:bg-blue-500/30"
             >
@@ -276,7 +276,7 @@ export default function HaushaltVerwaltung({ session }) {
               Erstelle einen Haushalt und lade andere Personen ein, um Einkaufslisten,
               Inventar, Aufgaben und mehr gemeinsam zu verwalten.
             </p>
-            <input
+            <input aria-label="Name des Haushalts"
               type="text"
               value={neuerHaushaltName}
               onChange={(e) => setNeuerHaushaltName(e.target.value)}
@@ -298,7 +298,7 @@ export default function HaushaltVerwaltung({ session }) {
             <h2 className="font-semibold text-light-text-main dark:text-dark-text-main text-sm">
               Einladung erhalten?
             </h2>
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
               Klicke auf den Einladungslink in der E-Mail oder gib den Token manuell ein.
             </p>
             <a
@@ -328,11 +328,11 @@ export default function HaushaltVerwaltung({ session }) {
                     autoFocus
                     className={INPUT_CLS}
                   />
-                  <button onClick={handleNameSpeichern}
+                  <button aria-label="Bestätigen" onClick={handleNameSpeichern}
                     className="p-1.5 rounded-lg text-green-600 dark:text-green-400 hover:bg-green-500/10">
                     <Check size={16} />
                   </button>
-                  <button onClick={() => setNameEdit(false)}
+                  <button aria-label="Schließen" onClick={() => setNameEdit(false)}
                     className="p-1.5 rounded-lg text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3">
                     <X size={16} />
                   </button>
@@ -356,7 +356,7 @@ export default function HaushaltVerwaltung({ session }) {
 
             {/* Mitgliederliste */}
             <div className="space-y-1">
-              <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide mb-3">
+              <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide mb-3">
                 Mitglieder ({mitglieder.filter((m) => m.status === "akzeptiert").length})
               </p>
               {mitglieder.map((m) => {
@@ -403,7 +403,7 @@ export default function HaushaltVerwaltung({ session }) {
                           </button>
                         </div>
                       ) : (
-                        <button
+                        <button aria-label="Schließen"
                           onClick={() => setBestaetige(m.id)}
                           className="p-1.5 rounded-lg text-light-text-secondary dark:text-dark-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-red-500/10 transition-colors"
                         >
@@ -420,11 +420,11 @@ export default function HaushaltVerwaltung({ session }) {
           {/* Mitglied einladen (nur Admin) */}
           {isAdmin && (
             <div className={`${CARD_CLS} space-y-3`}>
-              <h3 className="font-semibold text-light-text-main dark:text-dark-text-main text-sm flex items-center gap-2">
+              <h3 className="font-semibold text-light-text-main dark:text-dark-text-main text-base flex items-center gap-2">
                 <Mail size={16} className="text-blue-600 dark:text-blue-400" /> Mitglied einladen
               </h3>
               <div className="flex gap-2">
-                <input
+                <input aria-label="E-Mail-Adresse"
                   type="email"
                   value={einladEmail}
                   onChange={(e) => setEinladEmail(e.target.value)}
@@ -442,7 +442,7 @@ export default function HaushaltVerwaltung({ session }) {
                   {laedt ? "…" : "Einladen"}
                 </button>
               </div>
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                 Die Person erhält eine E-Mail mit einem Einladungslink.
                 Falls kein SMTP konfiguriert ist, erhältst du einen Link zum manuellen Teilen.
               </p>
@@ -462,7 +462,7 @@ export default function HaushaltVerwaltung({ session }) {
                 </span>
                 <div className="h-px flex-1 bg-light-border dark:bg-dark-border" />
               </div>
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary -mt-2">
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary -mt-2">
                 Diese Einstellungen gelten für alle Mitglieder des Haushalts.
               </p>
 
@@ -470,11 +470,11 @@ export default function HaushaltVerwaltung({ session }) {
               <div className={`${CARD_CLS} space-y-4`}>
                 <div className="flex items-center gap-2">
                   <Layers size={16} className="text-secondary-500 shrink-0" />
-                  <h3 className="font-semibold text-light-text-main dark:text-dark-text-main text-sm">
+                  <h3 className="font-semibold text-light-text-main dark:text-dark-text-main text-base">
                     App-Modus
                   </h3>
                 </div>
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary -mt-1">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary -mt-1">
                   Legt für alle Mitglieder fest, welcher Bereich primär angezeigt wird.
                 </p>
 
@@ -491,10 +491,10 @@ export default function HaushaltVerwaltung({ session }) {
                     <Truck size={26} />
                     <div className="text-center">
                       <p className="text-sm font-semibold">Umzugsplaner</p>
-                      <p className="text-xs opacity-70 mt-0.5">Umzug planen</p>
+                      <p className="text-sm opacity-70 mt-0.5">Umzug planen</p>
                     </div>
                     {appMode === "umzug" && (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary-500 text-white">
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary-500 text-white">
                         Aktiv
                       </span>
                     )}
@@ -512,10 +512,10 @@ export default function HaushaltVerwaltung({ session }) {
                     <Home size={26} />
                     <div className="text-center">
                       <p className="text-sm font-semibold">Home Organizer</p>
-                      <p className="text-xs opacity-70 mt-0.5">Haushalt verwalten</p>
+                      <p className="text-sm opacity-70 mt-0.5">Haushalt verwalten</p>
                     </div>
                     {appMode === "home" && (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-secondary-500 text-white">
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-secondary-500 text-white">
                         Aktiv
                       </span>
                     )}
@@ -523,7 +523,7 @@ export default function HaushaltVerwaltung({ session }) {
                 </div>
 
                 {modusStatus === "ok" && (
-                  <p className="text-xs text-accent-success flex items-center gap-1">
+                  <p className="text-sm text-accent-success flex items-center gap-1">
                     <CheckCircle size={12} /> Modus gespeichert und für alle Mitglieder aktiv.
                   </p>
                 )}
@@ -533,14 +533,14 @@ export default function HaushaltVerwaltung({ session }) {
               <div className={`${CARD_CLS} space-y-4`}>
                 <div className="flex items-center gap-2">
                   <Cpu size={16} className="text-secondary-500 shrink-0" />
-                  <h3 className="font-semibold text-light-text-main dark:text-dark-text-main text-sm">
+                  <h3 className="font-semibold text-light-text-main dark:text-dark-text-main text-base">
                     KI-Einstellungen
                   </h3>
                 </div>
 
                 {/* Provider-Auswahl */}
                 <div>
-                  <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2 uppercase tracking-wide">
+                  <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2 uppercase tracking-wide">
                     KI-Provider
                   </p>
                   <div className="grid grid-cols-2 gap-2">
@@ -567,11 +567,11 @@ export default function HaushaltVerwaltung({ session }) {
                 {/* OpenAI API-Key */}
                 {kiProvider === "openai" && (
                   <div className="space-y-2">
-                    <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">
+                    <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">
                       OpenAI API-Key
                     </p>
                     <div className="relative">
-                      <input
+                      <input aria-label="sk-..."
                         type={apiKeyVisible ? "text" : "password"}
                         value={apiKey}
                         onChange={(e) => setApiKey(e.target.value)}
@@ -593,24 +593,24 @@ export default function HaushaltVerwaltung({ session }) {
                 {/* Ollama-Einstellungen */}
                 {kiProvider === "ollama" && (
                   <div className="space-y-3">
-                    <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">
+                    <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">
                       Ollama Server
                     </p>
                     <div className="space-y-2">
                       <div>
-                        <input
+                        <input aria-label="http://192.168.1.100:11434"
                           type="url"
                           value={ollamaUrl}
                           onChange={(e) => setOllamaUrl(e.target.value)}
                           placeholder="http://192.168.1.100:11434"
                           className={INPUT_CLS}
                         />
-                        <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                        <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                           Basis-URL ohne Pfad, z.B.{" "}
-                          <code className="font-mono text-[11px]">http://localhost:11434</code>
+                          <code className="font-mono text-xs">http://localhost:11434</code>
                         </p>
                       </div>
-                      <input
+                      <input aria-label="llama3.2"
                         type="text"
                         value={ollamaModel}
                         onChange={(e) => setOllamaModel(e.target.value)}
@@ -656,7 +656,7 @@ export default function HaushaltVerwaltung({ session }) {
                         : ollamaTestStatus === "fehler" ? "Nicht erreichbar"
                         : "Verbindung testen"}
                     </button>
-                    <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                       Im Ollama-Modus wird die Spracheingabe über die Browser-Spracherkennung (Web Speech API) verarbeitet statt über Whisper.
                     </p>
                   </div>
@@ -682,7 +682,7 @@ export default function HaushaltVerwaltung({ session }) {
 
           {/* Haushalt verlassen / auflösen */}
           <div className={`${CARD_CLS} space-y-3`}>
-            <h3 className="font-semibold text-light-text-main dark:text-dark-text-main text-sm">
+            <h3 className="font-semibold text-light-text-main dark:text-dark-text-main text-base">
               Haushalt verlassen
             </h3>
 

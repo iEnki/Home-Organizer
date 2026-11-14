@@ -5,7 +5,7 @@ export const glassSurfaceClass = "glass-surface rounded-card border border-white
 export const glassModuleClass = "home-glass-modern glass-module auto-glass-cards relative min-h-full min-w-0 max-w-full space-y-4 overflow-x-clip bg-transparent p-4 pb-28 md:p-6 lg:pb-8";
 
 export const glassPageVariants = {
-  hidden: { opacity: 0, y: 10 },
+  hidden: { opacity: 0 },
   show: {
     opacity: 1,
     y: 0,
@@ -15,11 +15,11 @@ export const glassPageVariants = {
       staggerChildren: 0.045,
     },
   },
-  exit: { opacity: 0, y: -6, transition: { duration: 0.16 } },
+  exit: { opacity: 0, transition: { duration: 0.16 } },
 };
 
 export const glassItemVariants = {
-  hidden: { opacity: 0, y: 12 },
+  hidden: { opacity: 0 },
   show: {
     opacity: 1,
     y: 0,
@@ -45,15 +45,16 @@ const GlassSurface = React.forwardRef(function GlassSurface({
   as = "section",
   children,
   className = "",
-  interactive = true,
+  interactive,
   variants = glassItemVariants,
   ...props
 }, ref) {
   const reducedMotion = useReducedMotion();
   const Component = motion[as] || motion.section;
+  const isInteractive = interactive ?? (as === "button" || typeof props.onClick === "function");
 
   const moveSheen = (event) => {
-    if (reducedMotion || !interactive) return;
+    if (reducedMotion || !isInteractive) return;
     const rect = event.currentTarget.getBoundingClientRect();
     event.currentTarget.style.setProperty("--glass-pointer-x", `${event.clientX - rect.left}px`);
     event.currentTarget.style.setProperty("--glass-pointer-y", `${event.clientY - rect.top}px`);
@@ -64,10 +65,10 @@ const GlassSurface = React.forwardRef(function GlassSurface({
       ref={ref}
       variants={reducedMotion ? undefined : variants}
       onMouseMove={moveSheen}
-      className={`${glassSurfaceClass} ${interactive ? "glass-hover-card group" : ""} ${className}`}
+      className={`${glassSurfaceClass} group ${isInteractive ? "glass-hover-card" : ""} ${className}`}
       {...props}
     >
-      {interactive ? <span className="glass-card-sheen" aria-hidden="true" /> : null}
+      {isInteractive ? <span className="glass-card-sheen" aria-hidden="true" /> : null}
       {children}
     </Component>
   );

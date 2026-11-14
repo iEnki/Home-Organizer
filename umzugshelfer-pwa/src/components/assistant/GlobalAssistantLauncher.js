@@ -1,3 +1,5 @@
+import OverlayPortal from "../ui/OverlayPortal";
+import { motion, useReducedMotion } from "framer-motion";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -224,10 +226,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
   const open = uiConfig.is_open === true;
   const visibleForUser = uiConfig.enabled !== false;
 
-  const reducedMotion = useMemo(
-    () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches,
-    [],
-  );
+  const reducedMotion = useReducedMotion();
 
   const persistUiConfig = useCallback(
     async (patch) => {
@@ -1101,7 +1100,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
                 <p className="truncate text-sm font-semibold text-light-text-main dark:text-dark-text-main">
                   {t("assistant:globalTitle")}
                 </p>
-                <p className="truncate text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                <p className="truncate text-sm text-light-text-secondary dark:text-dark-text-secondary">
                   {householdContext?.household_name || t("assistant:defaultHousehold")}
                 </p>
               </div>
@@ -1261,7 +1260,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
 
               {receipts.length > 0 && (
                 <div className="rounded-card border border-light-border bg-light-bg/60 p-4 dark:border-dark-border dark:bg-canvas-1/60">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+                  <p className="text-sm font-semibold uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
                     {t("assistant:actionsLabel")}
                   </p>
                   <div className="mt-3 space-y-2">
@@ -1273,7 +1272,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
                         <p className="font-medium text-light-text-main dark:text-dark-text-main">
                           {receipt.summary || receipt.target_table || t("assistant:defaultAction")}
                         </p>
-                        <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                        <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                           {receipt.action_kind || "create"} {receipt.target_table ? `· ${receipt.target_table}` : ""}
                           {receipt.created_at ? ` · ${new Date(receipt.created_at).toLocaleString(locale === "en-GB" ? "en-GB" : "de-AT")}` : ""}
                         </p>
@@ -1285,7 +1284,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
 
               {pendingAction && (
                 <div className="rounded-card border border-primary-500/20 bg-primary-500/5 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-primary-500">
+                  <p className="text-sm font-semibold uppercase tracking-wide text-primary-500">
                     {t("assistant:preview")}
                   </p>
                   <p className="mt-1 text-sm text-light-text-main dark:text-dark-text-main">
@@ -1415,33 +1414,33 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
             className="fixed z-[150] flex h-[min(680px,calc(100vh-24px))] w-[min(440px,calc(100vw-24px))] flex-col overflow-hidden rounded-3xl border border-light-border bg-light-card shadow-elevation-3 dark:border-dark-border dark:bg-canvas-2"
             style={
               panelDrag.position
-                ? { left: panelDrag.position.x, top: panelDrag.position.y }
+                ? { left: 0, top: 0, transform: `translate3d(${panelDrag.position.x}px, ${panelDrag.position.y}px, 0)` }
                 : { right: 24, bottom: 24 }
             }
           >
             {panelInner}
           </div>
         ) : (
-          <div
-            className="fixed inset-0 z-[150] flex items-end justify-center bg-black/30 backdrop-blur-sm"
+          <OverlayPortal><div
+            data-app-dialog="" className="fixed inset-0 z-[150] flex items-end justify-center bg-black/30 backdrop-blur-sm"
             onMouseDown={(event) => {
               if (event.target === event.currentTarget) handleMinimize();
             }}
           >
-            <div
+            <motion.div
               className="flex w-full flex-col overflow-hidden rounded-t-3xl border border-light-border bg-light-card shadow-elevation-3 dark:border-dark-border dark:bg-canvas-2"
               style={sheet.sheetStyle}
               onMouseDown={(event) => event.stopPropagation()}
             >
               <div
-                className="flex shrink-0 cursor-grab touch-none items-center justify-center pb-1 pt-2"
+                className="flex shrink-0 min-h-[44px] cursor-grab touch-none items-center justify-center pb-1 pt-2"
                 {...sheet.handleProps}
               >
                 <div className="h-1.5 w-10 rounded-full bg-light-border dark:bg-dark-border" />
               </div>
               {panelInner}
-            </div>
-          </div>
+            </motion.div>
+          </div></OverlayPortal>
         ))}
 
       {!open && !isDesktop && configGeladen && uiConfig.is_minimized === true && (
@@ -1464,7 +1463,7 @@ const GlobalAssistantLauncher = ({ session, householdContext, appMode, onRegiste
           className="fixed z-[140] flex h-14 w-14 cursor-pointer touch-none items-center justify-center rounded-full bg-primary-500 text-white shadow-elevation-3 active:scale-95"
           style={
             bubbleDrag.position
-              ? { left: bubbleDrag.position.x, top: bubbleDrag.position.y }
+              ? { left: 0, top: 0, transform: `translate3d(${bubbleDrag.position.x}px, ${bubbleDrag.position.y}px, 0)` }
               : { right: 16, bottom: 96 }
           }
         >

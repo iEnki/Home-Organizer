@@ -170,7 +170,7 @@ export default function BuchVerleihModal({
             <BookOpen size={18} className="text-teal-500" />
             <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">{titel}</h2>
           </div>
-          <button onClick={onAbbrechen} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger">
+          <button aria-label="Schließen" onClick={onAbbrechen} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger">
             <X size={18} />
           </button>
         </div>
@@ -191,7 +191,7 @@ export default function BuchVerleihModal({
                 <>
                   <div>
                     <label className={labelCls}>{t("books:loanModal.contact")}</label>
-                    <select
+                    <select aria-label={t("books:loanModal.contact")}
                       value={form.verliehen_an_kontakt_id}
                       onChange={(e) => {
                         const k = kontakte.find((c) => c.id === e.target.value);
@@ -211,7 +211,7 @@ export default function BuchVerleihModal({
                   </div>
                   <div>
                     <label className={labelCls}>{t("books:loanModal.orName")}</label>
-                    <input
+                    <input aria-label={t("books:loanModal.orName")}
                       type="text"
                       value={form.verliehen_an_name}
                       onChange={(e) => setForm((p) => ({ ...p, verliehen_an_name: e.target.value }))}
@@ -221,14 +221,14 @@ export default function BuchVerleihModal({
                   </div>
                   <div>
                     <label className={labelCls}>{t("books:loanModal.lentSince")}</label>
-                    <input type="date" value={form.verliehen_seit} onChange={(e) => setForm((p) => ({ ...p, verliehen_seit: e.target.value }))} className={inputCls} />
+                    <input aria-label={t("books:loanModal.lentSince")} type="date" value={form.verliehen_seit} onChange={(e) => setForm((p) => ({ ...p, verliehen_seit: e.target.value }))} className={inputCls} />
                   </div>
                 </>
               )}
 
               <div>
                 <label className={labelCls}>{t("books:loanModal.returnExpected")}</label>
-                <input type="date" value={form.rueckgabe_erwartet_am} onChange={(e) => setForm((p) => ({ ...p, rueckgabe_erwartet_am: e.target.value }))} className={inputCls} />
+                <input aria-label={t("books:loanModal.returnExpected")} type="date" value={form.rueckgabe_erwartet_am} onChange={(e) => setForm((p) => ({ ...p, rueckgabe_erwartet_am: e.target.value }))} className={inputCls} />
               </div>
 
               <label className="flex items-center gap-2 text-sm text-light-text-main dark:text-dark-text-main cursor-pointer">
@@ -244,7 +244,7 @@ export default function BuchVerleihModal({
               {form.erinnerung_aktiv && (
                 <div>
                   <label className={labelCls}>{t("books:loanModal.reminderDays")}</label>
-                  <input
+                  <input aria-label={t("books:loanModal.reminderDays")}
                     type="number"
                     min="1"
                     value={form.erinnerung_intervall_tage}
@@ -256,7 +256,7 @@ export default function BuchVerleihModal({
             </>
           )}
 
-          {fehler && <p className="text-xs text-accent-danger">{fehler}</p>}
+          {fehler && <p className="text-sm text-accent-danger">{fehler}</p>}
         </div>
 
         {/* Footer */}

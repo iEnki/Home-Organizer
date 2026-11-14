@@ -1,3 +1,4 @@
+import OverlayPortal from "./ui/OverlayPortal";
 import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -529,17 +530,17 @@ const Materialplaner = ({ session }) => {
                   </div>
                 </div>
                 {p.kategorie && (
-                  <p className="text-xs font-medium text-secondary-600 dark:text-secondary-400 mb-1">
+                  <p className="text-sm font-medium text-secondary-600 dark:text-secondary-400 mb-1">
                     {t("move:materialsPlanner.category")}: {materialCategoryLabel(p.kategorie)}
                   </p>
                 )}
                 {p.menge_einheit && (
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                     {t("move:materialsPlanner.quantity")}: {p.menge_einheit}
                   </p>
                 )}
                 {p.geschaetzter_preis && (
-                  <p className="text-xs font-semibold text-primary-600 dark:text-primary-400">
+                  <p className="text-sm font-semibold text-primary-600 dark:text-primary-400">
                     {t("move:materialsPlanner.priceApprox", { price: parseFloat(p.geschaetzter_preis).toFixed(2) })}
                   </p>
                 )}
@@ -787,9 +788,9 @@ const Materialplaner = ({ session }) => {
       </div>
 
       {showFormModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center p-3 pb-safe z-50">
+        <OverlayPortal><div data-app-dialog="" className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center p-3 pb-safe z-50">
           <div className="bg-light-card dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-md max-h-[90vh] overflow-y-auto relative border border-light-border dark:border-dark-border">
-            <button
+            <button aria-label="Schließen"
               onClick={resetForm}
               className="absolute top-2.5 right-2.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
             >
@@ -1035,7 +1036,7 @@ const Materialplaner = ({ session }) => {
               </div>
             </form>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
 
       {Object.keys(filteredAndGroupedPosten).length === 0 &&

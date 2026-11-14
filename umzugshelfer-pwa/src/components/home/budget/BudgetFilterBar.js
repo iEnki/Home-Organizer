@@ -38,7 +38,7 @@ export default function BudgetFilterBar({
               size={14}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary pointer-events-none"
             />
-            <input
+            <input aria-label={t("budget:entries.searchPlaceholder")}
               value={suchbegriff}
               onChange={(event) => onSuche(event.target.value)}
               placeholder={t("budget:entries.searchPlaceholder")}

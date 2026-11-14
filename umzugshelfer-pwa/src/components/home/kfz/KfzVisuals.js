@@ -1,3 +1,4 @@
+import OverlayPortal from "../../ui/OverlayPortal";
 import React, { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useTranslation } from "react-i18next";
@@ -101,6 +102,25 @@ const chartBase = {
   },
 };
 
+const readChartText = () => getComputedStyle(document.documentElement).getPropertyValue("--ui-muted").trim() || chartBase.color;
+
+function useChartTheme() {
+  const reduced = useReducedMotion();
+  const [text, setText] = useState(readChartText);
+  useEffect(() => {
+    const update = () => setText(readChartText());
+    const observer = new MutationObserver(update);
+    observer.observe(document.documentElement, {attributes:true,attributeFilter:["class"]});
+    const contrast = window.matchMedia?.("(prefers-contrast: more)");
+    contrast?.addEventListener?.("change", update);
+    return () => { observer.disconnect(); contrast?.removeEventListener?.("change", update); };
+  }, []);
+  return useMemo(() => ({...chartBase,color:text,animation:reduced ? false : {duration:250,easing:"easeOutQuart"},scales:{
+    x:{...chartBase.scales.x,ticks:{...chartBase.scales.x.ticks,color:text,font:{size:12}}},
+    y:{...chartBase.scales.y,ticks:{...chartBase.scales.y.ticks,color:text,font:{size:12}}},
+  }}), [text,reduced]);
+}
+
 function GlassPanel({ children, className = "", as = "section" }) {
   return (
     <GlassSurface as={as} className={className}>
@@ -111,33 +131,34 @@ function GlassPanel({ children, className = "", as = "section" }) {
 
 export function AnimatedKpi({ icon: Icon, label, value, format, detail, trend, tone = "primary", sparkline = [] }) {
   const reduced = useReducedMotion();
-  const animatedValue = useCountUp(Number(value || 0), reduced ? 0 : 650);
+  const animatedValue = useCountUp(Number(value || 0), 0);
   const shown = format ? format(animatedValue) : animatedValue;
   const max = Math.max(...sparkline, 1);
   const accent = tone === "cyan" ? "from-secondary-500/25 text-secondary-400" : tone === "amber" ? "from-amber-500/25 text-amber-400" : "from-primary-500/25 text-primary-400";
   return (
     <GlassPanel className="relative min-w-0 overflow-hidden p-3 md:p-4">
       <div className={`absolute inset-x-0 top-0 h-px bg-gradient-to-r ${accent} via-current to-transparent opacity-80`} />
-      <div className="flex items-start justify-between gap-3">
-        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-card-sm bg-gradient-to-br md:h-10 md:w-10 ${accent} to-transparent`}>
+      <div className="flex items-start justify-between gap-3 md:flex">
+        <span className={`hidden h-9 w-9 shrink-0 items-center justify-center rounded-card-sm bg-gradient-to-br md:flex md:h-10 md:w-10 ${accent} to-transparent`}>
           <Icon size={17} />
         </span>
         {trend != null ? (
-          <span className={`shrink-0 rounded-full px-1.5 py-1 text-[10px] font-semibold md:px-2 md:text-[11px] ${trend <= 0 ? "bg-primary-500/10 text-primary-500" : "bg-amber-500/10 text-amber-500"}`}>
+          <span className={`shrink-0 rounded-full px-1.5 py-1 text-xs font-semibold md:px-2 md:text-xs ${trend <= 0 ? "bg-primary-500/10 text-primary-500" : "bg-amber-500/10 text-amber-500"}`}>
             {percentage(trend)}
           </span>
         ) : null}
       </div>
-      <div className="mt-3 break-words text-[10px] font-semibold uppercase leading-4 tracking-[0.1em] text-light-text-secondary md:mt-4 md:text-xs md:tracking-[0.14em] dark:text-dark-text-secondary">{label}</div>
+      <div className="mt-1 break-words text-sm font-medium leading-5 text-light-text-secondary md:mt-4 dark:text-dark-text-secondary">{label}</div>
       <div className="mt-1 break-words text-xl font-semibold leading-tight tracking-tight md:text-2xl">{shown}</div>
-      <div className="mt-1 break-words text-[11px] leading-4 text-light-text-secondary md:text-xs dark:text-dark-text-secondary">{detail}</div>
+      <div className="mt-1 break-words text-xs leading-4 text-light-text-secondary md:text-xs dark:text-dark-text-secondary">{detail}</div>
       {sparkline.length > 1 ? (
-        <div className="mt-3 flex h-6 items-end gap-1 md:mt-4 md:h-8" aria-hidden="true">
+        <div className="mt-3 hidden h-6 items-end gap-1 md:mt-4 md:flex md:h-8" aria-hidden="true">
           {sparkline.slice(-12).map((point, index) => (
             <motion.span
               key={`${point}-${index}`}
-              initial={reduced ? false : { height: 2 }}
-              animate={{ height: `${Math.max(12, (point / max) * 100)}%` }}
+              style={{height:"100%",transformOrigin:"bottom"}}
+              initial={reduced ? false : { scaleY: 0 }}
+              animate={{ scaleY: Math.max(.12,point/max) }}
               transition={{ delay: index * 0.025, duration: 0.35 }}
               className="min-w-1 flex-1 rounded-full bg-gradient-to-t from-primary-600/35 to-secondary-400/80"
             />
@@ -193,7 +214,7 @@ export function VehicleHero({ vehicle, coverPhoto, photoCount, onEdit, onGallery
             imageClassName="object-contain object-center p-2 md:p-3"
           />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#041117] via-transparent to-transparent md:bg-gradient-to-r md:from-transparent md:to-[#07161d]" />
-          {vehicle ? <button type="button" onClick={onGallery} className="absolute bottom-2 left-2 inline-flex min-h-8 items-center gap-1.5 rounded-full border border-white/15 bg-black/50 px-2 text-[10px] font-semibold text-white backdrop-blur-md md:bottom-4 md:left-4 md:min-h-10 md:gap-2 md:px-3 md:text-xs">
+          {vehicle ? <button type="button" onClick={onGallery} className="absolute bottom-2 left-2 inline-flex min-h-8 items-center gap-1.5 rounded-full border border-white/15 bg-black/50 px-2 text-xs font-semibold text-white backdrop-blur-md md:bottom-4 md:left-4 md:min-h-10 md:gap-2 md:px-3 md:text-xs">
             <Camera size={13} /> {photoCount ? t("photos.count", { count: photoCount }) : t("photos.add")}
           </button> : null}
         </div>
@@ -201,10 +222,10 @@ export function VehicleHero({ vehicle, coverPhoto, photoCount, onEdit, onGallery
           <div data-testid="vehicle-hero-glow" className="pointer-events-none absolute right-5 top-5 h-24 w-24 rounded-full bg-primary-500/10 blur-3xl" />
           <div className="relative z-10 flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary-500 md:text-xs md:tracking-[0.18em]">{t("overview.activeVehicle")}</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-primary-500 md:text-xs md:tracking-[0.18em]">{t("overview.activeVehicle")}</div>
               <h2 className="mt-1 break-words text-lg font-semibold leading-tight tracking-tight md:mt-2 md:text-2xl">{vehicle ? [vehicle.name, vehicle.kennzeichen].filter(Boolean).join(" - ") : t("overview.vehicleStatus")}</h2>
-              <p className="mt-1 line-clamp-2 text-xs text-light-text-secondary md:text-sm dark:text-dark-text-secondary">{vehicle ? [vehicle.marke, vehicle.modell, vehicle.baujahr].filter(Boolean).join(" ") : t("overview.selectVehicle")}</p>
-              {vehicle ? <div className="mt-3 md:hidden"><span className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">{t("overview.mileage")}</span><strong className="block break-words text-base">{Number(vehicle.kilometerstand || 0).toLocaleString("de-AT")} km</strong></div> : null}
+              <p className="mt-1 line-clamp-2 text-sm text-light-text-secondary md:text-sm dark:text-dark-text-secondary">{vehicle ? [vehicle.marke, vehicle.modell, vehicle.baujahr].filter(Boolean).join(" ") : t("overview.selectVehicle")}</p>
+              {vehicle ? <div className="mt-3 md:hidden"><span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("overview.mileage")}</span><strong className="block break-words text-base">{Number(vehicle.kilometerstand || 0).toLocaleString("de-AT")} km</strong></div> : null}
             </div>
             {vehicle ? <button type="button" onClick={onEdit} className="relative z-20 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-light-border/80 bg-white/50 transition hover:border-primary-500/40 hover:bg-primary-500/10 md:h-10 md:w-10 dark:border-white/10 dark:bg-white/5" aria-label="Fahrzeug bearbeiten"><Pencil size={15} /></button> : null}
           </div>
@@ -237,7 +258,7 @@ export function VehicleSwitcher({ vehicles, selectedVehicleId, coverByVehicleId,
       {vehicles.map((vehicle) => (
         <button key={vehicle.id} type="button" onClick={() => onSelect(vehicle.id)} className={`flex min-w-48 snap-start items-center gap-2 rounded-card-sm border p-2 text-left transition ${selectedVehicleId === vehicle.id ? "border-primary-500/40 bg-primary-500/10 shadow-glow-primary" : "border-light-border bg-white/55 dark:border-white/10 dark:bg-[#07161d]/72"}`}>
           <VehiclePhoto document={coverByVehicleId[vehicle.id]} alt={vehicle.name} className="h-11 w-16 shrink-0 rounded-xl" />
-          <span className="min-w-0"><strong className="block truncate text-xs">{vehicle.name}</strong><span className="block truncate text-[11px] text-light-text-secondary dark:text-dark-text-secondary">{vehicle.kennzeichen || vehicle.modell || "-"}</span></span>
+          <span className="min-w-0"><strong className="block truncate text-xs">{vehicle.name}</strong><span className="block truncate text-xs text-light-text-secondary dark:text-dark-text-secondary">{vehicle.kennzeichen || vehicle.modell || "-"}</span></span>
         </button>
       ))}
     </motion.div>
@@ -259,7 +280,9 @@ export function KfzOverview({
   formatDate,
 }) {
   const { t } = useTranslation("kfz");
+  const chartTheme = useChartTheme();
   const { isMobile } = useViewport();
+  const reduced = useReducedMotion();
   const monthlyValues = stats.monthly.map(([, value]) => value);
   const costPerKmDetail = stats.costPerKm == null
     ? t("overview.costPerKmMissing")
@@ -269,29 +292,29 @@ export function KfzOverview({
       to: formatDate(stats.mileageCoverageEnd),
     });
   const overviewChartOptions = useMemo(() => ({
-    ...chartBase,
-    animation: isMobile ? { duration: 450, easing: "easeOutQuart" } : chartBase.animation,
+    ...chartTheme,
+    animation: reduced ? false : {duration:250,easing:"easeOutQuart"},
     scales: {
       x: {
-        ...chartBase.scales.x,
+        ...chartTheme.scales.x,
         ticks: {
-          ...chartBase.scales.x.ticks,
+          ...chartTheme.scales.x.ticks,
           autoSkip: true,
           maxTicksLimit: isMobile ? 4 : 12,
           autoSkipPadding: isMobile ? 8 : 18,
-          font: { size: isMobile ? 10 : 12 },
+          font: { size: 12 },
         },
       },
       y: {
-        ...chartBase.scales.y,
+        ...chartTheme.scales.y,
         ticks: {
-          ...chartBase.scales.y.ticks,
+          ...chartTheme.scales.y.ticks,
           maxTicksLimit: isMobile ? 5 : 8,
-          font: { size: isMobile ? 10 : 12 },
+          font: { size: 12 },
         },
       },
     },
-  }), [isMobile]);
+  }), [isMobile, reduced, chartTheme]);
   const costData = {
     labels: stats.monthly.map(([label]) => label),
     datasets: [{
@@ -314,6 +337,9 @@ export function KfzOverview({
   };
   return (
     <motion.div variants={pageVariants} initial="hidden" animate="show" className="min-w-0 max-w-full space-y-5 overflow-x-clip">
+      <div className="flex min-w-0 items-center justify-between gap-3"><h2 className="text-base font-semibold">{t("tabs.overview")}</h2>            <select aria-label={t("overview.period")} className="w-auto max-w-[60%] rounded-card-sm border border-light-border bg-white/50 px-3 py-2 text-xs md:w-auto dark:border-white/10 dark:bg-white/5" value={period} onChange={(event) => setPeriod(event.target.value)}>
+              <option value="6">6 Monate</option><option value="12">12 Monate</option><option value="24">24 Monate</option><option value="all">Gesamt</option>
+            </select></div>
       <div data-testid="kpi-grid" className="grid min-w-0 grid-cols-2 gap-3 xl:grid-cols-4">
         <AnimatedKpi icon={WalletCards} label={t("overview.totalCost")} value={stats.totalCost} format={money} detail={period === "all" ? t("overview.allTime") : t("overview.lastMonths", { count: period })} trend={stats.comparison.totalCostChange} sparkline={monthlyValues} />
         <AnimatedKpi icon={Gauge} label={t("overview.costPerKm")} value={stats.costPerKm || 0} format={(value) => stats.costPerKm == null ? "-" : money(value)} detail={costPerKmDetail} tone="cyan" sparkline={monthlyValues} />
@@ -322,35 +348,33 @@ export function KfzOverview({
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1.42fr_.58fr]">
-        <GlassPanel className="p-4 md:p-5">
-          <div className="mb-4 flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="min-w-0"><h2 className="font-semibold">{t("overview.costTrend")}</h2><p className="break-words text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("overview.costTrendHint")}</p></div>
-            <select className="w-full rounded-full border border-light-border bg-white/50 px-3 py-2 text-xs md:w-auto dark:border-white/10 dark:bg-white/5" value={period} onChange={(event) => setPeriod(event.target.value)}>
-              <option value="6">6 Monate</option><option value="12">12 Monate</option><option value="24">24 Monate</option><option value="all">Gesamt</option>
-            </select>
-          </div>
-          {stats.monthly.length ? <div className="h-56 min-w-0 md:h-64"><Bar options={overviewChartOptions} data={costData} /></div> : <ChartEmpty />}
-        </GlassPanel>
-        <GlassPanel className="p-4 md:p-5">
+        <GlassPanel className="p-4 md:p-5 xl:order-2">
           <h2 className="font-semibold">{t("overview.nextDates")}</h2>
           <div className="mt-4 space-y-1">
             {dueItems.length ? dueItems.slice(0, 6).map((item, index) => (
               <motion.div variants={itemVariants} key={item.id} className="group grid min-w-0 grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-card-sm px-2 py-3 transition hover:bg-primary-500/[0.06] md:grid-cols-[2rem_minmax(0,1fr)_auto]">
                 <span className="relative flex h-8 w-8 items-center justify-center">
-                  <span className={`h-2.5 w-2.5 rounded-full ${item.days == null || item.days <= 7 ? "bg-red-500 shadow-[0_0_14px_rgba(239,68,68,.55)]" : "bg-amber-500"}`} />
+                  <span className={`h-2.5 w-2.5 rounded-full ${item.days == null || item.days <= 7 ? "bg-red-500" : "bg-amber-500"}`} />
                   {index < dueItems.slice(0, 6).length - 1 ? <span className="absolute left-1/2 top-7 h-7 w-px bg-light-border dark:bg-white/10" /> : null}
                 </span>
                 <span className="min-w-0 break-words text-sm font-medium">{item.label}</span>
                 <span className="col-start-2 text-xs text-light-text-secondary md:col-start-auto md:whitespace-nowrap dark:text-dark-text-secondary">{item.days < 0 ? "überfällig" : item.days === 0 ? "heute" : `${item.days} Tage`}</span>
               </motion.div>
-            )) : <div className="flex min-h-52 flex-col items-center justify-center text-center"><CheckCircle2 className="text-primary-500" /><strong className="mt-3 text-sm">{t("overview.noDates")}</strong></div>}
+            )) : <div className="flex min-h-16 items-center justify-center gap-3 text-center"><CheckCircle2 className="text-primary-500" /><strong className="text-sm">{t("overview.noDates")}</strong></div>}
           </div>
+        </GlassPanel>
+        <GlassPanel className="p-4 md:p-5 xl:order-1">
+          <div className="mb-4 flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0"><h2 className="font-semibold">{t("overview.costTrend")}</h2><p className="break-words text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("overview.costTrendHint")}</p></div>
+
+          </div>
+          {stats.monthly.length ? <div className="h-44 min-w-0 md:h-64"><Bar options={overviewChartOptions} data={costData} /></div> : <ChartEmpty compact />}
         </GlassPanel>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[.92fr_1.08fr]">
         <GlassPanel className="p-4 md:p-5">
-          <div className="mb-3 flex min-w-0 items-center justify-between gap-3"><h2 className="min-w-0 break-words font-semibold">{t("overview.recent")}</h2><button type="button" onClick={onShowCosts} className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-primary-500 md:text-sm">{t("overview.showAll")} <ChevronRight size={14} /></button></div>
+          <div className="mb-3 flex min-w-0 items-center justify-between gap-3"><h2 className="min-w-0 break-words font-semibold">{t("overview.recent")}</h2><button type="button" onClick={onShowCosts} className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-primary-500 md:text-sm">{t("overview.showCosts")} <ChevronRight size={14} /></button></div>
           <div className="divide-y divide-light-border/70 dark:divide-white/[0.07]">
             {stats.transactions.slice(0, 6).map((row) => (
               <motion.div variants={itemVariants} key={row.id} className="grid min-w-0 grid-cols-[2.5rem_minmax(0,1fr)] items-start gap-x-3 gap-y-1 py-3 md:grid-cols-[2.5rem_minmax(0,1fr)_auto] md:items-center">
@@ -363,19 +387,20 @@ export function KfzOverview({
             {!stats.transactions.length ? <div className="py-12 text-center text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("overview.noActivity")}</div> : null}
           </div>
         </GlassPanel>
-        <VehicleHero vehicle={selectedVehicle} coverPhoto={coverPhoto} photoCount={photoCount} onEdit={onEditVehicle} onGallery={onOpenGallery} />
+        <details open={!isMobile} className="min-w-0"><summary className="min-h-11 cursor-pointer text-sm font-semibold md:hidden">{t("overview.vehicleDetails")}</summary><VehicleHero vehicle={selectedVehicle} coverPhoto={coverPhoto} photoCount={photoCount} onEdit={onEditVehicle} onGallery={onOpenGallery} /></details>
       </div>
     </motion.div>
   );
 }
 
-function ChartEmpty({ title, hint } = {}) {
+function ChartEmpty({ title, hint, compact = false } = {}) {
   const { t } = useTranslation("kfz");
-  return <div className="flex h-64 flex-col items-center justify-center rounded-card-sm border border-dashed border-light-border/80 px-5 text-center dark:border-white/10"><Gauge className="text-light-text-secondary dark:text-dark-text-secondary" /><strong className="mt-3 text-sm">{title || t("analytics.noData")}</strong><span className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">{hint || t("analytics.noDataHint")}</span></div>;
+  return <div className={`flex ${compact ? "min-h-24 py-4" : "h-64"} flex-col items-center justify-center rounded-card-sm border border-dashed border-light-border/80 px-5 text-center dark:border-white/10`}><Gauge className="text-light-text-secondary dark:text-dark-text-secondary" /><strong className="mt-3 text-sm">{title || t("analytics.noData")}</strong><span className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">{hint || t("analytics.noDataHint")}</span></div>;
 }
 
 export function KfzAnalytics({ stats }) {
   const { t } = useTranslation("kfz");
+  const chartTheme = useChartTheme();
   const [view, setView] = useState("charts");
   const reduced = useReducedMotion();
   const currency = (value) => new Intl.NumberFormat("de-AT", {
@@ -404,10 +429,10 @@ export function KfzAnalytics({ stats }) {
     maintainAspectRatio: false,
     cutout: "72%",
     interaction: { mode: "nearest", intersect: true },
-    animation: chartBase.animation,
+    animation: chartTheme.animation,
     plugins: {
-      ...chartBase.plugins,
-      tooltip: { ...chartBase.plugins.tooltip, callbacks: { label: (context) => `${context.label}: ${context.formattedValue} EUR` } },
+      ...chartTheme.plugins,
+      tooltip: { ...chartTheme.plugins.tooltip, callbacks: { label: (context) => `${context.label}: ${context.formattedValue} EUR` } },
     },
   };
   const consumptionData = {
@@ -425,11 +450,11 @@ export function KfzAnalytics({ stats }) {
     }],
   };
   const consumptionOptions = {
-    ...chartBase,
+    ...chartTheme,
     plugins: {
-      ...chartBase.plugins,
+      ...chartTheme.plugins,
       tooltip: {
-        ...chartBase.plugins.tooltip,
+        ...chartTheme.plugins.tooltip,
         callbacks: {
           title: (items) => {
             const segment = stats.consumptionSegments[items[0]?.dataIndex];
@@ -464,30 +489,30 @@ export function KfzAnalytics({ stats }) {
     }],
   };
   const rankingOptions = {
-    ...chartBase,
+    ...chartTheme,
     indexAxis: "y",
     interaction: { intersect: true, mode: "nearest" },
     plugins: {
-      ...chartBase.plugins,
+      ...chartTheme.plugins,
       tooltip: {
-        ...chartBase.plugins.tooltip,
+        ...chartTheme.plugins.tooltip,
         callbacks: { label: (context) => `${context.dataset.label}: ${currency(context.raw)}` },
       },
     },
     scales: {
       x: {
-        ...chartBase.scales.x,
+        ...chartTheme.scales.x,
         beginAtZero: true,
         grid: { color: "rgba(148,163,184,.1)" },
         ticks: {
-          ...chartBase.scales.x.ticks,
+          ...chartTheme.scales.x.ticks,
           callback: (value) => new Intl.NumberFormat("de-AT", { notation: "compact", maximumFractionDigits: 1 }).format(value),
         },
       },
       y: {
-        ...chartBase.scales.y,
+        ...chartTheme.scales.y,
         grid: { display: false },
-        ticks: { ...chartBase.scales.y.ticks, autoSkip: false },
+        ticks: { ...chartTheme.scales.y.ticks, autoSkip: false },
       },
     },
   };
@@ -518,14 +543,14 @@ export function KfzAnalytics({ stats }) {
           <motion.div key="charts" variants={analyticsViewVariants} initial="hidden" animate="show" exit="exit" className="grid gap-5 xl:grid-cols-2">
             <GlassPanel className="p-5">
               <h3 className="font-semibold">{t("analytics.costMix")}</h3>
-              <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("analytics.costMixHint")}</p>
+              <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("analytics.costMixHint")}</p>
               {stats.categoryShares.length ? (
                 <div className="mt-5 grid min-w-0 items-center gap-5 md:grid-cols-[220px_minmax(0,1fr)]">
                   <div className="relative h-52">
                     <Doughnut data={doughnutData} options={doughnutOptions} />
                     <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 flex h-[104px] w-[104px] -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full bg-white/95 text-center shadow-[0_0_28px_rgba(15,23,42,.08)] dark:bg-[#07161d] dark:shadow-[0_0_28px_rgba(0,0,0,.3)]">
                       <strong className="max-w-[88px] break-words text-sm leading-tight">{currency(stats.totalCost)}</strong>
-                      <span className="mt-1 text-[10px] text-light-text-secondary dark:text-dark-text-secondary">{t("analytics.categories")}: {stats.categoryShares.length}</span>
+                      <span className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("analytics.categories")}: {stats.categoryShares.length}</span>
                     </div>
                   </div>
                   <div className="space-y-3">{stats.categoryShares.slice(0, 7).map((row, index) => <div key={row.label} className="flex items-center gap-3 text-sm"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: palette[index % palette.length] }} /><span className="min-w-0 flex-1 truncate">{row.label}</span><strong>{Math.round(row.share * 100)} %</strong></div>)}</div>
@@ -534,7 +559,7 @@ export function KfzAnalytics({ stats }) {
             </GlassPanel>
             <GlassPanel className="p-5">
               <h3 className="font-semibold">{t("analytics.consumptionTrend")}</h3>
-              <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("analytics.consumptionHint")}</p>
+              <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("analytics.consumptionHint")}</p>
               {stats.consumptionSegments.length ? (
                 <>
                   <div className="mt-5 h-72"><Line options={consumptionOptions} data={consumptionData} /></div>
@@ -552,7 +577,7 @@ export function KfzAnalytics({ stats }) {
                 </>
               ) : <ChartEmpty {...consumptionEmpty} />}
             </GlassPanel>
-            <GlassPanel className="p-5 xl:col-span-2"><h3 className="font-semibold">{t("analytics.ranking")}</h3><p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("analytics.rankingHint")}</p>{stats.vehicleRanking.some((row) => row.cost > 0) ? <div className="mt-5 min-w-0" style={{ height: rankingHeight }}><Bar options={rankingOptions} data={rankingData} /></div> : <ChartEmpty />}</GlassPanel>
+            <GlassPanel className="p-5 xl:col-span-2"><h3 className="font-semibold">{t("analytics.ranking")}</h3><p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("analytics.rankingHint")}</p>{stats.vehicleRanking.some((row) => row.cost > 0) ? <div className="mt-5 min-w-0" style={{ height: rankingHeight }}><Bar options={rankingOptions} data={rankingData} /></div> : <ChartEmpty />}</GlassPanel>
           </motion.div>
         ) : null}
 
@@ -620,7 +645,7 @@ export function KfzAnalytics({ stats }) {
               </div>
             </GlassPanel>
             <GlassPanel className="overflow-hidden p-0">
-              <div className="p-5"><h3 className="font-semibold">{t("analytics.ledger.bookings")}</h3><p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("analytics.ledger.hint")}</p></div>
+              <div className="p-5"><h3 className="font-semibold">{t("analytics.ledger.bookings")}</h3><p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("analytics.ledger.hint")}</p></div>
               {stats.transactions.length ? (
                 <div className="divide-y divide-light-border/70 dark:divide-white/[0.07]">
                   {stats.transactions.slice(0, 20).map((row) => (
@@ -676,7 +701,7 @@ export function VehiclePhotoGallery({
             {photos.map((photo) => (
               <motion.article layout key={photo.id} className="group relative overflow-hidden rounded-card-sm border border-light-border bg-light-card dark:border-white/10 dark:bg-white/[0.04]">
                 <VehiclePhoto document={photo} alt={photo.dateiname} onClick={() => setPreview(photo)} className="aspect-[4/3] w-full" />
-                {photo.role === "vehicle_cover" ? <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-primary-500 px-2 py-1 text-[11px] font-semibold text-white shadow-glow-primary"><Star size={12} fill="currentColor" /> {t("photos.cover")}</span> : null}
+                {photo.role === "vehicle_cover" ? <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-primary-500 px-2 py-1 text-xs font-semibold text-white shadow-glow-primary"><Star size={12} fill="currentColor" /> {t("photos.cover")}</span> : null}
                 <div className="flex min-w-0 items-center gap-1 p-2">
                   <button type="button" disabled={busy || photo.role === "vehicle_cover"} onClick={() => onSetCover(photo)} className="flex min-h-9 min-w-0 flex-1 items-center justify-center gap-1 rounded-card-sm px-1 text-center text-xs font-semibold leading-tight hover:bg-primary-500/10 disabled:opacity-45"><Star size={14} className="shrink-0" /> <span className="break-words">{t("photos.setCover")}</span></button>
                   <button type="button" disabled={busy} onClick={() => onDelete(photo)} className="flex h-9 w-9 items-center justify-center rounded-card-sm text-red-500 hover:bg-red-500/10" aria-label={t("photos.delete")}><Trash2 size={15} /></button>
@@ -709,10 +734,10 @@ function PhotoPreview({ photo, onClose }) {
     return () => { active = false; };
   }, [photo]);
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[180] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md" onClick={onClose}>
+    <OverlayPortal><motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} data-app-dialog="" className="fixed inset-0 z-[180] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md" onClick={onClose}>
       <button type="button" onClick={onClose} className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white" aria-label="Schließen"><X /></button>
       {url ? <motion.img initial={{ opacity: 0, scale: .96 }} animate={{ opacity: 1, scale: 1 }} src={url} alt={photo.dateiname} className="max-h-[90vh] max-w-full rounded-card object-contain" onClick={(event) => event.stopPropagation()} /> : null}
-    </motion.div>
+    </motion.div></OverlayPortal>
   );
 }
 

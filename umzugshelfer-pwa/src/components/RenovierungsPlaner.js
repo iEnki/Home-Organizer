@@ -1,3 +1,4 @@
+import OverlayPortal from "./ui/OverlayPortal";
 import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../supabaseClient";
@@ -221,9 +222,9 @@ const RenovierungsPlaner = ({ session }) => {
       </div>
 
       {showFormModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center p-3 pb-safe z-50">
+        <OverlayPortal><div data-app-dialog="" className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center p-3 pb-safe z-50">
           <div className="bg-light-card dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-md max-h-[90vh] overflow-y-auto relative border border-light-border dark:border-dark-border">
-            <button
+            <button aria-label="Schließen"
               onClick={resetForm}
               className="absolute top-2.5 right-2.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:text-dark-text-main"
             >
@@ -351,7 +352,7 @@ const RenovierungsPlaner = ({ session }) => {
               </div>
             </form>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
 
       {posten.length === 0 && !loading && !showFormModal && (
@@ -378,16 +379,16 @@ const RenovierungsPlaner = ({ session }) => {
                   {getStatusIcon(p.status)}
                 </div>
               </div>
-              <p className="text-xs text-light-accent-purple dark:text-dark-accent-purple font-medium mb-1">
+              <p className="text-sm text-light-accent-purple dark:text-dark-accent-purple font-medium mb-1">
                 {p.raum}
               </p>
               {p.menge_einheit && (
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                   Menge: {p.menge_einheit}
                 </p>
               )}
               {p.geschaetzter_preis && (
-                <p className="text-xs font-semibold text-primary-600 dark:text-primary-400">
+                <p className="text-sm font-semibold text-primary-600 dark:text-primary-400">
                   Preis: ca. {parseFloat(p.geschaetzter_preis).toFixed(2)} €
                 </p>
               )}

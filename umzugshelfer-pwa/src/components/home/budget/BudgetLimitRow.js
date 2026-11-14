@@ -71,7 +71,7 @@ export default function BudgetLimitRow({
           <span className="truncate text-sm font-medium text-light-text-main dark:text-dark-text-main">
             {categoryLabel}
           </span>
-          <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${row.meta.statusBadgeClass}`}>
+          <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-xs font-medium ${row.meta.statusBadgeClass}`}>
             {statusLabel}
           </span>
         </div>
@@ -142,7 +142,7 @@ export default function BudgetLimitRow({
 
       {/* Hint text */}
       {hintText && (
-        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{hintText}</p>
+        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{hintText}</p>
       )}
     </GlassSurface>
   );

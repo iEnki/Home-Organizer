@@ -299,11 +299,11 @@ export default function BudgetInvoicePositionsModal({
               <p className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
                 {invoiceMeta.lieferant_name || invoiceMeta.dateiname || t("budget:invoice.invoice")}
               </p>
-              <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+              <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                 {formatDate(invoiceMeta.rechnungsdatum, t("budget:invoice.noDate", { defaultValue: "No date" }))}
                 {invoiceMeta.dateiname ? ` · ${invoiceMeta.dateiname}` : ""}
               </p>
-              <p className="mt-2 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+              <p className="mt-2 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                 Hauptkategorie im Budgeteintrag:{" "}
                 <span className="font-medium text-light-text-main dark:text-dark-text-main">
                   {defaultBudgetCategory}
@@ -311,7 +311,7 @@ export default function BudgetInvoicePositionsModal({
               </p>
             </div>
             <div className="text-right">
-              <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+              <p className="text-sm uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
                 Gesamt
               </p>
               <p className="mt-1 text-sm font-semibold text-light-text-main dark:text-dark-text-main">
@@ -367,7 +367,7 @@ export default function BudgetInvoicePositionsModal({
                   <p className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
                     {pos.pos_nr ? `Position ${pos.pos_nr}` : "Position"}
                   </p>
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                     ID: {pos.id}
                   </p>
                 </div>
@@ -377,7 +377,7 @@ export default function BudgetInvoicePositionsModal({
                     <label className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
                       Beschreibung
                     </label>
-                    <input
+                    <input aria-label="Beschreibung"
                       type="text"
                       value={pos.beschreibung || ""}
                       onChange={(event) => updatePosition(pos.id, "beschreibung", event.target.value)}
@@ -389,7 +389,7 @@ export default function BudgetInvoicePositionsModal({
                     <label className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
                       Menge
                     </label>
-                    <input
+                    <input aria-label="Menge"
                       type="text"
                       inputMode="decimal"
                       value={pos.menge ?? ""}
@@ -402,7 +402,7 @@ export default function BudgetInvoicePositionsModal({
                     <label className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
                       Einheit
                     </label>
-                    <input
+                    <input aria-label="Einheit"
                       type="text"
                       value={pos.einheit || ""}
                       onChange={(event) => updatePosition(pos.id, "einheit", event.target.value)}
@@ -414,7 +414,7 @@ export default function BudgetInvoicePositionsModal({
                     <label className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
                       Einzelpreis
                     </label>
-                    <input
+                    <input aria-label="Einzelpreis"
                       type="text"
                       inputMode="decimal"
                       value={pos.einzelpreis ?? ""}
@@ -427,7 +427,7 @@ export default function BudgetInvoicePositionsModal({
                     <label className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
                       Gesamtpreis
                     </label>
-                    <input
+                    <input aria-label="Gesamtpreis"
                       type="text"
                       inputMode="decimal"
                       value={pos.gesamtpreis ?? ""}
@@ -442,7 +442,7 @@ export default function BudgetInvoicePositionsModal({
                     <label className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
                       Budget-Kategorie
                     </label>
-                    <select
+                    <select aria-label="Budget-Kategorie"
                       value={normalizeHomeBudgetCategory(pos.budget_kategorie, defaultBudgetCategory, {
                         categories,
                         preserveUnknown: true,
@@ -462,7 +462,7 @@ export default function BudgetInvoicePositionsModal({
                     </select>
                   </div>
                   <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-2">
-                    <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
+                    <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary">
                       Vererbung
                     </p>
                     <p className="mt-1 text-sm text-light-text-main dark:text-dark-text-main">
@@ -477,7 +477,7 @@ export default function BudgetInvoicePositionsModal({
 
           <div className="flex items-center justify-between rounded-card border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-4 py-3">
             <div>
-              <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+              <p className="text-sm uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
                 Positionen
               </p>
               <p className="mt-1 text-sm text-light-text-main dark:text-dark-text-main">
@@ -485,7 +485,7 @@ export default function BudgetInvoicePositionsModal({
               </p>
             </div>
             <div className="text-right">
-              <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+              <p className="text-sm uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
                 Neue Summe
               </p>
               <p className="mt-1 text-sm font-semibold text-light-text-main dark:text-dark-text-main">

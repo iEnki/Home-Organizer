@@ -28,7 +28,8 @@
     "knowledge": "Knowledge base",
     "cookbook": "Cookbook",
     "scanInvoice": "Scan invoice",
-    "documentArchive": "Document archive"
+    "documentArchive": "Document archive",
+    "renovation": "Renovation"
   },
   "items": {
     "home": "Home",
@@ -88,5 +89,6 @@
     "document": "Document",
     "recipe": "Recipe",
     "boxContent": "Box content"
-  }
+  },
+  "sidebarToggle": "Expand or collapse navigation"
 }

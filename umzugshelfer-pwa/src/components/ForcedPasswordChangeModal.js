@@ -130,7 +130,7 @@ const ForcedPasswordChangeModal = ({ open, onCompleted }) => {
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <KeyRound className="h-5 w-5 text-light-text-secondary dark:text-dark-text-secondary" />
             </div>
-            <input
+            <input aria-label="Neues Passwort"
               type="password"
               required
               autoComplete="new-password"
@@ -146,7 +146,7 @@ const ForcedPasswordChangeModal = ({ open, onCompleted }) => {
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <KeyRound className="h-5 w-5 text-light-text-secondary dark:text-dark-text-secondary" />
             </div>
-            <input
+            <input aria-label="Passwort bestaetigen"
               type="password"
               required
               autoComplete="new-password"

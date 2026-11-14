@@ -126,14 +126,14 @@ const HomeVerlauf = ({ session }) => {
         <div className="text-center py-16 text-light-text-secondary dark:text-dark-text-secondary">
           <History size={40} className="mx-auto mb-3 opacity-30" />
           <p className="text-sm">Noch keine Aktivitaeten aufgezeichnet.</p>
-          <p className="text-xs mt-1 opacity-70">Aenderungen an Inventar, Vorraeten, Projekten usw. erscheinen hier.</p>
+          <p className="text-sm mt-1 opacity-70">Aenderungen an Inventar, Vorraeten, Projekten usw. erscheinen hier.</p>
         </div>
       )}
 
       {!loading &&
         datumKeys.map((datum) => (
           <div key={datum} className="mb-6">
-            <p className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider mb-3">
+            <p className="text-sm font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider mb-3">
               {datum}
             </p>
             <div className="space-y-2">
@@ -177,7 +177,7 @@ const HomeVerlauf = ({ session }) => {
                         <AktIcon size={10} className="inline mr-0.5" />
                         {aktMeta.label}
                       </p>
-                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{tabMeta.label}</p>
+                      <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{tabMeta.label}</p>
                     </div>
                     <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary flex-shrink-0">
                       {uhrzeit}

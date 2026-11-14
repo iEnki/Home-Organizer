@@ -65,7 +65,7 @@ function ChartCard({ title, children, delay = 0 }) {
       <div className="pointer-events-none absolute -right-6 -top-6 h-28 w-28 rounded-full bg-primary-500/5 blur-2xl" />
       <div className="flex items-center gap-2">
         <div className="h-3.5 w-0.5 rounded-full bg-primary-500" />
-        <p className="text-[11px] uppercase tracking-widest text-light-text-secondary dark:text-dark-text-secondary font-medium">
+        <p className="text-sm uppercase tracking-widest text-light-text-secondary dark:text-dark-text-secondary font-medium">
           {title}
         </p>
       </div>

@@ -117,11 +117,11 @@ export default function RecipeImportHistoryModal({ open, householdId, onClose, o
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-light-text-main dark:text-dark-text-main">{job.quelle_url}</p>
-                    <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                    <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                       {[job.quelle_plattform, job.status, formatDate(job.created_at)].filter(Boolean).join(" · ")}
                     </p>
                     {job.error_message && (
-                      <p className="mt-2 rounded-card-sm bg-red-500/10 px-2 py-1 text-xs text-red-600 dark:text-red-400">
+                      <p className="mt-2 rounded-card-sm bg-red-500/10 px-2 py-1 text-sm text-red-600 dark:text-red-400">
                         {job.error_message}
                       </p>
                     )}

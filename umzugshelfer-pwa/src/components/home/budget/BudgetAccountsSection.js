@@ -13,10 +13,10 @@ export default function BudgetAccountsSection({
     <section className="space-y-2">
       <div className="flex items-center justify-between gap-2 px-1 py-2">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
+          <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
             Konten im Haushalt
           </h3>
-          <span className="rounded-full bg-light-border dark:bg-canvas-3 px-1.5 py-0.5 text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
+          <span className="rounded-full bg-light-border dark:bg-canvas-3 px-1.5 py-0.5 text-xs text-light-text-secondary dark:text-dark-text-secondary">
             {konten.length}
           </span>
         </div>
@@ -54,7 +54,7 @@ export default function BudgetAccountsSection({
                   <p className="truncate text-sm font-medium text-light-text-main dark:text-dark-text-main">
                     {konto.name}
                   </p>
-                  <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                     {konto.konto_typ}
                     {inhaber ? ` · ${getBewohnerDisplayName(inhaber)}` : ""}
                   </p>

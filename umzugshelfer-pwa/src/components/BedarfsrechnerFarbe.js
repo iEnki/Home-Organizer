@@ -158,7 +158,7 @@ function Field({ id, label, value, setValue, inputClass, placeholder }) {
   return (
     <div>
       <label htmlFor={id} className="block text-sm font-medium mb-1 text-light-text-main dark:text-dark-text-secondary">{label}</label>
-      <input type="number" id={id} value={value} onChange={(e) => setValue(e.target.value)} className={inputClass} placeholder={placeholder} />
+      <input aria-label={placeholder} type="number" id={id} value={value} onChange={(e) => setValue(e.target.value)} className={inputClass} placeholder={placeholder} />
     </div>
   );
 }
@@ -192,7 +192,7 @@ function SmallField({ id, label, value, onChange, inputClass, placeholder }) {
   return (
     <div className="sm:col-span-1">
       <label htmlFor={id} className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{label}</label>
-      <input type="number" id={id} value={value} onChange={(e) => onChange(e.target.value)} className={`${inputClass} py-1`} placeholder={placeholder} />
+      <input aria-label={placeholder} type="number" id={id} value={value} onChange={(e) => onChange(e.target.value)} className={`${inputClass} py-1`} placeholder={placeholder} />
     </div>
   );
 }

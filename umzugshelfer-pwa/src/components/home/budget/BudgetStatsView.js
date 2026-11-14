@@ -211,7 +211,7 @@ function SectionHeader({ label, delay = 0 }) {
   return (
     <div className="flex items-center gap-2 mb-3 animate-fade-in" style={{ animationDelay: `${delay}ms`, animationFillMode: "both" }}>
       <div className="h-3.5 w-0.5 rounded-full bg-primary-500" />
-      <span className="text-[11px] uppercase tracking-widest font-medium text-light-text-secondary dark:text-dark-text-secondary">
+      <span className="text-xs uppercase tracking-widest font-medium text-light-text-secondary dark:text-dark-text-secondary">
         {label}
       </span>
     </div>
@@ -241,8 +241,8 @@ function KpiCard({ label, value, icon: Icon, accentFrom, accentTo, sub, delay = 
         <Icon size={17} style={{ color: accentFrom }} />
       </div>
       <p className="text-xl font-bold tabular-nums text-light-text-main dark:text-dark-text-main leading-tight truncate">{value}</p>
-      {sub && <p className="mt-0.5 text-xs tabular-nums text-light-text-secondary dark:text-dark-text-secondary">{sub}</p>}
-      <p className="mt-0.5 text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">{label}</p>
+      {sub && <p className="mt-0.5 text-sm tabular-nums text-light-text-secondary dark:text-dark-text-secondary">{sub}</p>}
+      <p className="mt-0.5 text-sm uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">{label}</p>
     </GlassSurface>
   );
 }
@@ -274,7 +274,7 @@ function MonthlyBars({ labels, values, delay = 0 }) {
 
           return (
             <div key={i} className="group relative flex flex-1 flex-col items-center gap-0.5">
-              <div className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 z-10 hidden group-hover:flex whitespace-nowrap rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-3 px-1.5 py-0.5 text-[10px] text-light-text-main dark:text-dark-text-main shadow-elevation-2">
+              <div className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 z-10 hidden group-hover:flex whitespace-nowrap rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-3 px-1.5 py-0.5 text-xs text-light-text-main dark:text-dark-text-main shadow-elevation-2">
                 {fmtCompact(val)}
               </div>
               <div className="w-full flex-1 flex items-end">
@@ -289,14 +289,14 @@ function MonthlyBars({ labels, values, delay = 0 }) {
                   }}
                 />
               </div>
-              <span className={`text-[9px] font-medium ${isPeak ? "text-primary-500" : isMin ? "text-accent-danger" : "text-light-text-secondary dark:text-dark-text-secondary"}`}>
+              <span className={`text-xs font-medium ${isPeak ? "text-primary-500" : isMin ? "text-accent-danger" : "text-light-text-secondary dark:text-dark-text-secondary"}`}>
                 {labels[i]}
               </span>
             </div>
           );
         })}
       </div>
-      <div className="mt-2 flex items-center gap-4 text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
+      <div className="mt-2 flex items-center gap-4 text-xs text-light-text-secondary dark:text-dark-text-secondary">
         <span className="flex items-center gap-1"><span className="h-1.5 w-3 rounded-full bg-primary-500 inline-block" /> Höchster Monat</span>
         <span className="flex items-center gap-1"><span className="h-1.5 w-3 rounded-full bg-accent-danger inline-block" /> Niedrigster Monat</span>
       </div>
@@ -335,7 +335,7 @@ function CategoryRanking({ categoryTotals, colorMap, total, delay = 0 }) {
                   <span className="truncate text-light-text-main dark:text-dark-text-main">{label}</span>
                 </div>
                 <div className="flex shrink-0 items-center gap-2 tabular-nums">
-                  <span className="text-light-text-secondary dark:text-dark-text-secondary text-[10px]">{pct.toFixed(1)}%</span>
+                  <span className="text-light-text-secondary dark:text-dark-text-secondary text-xs">{pct.toFixed(1)}%</span>
                   <span className="font-medium text-light-text-main dark:text-dark-text-main">{fmtCompact(cat.summe)}</span>
                 </div>
               </div>
@@ -353,7 +353,7 @@ function CategoryRanking({ categoryTotals, colorMap, total, delay = 0 }) {
           );
         })}
         {categoryTotals.length === 0 && (
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Keine Kategorien</p>
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Keine Kategorien</p>
         )}
       </div>
     </GlassCard>
@@ -376,15 +376,15 @@ function DailyRateCard({ total, selJahr, selMonat, delay = 0 }) {
     >
       <div className="relative overflow-hidden rounded-card border border-secondary-500/25 bg-secondary-500/5 dark:bg-secondary-500/8 p-4">
         <div className="pointer-events-none absolute -right-3 -top-3 h-12 w-12 rounded-full bg-secondary-500/20 blur-xl" />
-        <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">Ø pro Tag</p>
+        <p className="text-sm uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">Ø pro Tag</p>
         <p className="mt-1 text-xl font-bold tabular-nums text-secondary-500">{fmt(animatedDaily)}</p>
-        <p className="mt-0.5 text-[10px] text-light-text-secondary dark:text-dark-text-secondary">{elapsed} Tage erfasst</p>
+        <p className="mt-0.5 text-sm text-light-text-secondary dark:text-dark-text-secondary">{elapsed} Tage erfasst</p>
       </div>
       <div className="relative overflow-hidden rounded-card border border-accent-warm/25 bg-accent-warm/5 dark:bg-accent-warm/8 p-4">
         <div className="pointer-events-none absolute -right-3 -top-3 h-12 w-12 rounded-full bg-accent-warm/20 blur-xl" />
-        <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">Hochrechnung</p>
+        <p className="text-sm uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">Hochrechnung</p>
         <p className="mt-1 text-xl font-bold tabular-nums" style={{ color: "#F97316" }}>{fmt(animatedProjected)}</p>
-        <p className="mt-0.5 text-[10px] text-light-text-secondary dark:text-dark-text-secondary">{daysInMonth} Tage/Monat</p>
+        <p className="mt-0.5 text-sm text-light-text-secondary dark:text-dark-text-secondary">{daysInMonth} Tage/Monat</p>
       </div>
     </div>
   );
@@ -417,7 +417,7 @@ function AccountBreakdown({ accountTotals, total, delay = 0 }) {
                   <span className="truncate font-medium text-light-text-main dark:text-dark-text-main">{acc.name}</span>
                 </div>
                 <div className="flex shrink-0 items-center gap-2 tabular-nums">
-                  <span className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">{pct.toFixed(1)}%</span>
+                  <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{pct.toFixed(1)}%</span>
                   <span className="font-semibold text-light-text-main dark:text-dark-text-main">{fmt(acc.summe)}</span>
                 </div>
               </div>
@@ -444,7 +444,7 @@ function CashflowPreview({ items, total, count, delay = 0 }) {
     if (!entries.length) return null;
     return (
       <div className="space-y-1.5">
-        <p className="text-[10px] uppercase tracking-widest font-medium text-light-text-secondary dark:text-dark-text-secondary px-1">{label}</p>
+        <p className="text-sm uppercase tracking-widest font-medium text-light-text-secondary dark:text-dark-text-secondary px-1">{label}</p>
         {entries.map((item, i) => (
           <div
             key={item.id || `${item.naechstes_datum}-${i}`}
@@ -452,7 +452,7 @@ function CashflowPreview({ items, total, count, delay = 0 }) {
             style={{ animationDelay: `${delay + i * 30}ms`, animationFillMode: "both" }}
           >
             <div className="flex h-7 w-12 shrink-0 items-center justify-center rounded-card-sm bg-primary-500/10 px-1">
-              <span className="text-[9px] font-bold tabular-nums text-primary-500 text-center leading-tight">
+              <span className="text-xs font-bold tabular-nums text-primary-500 text-center leading-tight">
                 {item.naechstes_datum?.slice(5).replace("-", ".")}
               </span>
             </div>
@@ -612,7 +612,7 @@ export default function BudgetStatsView({
           <TrendingDown size={24} className="text-light-text-secondary dark:text-dark-text-secondary opacity-40" />
         </div>
         <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">Keine Daten</p>
-        <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+        <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
           {isYear ? `Keine Ausgaben in ${selJahr}` : `Keine Ausgaben in ${monatLabel}`}
         </p>
       </div>

@@ -105,7 +105,7 @@ export default function BuchCoverSucheModal({ buchData, onBestaetigen, onAbbrech
         <div className="shrink-0 border-b border-light-border dark:border-dark-border px-4 py-3 flex items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">{t("books:coverSearchModal.title")}</p>
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
               Google Books · Open Library
             </p>
           </div>
@@ -132,7 +132,7 @@ export default function BuchCoverSucheModal({ buchData, onBestaetigen, onAbbrech
               <RefreshCw size={12} className={laden ? "animate-spin" : ""} />
               {t("books:coverSearchModal.searchAgain")}
             </button>
-            <button
+            <button aria-label="Schließen"
               onClick={onAbbrechen}
               className="text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger"
             >
@@ -162,13 +162,13 @@ export default function BuchCoverSucheModal({ buchData, onBestaetigen, onAbbrech
                 </button>
               </div>
               <div className="border-t border-light-border dark:border-dark-border pt-3">
-                <p className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary mb-2">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-2">
                   {t("books:coverSearchModal.manualUrl")}
                 </p>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <Link size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary pointer-events-none" />
-                    <input
+                    <input aria-label="https://..."
                       type="url"
                       value={manuelleUrl}
                       onChange={(e) => setManuelleUrl(e.target.value)}
@@ -192,7 +192,7 @@ export default function BuchCoverSucheModal({ buchData, onBestaetigen, onAbbrech
                     {t("books:coverSearchModal.addBtn")}
                   </button>
                 </div>
-                {urlFehler && <p className="mt-1.5 text-[11px] text-accent-danger">{urlFehler}</p>}
+                {urlFehler && <p className="mt-1.5 text-sm text-accent-danger">{urlFehler}</p>}
               </div>
             </div>
           ) : (
@@ -214,10 +214,10 @@ export default function BuchCoverSucheModal({ buchData, onBestaetigen, onAbbrech
                       className="w-full h-36 object-cover rounded"
                       onError={(e) => { e.currentTarget.style.display = "none"; }}
                     />
-                    <p className="mt-1.5 text-[11px] font-medium text-light-text-secondary dark:text-dark-text-secondary truncate">
+                    <p className="mt-1.5 text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary truncate">
                       {cover.label}
                     </p>
-                    <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary truncate">
+                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary truncate">
                       {cover.source}
                     </p>
                   </button>
@@ -225,13 +225,13 @@ export default function BuchCoverSucheModal({ buchData, onBestaetigen, onAbbrech
               </div>
 
               <div className="border-t border-light-border dark:border-dark-border pt-3">
-                <p className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary mb-2">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-2">
                   {t("books:coverSearchModal.manualUrl")}
                 </p>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <Link size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary pointer-events-none" />
-                    <input
+                    <input aria-label="https://..."
                       type="url"
                       value={manuelleUrl}
                       onChange={(e) => setManuelleUrl(e.target.value)}
@@ -257,7 +257,7 @@ export default function BuchCoverSucheModal({ buchData, onBestaetigen, onAbbrech
                     {t("books:coverSearchModal.addBtn")}
                   </button>
                 </div>
-                {urlFehler && <p className="mt-1.5 text-[11px] text-accent-danger">{urlFehler}</p>}
+                {urlFehler && <p className="mt-1.5 text-sm text-accent-danger">{urlFehler}</p>}
               </div>
             </div>
           )}

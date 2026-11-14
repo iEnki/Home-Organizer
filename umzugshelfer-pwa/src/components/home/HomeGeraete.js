@@ -1,3 +1,4 @@
+import OverlayPortal from "../ui/OverlayPortal";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -386,7 +387,7 @@ const HomeGeraete = ({ session }) => {
               <button
                 key={s}
                 onClick={() => setStatusFilter(isActive ? "alle" : s)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-[11px] font-semibold border transition-colors cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-xs font-semibold border transition-colors cursor-pointer ${
                   isActive ? colorMap[cfg?.farbe] + " ring-1 ring-inset ring-current" : "border-light-border dark:border-dark-border text-dark-text-secondary hover:border-primary-500/40"
                 }`}
               >
@@ -429,7 +430,7 @@ const HomeGeraete = ({ session }) => {
                   <span className="text-xs font-semibold uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
                     {gruppe.label}
                   </span>
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-light-border dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary">
+                  <span className="px-1.5 py-0.5 rounded-full text-xs bg-light-border dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary">
                     {gruppe.items.length}
                   </span>
                 </div>
@@ -477,7 +478,7 @@ const HomeGeraete = ({ session }) => {
                   <span className="text-xs font-semibold uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
                     {gruppe.label}
                   </span>
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-light-border dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary">
+                  <span className="px-1.5 py-0.5 rounded-full text-xs bg-light-border dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary">
                     {gruppe.items.length}
                   </span>
                 </div>
@@ -514,13 +515,13 @@ const HomeGeraete = ({ session }) => {
 
       {/* Gerät-Formular-Modal */}
       {modal !== null && (
-        <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
+        <OverlayPortal><div data-app-dialog="" className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
           <div className={`${glassSurfaceClass} mobile-modal-dialog max-w-md w-full flex min-h-0 flex-col`}>
             <div className="shrink-0 flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border sticky top-0 bg-light-card dark:bg-canvas-2 rounded-t-card">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
                 {formData.id ? t("home:devicesForm.edit") : t("home:devicesForm.new")}
               </h3>
-              <button onClick={closeModal} className="p-1 text-light-text-secondary dark:text-dark-text-secondary">
+              <button aria-label="Schließen" onClick={closeModal} className="p-1 text-light-text-secondary dark:text-dark-text-secondary">
                 <X size={18} />
               </button>
             </div>
@@ -543,7 +544,7 @@ const HomeGeraete = ({ session }) => {
               </button>
             </div>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
 
       {/* Tour */}
@@ -581,13 +582,13 @@ const HomeGeraete = ({ session }) => {
 
       {/* Dokumenten-Picker-Modal */}
       {dokuModal !== null && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-safe">
+        <OverlayPortal><div data-app-dialog="" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-safe">
           <div className={`${glassSurfaceClass} max-w-sm w-full max-h-[80vh] flex flex-col`}>
             <div className="shrink-0 flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
-              <h3 className="font-semibold text-sm text-light-text-main dark:text-dark-text-main">
+              <h3 className="font-semibold text-base text-light-text-main dark:text-dark-text-main">
                 {t("home:devicesForm.linkDocument", { defaultValue: "Link document" })}
               </h3>
-              <button onClick={() => setDokuModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary">
+              <button aria-label="Schließen" onClick={() => setDokuModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary">
                 <X size={18} />
               </button>
             </div>
@@ -629,7 +630,7 @@ const HomeGeraete = ({ session }) => {
               </button>
             </div>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
     </div>
   );

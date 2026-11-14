@@ -1,3 +1,4 @@
+import OverlayPortal from "../ui/OverlayPortal";
 import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, useReducedMotion } from "framer-motion";
@@ -83,7 +84,7 @@ const VorratForm = ({ initial, onSpeichern, onAbbrechen }) => {
         <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
           {t("home:stockForm.form.item")}
         </label>
-        <input
+        <input aria-label={t("home:stockForm.form.item")}
           value={form.name}
           onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
           placeholder={t("home:stockForm.form.itemPlaceholder")}
@@ -95,7 +96,7 @@ const VorratForm = ({ initial, onSpeichern, onAbbrechen }) => {
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
             {t("home:stockForm.form.category")}
           </label>
-          <select
+          <select aria-label={t("home:stockForm.form.category")}
             value={form.kategorie}
             onChange={(e) => setForm((p) => ({ ...p, kategorie: e.target.value }))}
             className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none"
@@ -111,7 +112,7 @@ const VorratForm = ({ initial, onSpeichern, onAbbrechen }) => {
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
             {t("home:stockForm.form.unit")}
           </label>
-          <select
+          <select aria-label={t("home:stockForm.form.unit")}
             value={form.einheit}
             onChange={(e) => setForm((p) => ({ ...p, einheit: e.target.value }))}
             className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none"
@@ -129,20 +130,20 @@ const VorratForm = ({ initial, onSpeichern, onAbbrechen }) => {
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
             {t("home:stockForm.form.current")}
           </label>
-          <input type="number" min="0" step="0.5" value={form.bestand} onChange={(e) => setForm((p) => ({ ...p, bestand: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none" />
+          <input aria-label={t("home:stockForm.form.current")} type="number" min="0" step="0.5" value={form.bestand} onChange={(e) => setForm((p) => ({ ...p, bestand: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none" />
         </div>
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
             {t("home:stockForm.form.minimum")}
           </label>
-          <input type="number" min="0" step="0.5" value={form.mindestmenge} onChange={(e) => setForm((p) => ({ ...p, mindestmenge: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none" />
+          <input aria-label={t("home:stockForm.form.minimum")} type="number" min="0" step="0.5" value={form.mindestmenge} onChange={(e) => setForm((p) => ({ ...p, mindestmenge: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none" />
         </div>
       </div>
       <div>
         <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
           {t("home:stockForm.form.expiry")}
         </label>
-        <input type="date" value={form.ablaufdatum} onChange={(e) => setForm((p) => ({ ...p, ablaufdatum: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none" />
+        <input aria-label={t("home:stockForm.form.expiry")} type="date" value={form.ablaufdatum} onChange={(e) => setForm((p) => ({ ...p, ablaufdatum: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none" />
       </div>
       <div className="flex flex-wrap gap-2">
         <button onClick={onAbbrechen} className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main">
@@ -402,7 +403,7 @@ const HomeVorraete = ({ session }) => {
                 <div className={`w-3 h-3 rounded-full flex-shrink-0 ${ampelKlasse(v)}`} title={`${t("home:stockForm.form.current")}: ${v.bestand} ${einheitLabel}, ${t("home:stockForm.form.minimum")}: ${v.mindestmenge}`} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="font-medium text-sm text-light-text-main dark:text-dark-text-main">{v.name}</h3>
+                    <h3 className="font-medium text-base text-light-text-main dark:text-dark-text-main">{v.name}</h3>
                     <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary rounded-pill px-2 py-0.5 bg-light-border dark:bg-dark-border">{t(`home:stockForm.categories.${v.kategorie}`, { defaultValue: v.kategorie })}</span>
                     {(beinaheAbgelaufen || abgelaufen) && (
                       <span className={`flex items-center gap-0.5 text-xs ${abgelaufen ? "text-red-500" : "text-amber-500"}`}>
@@ -416,7 +417,7 @@ const HomeVorraete = ({ session }) => {
                     {v.ablaufdatum && <span className="ml-2">{t("home:stockForm.bestBefore")}: {v.ablaufdatum}</span>}
                   </div>
                 </div>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                   <button aria-label={t("common:actions.edit")} onClick={() => setModal(v)} className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500"><Edit2 size={13} /></button>
                   <button aria-label={t("common:actions.delete")} onClick={() => loesche(v.id)} className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500"><Trash2 size={13} /></button>
                 </div>
@@ -427,17 +428,17 @@ const HomeVorraete = ({ session }) => {
       )}
 
       {modal !== null && (
-        <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
+        <OverlayPortal><div data-app-dialog="" className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
           <div className={`${glassSurfaceClass} mobile-modal-dialog max-w-md w-full flex min-h-0 flex-col`}>
             <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border sticky top-0 bg-light-card dark:bg-canvas-2">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">{modal.id ? t("home:stockForm.edit") : t("home:stockForm.new")}</h3>
-              <button onClick={() => setModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary"><X size={18} /></button>
+              <button aria-label="Schließen" onClick={() => setModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary"><X size={18} /></button>
             </div>
             <div className="mobile-modal-body p-4">
               <VorratForm initial={modal.id ? modal : null} onSpeichern={speichere} onAbbrechen={() => setModal(null)} />
             </div>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
 
       {kiOffen && (

@@ -21,7 +21,7 @@ export default function BudgetGoalsList({
         <div>
           <div className="flex items-center gap-2 mb-1">
             <div className="h-3.5 w-0.5 rounded-full bg-primary-500" />
-            <p className="text-[11px] uppercase tracking-widest text-light-text-secondary dark:text-dark-text-secondary font-medium">
+            <p className="text-sm uppercase tracking-widest text-light-text-secondary dark:text-dark-text-secondary font-medium">
               Sparen
             </p>
           </div>
@@ -59,7 +59,7 @@ export default function BudgetGoalsList({
               <span className="text-xs font-semibold uppercase tracking-widest text-light-text-secondary dark:text-dark-text-secondary">
                 {group.label}
               </span>
-              <span className="rounded-pill bg-light-border dark:bg-canvas-3 px-1.5 py-0.5 text-[10px] text-light-text-secondary dark:text-dark-text-secondary font-medium">
+              <span className="rounded-pill bg-light-border dark:bg-canvas-3 px-1.5 py-0.5 text-xs text-light-text-secondary dark:text-dark-text-secondary font-medium">
                 {group.items.length}
               </span>
             </div>

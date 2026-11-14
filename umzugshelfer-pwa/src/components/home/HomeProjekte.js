@@ -1,3 +1,4 @@
+import OverlayPortal from "../ui/OverlayPortal";
 import React, { useState, useEffect, useCallback } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { FolderOpen, Plus, Edit2, Trash2, X, Loader2, AlertCircle, ChevronDown, ChevronRight, CheckSquare, Square, Leaf, Sun, Wind, Snowflake, Sparkles } from "lucide-react";
@@ -84,11 +85,11 @@ const SAISON_TEMPLATES = {
 };
 
 const SaisonWahlModal = ({ onWaehle, onAbbrechen, t }) => (
-  <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
+  <OverlayPortal><div data-app-dialog="" className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
     <div className={`${glassSurfaceClass} mobile-modal-dialog max-w-sm w-full rounded-2xl`}>
       <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
         <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">{t("home:projectsPage.seasonTemplate")}</h3>
-        <button onClick={onAbbrechen} className="p-1 text-light-text-secondary dark:text-dark-text-secondary"><X size={18} /></button>
+        <button aria-label="Schließen" onClick={onAbbrechen} className="p-1 text-light-text-secondary dark:text-dark-text-secondary"><X size={18} /></button>
       </div>
       <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
         {Object.entries(SAISON_TEMPLATES).map(([saison, meta]) => {
@@ -101,7 +102,7 @@ const SaisonWahlModal = ({ onWaehle, onAbbrechen, t }) => (
             >
               <Icon size={28} className={meta.farbe} />
               <span className={`text-sm font-medium rounded-pill ${meta.farbe}`}>{saison}</span>
-              <span className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary text-center">{t("home:projectsPage.tasksCount", { count: meta.aufgaben.length })}</span>
+              <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary text-center">{t("home:projectsPage.tasksCount", { count: meta.aufgaben.length })}</span>
             </button>
           );
         })}
@@ -110,7 +111,7 @@ const SaisonWahlModal = ({ onWaehle, onAbbrechen, t }) => (
         <button onClick={onAbbrechen} className="w-full px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main">{t("home:projectsPage.continueWithoutTemplate")}</button>
       </div>
     </div>
-  </div>
+  </div></OverlayPortal>
 );
 const STATUS_OPTIONEN = ["geplant", "in_bearbeitung", "pausiert", "abgeschlossen"];
 const STATUS_FARBEN = { geplant: "bg-gray-500/10 text-gray-500", in_bearbeitung: "bg-blue-500/10 text-blue-500", pausiert: "bg-amber-500/10 text-amber-500", abgeschlossen: "bg-green-500/10 text-green-500" };
@@ -130,38 +131,38 @@ const ProjektForm = ({ initial, onSpeichern, onAbbrechen, t }) => {
     <div className="space-y-3">
       <div>
         <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("home:projectsPage.projectName")}</label>
-        <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder={t("home:projectsPage.projectNamePlaceholder")} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500" />
+        <input aria-label={t("home:projectsPage.projectName")} value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder={t("home:projectsPage.projectNamePlaceholder")} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500" />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("home:projectsPage.type")}</label>
-          <select value={form.typ} onChange={(e) => setForm((p) => ({ ...p, typ: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none">
+          <select aria-label={t("home:projectsPage.type")} value={form.typ} onChange={(e) => setForm((p) => ({ ...p, typ: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none">
             {TYPEN.map((typ) => <option key={typ} value={typ}>{t(`home:projectsPage.types.${typ}`)}</option>)}
           </select>
         </div>
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("home:projectsPage.status")}</label>
-          <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none">
+          <select aria-label={t("home:projectsPage.status")} value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none">
             {STATUS_OPTIONEN.map((s) => <option key={s} value={s}>{t(`home:projectsPage.statuses.${s}`)}</option>)}
           </select>
         </div>
       </div>
       <div>
         <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("home:projectsPage.description")}</label>
-        <textarea value={form.beschreibung} onChange={(e) => setForm((p) => ({ ...p, beschreibung: e.target.value }))} rows={2} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none resize-none" />
+        <textarea aria-label={t("home:projectsPage.description")} value={form.beschreibung} onChange={(e) => setForm((p) => ({ ...p, beschreibung: e.target.value }))} rows={2} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none resize-none" />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("home:projectsPage.start")}</label>
-          <input type="date" value={form.startdatum} onChange={(e) => setForm((p) => ({ ...p, startdatum: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none" />
+          <input aria-label={t("home:projectsPage.start")} type="date" value={form.startdatum} onChange={(e) => setForm((p) => ({ ...p, startdatum: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none" />
         </div>
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("home:projectsPage.targetDate")}</label>
-          <input type="date" value={form.zieldatum} onChange={(e) => setForm((p) => ({ ...p, zieldatum: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none" />
+          <input aria-label={t("home:projectsPage.targetDate")} type="date" value={form.zieldatum} onChange={(e) => setForm((p) => ({ ...p, zieldatum: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none" />
         </div>
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("home:projectsPage.budgetEuro")}</label>
-          <input type="number" min="0" step="0.01" value={form.budget} onChange={(e) => setForm((p) => ({ ...p, budget: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none" />
+          <input aria-label={t("home:projectsPage.budgetEuro")} type="number" min="0" step="0.01" value={form.budget} onChange={(e) => setForm((p) => ({ ...p, budget: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none" />
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -289,7 +290,7 @@ const HomeProjekte = ({ session }) => {
 
   return (
     <div className="home-glass-modern glass-module relative min-h-full min-w-0 max-w-full space-y-4 overflow-x-clip bg-transparent p-4 pb-28 md:p-6 lg:pb-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <FolderOpen size={22} className="text-purple-500" />
           <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main">{t("home:projects")}</h1>
@@ -337,15 +338,15 @@ const HomeProjekte = ({ session }) => {
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-sm text-light-text-main dark:text-dark-text-main truncate">{p.name}</h3>
+                      <h3 className="font-semibold text-base text-light-text-main dark:text-dark-text-main truncate">{p.name}</h3>
                       <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{p.typ}</span>
                     </div>
                     <div className="flex gap-1 ml-2">
-                      <button onClick={() => setModal(p)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500"><Edit2 size={12} /></button>
-                      <button onClick={() => loesche(p.id)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500"><Trash2 size={12} /></button>
+                      <button aria-label="Bearbeiten" onClick={() => setModal(p)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500"><Edit2 size={12} /></button>
+                      <button aria-label="Löschen" onClick={() => loesche(p.id)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500"><Trash2 size={12} /></button>
                     </div>
                   </div>
-                  {p.beschreibung && <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-3 line-clamp-2">{p.beschreibung}</p>}
+                  {p.beschreibung && <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-3 line-clamp-2">{p.beschreibung}</p>}
                   <div className="flex items-center justify-between">
                     <span className={`px-2 py-0.5 rounded-pill text-xs font-medium ${STATUS_FARBEN[p.status]}`}>{t(`home:projectsPage.statuses.${p.status}`)}</span>
                     <div className="flex items-center gap-3 text-xs text-light-text-secondary dark:text-dark-text-secondary">
@@ -391,7 +392,7 @@ const HomeProjekte = ({ session }) => {
                   <div className="bg-light-bg/55 p-3 dark:bg-canvas-1/55">
                     <div className="space-y-1 mb-3">
                       {projektTodos.length === 0 && (
-                        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("home:projectsPage.noTasks")}</p>
+                        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("home:projectsPage.noTasks")}</p>
                       )}
                       {projektTodos.map((t) => (
                         <div key={t.id} className="flex items-center gap-2 group">
@@ -399,20 +400,20 @@ const HomeProjekte = ({ session }) => {
                             {t.erledigt ? <CheckSquare size={14} className="text-green-500" /> : <Square size={14} />}
                           </button>
                           <span className={`text-xs flex-1 ${t.erledigt ? "line-through text-light-text-secondary dark:text-dark-text-secondary" : "text-light-text-main dark:text-dark-text-main"}`}>{t.beschreibung}</span>
-                          <button onClick={() => todoLoeschen(t.id)} className="opacity-0 group-hover:opacity-100 p-0.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500 transition-opacity"><Trash2 size={11} /></button>
+                          <button aria-label="Löschen" onClick={() => todoLoeschen(t.id)} className="opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 p-0.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500 transition-opacity"><Trash2 size={11} /></button>
                         </div>
                       ))}
                     </div>
                     {/* Neue Aufgabe */}
                     <div className="flex flex-wrap gap-2">
-                      <input
+                      <input aria-label={t("home:projectsPage.newTaskPlaceholder")}
                         value={neuerTodoText}
                         onChange={(e) => setNeuerTodoText(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && todoHinzufuegen(p.id)}
                         placeholder={t("home:projectsPage.newTaskPlaceholder")}
                         className="flex-1 px-2 py-1.5 text-xs rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-purple-500"
                       />
-                      <button onClick={() => todoHinzufuegen(p.id)} className="px-3 py-1.5 text-xs bg-purple-500 hover:bg-purple-600 text-white rounded-card-sm">
+                      <button aria-label="Hinzufügen" onClick={() => todoHinzufuegen(p.id)} className="px-3 py-1.5 text-xs bg-purple-500 hover:bg-purple-600 text-white rounded-card-sm">
                         <Plus size={12} />
                       </button>
                     </div>
@@ -453,7 +454,7 @@ const HomeProjekte = ({ session }) => {
       )}
 
       {modal !== null && (
-        <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
+        <OverlayPortal><div data-app-dialog="" className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
           <div className={`${glassSurfaceClass} mobile-modal-dialog max-w-md w-full rounded-2xl flex min-h-0 flex-col`}>
             <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border sticky top-0 bg-light-card dark:bg-canvas-2">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
@@ -463,7 +464,7 @@ const HomeProjekte = ({ session }) => {
                     ? t("home:projectsPage.seasonProject", { name: modal.name })
                     : t("home:projectsPage.newProject")}
               </h3>
-              <button onClick={() => setModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary"><X size={18} /></button>
+              <button aria-label="Schließen" onClick={() => setModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary"><X size={18} /></button>
             </div>
             {modal._saisonAufgaben && (
               <div className="px-4 pt-3 pb-0">
@@ -476,7 +477,7 @@ const HomeProjekte = ({ session }) => {
               <ProjektForm initial={modal} onSpeichern={speichere} onAbbrechen={() => setModal(null)} t={t} />
             </div>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
     </div>
   );

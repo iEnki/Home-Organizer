@@ -1,3 +1,4 @@
+import OverlayPortal from "../ui/OverlayPortal";
 import React, { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Search, X } from "lucide-react";
@@ -31,7 +32,7 @@ const MobileSearchSheet = ({
   if (!open) return null;
 
   return (
-    <div className="md:hidden fixed inset-0 z-[130] bg-light-bg dark:bg-canvas-1">
+    <OverlayPortal><div data-app-dialog="" className="md:hidden fixed inset-0 z-[130] bg-light-bg dark:bg-canvas-1">
       <div
         className="sticky top-0 z-10 px-4 pt-3 pb-3 border-b border-light-border dark:border-dark-border
                    bg-light-card-bg/95 dark:bg-canvas-2/95 backdrop-blur"
@@ -43,7 +44,7 @@ const MobileSearchSheet = ({
               size={16}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary"
             />
-            <input
+            <input aria-label={t("search.placeholder")}
               ref={inputRef}
               type="text"
               value={searchValue}
@@ -95,7 +96,7 @@ const MobileSearchSheet = ({
                   <div className="min-w-0">
                     <p className="text-sm text-light-text-main dark:text-dark-text-main truncate">{r.text}</p>
                     {r.sub && (
-                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">{r.sub}</p>
+                      <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary truncate">{r.sub}</p>
                     )}
                   </div>
                 </div>
@@ -104,7 +105,7 @@ const MobileSearchSheet = ({
           </div>
         )}
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 };
 

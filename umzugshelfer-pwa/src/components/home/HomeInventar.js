@@ -1,3 +1,4 @@
+import OverlayPortal from "../ui/OverlayPortal";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
@@ -100,7 +101,7 @@ const OrtForm = ({ initial, onSpeichern, onAbbrechen }) => {
     <div className="space-y-3">
       <div>
         <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Name*</label>
-        <input
+        <input aria-label="Name*"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="z.B. Meine Wohnung"
@@ -109,7 +110,7 @@ const OrtForm = ({ initial, onSpeichern, onAbbrechen }) => {
       </div>
       <div>
         <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Typ</label>
-        <select
+        <select aria-label="Typ"
           value={typ}
           onChange={(e) => setTyp(e.target.value)}
           className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none"
@@ -135,7 +136,7 @@ const LagerortForm = ({ ortId, parentId, initial, onSpeichern, onAbbrechen }) =>
     <div className="space-y-3">
       <div>
         <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Name*</label>
-        <input
+        <input aria-label="Name*"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="z.B. Regal 2"
@@ -144,7 +145,7 @@ const LagerortForm = ({ ortId, parentId, initial, onSpeichern, onAbbrechen }) =>
       </div>
       <div>
         <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Typ</label>
-        <select
+        <select aria-label="Typ"
           value={typ}
           onChange={(e) => setTyp(e.target.value)}
           className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none"
@@ -182,7 +183,7 @@ const ObjektForm = ({ ortId, lagerortId, initial, bewohner, onSpeichern, onAbbre
     <div className="space-y-3">
       <div>
         <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Name*</label>
-        <input
+        <input aria-label="Name*"
           value={form.name}
           onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
           placeholder="z.B. HDMI-Kabel"
@@ -192,13 +193,13 @@ const ObjektForm = ({ ortId, lagerortId, initial, bewohner, onSpeichern, onAbbre
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Status</label>
-          <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none">
+          <select aria-label="Status" value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none">
             {statusOptionen.map((s) => <option key={s} value={s}>{t(`home:inventoryForm.status.${s}`, { defaultValue: STATUS_LABEL[s] })}</option>)}
           </select>
         </div>
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Menge</label>
-          <input
+          <input aria-label="Menge"
             type="number"
             min="1"
             value={form.menge}
@@ -210,21 +211,21 @@ const ObjektForm = ({ ortId, lagerortId, initial, bewohner, onSpeichern, onAbbre
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Kategorie</label>
-          <select value={form.kategorie} onChange={(e) => setForm((p) => ({ ...p, kategorie: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none">
+          <select aria-label="Kategorie" value={form.kategorie} onChange={(e) => setForm((p) => ({ ...p, kategorie: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none">
             <option value="">— wählen —</option>
             {kategorien.map((k) => <option key={k}>{k}</option>)}
           </select>
         </div>
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Zugriffshäufigkeit</label>
-          <select value={form.zugriffshaeufigkeit} onChange={(e) => setForm((p) => ({ ...p, zugriffshaeufigkeit: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none">
+          <select aria-label="Zugriffshäufigkeit" value={form.zugriffshaeufigkeit} onChange={(e) => setForm((p) => ({ ...p, zugriffshaeufigkeit: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none">
             {haeufigkeit.map((h) => <option key={h} value={h}>{h.charAt(0).toUpperCase() + h.slice(1)}</option>)}
           </select>
         </div>
       </div>
       <div>
         <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Tags (kommagetrennt)</label>
-        <input
+        <input aria-label="Tags (kommagetrennt)"
           value={form.tags}
           onChange={(e) => setForm((p) => ({ ...p, tags: e.target.value }))}
           placeholder="z.B. saisonal, Technik, zerbrechlich"
@@ -234,7 +235,7 @@ const ObjektForm = ({ ortId, lagerortId, initial, bewohner, onSpeichern, onAbbre
       {bewohner && bewohner.length > 0 && (
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Gehört wem?</label>
-          <select
+          <select aria-label="Gehört wem?"
             value={form.bewohner_id}
             onChange={(e) => setForm((p) => ({ ...p, bewohner_id: e.target.value }))}
             className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none"
@@ -894,7 +895,7 @@ const HomeInventar = ({ session }) => {
           >
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary" />
-              <input
+              <input aria-label="Suche nach Objekt, Gerät oder Tag..."
                 value={suche}
                 onChange={(e) => setSuche(e.target.value)}
                 placeholder="Suche nach Objekt, Gerät oder Tag..."
@@ -1033,14 +1034,14 @@ const HomeInventar = ({ session }) => {
                     <div className="p-3 pt-3.5">
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-sm text-light-text-main dark:text-dark-text-main truncate">{obj.name}</h3>
+                          <h3 className="font-semibold text-base text-light-text-main dark:text-dark-text-main truncate">{obj.name}</h3>
                           {istGeraet && (
-                            <p className="inline-flex items-center gap-1 text-[10px] text-primary-500 mt-0.5">
+                            <p className="inline-flex items-center gap-1 text-sm text-primary-500 mt-0.5">
                               <Wrench size={9} /> Gerät
                             </p>
                           )}
                           {lagerort && (
-                            <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary truncate mt-0.5">
+                            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary truncate mt-0.5">
                               {ort?.name} → {lagerort.name}
                             </p>
                           )}
@@ -1078,17 +1079,17 @@ const HomeInventar = ({ session }) => {
                       )}
 
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${statusCfg.badge}`}>
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-bold uppercase tracking-wider ${statusCfg.badge}`}>
                           <span className={`h-1 w-1 rounded-full shrink-0 ${statusCfg.dot}`} />
-                          {t(`home:inventoryForm.status.${obj.status}`, { defaultValue: STATUS_LABEL[obj.status] })}
+                          {t(`home:inventoryForm.status.${obj.status}`, { defaultValue: STATUS_LABEL[obj.status] || obj.status })}
                         </span>
                         {istGeraet && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-primary-500/30 bg-primary-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-500">
+                          <span className="inline-flex items-center gap-1 rounded-full border border-primary-500/30 bg-primary-500/10 px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-primary-500">
                             <Wrench size={9} /> Gerät
                           </span>
                         )}
                         {!istGeraet && obj.menge > 1 && (
-                          <span className="px-1.5 py-0.5 rounded-pill bg-light-border dark:bg-canvas-3 text-[10px] font-medium text-light-text-secondary dark:text-dark-text-secondary">×{obj.menge}</span>
+                          <span className="px-1.5 py-0.5 rounded-pill bg-light-border dark:bg-canvas-3 text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">×{obj.menge}</span>
                         )}
                         {!istGeraet && <BewohnerBadge bewohner={bewohner.find((b) => b.id === obj.bewohner_id)} />}
                       </div>
@@ -1096,11 +1097,11 @@ const HomeInventar = ({ session }) => {
                       {!istGeraet && obj.tags && obj.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
                           {obj.tags.slice(0, 2).map((tag) => (
-                            <span key={tag} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-secondary-500/10 text-secondary-500">
+                            <span key={tag} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs bg-secondary-500/10 text-secondary-500">
                               <Tag size={8} />{tag}
                             </span>
                           ))}
-                          {obj.tags.length > 2 && <span className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">+{obj.tags.length - 2}</span>}
+                          {obj.tags.length > 2 && <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">+{obj.tags.length - 2}</span>}
                         </div>
                       )}
                     </div>
@@ -1197,7 +1198,7 @@ const HomeInventar = ({ session }) => {
           <div className={`${glassSurfaceClass} overflow-hidden`}>
             <div className="px-3 py-2.5 border-b border-light-border dark:border-dark-border flex items-center gap-2">
               <div className="w-1 h-3.5 rounded-pill bg-primary-500 shrink-0" />
-              <h2 className="text-[10px] font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-widest">Standorte</h2>
+              <h2 className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-widest">Standorte</h2>
             </div>
 
             {/* Alle anzeigen */}
@@ -1211,7 +1212,7 @@ const HomeInventar = ({ session }) => {
             >
               <MapPin size={13} className="shrink-0" />
               <span className="flex-1 text-left truncate">Alle</span>
-              <span className="ml-auto px-1.5 py-0.5 rounded-pill text-[10px] bg-light-border dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary">
+              <span className="ml-auto px-1.5 py-0.5 rounded-pill text-xs bg-light-border dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary">
                 {aktiveObjekteAnzahl}
               </span>
             </button>
@@ -1222,12 +1223,14 @@ const HomeInventar = ({ session }) => {
               const isOffen = aufgeklapptOrte[ort.id];
               return (
                 <div key={ort.id}>
-                  <div className={`flex items-center group border-l-2 transition-colors ${
+                  <div className={`grid grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center border-l-2 pr-2 transition-colors ${
                     ausgewaehlterOrt === ort.id && !ausgewaehlterLagerort
                       ? "border-primary-500 bg-primary-500/10"
                       : "border-transparent hover:bg-light-hover dark:hover:bg-canvas-3"
                   }`}>
                     <button
+                      aria-label={`${ort.name}: Unterorte ${isOffen ? "zuklappen" : "aufklappen"}`}
+                      aria-expanded={!!isOffen}
                       onClick={() => setAufgeklapptOrte((p) => ({ ...p, [ort.id]: !isOffen }))}
                       className="pl-3 pr-1 py-2.5 text-light-text-secondary dark:text-dark-text-secondary shrink-0"
                     >
@@ -1235,7 +1238,7 @@ const HomeInventar = ({ session }) => {
                     </button>
                     <button
                       onClick={() => { setAusgewaehlterOrt(ort.id); setAusgewaehlterLagerort(null); }}
-                      className={`flex-1 text-left text-sm font-medium truncate py-2.5 ${
+                      className={`flex-1 min-w-0 text-left text-sm font-medium break-words py-2.5 ${
                         ausgewaehlterOrt === ort.id && !ausgewaehlterLagerort
                           ? "text-primary-500"
                           : "text-light-text-main dark:text-dark-text-main"
@@ -1243,14 +1246,14 @@ const HomeInventar = ({ session }) => {
                     >
                       {ort.name}
                     </button>
-                    <span className="px-1.5 py-0.5 rounded-pill text-[10px] bg-light-border dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary mr-1 shrink-0">
+                    <span className="px-1.5 py-0.5 rounded-pill text-xs bg-light-border dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary mr-1 shrink-0">
                       {ortCount}
                     </span>
-                    <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity pr-2 shrink-0">
-                      <button onClick={() => setModal({ typ: "lagerort", daten: { ort_id: ort.id } })} className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 hover:bg-primary-500/10 transition-colors"><Plus size={11} /></button>
-                      <button onClick={() => setModal({ typ: "ort", daten: ort })} className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-secondary-500 hover:bg-secondary-500/10 transition-colors"><Edit2 size={11} /></button>
-                      <button onClick={() => loescheOrt(ort.id)} className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger hover:bg-accent-danger/10 transition-colors"><Trash2 size={11} /></button>
-                    </div>
+                    {isOffen && <div className="col-span-2 col-start-2 flex flex-wrap gap-1 pb-2">
+                      <button aria-label="Hinzufügen" onClick={() => setModal({ typ: "lagerort", daten: { ort_id: ort.id } })} className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 hover:bg-primary-500/10 transition-colors"><Plus size={11} /></button>
+                      <button aria-label="Bearbeiten" onClick={() => setModal({ typ: "ort", daten: ort })} className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-secondary-500 hover:bg-secondary-500/10 transition-colors"><Edit2 size={11} /></button>
+                      <button aria-label="Löschen" onClick={() => loescheOrt(ort.id)} className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger hover:bg-accent-danger/10 transition-colors"><Trash2 size={11} /></button>
+                    </div>}
                   </div>
                   {isOffen && ортLagerorte.map((l) => (
                     <button
@@ -1264,7 +1267,7 @@ const HomeInventar = ({ session }) => {
                     >
                       <Box size={11} className="shrink-0" />
                       <span className="truncate flex-1">{l.name}</span>
-                      <span className="px-1.5 py-0.5 rounded-pill text-[10px] bg-light-border dark:bg-canvas-3">
+                      <span className="px-1.5 py-0.5 rounded-pill text-xs bg-light-border dark:bg-canvas-3">
                         {inventarEintraege.filter((o) => o.lagerort_id === l.id && o.status !== "entsorgt").length}
                       </span>
                     </button>
@@ -1298,7 +1301,7 @@ const HomeInventar = ({ session }) => {
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary pointer-events-none" />
-                <input
+                <input aria-label="Suche nach Objekt, Gerät oder Tag..."
                   value={suche}
                   onChange={(e) => setSuche(e.target.value)}
                   placeholder="Suche nach Objekt, Gerät oder Tag..."
@@ -1432,7 +1435,7 @@ const HomeInventar = ({ session }) => {
                     <button
                       key={key}
                       onClick={() => setStatusFilter(statusFilter === key ? "" : key)}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-[11px] font-semibold border transition-colors cursor-pointer ${
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-xs font-semibold border transition-colors cursor-pointer ${
                         statusFilter === key
                           ? cfg.badge + " ring-1 ring-inset ring-current"
                           : "border-light-border dark:border-dark-border text-dark-text-secondary hover:border-primary-500/40"
@@ -1450,7 +1453,8 @@ const HomeInventar = ({ session }) => {
                 variants={reducedMotion ? {} : glassPageVariants}
                 initial="hidden"
                 animate="show"
-                className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+                className="grid gap-3"
+                style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 20rem), 1fr))" }}
               >
               {gefilterteObjekte.map((obj, idx) => {
                 const ort = orte.find((o) => o.id === obj.ort_id);
@@ -1498,6 +1502,7 @@ const HomeInventar = ({ session }) => {
                     {/* Karten-Header — klickbar für Toggle */}
                     <button
                       onClick={() => toggleKarte(obj.id)}
+                      aria-expanded={!!aufgeklapptKarten[obj.id]}
                       className="w-full text-left p-3 pl-4 flex items-start gap-3"
                     >
                       <div className={`w-9 h-9 rounded-card-sm flex items-center justify-center shrink-0 mt-0.5 ${katCfg.icon}`}>
@@ -1505,7 +1510,7 @@ const HomeInventar = ({ session }) => {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main truncate leading-snug">
+                          <span className="min-w-0 break-words text-base font-semibold text-light-text-main dark:text-dark-text-main leading-snug">
                             {obj.name}
                             {obj.menge > 1 && <span className="ml-1.5 font-normal text-dark-text-secondary">×{obj.menge}</span>}
                           </span>
@@ -1516,14 +1521,14 @@ const HomeInventar = ({ session }) => {
                         </div>
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           {obj.kategorie && (
-                            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${katCfg.icon}`}>{obj.kategorie}</span>
+                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${katCfg.icon}`}>{obj.kategorie}</span>
                           )}
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-pill border ${statusCfg.badge}`}>
+                          <span className={`text-xs font-bold px-1.5 py-0.5 rounded-pill border ${statusCfg.badge}`}>
                             <span className={`inline-block w-1 h-1 rounded-full mr-0.5 ${statusCfg.dot}`} />
-                            {t(`home:inventoryForm.status.${obj.status}`, { defaultValue: STATUS_LABEL[obj.status] })}
+                            {t(`home:inventoryForm.status.${obj.status}`, { defaultValue: STATUS_LABEL[obj.status] || obj.status })}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 mt-1 text-[11px] text-dark-text-secondary flex-wrap">
+                        <div className="flex items-center gap-2 mt-1 text-xs text-dark-text-secondary flex-wrap">
                           {(lagerort || ort) && (
                             <span className="flex items-center gap-0.5 truncate">
                               <MapPin size={9} />
@@ -1551,7 +1556,7 @@ const HomeInventar = ({ session }) => {
                       >
                       <div className="pl-4 pr-3 pb-3 pt-2.5">
                         {obj.beschreibung && (
-                          <p className="text-xs text-dark-text-secondary mb-2.5 leading-relaxed">{obj.beschreibung}</p>
+                          <p className="text-sm text-dark-text-secondary mb-2.5 leading-relaxed">{obj.beschreibung}</p>
                         )}
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mb-2.5 text-xs">
                           {[
@@ -1559,7 +1564,7 @@ const HomeInventar = ({ session }) => {
                             { label: "Zugriff", val: ZUGRIFF_LABEL[obj.zugriffshaeufigkeit] },
                           ].filter((r) => r.val).map(({ label, val }) => (
                             <div key={label}>
-                              <div className="text-[10px] uppercase tracking-wide text-dark-text-secondary">{label}</div>
+                              <div className="text-xs uppercase tracking-wide text-dark-text-secondary">{label}</div>
                               <div className="font-medium text-dark-text-main">{val}</div>
                             </div>
                           ))}
@@ -1567,7 +1572,7 @@ const HomeInventar = ({ session }) => {
                         {(obj.tags || []).length > 0 && (
                           <div className="flex flex-wrap gap-1 mb-2.5">
                             {obj.tags.map((tag) => (
-                              <span key={tag} className="text-[10px] bg-secondary-500/10 text-secondary-500 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                              <span key={tag} className="text-xs bg-secondary-500/10 text-secondary-500 px-1.5 py-0.5 rounded flex items-center gap-0.5">
                                 <Tag size={8} />{tag}
                               </span>
                             ))}
@@ -1586,7 +1591,7 @@ const HomeInventar = ({ session }) => {
                           >
                             <Wrench size={12} /> Als Gerät
                           </button>
-                          <button
+                          <button aria-label="Löschen"
                             onClick={(e) => { e.stopPropagation(); loescheObjekt(obj.id); }}
                             className="ml-auto flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-card-sm bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors cursor-pointer"
                           >
@@ -1610,7 +1615,7 @@ const HomeInventar = ({ session }) => {
 
       {/* Modals */}
       {modal && (
-        <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
+        <OverlayPortal><div data-app-dialog="" className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
           <div className="mobile-modal-dialog bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-md w-full border border-light-border dark:border-dark-border flex min-h-0 flex-col">
             <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border sticky top-0 bg-light-card dark:bg-canvas-2">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
@@ -1620,7 +1625,7 @@ const HomeInventar = ({ session }) => {
                 {modal.typ === "geraet" && (geraetFormData.id ? "Gerät bearbeiten" : "Neues Gerät")}
                 {modal.typ === "qr" && "QR-Code"}
               </h3>
-              <button onClick={closeModal} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"><X size={18} /></button>
+              <button aria-label="Schließen" onClick={closeModal} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"><X size={18} /></button>
             </div>
             <div className="mobile-modal-body p-4">
               {modal.typ === "ort" && (
@@ -1657,13 +1662,13 @@ const HomeInventar = ({ session }) => {
                   <div className="p-4 bg-white rounded-card-sm">
                     <QRCodeSVG value={modal.daten.qrWert} size={160} />
                   </div>
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary text-center break-all">{modal.daten.qrWert}</p>
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary text-center break-all">{modal.daten.qrWert}</p>
                   <button onClick={() => setModal(null)} className="px-4 py-2 border border-light-border dark:border-dark-border rounded-card-sm text-sm text-light-text-main dark:text-dark-text-main hover:bg-light-hover dark:hover:bg-canvas-3">Schließen</button>
                 </div>
               )}
             </div>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
 
       {kiOffen && (
@@ -1688,13 +1693,13 @@ const HomeInventar = ({ session }) => {
       )}
 
       {dokuModal !== null && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-safe">
+        <OverlayPortal><div data-app-dialog="" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-safe">
           <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-3 max-w-sm w-full border border-light-border dark:border-dark-border max-h-[80vh] flex flex-col">
             <div className="shrink-0 flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
-              <h3 className="font-semibold text-sm text-light-text-main dark:text-dark-text-main">
+              <h3 className="font-semibold text-base text-light-text-main dark:text-dark-text-main">
                 {t("home:devicesForm.linkDocument", { defaultValue: "Dokument verknüpfen" })}
               </h3>
-              <button onClick={() => setDokuModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary">
+              <button aria-label="Schließen" onClick={() => setDokuModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary">
                 <X size={18} />
               </button>
             </div>
@@ -1736,7 +1741,7 @@ const HomeInventar = ({ session }) => {
               </button>
             </div>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
 
       {tourAktiv && (

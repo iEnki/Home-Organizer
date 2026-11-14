@@ -1,3 +1,4 @@
+import OverlayPortal from "../../ui/OverlayPortal";
 import React, { useEffect } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -52,7 +53,7 @@ export default function BudgetFilterSheet({
   if (!offen) return null;
 
   return (
-    <div className="fixed inset-0 z-[125]">
+    <OverlayPortal><div data-app-dialog="" className="fixed inset-0 z-[125]">
       <button
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
@@ -84,7 +85,7 @@ export default function BudgetFilterSheet({
             <label className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
               {t("budget:filters.category")}
             </label>
-            <select value={kategFilter} onChange={(event) => onKategorie(event.target.value)} className={SELECT_CLS}>
+            <select aria-label={t("budget:filters.category")} value={kategFilter} onChange={(event) => onKategorie(event.target.value)} className={SELECT_CLS}>
               <option value="">{t("budget:filters.allCategories")}</option>
               {kategorien.map((kategorie) => (
                 <option key={kategorie} value={kategorie}>
@@ -98,7 +99,7 @@ export default function BudgetFilterSheet({
             <label className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
               {t("budget:filters.person")}
             </label>
-            <select value={bewohnerFilter} onChange={(event) => onBewohner(event.target.value)} className={SELECT_CLS}>
+            <select aria-label={t("budget:filters.person")} value={bewohnerFilter} onChange={(event) => onBewohner(event.target.value)} className={SELECT_CLS}>
               <option value="">{t("budget:filters.allPeople")}</option>
               {bewohner.map((eintrag) => (
                 <option key={eintrag.id} value={eintrag.id}>
@@ -112,7 +113,7 @@ export default function BudgetFilterSheet({
             <label className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
               {t("budget:filters.scope")}
             </label>
-            <select value={scopeFilter} onChange={(event) => onScope(event.target.value)} className={SELECT_CLS}>
+            <select aria-label={t("budget:filters.scope")} value={scopeFilter} onChange={(event) => onScope(event.target.value)} className={SELECT_CLS}>
               <option value="alle">{t("budget:scope.all")}</option>
               <option value="haushalt">{t("budget:scope.household")}</option>
               <option value="privat">{t("budget:scope.private")}</option>
@@ -123,7 +124,7 @@ export default function BudgetFilterSheet({
             <label className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
               {t("budget:filters.account")}
             </label>
-            <select value={kontoFilter} onChange={(event) => onKonto(event.target.value)} className={SELECT_CLS}>
+            <select aria-label={t("budget:filters.account")} value={kontoFilter} onChange={(event) => onKonto(event.target.value)} className={SELECT_CLS}>
               <option value="">{t("budget:filters.allAccounts")}</option>
               {konten.map((konto) => (
                 <option key={konto.id} value={konto.id}>
@@ -137,7 +138,7 @@ export default function BudgetFilterSheet({
             <label className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
               {t("budget:filters.sort")}
             </label>
-            <select value={sortierung} onChange={(event) => onSortierung(event.target.value)} className={SELECT_CLS}>
+            <select aria-label={t("budget:filters.sort")} value={sortierung} onChange={(event) => onSortierung(event.target.value)} className={SELECT_CLS}>
               <option value="datum_desc">{t("budget:filters.sortOptions.newest")}</option>
               <option value="datum_asc">{t("budget:filters.sortOptions.oldest")}</option>
               <option value="betrag_desc">{t("budget:filters.sortOptions.highest")}</option>
@@ -151,7 +152,7 @@ export default function BudgetFilterSheet({
             <label className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
               {t("budget:filters.group")}
             </label>
-            <select value={gruppierung} onChange={(event) => onGruppierung(event.target.value)} className={SELECT_CLS}>
+            <select aria-label={t("budget:filters.group")} value={gruppierung} onChange={(event) => onGruppierung(event.target.value)} className={SELECT_CLS}>
               <option value="tag">{t("budget:filters.groupOptions.day")}</option>
               <option value="monat">{t("budget:filters.groupOptions.month")}</option>
               <option value="kategorie">{t("budget:filters.groupOptions.category")}</option>
@@ -163,7 +164,7 @@ export default function BudgetFilterSheet({
           </div>
 
           <div className="space-y-2">
-            <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
+            <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary">
               {t("budget:filters.quick")}
             </p>
 
@@ -204,6 +205,6 @@ export default function BudgetFilterSheet({
           </button>
         </div>
       </section>
-    </div>
+    </div></OverlayPortal>
   );
 }

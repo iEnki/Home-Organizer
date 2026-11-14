@@ -106,11 +106,11 @@ export default function OpenAiModelSelect({
       </div>
 
       {error && (
-        <p className="flex items-start gap-1 text-xs text-accent-danger">
+        <p className="flex items-start gap-1 text-sm text-accent-danger">
           <AlertCircle size={13} className="mt-0.5 flex-shrink-0" /> {error}
         </p>
       )}
-      {hint && <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{hint}</p>}
+      {hint && <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{hint}</p>}
 
       <div className="flex flex-wrap items-center gap-2 pt-0.5">
         <button

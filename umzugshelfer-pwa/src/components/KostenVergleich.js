@@ -97,7 +97,7 @@ const KostenVergleich = ({ session }) => {
           </h2>
         </div>
         <div className="flex items-center gap-3">
-          <input
+          <input aria-label="z.B. 1200"
             type="number"
             min="0"
             step="0.01"
@@ -117,7 +117,7 @@ const KostenVergleich = ({ session }) => {
             Eigene Kosten – Kategorien auswählen
           </h2>
         </div>
-        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-2">
+        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-2">
           Wähle die Budget-Kategorien, die zum eigenen Umzug zählen:
         </p>
         {loading ? (
@@ -173,7 +173,7 @@ const KostenVergleich = ({ session }) => {
                 </table>
               </div>
             ) : (
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary italic">
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary italic">
                 Keine Budget-Posten in den ausgewählten Kategorien vorhanden.
               </p>
             )}
@@ -237,7 +237,7 @@ const KostenVergleich = ({ session }) => {
               <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Gleiche Kosten</p>
             )}
           </div>
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-3 italic">
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-3 italic">
             Hinweis: Eigene Kosten aus Budget-Posten der ausgewählten Kategorien. Eigene Zeit und Stress sind nicht eingerechnet.
           </p>
         </div>
