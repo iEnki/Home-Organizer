@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import {
-  X, Check, AlertTriangle, ChevronDown, ChevronUp,
+  X, Check, AlertTriangle, ChevronDown,
   Package, Box, Cpu, Wallet, FileText, Info, Pill,
 } from "lucide-react";
 import { supabase, getActiveHouseholdId } from "../../supabaseClient";
@@ -168,37 +168,26 @@ function sanitizeStorageFilename(name) {
 // ============================================================
 
 function AkkordeonSektion({ title, icon, kinder, defaultOffen = false }) {
-  const [offen, setOffen] = useState(defaultOffen);
   return (
-    <div className="border border-canvas-3 rounded-card-sm overflow-hidden">
-      <button
-        className="w-full flex items-center justify-between px-4 py-3 bg-canvas-2 hover:bg-canvas-3 transition-colors text-left"
-        onClick={() => setOffen((v) => !v)}
-      >
-        <span className="flex items-center gap-2 text-sm font-medium text-dark-text-main">
-          {icon}{title}
-        </span>
-        {offen ? <ChevronUp size={16} className="text-dark-text-secondary" /> : <ChevronDown size={16} className="text-dark-text-secondary" />}
-      </button>
-      {offen && <div className="p-4 space-y-3 bg-canvas-1">{kinder}</div>}
-    </div>
+    <details open={defaultOffen} className="border border-canvas-3 rounded-card-sm overflow-hidden">
+      <summary className="invoice-line-summary px-4 py-3 bg-canvas-2 text-dark-text-main text-sm font-semibold"><span className="flex items-center gap-2">{icon}{title}</span><ChevronDown aria-hidden="true" size={16} /></summary>
+      <div className="p-4 space-y-3 bg-canvas-1">{kinder}</div>
+    </details>
   );
 }
 
 function InputFeld({ label, value, onChange, type = "text", placeholder = "" }) {
+  const { t } = useTranslation("documents");
+  const fieldId = React.useId();
+  const invalid = label.includes("*") && (!value || (type === "number" && !(Number(String(value).replace(",", ".")) > 0)));
   return (
-    <div>
-      <label className="block text-xs text-dark-text-secondary mb-1">{label}</label>
-      <input
-        type={type}
-        value={value || ""}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full px-3 py-2 rounded-card-sm bg-canvas-2 border border-canvas-3
-                   text-sm text-dark-text-main placeholder-dark-text-secondary
-                   focus:outline-none focus:border-primary-500 transition-colors"
-      />
-    </div>
+    <label className="block">
+      <span className="block text-sm text-dark-text-secondary mb-1">{label}</span>
+      <input id={fieldId} aria-label={label} aria-describedby={invalid ? `${fieldId}-error` : undefined} type={type} inputMode={type === "number" ? "decimal" : undefined} step={type === "number" ? "any" : undefined}
+        value={value ?? ""} onChange={e => onChange(e.target.value)} placeholder={placeholder} aria-invalid={invalid}
+        className="w-full px-3 py-2 rounded-card-sm bg-canvas-2 border border-canvas-3 text-base text-dark-text-main placeholder-dark-text-secondary focus:outline-none focus:border-primary-500 transition-colors" />
+      {invalid && <span className="block mt-1 text-sm text-accent-danger" id={`${fieldId}-error`} role="status">{t("invoiceScan.requiredField")}</span>}
+    </label>
   );
 }
 
@@ -206,7 +195,7 @@ function SelectFeld({ label, value, onChange, optionen }) {
   return (
     <div>
       <label className="block text-xs text-dark-text-secondary mb-1">{label}</label>
-      <select
+      <select aria-label={label}
         value={value || ""}
         onChange={(e) => onChange(e.target.value)}
         className="w-full px-3 py-2 rounded-card-sm bg-canvas-2 border border-canvas-3
@@ -249,6 +238,8 @@ export default function RechnungReviewModal({
   const [positionen, setPositionen] = useState(ergebnis.positionen || []);
   const [modulAktiv, setModulAktiv] = useState(() => initModulAktiv(ergebnis.erkannte_module || []));
   const [speichern, setSpeichern] = useState(false);
+  const saveInFlight = React.useRef(false);
+  const splitInFlight = React.useRef(false);
   const [zusammenfassung, setZusammenfassung] = useState(ergebnis.summary_text || "");
 
   // Budget-Scope + Zahlungskonto + Bewohner
@@ -623,6 +614,7 @@ export default function RechnungReviewModal({
   }, []);
 
   const handleSplitSpeichern = useCallback(async () => {
+    if (splitInFlight.current) return;
     if (!gespeicherterPostenId) {
       onGespeichert();
       return;
@@ -658,6 +650,7 @@ export default function RechnungReviewModal({
     }
 
     setSplitValidierungsFehler(null);
+    splitInFlight.current = true;
     setSplitSpeichern(true);
     try {
       const householdId = await resolveHouseholdId(session?.user?.id);
@@ -696,6 +689,7 @@ export default function RechnungReviewModal({
     } catch (err) {
       toastError(err.message || "Kostenaufteilung konnte nicht gespeichert werden.");
     } finally {
+      splitInFlight.current = false;
       setSplitSpeichern(false);
     }
   }, [
@@ -824,8 +818,14 @@ export default function RechnungReviewModal({
   // ============================================================
 
   const handleSpeichern = useCallback(async () => {
-    if (hatPflichffehler) return;
+    if (saveInFlight.current) return;
+    if (hatPflichffehler) {
+      const field = document.querySelector('.invoice-review-overlay [aria-invalid="true"]');
+      if (field) { let parent = field.parentElement; while (parent) { if (parent.tagName === "DETAILS") parent.open = true; parent = parent.parentElement; } field.focus(); field.scrollIntoView?.({ block: "nearest" }); }
+      return;
+    }
     if (!session?.user?.id) { toastError("Keine gueltige Sitzung vorhanden."); return; }
+    saveInFlight.current = true;
     setSpeichern(true);
 
     const userId = session.user.id;
@@ -1309,6 +1309,7 @@ export default function RechnungReviewModal({
       console.error("Speicher-Fehler:", err);
       toastError(err.message || "Speichern fehlgeschlagen.");
     } finally {
+      saveInFlight.current = false;
       setSpeichern(false);
     }
   }, [
@@ -1394,7 +1395,7 @@ export default function RechnungReviewModal({
 
           <div className="rounded-card border border-canvas-3 bg-canvas-1 p-4 space-y-4">
             <div>
-              <p className="text-xs uppercase tracking-wide text-dark-text-secondary mb-1">
+              <p className="text-sm uppercase tracking-wide text-dark-text-secondary mb-1">
                 Budgetbuchung
               </p>
               <p className="text-sm font-medium text-dark-text-main">
@@ -1469,6 +1470,7 @@ export default function RechnungReviewModal({
 
   return createPortal(
     <div
+      data-app-dialog="" data-dialog-escape="false"
       className="invoice-review-overlay fixed inset-0 z-[120] flex min-h-0 flex-col overflow-hidden bg-canvas-0/95 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
@@ -1477,7 +1479,7 @@ export default function RechnungReviewModal({
       {/* Viewport-fester Header */}
       <GlassSurface interactive={false} className="invoice-review-header z-20 flex shrink-0 items-center gap-3 rounded-none border-x-0 border-t-0 px-4 py-3">
         <button
-          onClick={onAbbrechen}
+          onClick={onAbbrechen} disabled={speichern}
           className="p-1.5 rounded-lg hover:bg-canvas-2 text-dark-text-main transition-colors"
           aria-label="Abbrechen"
         >
@@ -1486,8 +1488,8 @@ export default function RechnungReviewModal({
         <h2 id="invoice-review-title" className="text-lg font-semibold text-dark-text-main flex-1">Rechnung pruefen</h2>
         <button
           onClick={handleSpeichern}
-          disabled={hatPflichffehler || speichern}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-card-sm bg-primary-500
+          disabled={speichern}
+          className="invoice-header-save hidden md:flex items-center gap-1.5 px-4 py-2 rounded-card-sm bg-primary-500
                      hover:bg-primary-600 disabled:opacity-50 text-white text-sm font-semibold
                      transition-colors shadow-sm"
         >
@@ -1522,37 +1524,20 @@ export default function RechnungReviewModal({
 
         {/* Stammdaten */}
         <GlassSurface interactive={false} className="p-4 space-y-3">
-          <h3 className="text-sm font-semibold text-dark-text-main">Rechnungsdaten</h3>
+          <h3 className="text-base font-semibold text-dark-text-main">Rechnungsdaten</h3>
           <InputFeld label="Haendler / Lieferant" value={haendler} onChange={setHaendler} placeholder="z.B. REWE, MediaMarkt" />
           <div className="grid grid-cols-2 gap-3">
             <InputFeld label="Datum *" value={datum} onChange={setDatum} type="date" />
             <InputFeld label="Gesamtbetrag (EUR) *" value={gesamt} onChange={setGesamt} type="number" placeholder="0.00" />
           </div>
           {hatPflichffehler && (
-            <p className="text-xs text-accent-danger">Datum und Betrag sind Pflichtfelder.</p>
+            <p className="text-sm text-accent-danger">Datum und Betrag sind Pflichtfelder.</p>
           )}
-        </GlassSurface>
-
-        {/* Zusammenfassung */}
-        <GlassSurface interactive={false} className="p-4 space-y-3">
-          <h3 className="text-sm font-semibold text-dark-text-main">Zusammenfassung</h3>
-          <p className="text-xs text-dark-text-secondary">
-            Wird in deiner Wissensdatenbank gespeichert. Du kannst den Text anpassen.
-          </p>
-          <textarea
-            value={zusammenfassung}
-            onChange={(e) => setZusammenfassung(e.target.value)}
-            rows={3}
-            className="w-full px-3 py-2 rounded-card-sm bg-canvas-2 border border-canvas-3
-                       text-sm text-dark-text-main focus:outline-none focus:border-primary-500
-                       transition-colors resize-none"
-            placeholder="Automatisch generierte Zusammenfassung..."
-          />
         </GlassSurface>
 
         {/* Modul-Auswahl */}
         <GlassSurface interactive={false} className="p-4 space-y-3">
-          <h3 className="text-sm font-semibold text-dark-text-main">In welche Module speichern?</h3>
+          <h3 className="text-base font-semibold text-dark-text-main">In welche Module speichern?</h3>
           <div className="space-y-2">
             {Object.entries(MODUL_CONFIG).map(([key, cfg]) => (
               <label
@@ -1599,6 +1584,24 @@ export default function RechnungReviewModal({
           </div>
         </GlassSurface>
 
+        {/* Zusammenfassung */}
+        <details className="glass-surface p-4 space-y-3"><summary className="invoice-line-summary font-semibold text-dark-text-main">Zusammenfassung</summary>
+          
+          <p className="text-sm text-dark-text-secondary">
+            Wird in deiner Wissensdatenbank gespeichert. Du kannst den Text anpassen.
+          </p>
+          <textarea
+            value={zusammenfassung}
+            onChange={(e) => setZusammenfassung(e.target.value)}
+            rows={3}
+            className="w-full px-3 py-2 rounded-card-sm bg-canvas-2 border border-canvas-3
+                       text-sm text-dark-text-main focus:outline-none focus:border-primary-500
+                       transition-colors resize-none"
+            placeholder="Automatisch generierte Zusammenfassung..."
+          />
+        </details>
+
+
         {/* Positionen */}
         {positionen.length > 0 && (
           <AkkordeonSektion
@@ -1606,14 +1609,15 @@ export default function RechnungReviewModal({
             icon={<Package size={16} />}
             defaultOffen={reviewNoetigCount > 0}
             kinder={positionen.map((pos, idx) => (
-              <div
-                key={idx}
+              <details
+                key={idx} open={!!pos.review_noetig}
                 className={`p-3 rounded-card-sm border ${
                   pos.review_noetig
                     ? "border-accent-warm/50 bg-accent-warm/5"
                     : "border-canvas-3 bg-canvas-2"
                 } space-y-2`}
               >
+                <summary className="invoice-line-summary text-sm text-dark-text-main"><span>{pos.name || `Position ${idx + 1}`}</span><span className="shrink-0">{pos.gesamtpreis ?? 0} €</span></summary>
                 {pos.review_noetig && (
                   <span className="inline-flex items-center gap-1 text-xs text-accent-warm font-medium">
                     <AlertTriangle size={12} /> Bitte pruefen
@@ -1623,7 +1627,7 @@ export default function RechnungReviewModal({
                   <div className="col-span-2">
                     <label className="text-xs text-dark-text-secondary">Name</label>
                     <input
-                      type="text"
+                      type="text" aria-label={`Name · Position ${idx + 1}`}
                       value={pos.name || ""}
                       onChange={(e) => updatePosition(idx, "name", e.target.value)}
                       className="w-full mt-1 px-2 py-1.5 rounded bg-canvas-1 border border-canvas-3
@@ -1633,7 +1637,7 @@ export default function RechnungReviewModal({
                   <div>
                     <label className="text-xs text-dark-text-secondary">Menge</label>
                     <input
-                      type="number"
+                      type="number" inputMode="decimal" step="any" aria-label={`Menge · Position ${idx + 1}`}
                       value={pos.menge || 1}
                       onChange={(e) => updatePosition(idx, "menge", Number(e.target.value))}
                       className="w-full mt-1 px-2 py-1.5 rounded bg-canvas-1 border border-canvas-3
@@ -1643,7 +1647,7 @@ export default function RechnungReviewModal({
                   <div>
                     <label className="text-xs text-dark-text-secondary">Preis (EUR)</label>
                     <input
-                      type="number"
+                      type="number" inputMode="decimal" step="any" aria-label={`Preis · Position ${idx + 1}`}
                       value={pos.gesamtpreis || 0}
                       onChange={(e) => updatePosition(idx, "gesamtpreis", Number(e.target.value))}
                       className="w-full mt-1 px-2 py-1.5 rounded bg-canvas-1 border border-canvas-3
@@ -1653,7 +1657,7 @@ export default function RechnungReviewModal({
                 </div>
                 <div>
                   <label className="text-xs text-dark-text-secondary">Modul</label>
-                  <select
+                  <select aria-label={`Modul · Position ${idx + 1}`}
                     value={pos.modul_vorschlag || "keine_zuordnung"}
                     onChange={(e) => updatePosition(idx, "modul_vorschlag", e.target.value)}
                     className="w-full mt-1 px-2 py-1.5 rounded bg-canvas-1 border border-canvas-3
@@ -1664,7 +1668,7 @@ export default function RechnungReviewModal({
                     ))}
                   </select>
                 </div>
-              </div>
+              </details>
             ))}
           />
         )}
@@ -1783,7 +1787,7 @@ export default function RechnungReviewModal({
       {/* Viewport-fester Footer, oberhalb der iOS Safe Area */}
       <div className="invoice-review-footer z-20 flex shrink-0 gap-3 border-t border-canvas-3 bg-canvas-1 px-4 py-3">
         <button
-          onClick={onAbbrechen}
+          onClick={onAbbrechen} disabled={speichern}
           className="flex-1 py-3 rounded-card-sm bg-canvas-2 hover:bg-canvas-3
                      text-sm font-medium text-dark-text-main transition-colors border border-canvas-3"
         >
@@ -1791,7 +1795,7 @@ export default function RechnungReviewModal({
         </button>
         <button
           onClick={handleSpeichern}
-          disabled={hatPflichffehler || speichern}
+          disabled={speichern}
           className="flex-1 flex items-center justify-center gap-2 py-3 rounded-card-sm
                      bg-primary-500 hover:bg-primary-600 disabled:opacity-50
                      text-white text-sm font-semibold transition-colors shadow-sm"

@@ -576,7 +576,7 @@ export default function BudgetAusgleichTab({
       <section>
         <div className="flex items-center gap-2 mb-3">
           <div className="h-3.5 w-0.5 rounded-full bg-primary-500" />
-          <p className="text-[11px] uppercase tracking-widest text-light-text-secondary dark:text-dark-text-secondary font-medium">
+          <p className="text-sm uppercase tracking-widest text-light-text-secondary dark:text-dark-text-secondary font-medium">
             {t("budget:settlementTab.openBalances")}
           </p>
         </div>
@@ -608,7 +608,7 @@ export default function BudgetAusgleichTab({
                     }`}
                   />
                   <div className="relative">
-                    <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">
+                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary truncate">
                       {row.emoji} {getBewohnerDisplayName(row)}
                     </p>
                     <p
@@ -629,18 +629,15 @@ export default function BudgetAusgleichTab({
 
       {/* ── Ausgleichs-Vorschläge ── */}
       <GlassSurface interactive={false} className="overflow-hidden">
-        <div className="flex items-center justify-between gap-3 p-4 border-b border-light-border dark:border-dark-border">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <div className="h-3.5 w-0.5 rounded-full bg-primary-500" />
-              <p className="text-[11px] uppercase tracking-widest text-light-text-secondary dark:text-dark-text-secondary font-medium">
-                {t("budget:settlementTab.suggestionsSubtitle")}
-              </p>
-            </div>
-            <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.suggestions")}</h3>
+        <div className="flex min-w-0 flex-col items-stretch gap-3 border-b border-light-border p-4 dark:border-dark-border sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.suggestions")}</h3>
+            <p className="mt-1 text-sm leading-relaxed text-light-text-secondary dark:text-dark-text-secondary">
+              {t("budget:settlementTab.suggestionsSubtitle")}
+            </p>
           </div>
           {suggestions.length > 1 && (
-            <button onClick={handleApplyAllSuggestions} disabled={saving || migrationBlocked} className="rounded-pill bg-primary-500 px-3 py-1.5 text-sm text-white disabled:opacity-60 hover:bg-primary-600 transition-colors">
+            <button type="button" onClick={handleApplyAllSuggestions} disabled={saving || migrationBlocked} aria-busy={saving} className="min-h-12 w-full shrink-0 rounded-pill bg-primary-500 px-4 py-3 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-60 transition-colors sm:min-h-11 sm:w-auto">
               {t("budget:settlementTab.applyAll")}
             </button>
           )}
@@ -674,21 +671,22 @@ export default function BudgetAusgleichTab({
               <GlassSurface key={suggestion.id} className="overflow-hidden">
                 <div className="flex flex-col gap-3 px-3 py-3 md:flex-row md:items-center md:justify-between">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">
+                  <p className="break-words text-sm font-medium text-light-text-main dark:text-dark-text-main">
                     {bewohnerById[suggestion.from_member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[suggestion.from_member_id] || { name: t("budget:settlementTab.unknown") })} → {bewohnerById[suggestion.to_member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[suggestion.to_member_id] || { name: t("budget:settlementTab.unknown") })}
                   </p>
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                     {t("budget:settlementTab.openSince", { date: formatIsoDate(suggestion.oldest_origin_date), count: suggestion.share_count })}
                   </p>
                 </div>
-                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+                <div className="min-w-0 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
                   <span className={`text-base font-semibold tabular-nums ${debtAmountClass(centsToEuro(suggestion.open_amount_cents))}`}>
                     {currency(centsToEuro(suggestion.open_amount_cents))}
                   </span>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex min-w-0 flex-wrap gap-2 [&>button]:max-w-full [&>button]:whitespace-normal [&>button]:break-words">
                     <button
                       type="button"
                       onClick={() => toggleSuggestionDetails(suggestionKey)}
+                      aria-expanded={isExpanded}
                       className="px-3 py-1.5 rounded-card-sm border border-light-border dark:border-dark-border text-sm text-light-text-main dark:text-dark-text-main hover:border-primary-500"
                     >
                       {isExpanded ? t("budget:settlementTab.hideDetails") : t("budget:settlementTab.showDetails")}
@@ -712,7 +710,7 @@ export default function BudgetAusgleichTab({
                 {isExpanded && (
                   <div className="border-t border-light-border dark:border-dark-border px-3 py-3">
                     {!detailRows.length ? (
-                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                      <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                         {t("budget:settlementTab.noDetailItems")}
                       </p>
                     ) : (
@@ -724,7 +722,7 @@ export default function BudgetAusgleichTab({
                                 <p className="text-sm text-light-text-main dark:text-dark-text-main">
                                   {row.beschreibung || t("budget:settlementTab.noDescription")}
                                 </p>
-                                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                                   {formatIsoDate(row.origin_date)} · {t("budget:settlementTab.openForDays", { count: Number(row.age_days) })}
                                 </p>
                               </div>
@@ -732,7 +730,7 @@ export default function BudgetAusgleichTab({
                                 <p className={`text-base font-semibold tabular-nums ${debtAmountClass(centsToEuro(row.open_amount_cents))}`}>
                                   {t("budget:settlementTab.openAmount")} {currency(centsToEuro(row.open_amount_cents))}
                                 </p>
-                                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                                   {t("budget:settlementTab.shareAmount")} <span className="text-amber-300 dark:text-amber-200">{currency(centsToEuro(row.amount_owed_cents))}</span> · {t("budget:settlementTab.alreadyAllocated")} <span className="text-emerald-400 dark:text-emerald-300">{currency(centsToEuro(row.allocated_cents))}</span>
                                 </p>
                                 <div className="mt-2">
@@ -749,7 +747,7 @@ export default function BudgetAusgleichTab({
                             </div>
                           </GlassSurface>
                         ))}
-                        <div className="flex items-center justify-between rounded-card-sm border border-dashed border-light-border dark:border-dark-border px-3 py-2 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-card-sm border border-dashed border-light-border dark:border-dark-border px-3 py-2 text-xs text-light-text-secondary dark:text-dark-text-secondary">
                           <span>{t("budget:settlementTab.totalSuggestion")}</span>
                           <span className={`text-sm font-semibold tabular-nums ${debtAmountClass(centsToEuro(suggestion.open_amount_cents))}`}>
                             {currency(centsToEuro(suggestion.open_amount_cents))}
@@ -771,13 +769,13 @@ export default function BudgetAusgleichTab({
       <GlassSurface interactive={false} className="overflow-hidden">
         <div className="flex items-center gap-3 p-4 border-b border-light-border dark:border-dark-border">
           <div className="h-3.5 w-0.5 rounded-full bg-primary-500" />
-          <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.record")}</h3>
+          <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.record")}</h3>
         </div>
         <div className="p-4 space-y-3">
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <div>
               <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:settlementTab.payer")}</label>
-              <select value={fromMemberId} onChange={(event) => setFromMemberId(event.target.value)} className={INPUT_CLS}>
+              <select aria-label={t("budget:settlementTab.payer")} value={fromMemberId} onChange={(event) => setFromMemberId(event.target.value)} className={INPUT_CLS}>
                 <option value="">{t("budget:settlementTab.selectResident")}</option>
                 {bewohner.map((eintrag) => (
                   <option key={eintrag.id} value={eintrag.id}>
@@ -788,7 +786,7 @@ export default function BudgetAusgleichTab({
             </div>
             <div>
               <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:settlementTab.recipient")}</label>
-              <select value={toMemberId} onChange={(event) => setToMemberId(event.target.value)} className={INPUT_CLS}>
+              <select aria-label={t("budget:settlementTab.recipient")} value={toMemberId} onChange={(event) => setToMemberId(event.target.value)} className={INPUT_CLS}>
                 <option value="">{t("budget:settlementTab.selectResident")}</option>
                 {bewohner.map((eintrag) => (
                   <option key={eintrag.id} value={eintrag.id}>
@@ -802,11 +800,11 @@ export default function BudgetAusgleichTab({
           <div className="grid gap-3 md:grid-cols-[220px_minmax(0,1fr)]">
             <div>
               <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:settlementTab.amountLabel")}</label>
-              <input type="number" step="0.01" min="0" value={amount} onChange={(event) => setAmount(event.target.value)} className={INPUT_CLS} placeholder="0,00" />
+              <input aria-label={t("budget:settlementTab.amountLabel")} type="number" step="0.01" min="0" value={amount} onChange={(event) => setAmount(event.target.value)} className={INPUT_CLS} placeholder="0,00" />
             </div>
             <div>
               <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:settlementTab.noteLabel")}</label>
-              <input value={note} onChange={(event) => setNote(event.target.value)} className={INPUT_CLS} placeholder={t("budget:settlementTab.notePlaceholder")} />
+              <input aria-label={t("budget:settlementTab.noteLabel")} value={note} onChange={(event) => setNote(event.target.value)} className={INPUT_CLS} placeholder={t("budget:settlementTab.notePlaceholder")} />
             </div>
           </div>
 
@@ -834,9 +832,9 @@ export default function BudgetAusgleichTab({
           <div>
             <div className="flex items-center gap-2 mb-1">
               <div className="h-3.5 w-0.5 rounded-full bg-primary-500" />
-              <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.monthlyClose")}</h3>
+              <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.monthlyClose")}</h3>
             </div>
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.monthlyCloseSubtitle")}</p>
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.monthlyCloseSubtitle")}</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <input type="month" value={abschlussMonat} onChange={(event) => setAbschlussMonat(event.target.value)} className="flex-1 min-w-[140px] px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500" />
@@ -860,19 +858,19 @@ export default function BudgetAusgleichTab({
               </div>
               <div className="grid gap-3 md:grid-cols-4">
                 <GlassSurface className={`px-3 py-3 ${summaryCardTone("carry")}`}>
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.openFromPrevMonth")}</p>
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.openFromPrevMonth")}</p>
                   <p className="text-lg font-semibold tabular-nums text-sky-300 dark:text-sky-200">{currency(centsToEuro(monthClose.opening_total_cents))}</p>
                 </GlassSurface>
                 <GlassSurface className={`px-3 py-3 ${summaryCardTone("created")}`}>
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.newThisMonth")}</p>
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.newThisMonth")}</p>
                   <p className="text-lg font-semibold tabular-nums text-amber-300 dark:text-amber-200">{currency(centsToEuro(monthClose.created_total_cents))}</p>
                 </GlassSurface>
                 <GlassSurface className={`px-3 py-3 ${summaryCardTone("settled")}`}>
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.alreadySettled")}</p>
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.alreadySettled")}</p>
                   <p className="text-lg font-semibold tabular-nums text-emerald-400 dark:text-emerald-300">{currency(centsToEuro(monthClose.settled_total_cents))}</p>
                 </GlassSurface>
                 <GlassSurface className={`px-3 py-3 ${summaryCardTone("open")}`}>
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.remainingOpen")}</p>
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("budget:settlementTab.remainingOpen")}</p>
                   <p className={`text-lg font-semibold tabular-nums ${debtAmountClass(centsToEuro(monthClose.closing_total_cents))}`}>{currency(centsToEuro(monthClose.closing_total_cents))}</p>
                 </GlassSurface>
               </div>
@@ -901,12 +899,12 @@ export default function BudgetAusgleichTab({
         <div className="flex flex-wrap items-center justify-between gap-2 p-4 border-b border-light-border dark:border-dark-border">
           <div className="flex items-center gap-2">
             <div className="h-3.5 w-0.5 rounded-full bg-primary-500" />
-            <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.history")}</h3>
+            <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">{t("budget:settlementTab.history")}</h3>
           </div>
           <div className="flex items-center gap-2">
             {/* Monatsnavigation */}
             <div className="flex items-center gap-0.5 rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1">
-              <button
+              <button aria-label="Zurück"
                 onClick={() => navigateHistoryMonth(-1)}
                 className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 transition-colors"
               >
@@ -915,7 +913,7 @@ export default function BudgetAusgleichTab({
               <span className="min-w-[90px] text-center text-xs font-medium text-light-text-main dark:text-dark-text-main">
                 {new Date(`${filterMonat}-02`).toLocaleDateString("de-AT", { month: "short", year: "numeric" })}
               </span>
-              <button
+              <button aria-label="Weiter"
                 onClick={() => navigateHistoryMonth(1)}
                 disabled={filterMonat >= currentMonthValue()}
                 className="p-1.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-primary-500 disabled:opacity-40 transition-colors"
@@ -957,7 +955,7 @@ export default function BudgetAusgleichTab({
                     {" → "}
                     {bewohnerById[row.to_member_id]?.emoji} {getBewohnerDisplayName(bewohnerById[row.to_member_id] || { name: t("budget:settlementTab.unknown") })}
                   </p>
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                     {row.date} {row.note ? `· ${translateNote(row.note)}` : ""}
                   </p>
                 </div>

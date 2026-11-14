@@ -67,7 +67,7 @@ function InventarStatusBadge({ status }) {
   const cfg = INVENTAR_STATUS_CONFIG[status || "in_verwendung"];
   if (!cfg) return null;
   return (
-    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full border text-[10px] font-medium flex-shrink-0 ${cfg.klasse}`}>
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full border text-xs font-medium flex-shrink-0 ${cfg.klasse}`}>
       {t(`home:inventoryForm.status.${status || "in_verwendung"}`, { defaultValue: cfg.label })}
     </span>
   );
@@ -77,7 +77,7 @@ function BewohnerBadge({ bewohner }) {
   if (!bewohner) return null;
   return (
     <span
-      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0"
+      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-medium flex-shrink-0"
       style={{ backgroundColor: `${bewohner.farbe || "#10B981"}22`, color: bewohner.farbe || "#10B981" }}
     >
       <span>{bewohner.emoji}</span>
@@ -91,7 +91,7 @@ function StatusBadge({ status }) {
   const cfg = STATUS_CONFIG[status];
   if (!cfg) return null;
   return (
-    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 ${STATUS_FARBE_KLASSEN[cfg.farbe]}`}>
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${STATUS_FARBE_KLASSEN[cfg.farbe]}`}>
       {t(`home:devicesStatus.${status}`, { defaultValue: cfg.label })}
     </span>
   );
@@ -101,7 +101,7 @@ function DetailZeile({ label, value }) {
   if (value == null || value === "") return null;
   return (
     <div className="flex items-baseline justify-between gap-3 py-[3px]">
-      <span className="text-[10px] uppercase tracking-wide text-dark-text-secondary shrink-0">{label}</span>
+      <span className="text-xs uppercase tracking-wide text-dark-text-secondary shrink-0">{label}</span>
       <span className="text-xs font-medium text-light-text-main dark:text-dark-text-main text-right truncate max-w-[60%]">{value}</span>
     </div>
   );
@@ -114,11 +114,11 @@ function FristZeile({ label, datum, heute }) {
   const baldFaellig = tage >= 0 && tage <= 60;
   return (
     <div className={`flex items-baseline justify-between gap-3 py-[3px] ${abgelaufen ? "opacity-50" : ""}`}>
-      <span className="text-[10px] uppercase tracking-wide text-dark-text-secondary shrink-0 max-w-[55%] truncate">{label}</span>
+      <span className="text-xs uppercase tracking-wide text-dark-text-secondary shrink-0 max-w-[55%] truncate">{label}</span>
       <span className={`text-xs font-medium text-right shrink-0 ${baldFaellig ? "text-amber-400" : "text-light-text-main dark:text-dark-text-main"}`}>
         {formatDatum(datum)}
         {!abgelaufen && tage !== Infinity && (
-          <span className="text-[10px] opacity-60 ml-1">({tage}d)</span>
+          <span className="text-xs opacity-60 ml-1">({tage}d)</span>
         )}
       </span>
     </div>
@@ -215,13 +215,13 @@ export default function GeraetZeile({
         {/* Hauptinhalt */}
         <div className="flex-1 min-w-0">
           {/* Zeile 1: Name + Hersteller */}
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 flex-col items-start gap-1.5">
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-light-text-main dark:text-dark-text-main truncate leading-snug">
+              <p className="break-words text-base font-semibold text-light-text-main dark:text-dark-text-main leading-snug">
                 {g.name}
               </p>
               {(g.hersteller || g.modell) && (
-                <p className="text-xs text-dark-text-secondary truncate">
+                <p className="break-words text-sm text-dark-text-secondary">
                   {[g.hersteller, g.modell].filter(Boolean).join(" · ")}
                 </p>
               )}
@@ -233,18 +233,18 @@ export default function GeraetZeile({
 
           {/* Zeile 2: Primäre Frist */}
           {frist && (
-            <div className={`flex items-center gap-1 mt-1.5 text-xs font-medium ${
+            <div className={`flex flex-wrap items-center gap-x-1 gap-y-0.5 mt-1.5 text-xs font-medium ${
               status === "wartung_faellig" ? "text-red-400" :
               (status === "gewaehrleistung_bald" || status === "garantie_bald") ? "text-amber-400" :
               "text-dark-text-secondary"
             }`}>
               <Clock size={11} className="shrink-0" />
-              <span>{frist.label}: {formatDatum(frist.datum)}</span>
+              <span className="min-w-0">{frist.label}: <span className="whitespace-nowrap">{formatDatum(frist.datum)}</span></span>
               {(() => {
                 const tage = tageDifferenz(frist.datum, heute);
                 if (tage === null) return null;
                 return (
-                  <span className="text-[10px] opacity-75 ml-1">
+                  <span className="text-xs opacity-75">
                     {tage >= 0 ? `(in ${tage}d)` : `(${Math.abs(tage)}d überfällig)`}
                   </span>
                 );
@@ -256,18 +256,18 @@ export default function GeraetZeile({
           <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
             <InventarStatusBadge status={g.status} />
             {standortLabel && (
-              <span className="flex items-center gap-0.5 text-[11px] text-dark-text-secondary">
+              <span className="flex items-center gap-0.5 text-xs text-dark-text-secondary">
                 <MapPin size={9} />{standortLabel}
               </span>
             )}
             <BewohnerBadge bewohner={bewohnerEintrag} />
             {dokAnzahl > 0 && (
-              <span className="flex items-center gap-0.5 text-[11px] text-blue-400">
+              <span className="flex items-center gap-0.5 text-xs text-blue-400">
                 <FileText size={9} />{dokAnzahl}
               </span>
             )}
             {g.menge > 1 && (
-              <span className="text-[11px] text-dark-text-secondary">×{g.menge}</span>
+              <span className="text-xs text-dark-text-secondary">×{g.menge}</span>
             )}
           </div>
 
@@ -275,7 +275,7 @@ export default function GeraetZeile({
           {status === "wartung_faellig" && (
             <button
               onClick={(e) => { e.stopPropagation(); onWartungErledigt(); }}
-              className="mt-2 inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-pill bg-primary-500/15 text-primary-500 hover:bg-primary-500/25 transition-colors duration-150 cursor-pointer font-medium"
+              className="mt-2 inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-pill bg-primary-500/15 text-primary-500 hover:bg-primary-500/25 transition-colors duration-150 cursor-pointer font-medium"
             >
               <CheckCircle size={11} /> Wartung erledigen
             </button>
@@ -298,12 +298,12 @@ export default function GeraetZeile({
               <MoreVertical size={13} />
             </button>
           </div>
-          <div onClick={onToggle} className="cursor-pointer">
+          <button type="button" onClick={onToggle} aria-label={g.name} aria-expanded={!!isOffen} className="flex items-center justify-center rounded-lg text-light-text-secondary dark:text-dark-text-secondary">
             <ChevronDown
               size={14}
               className={`transition-transform duration-150 text-light-text-secondary dark:text-dark-text-secondary ${isOffen ? "" : "-rotate-90"}`}
             />
-          </div>
+          </button>
         </div>
       </div>
 
@@ -355,7 +355,7 @@ export default function GeraetZeile({
         <div className="px-4 pb-4 pt-3">
 
           {/* Sektion 1: Details */}
-          <h4 className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-dark-text-secondary mb-1">
+          <h4 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-dark-text-secondary mb-1">
             <Package size={10} /> {t("home:devicesForm.details", { defaultValue: "Details" })}
           </h4>
           <div className="divide-y divide-light-border/60 dark:divide-dark-border/40 mb-2">
@@ -375,12 +375,12 @@ export default function GeraetZeile({
             <DetailZeile label="Bewohner" value={bewohnerEintrag ? getBewohnerDisplayName(bewohnerEintrag) : null} />
           </div>
           {g.notizen && (
-            <p className="text-xs text-dark-text-secondary italic mb-2">{g.notizen}</p>
+            <p className="text-sm text-dark-text-secondary italic mb-2">{g.notizen}</p>
           )}
           {tags.length > 0 && (
             <div className="flex flex-wrap gap-1 mb-3">
               {tags.map((tag) => (
-                <span key={tag} className="px-1.5 py-0.5 rounded text-[10px] bg-secondary-500/10 text-secondary-500">{tag}</span>
+                <span key={tag} className="px-1.5 py-0.5 rounded text-xs bg-secondary-500/10 text-secondary-500">{tag}</span>
               ))}
             </div>
           )}
@@ -388,7 +388,7 @@ export default function GeraetZeile({
           {/* Sektion 2: Fristen */}
           {(g.gewaehrleistung_bis || g.garantie_bis || g.naechste_wartung || g.wartungsintervall_monate) && (
             <div className="border-t border-light-border dark:border-dark-border pt-2 mb-2">
-              <h4 className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-dark-text-secondary mb-1">
+              <h4 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-dark-text-secondary mb-1">
                 <Clock size={10} /> {t("home:devicesForm.deadlines", { defaultValue: "Fristen" })}
               </h4>
               <div className="divide-y divide-light-border/60 dark:divide-dark-border/40">
@@ -397,7 +397,7 @@ export default function GeraetZeile({
                 <FristZeile label={t("home:devicesForm.nextMaintenance")} datum={g.naechste_wartung} heute={heute} />
                 {g.wartungsintervall_monate && (
                   <div className="flex items-baseline justify-between gap-3 py-[3px]">
-                    <span className="text-[10px] uppercase tracking-wide text-dark-text-secondary shrink-0">
+                    <span className="text-xs uppercase tracking-wide text-dark-text-secondary shrink-0">
                       {t("home:devicesForm.intervalMonths")}
                     </span>
                     <span className="text-xs font-medium text-right text-light-text-main dark:text-dark-text-main">
@@ -411,7 +411,7 @@ export default function GeraetZeile({
 
           {/* Sektion 3: Belege & Wartungslog */}
           <div className="border-t border-light-border dark:border-dark-border pt-2 mb-3">
-            <h4 className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-dark-text-secondary mb-1">
+            <h4 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-dark-text-secondary mb-1">
               <FileText size={10} /> {t("home:devicesForm.documents", { defaultValue: "Belege & Wartung" })}
             </h4>
             {verknuepfteDokumente.length > 0 && (
@@ -428,7 +428,7 @@ export default function GeraetZeile({
                     <button onClick={() => onNavigate?.(d.id)} className="p-0.5 text-dark-text-secondary hover:text-blue-500 transition-colors" title={t("home:devicesForm.openInArchive", { defaultValue: "Open in archive" })}>
                       <ExternalLink size={11} />
                     </button>
-                    <button onClick={() => onDokumentUnlink(d.id)} className="opacity-0 group-hover:opacity-100 p-0.5 text-dark-text-secondary hover:text-red-500 transition-opacity" title={t("home:devicesForm.unlinkDocument", { defaultValue: "Unlink" })}>
+                    <button onClick={() => onDokumentUnlink(d.id)} className="opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 p-0.5 text-dark-text-secondary hover:text-red-500 transition-opacity" title={t("home:devicesForm.unlinkDocument", { defaultValue: "Unlink" })}>
                       <Unlink size={11} />
                     </button>
                   </div>
@@ -444,16 +444,16 @@ export default function GeraetZeile({
                 {geraetWartungen.slice(0, 3).map((w) => (
                   <div key={w.id} className="relative mb-2">
                     <div className="absolute -left-[11px] top-1 w-2 h-2 rounded-full bg-primary-500 ring-2 ring-light-card dark:ring-canvas-2" />
-                    <div className="text-[11px] text-dark-text-secondary">{formatDatum(w.datum)}</div>
+                    <div className="text-xs text-dark-text-secondary">{formatDatum(w.datum)}</div>
                     <div className="text-xs text-light-text-main dark:text-dark-text-main">{w.beschreibung || w.typ}</div>
                   </div>
                 ))}
                 {geraetWartungen.length > 3 && (
-                  <div className="text-[11px] text-dark-text-secondary">+{geraetWartungen.length - 3} weitere</div>
+                  <div className="text-xs text-dark-text-secondary">+{geraetWartungen.length - 3} weitere</div>
                 )}
               </div>
             ) : (
-              <p className="text-xs text-dark-text-secondary">{t("home:devicesForm.noMaintenance", { defaultValue: "Noch keine Wartungseinträge." })}</p>
+              <p className="text-sm text-dark-text-secondary">{t("home:devicesForm.noMaintenance", { defaultValue: "Noch keine Wartungseinträge." })}</p>
             )}
           </div>
 

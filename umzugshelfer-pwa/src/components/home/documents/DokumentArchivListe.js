@@ -6,7 +6,7 @@ import DokumentZeile from "./DokumentZeile";
 
 const listVariants = {
   hidden: {},
-  show: { transition: { staggerChildren: 0.05 } },
+  show: {},
 };
 
 export default function DokumentArchivListe({
@@ -41,7 +41,7 @@ export default function DokumentArchivListe({
   }
 
   return (
-    <div className="space-y-3 min-w-0 pt-5">
+    <div className="document-month-list">
       {reihenfolge.map((key) => {
         const doks = map[key];
         const istZugeklappt = collapsed.has(key);
@@ -50,9 +50,9 @@ export default function DokumentArchivListe({
             {/* Monats-Header — Toggle-Button */}
             <button
               onClick={() => toggleCollapse(key)}
+              aria-expanded={!istZugeklappt}
               className="w-full flex items-center gap-2.5 px-1 pb-2 text-left group"
             >
-              <span className="w-0.5 h-4 rounded-full bg-primary-500/40 flex-shrink-0 group-hover:bg-primary-500/70 transition-colors" aria-hidden="true" />
               <motion.span
                 animate={{ rotate: istZugeklappt ? -90 : 0 }}
                 transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 360, damping: 28 }}
@@ -60,11 +60,11 @@ export default function DokumentArchivListe({
               >
                 <ChevronDown size={13} className="text-light-text-secondary dark:text-dark-text-secondary" />
               </motion.span>
-              <span className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-widest group-hover:text-primary-500 transition-colors">
+              <span className="text-sm font-semibold text-light-text-secondary dark:text-dark-text-secondary group-hover:text-primary-500 transition-colors">
                 {formatMonatLabel(key)}
               </span>
               <span className="flex-1 h-px bg-light-border dark:bg-dark-border" aria-hidden="true" />
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary-500/10 text-primary-500 border border-primary-500/20 flex-shrink-0">
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-primary-500/10 text-primary-500 border border-primary-500/20 flex-shrink-0">
                 {doks.length}
               </span>
             </button>
@@ -74,17 +74,17 @@ export default function DokumentArchivListe({
               {!istZugeklappt && (
                 <motion.div
                   key={`sec-${key}`}
-                  initial={reduced ? false : { opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={reduced ? {} : { opacity: 0, height: 0, transition: { duration: 0.2 } }}
+                  initial={false}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0, transition: { duration: 0 } }}
                   transition={{ duration: 0.25, ease: "easeOut" }}
-                  className="overflow-hidden"
+                  className="overflow-visible"
                 >
                   <motion.div
                     variants={reduced ? {} : listVariants}
                     initial="hidden"
                     animate="show"
-                    className="space-y-2 overflow-visible"
+                    className="document-month-rows"
                   >
                     {doks.map((dok) => (
                       <DokumentZeile

@@ -26,7 +26,8 @@
     "activate": "Activate",
     "invite": "Invite",
     "switch": "Switch",
-    "toggleMenu": "Open/close menu"
+    "toggleMenu": "Open/close menu",
+    "back": "Back"
   },
   "status": {
     "active": "Active",

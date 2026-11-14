@@ -87,23 +87,26 @@ function PositionRow({ position, index, money, editable, onChange, onRemove, inp
 
   if (editable) {
     return (
+      <details open={uncertain} className="kfz-position-editor rounded-card-sm border border-light-border dark:border-dark-border">
+      <summary className="flex min-h-12 cursor-pointer items-center justify-between gap-3 p-3 text-sm"><span className="min-w-0 break-words font-semibold">{position.beschreibung || t("analysis.addPosition")}{uncertain ? <span className="block text-xs text-amber-600 dark:text-amber-300">{t("serviceChecklist.checkValue")}</span> : null}</span><span className="shrink-0 tabular-nums">{money(position.gesamtpreis)}</span></summary>
       <motion.div
         layout
         initial={reducedMotion ? false : { opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         className={`grid min-w-0 gap-2 rounded-card-sm border p-3 md:grid-cols-6 ${uncertain ? "border-amber-400/70 bg-amber-500/[0.04]" : "border-light-border/80 bg-white/35 dark:border-white/10 dark:bg-white/[0.025]"}`}
       >
-        <input aria-label={t("analysis.fields.description")} className={`${inputClass} md:col-span-2`} value={position.beschreibung} onChange={(event) => onChange(index, "beschreibung", event.target.value)} />
-        <select aria-label={t("analysis.fields.category")} className={inputClass} value={position.kategorie} onChange={(event) => onChange(index, "kategorie", event.target.value)}>
+        <label className="block min-w-0 md:col-span-2"><span className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">{t("analysis.fields.description")}</span><input aria-label={t("analysis.fields.description") + " · " + (index + 1)} className={`${inputClass} md:col-span-2`} value={position.beschreibung} onChange={(event) => onChange(index, "beschreibung", event.target.value)} /></label>
+        <label className="block min-w-0"><span className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">{t("analysis.fields.category")}</span><select aria-label={t("analysis.fields.category") + " · " + (index + 1)} className={inputClass} value={position.kategorie} onChange={(event) => onChange(index, "kategorie", event.target.value)}>
           {SERVICE_CATEGORY_ORDER.map((value) => <option key={value} value={value}>{t(`analysis.categories.${value}`)}</option>)}
-        </select>
-        <input aria-label={t("analysis.fields.quantity")} className={inputClass} type="number" step="0.001" value={position.menge ?? ""} onChange={(event) => onChange(index, "menge", event.target.value === "" ? null : Number(event.target.value))} />
-        <input aria-label={t("analysis.fields.total")} className={inputClass} type="number" step="0.01" value={position.gesamtpreis ?? ""} onChange={(event) => onChange(index, "gesamtpreis", event.target.value === "" ? null : Number(event.target.value))} />
+        </select></label>
+        <label className="block min-w-0"><span className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">{t("analysis.fields.quantity")}</span><input aria-label={t("analysis.fields.quantity") + " · " + (index + 1)} className={inputClass} type="number" inputMode="decimal" step="0.001" value={position.menge ?? ""} onChange={(event) => onChange(index, "menge", event.target.value === "" ? null : Number(event.target.value))} /></label>
+        <label className="block min-w-0"><span className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">{t("analysis.fields.total")}</span><input aria-label={t("analysis.fields.total") + " · " + (index + 1)} className={inputClass} type="number" inputMode="decimal" step="0.01" value={position.gesamtpreis ?? ""} onChange={(event) => onChange(index, "gesamtpreis", event.target.value === "" ? null : Number(event.target.value))} /></label>
         <button type="button" className="flex min-h-11 items-center justify-center rounded-card-sm text-red-500 hover:bg-red-500/10" onClick={() => onRemove(index)} aria-label={t("analysis.removePosition")}><Trash2 size={16} /></button>
         <label className="flex min-h-11 items-center gap-2 text-xs md:col-span-2"><input type="checkbox" checked={Boolean(position.kostenlos)} onChange={(event) => onChange(index, "kostenlos", event.target.checked)} /> {t("analysis.free")}</label>
-        <input aria-label={t("analysis.fields.partNumber")} className={`${inputClass} md:col-span-2`} placeholder={t("analysis.fields.partNumber")} value={position.teilenummer || ""} onChange={(event) => onChange(index, "teilenummer", event.target.value)} />
-        <input aria-label={t("analysis.fields.discount")} className={`${inputClass} md:col-span-2`} type="number" step="0.01" placeholder={t("analysis.fields.discount")} value={position.rabatt_betrag ?? ""} onChange={(event) => onChange(index, "rabatt_betrag", event.target.value === "" ? null : Number(event.target.value))} />
+        <label className="block min-w-0 md:col-span-2"><span className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">{t("analysis.fields.partNumber")}</span><input aria-label={t("analysis.fields.partNumber") + " · " + (index + 1)} className={`${inputClass} md:col-span-2`} placeholder={t("analysis.fields.partNumber")} value={position.teilenummer || ""} onChange={(event) => onChange(index, "teilenummer", event.target.value)} /></label>
+        <label className="block min-w-0 md:col-span-2"><span className="mb-1 block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">{t("analysis.fields.discount")}</span><input aria-label={t("analysis.fields.discount") + " · " + (index + 1)} className={`${inputClass} md:col-span-2`} type="number" inputMode="decimal" step="0.01" placeholder={t("analysis.fields.discount")} value={position.rabatt_betrag ?? ""} onChange={(event) => onChange(index, "rabatt_betrag", event.target.value === "" ? null : Number(event.target.value))} /></label>
       </motion.div>
+      </details>
     );
   }
 
@@ -124,10 +127,10 @@ function PositionRow({ position, index, money, editable, onChange, onRemove, inp
       <div className="min-w-0">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <strong className="break-words text-sm font-medium">{formatKfzDisplayText(position.beschreibung)}</strong>
-          {isFree ? <span className="rounded-full bg-primary-500/10 px-2 py-0.5 text-[10px] font-semibold text-primary-600 dark:text-primary-300">{t("serviceChecklist.free")}</span> : null}
-          {numeric(position.rabatt_betrag) > 0 ? <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-500">-{money(position.rabatt_betrag)}</span> : null}
+          {isFree ? <span className="rounded-full bg-primary-500/10 px-2 py-0.5 text-xs font-semibold text-primary-600 dark:text-primary-300">{t("serviceChecklist.free")}</span> : null}
+          {numeric(position.rabatt_betrag) > 0 ? <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-xs font-semibold text-violet-500">-{money(position.rabatt_betrag)}</span> : null}
         </div>
-        <div className="mt-1 flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-[11px] text-light-text-secondary dark:text-dark-text-secondary">
+        <div className="mt-1 flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
           {formatQuantity(position) ? <span>{formatQuantity(position)}</span> : null}
           {position.teilenummer ? <span className="break-all">{t("serviceChecklist.partNumber")}: {position.teilenummer}</span> : null}
           {position.ust_satz != null ? <span>{t("serviceChecklist.tax", { value: position.ust_satz })}</span> : null}
@@ -135,7 +138,7 @@ function PositionRow({ position, index, money, editable, onChange, onRemove, inp
         </div>
       </div>
       <div className="col-start-2 flex min-w-0 items-baseline justify-between gap-3 md:col-start-3 md:block md:text-right">
-        {position.einzelpreis != null && position.menge != null ? <span className="text-[10px] text-light-text-secondary md:block dark:text-dark-text-secondary">{money(position.einzelpreis)} / {position.einheit || t("serviceChecklist.unit")}</span> : <span />}
+        {position.einzelpreis != null && position.menge != null ? <span className="text-xs text-light-text-secondary md:block dark:text-dark-text-secondary">{money(position.einzelpreis)} / {position.einheit || t("serviceChecklist.unit")}</span> : <span />}
         <strong className={isFree ? "text-primary-500" : "text-sm"}>{isFree ? money(0) : money(position.gesamtpreis)}</strong>
       </div>
     </motion.div>
@@ -190,7 +193,7 @@ export function ServicePositionChecklist({
               <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border ${meta.tone}`}><Icon size={15} /></span>
               <span className="min-w-0 flex-1">
                 <strong className="block text-sm">{t(`analysis.categories.${group.category}`)}</strong>
-                <span className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">{t("serviceChecklist.positionCount", { count: group.positions.length })}</span>
+                <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("serviceChecklist.positionCount", { count: group.positions.length })}</span>
               </span>
               <strong className="shrink-0 text-sm">{money(group.total)}</strong>
               <ChevronDown size={16} className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
@@ -249,9 +252,9 @@ export function KfzServiceCard({
           <button type="button" onClick={onToggle} className="min-w-0 text-left">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <h3 className="break-words text-base font-semibold md:text-lg">{formatKfzDisplayText(service.typ)}</h3>
-              {meta.source === "ki_serviceanalyse" ? <span className="inline-flex items-center gap-1 rounded-full bg-primary-500/10 px-2 py-0.5 text-[10px] font-semibold text-primary-600 dark:text-primary-300"><Sparkles size={11} /> {t("analysis.aiBadge")}</span> : null}
+              {meta.source === "ki_serviceanalyse" ? <span className="inline-flex items-center gap-1 rounded-full bg-primary-500/10 px-2 py-0.5 text-xs font-semibold text-primary-600 dark:text-primary-300"><Sparkles size={11} /> {t("analysis.aiBadge")}</span> : null}
             </div>
-            <p className="mt-1 break-words text-xs text-light-text-secondary dark:text-dark-text-secondary">
+            <p className="mt-1 break-words text-sm text-light-text-secondary dark:text-dark-text-secondary">
               {[service.werkstatt, vehicleLabel, formatDate(service.datum)].filter(Boolean).join(" · ")}
             </p>
           </button>
@@ -271,7 +274,7 @@ export function KfzServiceCard({
             [t("serviceChecklist.total"), money(service.kosten ?? summary.total)],
           ].map(([label, value]) => (
             <div key={label} className="min-w-0 rounded-card-sm border border-light-border/70 bg-light-surface-2/65 px-3 py-2 dark:border-white/[0.08] dark:bg-white/[0.035]">
-              <span className="block text-[10px] uppercase tracking-[0.12em] text-light-text-secondary dark:text-dark-text-secondary">{label}</span>
+              <span className="block text-xs uppercase tracking-[0.12em] text-light-text-secondary dark:text-dark-text-secondary">{label}</span>
               <strong className="mt-1 block break-words text-sm">{value}</strong>
             </div>
           ))}

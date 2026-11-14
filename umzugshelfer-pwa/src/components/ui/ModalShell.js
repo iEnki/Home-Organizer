@@ -1,4 +1,6 @@
+import OverlayPortal from "./OverlayPortal";
 import React, { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { XCircle } from "lucide-react";
 import { glassSurfaceClass } from "./GlassSurface";
 
@@ -27,6 +29,7 @@ export default function ModalShell({
   bodyClassName = "",
   footerClassName = "",
 }) {
+  const { t } = useTranslation("common");
   // Scroll-Lock
   useEffect(() => {
     if (!open) return;
@@ -46,7 +49,8 @@ export default function ModalShell({
   if (!open) return null;
 
   return (
-    <div
+    <OverlayPortal><div
+      data-app-dialog="" data-dialog-escape={closeOnEscape ? "true" : "false"}
       className={`mobile-modal-overlay fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 pb-safe ${overlayClassName}`}
       onClick={closeOnBackdrop ? onClose : undefined}
     >
@@ -58,6 +62,7 @@ export default function ModalShell({
           <div className={`shrink-0 flex items-center justify-between px-4 py-3 border-b border-light-border dark:border-dark-border ${headerClassName}`}>
             <h3 className="text-lg font-semibold text-light-text-main dark:text-dark-text-main">{title}</h3>
             <button
+              type="button" aria-label={t("actions.close")}
               onClick={onClose}
               className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
             >
@@ -72,6 +77,6 @@ export default function ModalShell({
           </div>
         )}
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 }

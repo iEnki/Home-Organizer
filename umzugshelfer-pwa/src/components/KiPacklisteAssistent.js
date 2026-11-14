@@ -453,7 +453,7 @@ Antworte nur mit dem JSON-Array. Achte darauf, dass jeder explizit genannte Gege
             Browser gespeichert.
           </p>
           <div className="flex items-center gap-2">
-            <input
+            <input aria-label="OpenAI API-Key eingeben"
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
@@ -468,7 +468,7 @@ Antworte nur mit dem JSON-Array. Achte darauf, dass jeder explizit genannte Gege
             </button>
           </div>
           {error && apiKey.trim() === "" && (
-            <p className="text-xs text-red-400 mt-1">{error}</p>
+            <p className="text-sm text-red-400 mt-1">{error}</p>
           )}
         </div>
       )}

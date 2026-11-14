@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import HomeRechnungScannen from "./HomeRechnungScannen";
 import { supabase } from "../../supabaseClient";
 import { getKiClient } from "../../utils/kiClient";
@@ -139,4 +139,43 @@ describe("HomeRechnungScannen", () => {
     expect(supabase.functions?.invoke).toBeUndefined();
     expect(mockToast.error).not.toHaveBeenCalled();
   });
+  test("rejects unsupported and oversized files without starting analysis", async () => {
+    const { container } = render(<HomeRechnungScannen session={{ user: { id: "user-1" } }} />);
+    const input = container.querySelector('input[accept="image/*,.pdf"]');
+    fireEvent.change(input, { target: { files: [new File(["x"], "bad.txt", { type: "text/plain" })] } });
+    expect(mockToast.error).toHaveBeenCalledWith("documents:invoiceScan.errType");
+    const large = new File(["x"], "large.jpg", { type: "image/jpeg" });
+    Object.defineProperty(large, "size", { value: 21 * 1024 * 1024 });
+    fireEvent.change(input, { target: { files: [large] } });
+    expect(mockToast.error).toHaveBeenCalledWith("documents:invoiceScan.errSize");
+    expect(starteAnalyse).not.toHaveBeenCalled();
+    await screen.findByText("OCR + Ollama");
+  });
+
+  test("retains the selected PDF after failure and retries with the same file", async () => {
+    const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
+    starteAnalyse.mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce({ positionen: [], erkannte_module: [] });
+    const { container } = render(<HomeRechnungScannen session={{ user: { id: "user-1" } }} />);
+    const file = new File(["pdf"], "receipt.pdf", { type: "application/pdf" });
+    fireEvent.change(container.querySelector('input[accept="image/*,.pdf"]'), { target: { files: [file] } });
+    fireEvent.click(await screen.findByRole("button", { name: /analysieren/i }));
+    await screen.findByRole("alert");
+    expect(screen.getByText("receipt.pdf")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /analysieren/i }));
+    await waitFor(() => expect(starteAnalyse).toHaveBeenCalledTimes(2));
+    expect(starteAnalyse.mock.calls[0][0]).toBe(starteAnalyse.mock.calls[1][0]);
+    consoleError.mockRestore();
+  });
+
+  test("rapid repeated presses start only one analysis", async () => {
+    let finish;
+    starteAnalyse.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    const { container } = render(<HomeRechnungScannen session={{ user: { id: "user-1" } }} />);
+    fireEvent.change(container.querySelector('input[capture="environment"]'), { target: { files: [new File(["photo"], "photo.jpg", { type: "image/jpeg" })] } });
+    const button = await screen.findByRole("button", { name: /analysieren/i });
+    fireEvent.click(button); fireEvent.click(button);
+    await waitFor(() => expect(starteAnalyse).toHaveBeenCalledTimes(1));
+    await act(async () => { finish({ positionen: [], erkannte_module: [] }); });
+  });
+
 });

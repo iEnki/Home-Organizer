@@ -11,7 +11,7 @@ export default function RecipeDuplicateWarning({ matches = [], compact = false }
         <AlertTriangle size={16} className="mt-0.5 shrink-0" />
         <div className="min-w-0">
           <p className="font-semibold">{t("duplicates.title")}</p>
-          {!compact && <p className="mt-0.5 text-xs opacity-85">{t("duplicates.hint")}</p>}
+          {!compact && <p className="mt-0.5 text-sm opacity-85">{t("duplicates.hint")}</p>}
           <div className="mt-2 space-y-1">
             {matches.slice(0, compact ? 2 : 4).map((match) => (
               <div key={match.recipe.id} className="flex items-center justify-between gap-2 rounded-card-sm bg-black/5 px-2 py-1 dark:bg-white/5">

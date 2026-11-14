@@ -111,10 +111,10 @@ function KandidatZeile({ eintrag, idx, onStatusChange, onEditChange }) {
 
         {/* Titel + Autor */}
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium text-light-text-main dark:text-dark-text-main truncate">
+          <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main truncate">
             {eintrag.titelOverride ?? eintrag.bookResult?.title ?? eintrag.kiEintrag.titel}
           </p>
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary truncate">
             {eintrag.autorOverride ?? eintrag.bookResult?.authorDisplay ?? eintrag.kiEintrag.autor ?? ""}
           </p>
         </div>
@@ -148,14 +148,14 @@ function KandidatZeile({ eintrag, idx, onStatusChange, onEditChange }) {
       {/* Inline-Edit-Felder */}
       {editOffen && !abgelehnt && (
         <div className="px-2.5 pb-2.5 pt-0 space-y-1.5 border-t border-light-border dark:border-dark-border">
-          <input
+          <input aria-label={t("books:scanUpload.titlePlaceholder")}
             type="text"
             value={titelEdit}
             onChange={(e) => setTitelEdit(e.target.value)}
             placeholder={t("books:scanUpload.titlePlaceholder")}
             className="w-full px-2.5 py-1.5 text-xs rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
           />
-          <input
+          <input aria-label={t("books:scanUpload.authorPlaceholder")}
             type="text"
             value={autorEdit}
             onChange={(e) => setAutorEdit(e.target.value)}
@@ -361,7 +361,7 @@ export default function BuchScanUploadModal({
             <Camera size={18} className="text-teal-500" />
             <h2 className="font-semibold text-light-text-main dark:text-dark-text-main text-sm">{t("books:scanUpload.title")}</h2>
           </div>
-          <button onClick={onAbbrechen} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger">
+          <button aria-label="Schließen" onClick={onAbbrechen} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger">
             <X size={18} />
           </button>
         </div>
@@ -445,7 +445,7 @@ export default function BuchScanUploadModal({
           {analysiert && kandidaten.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
+                <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary">
                   {t("books:scanUpload.recognized", { count: kandidaten.length })} — {aktiveAnzahl} {t("books:scanUpload.selected")}
                 </p>
                 {kandidaten.some((k) => k.status !== "abgelehnt") && (

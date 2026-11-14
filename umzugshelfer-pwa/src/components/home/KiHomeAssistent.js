@@ -1,3 +1,4 @@
+import OverlayPortal from "../ui/OverlayPortal";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
@@ -201,12 +202,12 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
   if (!domainConfig || !uiConfig) return null;
 
   return (
-    <motion.div
+    <OverlayPortal><motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.15 }}
-      className="fixed inset-0 z-[200] flex items-center justify-center pt-4 px-4 pb-[calc(var(--safe-area-bottom)+1rem)] bg-canvas-0/70 backdrop-blur-sm"
+      data-app-dialog="" className="fixed inset-0 z-[200] flex items-center justify-center pt-4 px-4 pb-[calc(var(--safe-area-bottom)+1rem)] bg-canvas-0/70 backdrop-blur-sm"
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 12 }}
@@ -224,7 +225,7 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
               <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
                 {domainConfig.title}
               </h2>
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                 {uiConfig.description}
               </p>
             </div>
@@ -239,7 +240,7 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
                 {showHelp ? <ChevronUp size={18} /> : <HelpCircle size={18} />}
               </button>
             )}
-            <button
+            <button aria-label="Schließen"
               onClick={onClose}
               className="w-8 h-8 rounded-card-sm flex items-center justify-center text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-1 dark:hover:bg-canvas-3 transition-colors"
             >
@@ -250,7 +251,7 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
 
         {showHelp && uiConfig.help?.length > 0 && (
           <div className="px-5 py-3 border-b border-light-border dark:border-dark-border bg-primary-500/5">
-            <p className="text-xs font-semibold text-primary-500 mb-2">Beispiele</p>
+            <p className="text-sm font-semibold text-primary-500 mb-2">Beispiele</p>
             <ul className="space-y-1">
               {uiConfig.help.map((tip, index) => (
                 <li
@@ -353,7 +354,7 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
 
           {ergebnisse.length > 0 && !ladend && (
             <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
+              <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
                 {domainConfig.summaryLabel} ({ergebnisse.length})
               </h3>
               <ul className="space-y-1.5">
@@ -388,7 +389,7 @@ const KiHomeAssistent = ({ session, modul, onClose, onErgebnis }) => {
           </div>
         )}
       </motion.div>
-    </motion.div>
+    </motion.div></OverlayPortal>
   );
 };
 

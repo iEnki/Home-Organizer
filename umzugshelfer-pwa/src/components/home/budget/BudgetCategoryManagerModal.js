@@ -55,7 +55,7 @@ export default function BudgetCategoryManagerModal({
           <p className="truncate text-sm font-medium text-light-text-main dark:text-dark-text-main">
             {getHomeBudgetCategoryLabel(entry.name, i18n.language)}
           </p>
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
             {entry.is_active === false ? t("common:status.inactive") : t("common:status.active")}
           </p>
         </div>
@@ -133,7 +133,7 @@ export default function BudgetCategoryManagerModal({
     >
       <div className="rounded-card border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 p-4">
         <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_120px_auto]">
-          <input
+          <input aria-label={t("budget:categories.new", { defaultValue: "New category" })}
             type="text"
             value={newName}
             onChange={(event) => setNewName(event.target.value)}
@@ -156,14 +156,14 @@ export default function BudgetCategoryManagerModal({
             {t("common:actions.create")}
           </button>
         </div>
-        <p className="mt-2 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+        <p className="mt-2 text-sm text-light-text-secondary dark:text-dark-text-secondary">
           {t("budget:categories.managerHint")}
         </p>
       </div>
 
       <section className="space-y-3">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
+          <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
             {t("budget:categories.active", { defaultValue: "Active categories" })}
           </h3>
         </div>

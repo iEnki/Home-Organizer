@@ -1,3 +1,4 @@
+import OverlayPortal from "../ui/OverlayPortal";
 import React, { useState, useEffect, useCallback } from "react";
 import {
   ScrollText, AlertTriangle, CheckCircle, Edit2, ExternalLink,
@@ -85,13 +86,13 @@ const EditModal = ({ vertrag, userId, onSchliessen, onGespeichert }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-safe bg-black/60 backdrop-blur-sm">
+    <OverlayPortal><div data-app-dialog="" className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-safe bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-lg bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
             <Edit2 size={16} className="text-primary-500" /> Vertrag bearbeiten
           </h2>
-          <button
+          <button aria-label="Schließen"
             onClick={onSchliessen}
             className="w-8 h-8 flex items-center justify-center rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary"
           >
@@ -112,7 +113,7 @@ const EditModal = ({ vertrag, userId, onSchliessen, onGespeichert }) => {
             <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
               {label}
             </label>
-            <input
+            <input aria-label={label}
               type={type}
               name={name}
               value={form[name]}
@@ -143,7 +144,7 @@ const EditModal = ({ vertrag, userId, onSchliessen, onGespeichert }) => {
           </button>
         </div>
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 };
 
@@ -173,14 +174,14 @@ const DetailModal = ({ vertrag, onSchliessen, onBearbeiten }) => {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-safe bg-black/60 backdrop-blur-sm">
+    <OverlayPortal><div data-app-dialog="" className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-safe bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-lg bg-light-card-bg dark:bg-canvas-2 rounded-card border border-light-border dark:border-dark-border shadow-elevation-3 p-5 space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main flex items-center gap-2">
             <ScrollText size={16} className="text-primary-500" />
             {vertrag.partner || vertrag.vertragstitel || "Vertrag"}
           </h2>
-          <button
+          <button aria-label="Schließen"
             onClick={onSchliessen}
             className="w-8 h-8 flex items-center justify-center rounded-card-sm hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary"
           >
@@ -230,7 +231,7 @@ const DetailModal = ({ vertrag, onSchliessen, onBearbeiten }) => {
           </button>
         </div>
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 };
 
@@ -254,19 +255,19 @@ const VertragKarte = ({ vertrag, onClick }) => {
             {vertrag.partner || "Unbekannter Partner"}
           </p>
           {vertrag.vertragstitel && (
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate mt-0.5">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary truncate mt-0.5">
               {vertrag.vertragstitel}
             </p>
           )}
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0">
           {vertrag.review_required && !vertrag.reviewed_at && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-yellow-500/10 text-yellow-600 dark:text-yellow-400">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500/10 text-yellow-600 dark:text-yellow-400">
               <AlertTriangle size={9} /> Prüfen
             </span>
           )}
           {laeuftBaldAb && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-500/10 text-red-500">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-500">
               {tageEndDate === 0 ? "Heute" : `in ${tageEndDate} Tagen`}
             </span>
           )}
@@ -374,7 +375,7 @@ const HomeVertraege = ({ session }) => {
       {fehler && (
         <div className="p-3 rounded-card bg-red-500/10 border border-red-500/30 flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
           <AlertTriangle size={14} /> {fehler}
-          <button onClick={() => setFehler(null)} className="ml-auto"><X size={14} /></button>
+          <button aria-label="Schließen" onClick={() => setFehler(null)} className="ml-auto"><X size={14} /></button>
         </div>
       )}
 
@@ -402,7 +403,7 @@ const HomeVertraege = ({ session }) => {
               }`}
             >
               {tab.label}
-              <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${aktTab === tab.id ? "bg-white/20" : "bg-light-border dark:bg-canvas-3"}`}>
+              <span className={`px-1.5 py-0.5 rounded-full text-xs ${aktTab === tab.id ? "bg-white/20" : "bg-light-border dark:bg-canvas-3"}`}>
                 {anzahl}
               </span>
             </button>
@@ -420,7 +421,7 @@ const HomeVertraege = ({ session }) => {
           <ScrollText size={40} className="mx-auto mb-3 opacity-20" />
           <p className="text-sm">Keine Verträge in dieser Kategorie.</p>
           {aktTab === "alle" && (
-            <p className="text-xs mt-1 opacity-70">
+            <p className="text-sm mt-1 opacity-70">
               Lade Verträge als Dokument hoch und wähle &quot;Vollständig extrahieren&quot;.
             </p>
           )}

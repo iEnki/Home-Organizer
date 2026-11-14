@@ -54,7 +54,7 @@ export default function RecipeReviewModal({ open, recipe, display, ingredients, 
           <RecipeDuplicateWarning matches={duplicateMatches} compact />
           <div className="grid gap-4 lg:grid-cols-2">
             <section>
-              <h3 className="mb-2 text-sm font-semibold text-light-text-main dark:text-dark-text-main">{t("review.ingredients")}</h3>
+              <h3 className="mb-2 text-base font-semibold text-light-text-main dark:text-dark-text-main">{t("review.ingredients")}</h3>
               <div className="space-y-2">
                 {(ingredients || []).map((item) => (
                   <div key={item.id} className="rounded-card-sm border border-light-border bg-light-bg p-2 text-sm dark:border-dark-border dark:bg-canvas-1">
@@ -65,7 +65,7 @@ export default function RecipeReviewModal({ open, recipe, display, ingredients, 
               </div>
             </section>
             <section>
-              <h3 className="mb-2 text-sm font-semibold text-light-text-main dark:text-dark-text-main">{t("review.instructions")}</h3>
+              <h3 className="mb-2 text-base font-semibold text-light-text-main dark:text-dark-text-main">{t("review.instructions")}</h3>
               <ol className="space-y-2">
                 {(display?.instructions || recipe.anleitung || []).map((step, index) => (
                   <li key={`${step}-${index}`} className="rounded-card-sm border border-light-border bg-light-bg p-2 text-sm text-light-text-main dark:border-dark-border dark:bg-canvas-1 dark:text-dark-text-main">

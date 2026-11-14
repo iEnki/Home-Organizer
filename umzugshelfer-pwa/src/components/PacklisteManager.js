@@ -1,3 +1,4 @@
+import OverlayPortal from "./ui/OverlayPortal";
 import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../supabaseClient";
@@ -3162,7 +3163,7 @@ const PacklisteManager = ({ session }) => {
                 <h3 className="text-md font-semibold text-light-text-main dark:text-dark-text-main mb-0.5 leading-tight">
                   {kiste.name}
                 </h3>
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                   {kiste.inhalt?.length || 0} Gegenstände
                 </p>
                 {kiste.inhalt && kiste.inhalt.length > 0 && kiste.inhalt.some((i) => i.ausgepakt_am) && (
@@ -3173,7 +3174,7 @@ const PacklisteManager = ({ session }) => {
                         style={{ width: `${Math.round((kiste.inhalt.filter((i) => i.ausgepakt_am).length / kiste.inhalt.length) * 100)}%` }}
                       />
                     </div>
-                    <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                    <p className="text-sm text-green-600 dark:text-green-400 mt-0.5">
                       {kiste.inhalt.filter((i) => i.ausgepakt_am).length}/{kiste.inhalt.length} ausgepackt
                     </p>
                   </div>
@@ -3360,7 +3361,7 @@ const PacklisteManager = ({ session }) => {
                             ))}
                           </ul>
                         ) : (
-                          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary text-center py-2">
+                          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary text-center py-2">
                             Diese Kiste ist leer.
                           </p>
                         )}
@@ -3461,7 +3462,7 @@ const PacklisteManager = ({ session }) => {
         />
       )}
       <div className="relative mb-4">
-        <input
+        <input aria-label={t("move:packlistManager.searchPlaceholder")}
           type="text"
           placeholder={t("move:packlistManager.searchPlaceholder")}
           value={searchTerm}
@@ -3474,7 +3475,7 @@ const PacklisteManager = ({ session }) => {
         />
       </div>
       {showScanner && (
-        <div className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-sm flex flex-col justify-center items-center p-4 z-50">
+        <OverlayPortal><div data-app-dialog="" className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-sm flex flex-col justify-center items-center p-4 z-50">
           {" "}
           <div className="bg-light-card dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-md relative border border-light-border dark:border-dark-border">
             {" "}
@@ -3493,7 +3494,7 @@ const PacklisteManager = ({ session }) => {
               {t("move:packlistManager.close")}{" "}
             </button>{" "}
           </div>{" "}
-        </div>
+        </div></OverlayPortal>
       )}
       {gefilterteKisten.length === 0 && !loading && (
         <p className="text-center text-dark-text-secondary py-6 text-sm">
@@ -3509,9 +3510,9 @@ const PacklisteManager = ({ session }) => {
       )}
 
       {showKisteModal && (
-        <div className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
+        <OverlayPortal><div data-app-dialog="" className="mobile-modal-overlay fixed inset-0 z-[100] flex justify-center bg-black/60 backdrop-blur-sm">
           <div className="mobile-modal-dialog bg-light-card dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-lg overflow-y-auto relative border border-light-border dark:border-dark-border">
-            <button
+            <button aria-label="Schließen"
               onClick={() => {
                 setShowKisteModal(false);
                 setAktuelleKiste(null);
@@ -3705,7 +3706,7 @@ const PacklisteManager = ({ session }) => {
                                 level={"H"}
                               />
                             </div>
-                            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1 break-all">
+                            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1 break-all">
                               {" "}
                               Wert: {aktuelleKiste.qr_code_wert}{" "}
                             </p>
@@ -3718,7 +3719,7 @@ const PacklisteManager = ({ session }) => {
                             </button>
                           </>
                         ) : (
-                          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary py-4">
+                          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary py-4">
                             {t("move:packlistManager.qrGenerating")}
                           </p>
                         )}
@@ -3837,7 +3838,7 @@ const PacklisteManager = ({ session }) => {
                 </form>{" "}
                 {(!aktuelleKiste.inhalt ||
                   aktuelleKiste.inhalt.length === 0) && (
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary my-2">
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary my-2">
                     Keine Gegenstände in diesem Packstück.
                   </p>
                 )}{" "}
@@ -3880,7 +3881,7 @@ const PacklisteManager = ({ session }) => {
                           )}
                         </span>
                       </div>
-                      <div className="opacity-0 group-hover:opacity-100 flex-shrink-0">
+                      <div className="opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 flex-shrink-0">
                         <button
                           onClick={() => handleDeleteGegenstand(item.id)}
                           className="p-0.5 text-light-text-secondary dark:text-dark-text-secondary hover:text-danger-color"
@@ -3922,7 +3923,7 @@ const PacklisteManager = ({ session }) => {
               </button>
             </div>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
 
       {/* Raum-Inventar: Ausgepackte Gegenstände nach Raum */}
@@ -3932,8 +3933,8 @@ const PacklisteManager = ({ session }) => {
 
       {/* Foto Lightbox Modal */}
       {showPhotoLightbox && lightboxImageUrl && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-md flex justify-center items-center p-4 z-[120]"
+        <OverlayPortal><div
+          data-app-dialog="" className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-md flex justify-center items-center p-4 z-[120]"
           onClick={() => setShowPhotoLightbox(false)}
         >
           <div
@@ -3953,7 +3954,7 @@ const PacklisteManager = ({ session }) => {
               <XCircle size={28} />
             </button>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
     </div>
   );

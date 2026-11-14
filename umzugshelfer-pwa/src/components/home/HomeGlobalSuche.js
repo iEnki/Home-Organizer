@@ -186,7 +186,7 @@ const Schnellsuche = ({ session }) => {
         {loading && (
           <Loader2 size={16} className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-light-text-secondary dark:text-dark-text-secondary" />
         )}
-        <input
+        <input aria-label={t("home:search.quickPlaceholder")}
           value={suchbegriff}
           onChange={(event) => handleInput(event.target.value)}
           placeholder={t("home:search.quickPlaceholder")}
@@ -229,7 +229,7 @@ const Schnellsuche = ({ session }) => {
                           <p className="truncate text-sm text-light-text-main dark:text-dark-text-main">
                             {item.titel || item.name || item.dateiname || item.beschreibung}
                           </p>
-                          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                             {item.autor_anzeige || item.kategorie || item.hersteller || (item.bestand !== undefined ? `${item.bestand} ${item.einheit}` : "")}
                           </p>
                         </div>
@@ -246,7 +246,7 @@ const Schnellsuche = ({ session }) => {
       {suchbegriff.length < 2 && (
         <div className="py-8 text-center text-light-text-secondary dark:text-dark-text-secondary">
           <p className="text-sm">{t("home:search.minChars")}</p>
-          <p className="mt-1 text-xs opacity-70">
+          <p className="mt-1 text-sm opacity-70">
             {t("home:search.quickHint")}
           </p>
         </div>
@@ -307,7 +307,7 @@ const KiAssistent = ({ session }) => {
   return (
     <div>
       <div className="mb-6 flex flex-wrap gap-2">
-        <input
+        <input aria-label={t("home:search.aiPlaceholder")}
           value={frage}
           onChange={(event) => setFrage(event.target.value)}
           onKeyDown={(event) => {
@@ -382,7 +382,7 @@ const KiAssistent = ({ session }) => {
 
       {verlauf.length > 1 && (
         <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary">
+          <p className="text-sm font-semibold uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary">
             {t("home:search.previousQuestions")}
           </p>
           {verlauf.slice(1).map((eintrag, index) => (
@@ -391,10 +391,10 @@ const KiAssistent = ({ session }) => {
               key={`${eintrag.frage}-${index}`}
               className="p-3"
             >
-              <p className="mb-1 text-xs font-medium text-light-text-main dark:text-dark-text-main">
+              <p className="mb-1 text-sm font-medium text-light-text-main dark:text-dark-text-main">
                 ?? {eintrag.frage}
               </p>
-              <p className="line-clamp-2 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+              <p className="line-clamp-2 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                 {eintrag.antwort}
               </p>
             </GlassSurface>

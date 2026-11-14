@@ -1,3 +1,4 @@
+import OverlayPortal from "../../ui/OverlayPortal";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -96,7 +97,7 @@ const MobileLocationSheet = ({
   if (!open) return null;
 
   return (
-    <div className="md:hidden fixed inset-0 z-[124]">
+    <OverlayPortal><div data-app-dialog="" className="md:hidden fixed inset-0 z-[124]">
       <button
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
@@ -139,7 +140,7 @@ const MobileLocationSheet = ({
               size={14}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary"
             />
-            <input
+            <input aria-label="Standort oder Lagerort suchen..."
               value={suche}
               onChange={(e) => setSuche(e.target.value)}
               placeholder="Standort oder Lagerort suchen..."
@@ -164,7 +165,7 @@ const MobileLocationSheet = ({
           </button>
 
           {gefilterteOrte.length === 0 && (
-            <p className="px-2 py-4 text-xs text-center text-light-text-secondary dark:text-dark-text-secondary">
+            <p className="px-2 py-4 text-sm text-center text-light-text-secondary dark:text-dark-text-secondary">
               Keine Standorte gefunden
             </p>
           )}
@@ -330,7 +331,7 @@ const MobileLocationSheet = ({
         </div>
         </div>
       </section>
-    </div>
+    </div></OverlayPortal>
   );
 };
 

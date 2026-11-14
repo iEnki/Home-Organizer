@@ -111,7 +111,7 @@ export default function RecipeShoppingPreviewModal({
                         {[item.amountText, item.recipeTitle].filter(Boolean).join(" · ")}
                       </span>
                     </span>
-                    <span className="shrink-0 rounded-pill bg-light-bg px-2 py-0.5 text-[10px] text-light-text-secondary dark:bg-canvas-1 dark:text-dark-text-secondary">
+                    <span className="shrink-0 rounded-pill bg-light-bg px-2 py-0.5 text-xs text-light-text-secondary dark:bg-canvas-1 dark:text-dark-text-secondary">
                       {item.category}
                     </span>
                   </label>

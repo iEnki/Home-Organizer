@@ -253,7 +253,7 @@ export default function TourOverlay({ steps, schritt, onSchritt, onBeenden }) {
       >
         {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-2">
-          <h3 className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
+          <h3 className="text-base font-bold text-gray-900 dark:text-white leading-tight">
             {stepTitle}
           </h3>
           <button
@@ -266,7 +266,7 @@ export default function TourOverlay({ steps, schritt, onSchritt, onBeenden }) {
         </div>
 
         {/* Text */}
-        <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+        <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
           {stepText}
         </p>
 

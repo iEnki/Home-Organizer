@@ -31,7 +31,7 @@ const MobileBottomNav = ({ activeRoute, appMode, onNavigate, onOpenMore, mobileN
           const active = item.path ? isRouteActive(activeRoute, item.path) : false;
           const accent = MOBILE_NAV_ACCENTS[item.path] || "16,185,129";
           const baseClass =
-            "relative flex flex-col items-center justify-center rounded-card-sm text-[11px] font-medium " +
+            "relative flex flex-col items-center justify-center rounded-card-sm text-xs font-medium " +
             "transition-all duration-200 active:scale-95";
 
           return item.action === "more" ? (

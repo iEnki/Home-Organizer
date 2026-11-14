@@ -206,7 +206,7 @@ export default function BuecherRegalTab({
       )}
 
       {/* Statusleiste */}
-      <p className="mt-4 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+      <p className="mt-4 text-sm text-light-text-secondary dark:text-dark-text-secondary">
         {t("books:shelf.bookCount", { count: gefilterteSortiert.length })}
         {statusFilter ? ` · Status: ${t(`books:status.${statusFilter}`)}` : ""}
       </p>
@@ -277,7 +277,7 @@ export default function BuecherRegalTab({
               <p className="text-sm font-semibold text-light-text-main dark:text-dark-text-main truncate">
                 {modal.buch?.titel}
               </p>
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
                 {t("books:loanModal.loanAction")}
               </p>
             </div>

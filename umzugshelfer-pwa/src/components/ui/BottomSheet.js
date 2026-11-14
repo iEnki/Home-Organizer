@@ -1,3 +1,4 @@
+import OverlayPortal from "./OverlayPortal";
 import React, { useEffect } from "react";
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -21,7 +22,8 @@ export default function BottomSheet({ open, onClose, title, children, responsive
   if (!open) return null;
 
   return (
-    <div
+    <OverlayPortal><div
+      data-app-dialog=""
       className={`${responsive ? "lg:items-center lg:justify-center lg:p-4" : "lg:hidden"} fixed inset-0 z-[120] flex items-end pt-4`}
       style={{ paddingBottom: "max(0.75rem, var(--mobile-bottom-offset, 0px))" }}
     >
@@ -55,6 +57,6 @@ export default function BottomSheet({ open, onClose, title, children, responsive
           {children}
         </div>
       </section>
-    </div>
+    </div></OverlayPortal>
   );
 }

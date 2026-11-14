@@ -36,7 +36,12 @@
     "analyse": "Analyse invoice",
     "pdfOcrRunning": "Scanned PDF pages are being read...",
     "pdfOcrLimited": "The PDF has {{pages}} pages. The first {{limit}} pages will be analysed.",
-    "pdfOcrFailed": "The scanned PDF could not be read. Please upload a sharper PDF or individual photos."
+    "pdfOcrFailed": "The scanned PDF could not be read. Please upload a sharper PDF or individual photos.",
+    "mobilePhoto": "Photograph receipt",
+    "mobileFile": "Choose image or PDF",
+    "hidePreview": "Hide preview",
+    "requiredField": "Enter a valid value.",
+    "replaceFile": "Choose another file"
   },
   "categories": {
     "Rechnung": "Invoice",
@@ -46,7 +51,9 @@
     "Versicherung": "Insurance",
     "Beh?rde": "Authority",
     "Gesundheit": "Health",
-    "Sonstiges": "Other"
+    "Sonstiges": "Other",
+    "Behörde": "Public authority",
+    "Medikamente": "Medication"
   },
   "manager": {
     "title": "My documents",
@@ -72,5 +79,34 @@
     "sizeLabel": "Size:",
     "uploadedLabel": "Uploaded:",
     "unknown": "Unknown"
+  },
+  "archiveLayout": {
+    "categories": "Categories",
+    "allCategories": "All documents",
+    "search": "Search documents",
+    "clearSearch": "Clear search",
+    "view": "View",
+    "listView": "Archive view",
+    "cardView": "Card view",
+    "year": "Year",
+    "month": "Month",
+    "status": "Status",
+    "sort": "Sort order",
+    "allYears": "All years",
+    "allMonths": "All months",
+    "allStatus": "All statuses",
+    "newest": "Newest first",
+    "oldest": "Oldest first",
+    "nameAz": "Name A–Z",
+    "inBudget": "In budget",
+    "asKnowledge": "As knowledge",
+    "openInvoice": "Open (invoice)",
+    "moreFilters": "More filters",
+    "reset": "Reset all",
+    "removeFilter": "Remove filter: {{filter}}",
+    "count_one": "{{count}} document",
+    "count_other": "{{count}} documents",
+    "edit": "Edit",
+    "moreActions": "More actions"
   }
 }

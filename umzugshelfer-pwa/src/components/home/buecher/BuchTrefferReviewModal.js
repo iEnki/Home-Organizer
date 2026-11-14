@@ -62,11 +62,11 @@ export default function BuchTrefferReviewModal({
         <div className="shrink-0 border-b border-light-border dark:border-dark-border px-4 py-3 flex items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">{t("books:matchReview.title")}</p>
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
               {t("books:matchReview.info")}
             </p>
           </div>
-          <button onClick={onAbbrechen} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger">
+          <button aria-label="Schließen" onClick={onAbbrechen} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger">
             <X size={18} />
           </button>
         </div>
@@ -74,10 +74,10 @@ export default function BuchTrefferReviewModal({
         <div className="mobile-modal-body flex-1 p-4 grid gap-4 lg:grid-cols-[1.2fr_1.8fr]">
           <div className="space-y-3">
             <div className="rounded-card-sm border border-light-border dark:border-dark-border p-3">
-              <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">{t("books:matchReview.currentBook")}</p>
+              <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">{t("books:matchReview.currentBook")}</p>
               <p className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">{buch?.titel}</p>
               {buch?.autor_anzeige && (
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1">{buch.autor_anzeige}</p>
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1">{buch.autor_anzeige}</p>
               )}
               <div className="mt-2 text-xs text-light-text-secondary dark:text-dark-text-secondary space-y-1">
                 {buch?.isbn_13 && <p>ISBN-13: {buch.isbn_13}</p>}
@@ -99,7 +99,7 @@ export default function BuchTrefferReviewModal({
             )}
 
             <div className="rounded-card-sm border border-light-border dark:border-dark-border p-3">
-              <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">{t("books:matchReview.selectMatch")}</p>
+              <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">{t("books:matchReview.selectMatch")}</p>
               <div className="space-y-2">
                 {results.map((result, index) => (
                   <button
@@ -124,11 +124,11 @@ export default function BuchTrefferReviewModal({
                           <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main truncate">{result.title}</p>
                           <ScoreBadge score={result.score} needsReview={!!result.needsReview} />
                         </div>
-                        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">
+                        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary truncate">
                           {result.authorDisplay || t("books:matchReview.unknownAuthor")}{result.publishedYear ? ` · ${result.publishedYear}` : ""}
                         </p>
                         {(result.matchReasons ?? []).length > 0 && (
-                          <p className="mt-1 text-xs text-teal-700 dark:text-teal-300 truncate">
+                          <p className="mt-1 text-sm text-teal-700 dark:text-teal-300 truncate">
                             {(result.matchReasons ?? []).join(" · ")}
                           </p>
                         )}
@@ -142,10 +142,10 @@ export default function BuchTrefferReviewModal({
 
           <div className="space-y-3">
             <div className="rounded-card-sm border border-light-border dark:border-dark-border p-3">
-              <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">{t("books:matchReview.selectedMatch")}</p>
+              <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">{t("books:matchReview.selectedMatch")}</p>
               <p className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">{selectedResult.title}</p>
               {selectedResult.subtitle && (
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1">{selectedResult.subtitle}</p>
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1">{selectedResult.subtitle}</p>
               )}
               <div className="mt-2 text-xs text-light-text-secondary dark:text-dark-text-secondary space-y-1">
                 {selectedResult.authorDisplay && <p>{t("books:matchReview.authorLabel")}: {selectedResult.authorDisplay}</p>}
@@ -159,7 +159,7 @@ export default function BuchTrefferReviewModal({
             <div className="rounded-card-sm border border-light-border dark:border-dark-border p-3">
               <div className="flex items-center gap-2 mb-2">
                 <ImageIcon size={14} className="text-light-text-secondary dark:text-dark-text-secondary" />
-                <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">{t("books:matchReview.selectCover")}</p>
+                <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary">{t("books:matchReview.selectCover")}</p>
               </div>
               {coverOptions.length > 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -174,13 +174,13 @@ export default function BuchTrefferReviewModal({
                       }`}
                     >
                       <img src={cover.url} alt={cover.label} className="w-full h-36 object-cover rounded" />
-                      <p className="mt-2 text-xs font-medium text-light-text-main dark:text-dark-text-main truncate">{cover.label}</p>
-                      <p className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary truncate">{cover.source}</p>
+                      <p className="mt-2 text-sm font-medium text-light-text-main dark:text-dark-text-main truncate">{cover.label}</p>
+                      <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary truncate">{cover.source}</p>
                     </button>
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("books:matchReview.noCover")}</p>
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("books:matchReview.noCover")}</p>
               )}
             </div>
           </div>

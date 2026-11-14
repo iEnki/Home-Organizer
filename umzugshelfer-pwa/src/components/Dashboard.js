@@ -158,7 +158,7 @@ const UmzugSummaryCard = ({
       {/* Gesamtfortschritt */}
       <div className="flex items-end justify-between mb-4">
         <div>
-          <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider mb-1">
+          <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider mb-1">
             {t("move:dashboard.totalProgress")}
           </p>
           <p className="text-5xl font-bold text-light-text-main dark:text-dark-text-main leading-none">
@@ -198,7 +198,7 @@ const UmzugSummaryCard = ({
             <AnimatedNumber value={kistenGepacktCount} />
             <span className="text-sm font-normal text-light-text-secondary dark:text-dark-text-secondary">/<AnimatedNumber value={kistenGesamtCount} /></span>
           </p>
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary"><AnimatedNumber value={packlisteItemsCount} /> Items</p>
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary"><AnimatedNumber value={packlisteItemsCount} /> Items</p>
         </div>
         <div className="bg-light-surface-1 dark:bg-canvas-3 rounded-card-sm p-3
                         border border-light-border/50 dark:border-dark-border/50">
@@ -210,7 +210,7 @@ const UmzugSummaryCard = ({
             <AnimatedNumber value={todosErledigt} />
             <span className="text-sm font-normal text-light-text-secondary dark:text-dark-text-secondary">/<AnimatedNumber value={todosGesamt} /></span>
           </p>
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary"><AnimatedNumber value={todosProzent} />{t("move:dashboard.donePercent")}</p>
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary"><AnimatedNumber value={todosProzent} />{t("move:dashboard.donePercent")}</p>
         </div>
       </div>
     </div>
@@ -233,8 +233,7 @@ const KategorienCard = ({ navigate }) => {
     <div className="bg-light-card dark:bg-canvas-2 rounded-card shadow-elevation-2
                     border border-light-border dark:border-dark-border p-5 lg:p-6
                     hover:shadow-elevation-3 transition-shadow duration-300">
-      <h3 className="text-sm font-semibold text-light-text-secondary dark:text-dark-text-secondary
-                     uppercase tracking-wider mb-4">
+      <h3 className="text-base font-semibold text-light-text-secondary dark:text-dark-text-secondary\n                     uppercase tracking-wider mb-4">
         {t("move:dashboard.quickAccess")}
       </h3>
       <motion.div
@@ -250,7 +249,7 @@ const KategorienCard = ({ navigate }) => {
               key={f.path}
               variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.28, ease: [0.22,1,0.36,1] } } }}
               whileHover={{ scale: 1.05, transition: { duration: 0.15 } }}
-              whileTap={{ scale: 0.95 }}
+              whileTap={{ scale: .97 }}
               onClick={() => navigate(f.path)}
               className="flex flex-col items-center gap-2 p-3 rounded-card-sm
                          bg-light-surface-1 dark:bg-canvas-3
@@ -282,8 +281,7 @@ const AktiveAufgabenCard = ({ todos }) => {
                     border border-light-border dark:border-dark-border p-5 lg:p-6
                     hover:shadow-elevation-3 transition-shadow duration-300">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-light-text-secondary dark:text-dark-text-secondary
-                       uppercase tracking-wider">
+        <h3 className="text-base font-semibold text-light-text-secondary dark:text-dark-text-secondary\n                       uppercase tracking-wider">
           {t("move:dashboard.importantTasks")}
         </h3>
         <Link
@@ -399,7 +397,7 @@ const KontakteCard = ({ kontakteCount, budgetAusgegeben, budgetGesamt, kostenNac
           <p className="text-4xl font-bold text-light-text-main dark:text-dark-text-main mb-1">
             <AnimatedNumber value={kontakteCount} />
           </p>
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-3">
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-3">
             {t("move:dashboard.savedContacts")}
           </p>
           <Link
@@ -451,7 +449,7 @@ const KontakteCard = ({ kontakteCount, budgetAusgegeben, budgetGesamt, kostenNac
               <Doughnut data={kostenNachKategorie} options={doughnutOptions} />
             </div>
           ) : (
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
               {t("move:dashboard.noExpenses")}
             </p>
           )}
@@ -750,7 +748,7 @@ const Dashboard = ({ session }) => {
                 <p className="font-semibold text-sm text-light-text-main dark:text-dark-text-main">
                   {t("move:dashboard.moveComplete")}
                 </p>
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                   {t("move:dashboard.moveCompleteHint")}
                 </p>
               </div>
@@ -851,7 +849,7 @@ const Dashboard = ({ session }) => {
               );
             })}
           </div>
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-3">
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-3">
             {t("move:dashboard.onlyCategorized")}{" "}
             <Link to="/todos" className="text-primary-500 hover:text-primary-400 underline">
               {t("move:dashboard.showAllTasks")}

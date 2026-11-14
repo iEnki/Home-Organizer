@@ -29,9 +29,12 @@ export default function useKfzData({ householdId, userId }) {
   const [loadError, setLoadError] = useState("");
   const [warnings, setWarnings] = useState([]);
 
-  useEffect(() => () => {
-    mounted.current = false;
-    requestId.current += 1;
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      requestId.current += 1;
+    };
   }, []);
 
   const refresh = useCallback(async ({ synchronizeFuel = false } = {}) => {

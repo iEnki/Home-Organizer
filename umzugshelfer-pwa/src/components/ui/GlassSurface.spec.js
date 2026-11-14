@@ -10,7 +10,7 @@ import GlassSurface, {
 describe("GlassSurface", () => {
   test("renders the shared glass styling and pointer sheen", () => {
     render(
-      <GlassSurface data-testid="surface">
+      <GlassSurface interactive data-testid="surface">
         Inhalt
       </GlassSurface>,
     );

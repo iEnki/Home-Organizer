@@ -12,7 +12,7 @@ export const IOSSearchField = ({
 }) => (
   <div className={`relative ${className}`}>
     <LeadingIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ios-label-3 pointer-events-none" />
-    <input
+    <input aria-label={placeholder}
       value={value}
       onChange={onChange}
       placeholder={placeholder}

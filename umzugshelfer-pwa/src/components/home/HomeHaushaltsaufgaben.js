@@ -84,7 +84,7 @@ const AufgabeForm = forwardRef(({ initial, onSpeichern, bewohner, onValidityChan
         <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
           {t("home:householdTasks.form.task")}
         </label>
-        <input
+        <input aria-label={t("home:householdTasks.form.task")}
           value={form.beschreibung}
           onChange={(e) => setForm((p) => ({ ...p, beschreibung: e.target.value }))}
           placeholder={t("home:householdTasks.form.taskPlaceholder")}
@@ -97,7 +97,7 @@ const AufgabeForm = forwardRef(({ initial, onSpeichern, bewohner, onValidityChan
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
             {t("home:householdTasks.form.category")}
           </label>
-          <select value={form.kategorie} onChange={(e) => setForm((p) => ({ ...p, kategorie: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none">
+          <select aria-label={t("home:householdTasks.form.category")} value={form.kategorie} onChange={(e) => setForm((p) => ({ ...p, kategorie: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none">
             {KATEGORIEN.map((k) => <option key={k} value={k}>{taskLabel(t, "categories", k)}</option>)}
           </select>
         </div>
@@ -105,7 +105,7 @@ const AufgabeForm = forwardRef(({ initial, onSpeichern, bewohner, onValidityChan
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
             {t("home:householdTasks.form.priority")}
           </label>
-          <select value={form.prioritaet} onChange={(e) => setForm((p) => ({ ...p, prioritaet: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none">
+          <select aria-label={t("home:householdTasks.form.priority")} value={form.prioritaet} onChange={(e) => setForm((p) => ({ ...p, prioritaet: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none">
             {PRIORITAETEN.map((p) => <option key={p} value={p}>{taskLabel(t, "priorities", p)}</option>)}
           </select>
         </div>
@@ -115,13 +115,13 @@ const AufgabeForm = forwardRef(({ initial, onSpeichern, bewohner, onValidityChan
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
             {t("home:householdTasks.form.dueDate")}
           </label>
-          <input type="date" value={form.faelligkeitsdatum} onChange={(e) => setForm((p) => ({ ...p, faelligkeitsdatum: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none" />
+          <input aria-label={t("home:householdTasks.form.dueDate")} type="date" value={form.faelligkeitsdatum} onChange={(e) => setForm((p) => ({ ...p, faelligkeitsdatum: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none" />
         </div>
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
             {t("home:householdTasks.form.repeat")}
           </label>
-          <select value={form.wiederholung_typ} onChange={(e) => setForm((p) => ({ ...p, wiederholung_typ: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none">
+          <select aria-label={t("home:householdTasks.form.repeat")} value={form.wiederholung_typ} onChange={(e) => setForm((p) => ({ ...p, wiederholung_typ: e.target.value }))} className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none">
             {WIEDERHOLUNG.map((w) => <option key={w} value={w}>{taskLabel(t, "repeat", w)}</option>)}
           </select>
         </div>
@@ -131,7 +131,7 @@ const AufgabeForm = forwardRef(({ initial, onSpeichern, bewohner, onValidityChan
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
             {t("home:householdTasks.form.assignee")}
           </label>
-          <select
+          <select aria-label={t("home:householdTasks.form.assignee")}
             value={form.bewohner_id}
             onChange={(e) => setForm((p) => ({ ...p, bewohner_id: e.target.value }))}
             className="w-full px-3 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 text-light-text-main dark:text-dark-text-main focus:outline-none"
@@ -371,7 +371,7 @@ const HomeHaushaltsaufgaben = ({ session }) => {
                       transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
                       className={`flex items-start gap-3 rounded-card-sm p-3 ${ueberfaellig ? "border-red-500/40" : ""}`}
                     >
-                      <motion.button whileTap={{ scale: 1.35 }} onClick={() => toggleErledigt(a)} className="mt-0.5 w-5 h-5 rounded border-2 border-light-border dark:border-dark-border hover:border-primary-500 flex items-center justify-center flex-shrink-0 transition-colors">
+                      <motion.button aria-label={a.erledigt ? "Aufgabe wieder öffnen" : "Aufgabe erledigen"} aria-pressed={!!a.erledigt} whileTap={{ scale: 0.97 }} onClick={() => toggleErledigt(a)} className="mt-0.5 w-5 h-5 rounded border-2 border-light-border dark:border-dark-border hover:border-primary-500 flex items-center justify-center flex-shrink-0 transition-colors">
                         <div className="w-2 h-2 rounded-sm" />
                       </motion.button>
                       <div className="flex-1 min-w-0">
@@ -384,9 +384,9 @@ const HomeHaushaltsaufgaben = ({ session }) => {
                           <BewohnerBadge bewohner={bewohner.find((b) => b.id === a.bewohner_id)} />
                         </div>
                       </div>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => setModal(a)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500"><AlertCircle size={12} /></button>
-                        <button onClick={() => loesche(a.id)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500"><Trash2 size={12} /></button>
+                      <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                        <button aria-label="Bearbeiten" onClick={() => setModal(a)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500"><AlertCircle size={12} /></button>
+                        <button aria-label="Löschen" onClick={() => loesche(a.id)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500"><Trash2 size={12} /></button>
                       </div>
                     </GlassSurface>
                   );
@@ -402,12 +402,12 @@ const HomeHaushaltsaufgaben = ({ session }) => {
               <div className="space-y-2">
                 {erledigt.slice(0, 5).map((a) => (
                   <GlassSurface key={a.id} as="article" className="flex items-center gap-3 rounded-card-sm p-3 opacity-60">
-                    <button onClick={() => toggleErledigt(a)} className="w-5 h-5 rounded bg-primary-500 flex items-center justify-center flex-shrink-0">
+                    <button aria-label="Bestätigen" onClick={() => toggleErledigt(a)} className="w-5 h-5 rounded bg-primary-500 flex items-center justify-center flex-shrink-0">
                       <Check size={11} className="text-white" />
                     </button>
                     <p className="flex-1 text-sm text-light-text-main dark:text-dark-text-main line-through">{a.beschreibung}</p>
                     {a.bewohner_id && <BewohnerBadge bewohner={bewohner.find((b) => b.id === a.bewohner_id)} />}
-                    <button onClick={() => loesche(a.id)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={12} /></button>
+                    <button aria-label="Löschen" onClick={() => loesche(a.id)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity"><Trash2 size={12} /></button>
                   </GlassSurface>
                 ))}
               </div>
@@ -421,7 +421,7 @@ const HomeHaushaltsaufgaben = ({ session }) => {
           open
           title={modal.id ? t("home:householdTasks.edit") : t("home:householdTasks.new")}
           onClose={() => setModal(null)}
-          dialogClassName={`${glassSurfaceClass} !bg-white/85 dark:!bg-[#07161d]/92`}
+          dialogClassName={`${glassSurfaceClass} !bg-white/[0.98] dark:!bg-[#07161d]/[0.98]`}
           footer={
             <div className="flex gap-2">
               <button

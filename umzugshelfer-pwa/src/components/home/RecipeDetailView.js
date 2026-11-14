@@ -137,8 +137,9 @@ export default function RecipeDetailView({
               {/* Favorite overlay button */}
               <motion.button
                 type="button"
+                aria-label={t("card.favorite")} aria-pressed={!!recipe.favorisiert}
                 onClick={() => onToggleFavorite(recipe)}
-                whileTap={reduced ? {} : { scale: 0.80 }}
+                whileTap={reduced ? {} : { scale: .97 }}
                 className={`absolute right-3 top-3 rounded-full p-2.5 shadow-elevation-2 backdrop-blur-sm transition-colors ${
                   recipe.favorisiert
                     ? "bg-red-500/90 text-white"
@@ -166,8 +167,9 @@ export default function RecipeDetailView({
               </div>
               <motion.button
                 type="button"
+                aria-label={t("card.favorite")} aria-pressed={!!recipe.favorisiert}
                 onClick={() => onToggleFavorite(recipe)}
-                whileTap={reduced ? {} : { scale: 0.80 }}
+                whileTap={reduced ? {} : { scale: .97 }}
                 className={`flex-shrink-0 rounded-full p-2 transition-colors ${
                   recipe.favorisiert
                     ? "bg-red-500/10 text-red-500"
@@ -189,7 +191,7 @@ export default function RecipeDetailView({
                 href={recipe.quelle_url}
                 target="_blank"
                 rel="noreferrer"
-                whileTap={reduced ? {} : { scale: 0.96 }}
+                whileTap={reduced ? {} : { scale: .97 }}
                 className="inline-flex items-center gap-1.5 rounded-pill bg-primary-500/10 px-3 py-1.5 text-sm font-medium text-primary-600 transition-colors hover:bg-primary-500/20 dark:text-primary-400"
               >
                 <ExternalLink size={13} /> {t("detail.openSource")}
@@ -198,7 +200,7 @@ export default function RecipeDetailView({
             <motion.button
               type="button"
               onClick={onEdit}
-              whileTap={reduced ? {} : { scale: 0.96 }}
+              whileTap={reduced ? {} : { scale: .97 }}
               className="inline-flex items-center gap-1.5 rounded-pill border border-light-border px-3 py-1.5 text-sm text-light-text-main transition-colors hover:border-primary-500/40 hover:bg-light-hover dark:border-dark-border dark:text-dark-text-main dark:hover:bg-canvas-3"
             >
               <Pencil size={13} /> {t("detail.edit")}
@@ -206,7 +208,7 @@ export default function RecipeDetailView({
             <motion.button
               type="button"
               onClick={onDelete}
-              whileTap={reduced ? {} : { scale: 0.96 }}
+              whileTap={reduced ? {} : { scale: .97 }}
               className="inline-flex items-center gap-1.5 rounded-pill border border-red-500/30 px-3 py-1.5 text-sm text-red-500 transition-colors hover:bg-red-500/10"
             >
               <Trash2 size={13} /> {t("detail.delete")}
@@ -246,7 +248,7 @@ export default function RecipeDetailView({
             <motion.button
               type="button"
               onClick={() => setGroupEditorOpen((v) => !v)}
-              whileTap={reduced ? {} : { scale: 0.92 }}
+              whileTap={reduced ? {} : { scale: .97 }}
               title={t("detail.groupLabel")}
               className={`inline-flex items-center gap-1.5 rounded-pill border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                 groupEditorOpen
@@ -296,7 +298,7 @@ export default function RecipeDetailView({
                   >
                     <Check size={14} />
                   </button>
-                  <button
+                  <button aria-label="Schließen"
                     type="button"
                     onClick={() => setGroupEditorOpen(false)}
                     className="flex-shrink-0 rounded-card-sm p-2 text-light-text-secondary transition-colors hover:bg-light-hover dark:text-dark-text-secondary dark:hover:bg-canvas-3"
@@ -315,7 +317,7 @@ export default function RecipeDetailView({
                 <p className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
                   {nutritionParts.join(" · ")}
                 </p>
-                <p className="mt-0.5 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                <p className="mt-0.5 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                   {t("nutrition.estimatedPerServing")}
                 </p>
               </div>
@@ -323,7 +325,7 @@ export default function RecipeDetailView({
                 type="button"
                 onClick={onRecalculateNutrition}
                 disabled={nutritionBusy}
-                whileTap={reduced ? {} : { scale: 0.88 }}
+                whileTap={reduced ? {} : { scale: .97 }}
                 title={nutritionBusy ? t("detail.recalculatingNutrition") : t("detail.recalculateNutrition")}
                 className="flex-shrink-0 rounded-card-sm p-2 text-primary-500/60 transition-colors hover:bg-primary-500/10 hover:text-primary-500 disabled:opacity-40"
               >
@@ -338,7 +340,7 @@ export default function RecipeDetailView({
               type="button"
               onClick={onRecalculateNutrition}
               disabled={nutritionBusy}
-              whileTap={reduced ? {} : { scale: 0.96 }}
+              whileTap={reduced ? {} : { scale: .97 }}
               className="inline-flex items-center gap-1.5 rounded-pill border border-light-border px-3 py-1.5 text-sm text-light-text-secondary transition-colors hover:border-primary-500/40 hover:text-primary-500 disabled:opacity-50 dark:border-dark-border dark:text-dark-text-secondary"
             >
               <RefreshCw size={13} className={nutritionBusy ? "animate-spin" : ""} />
@@ -371,7 +373,7 @@ export default function RecipeDetailView({
                     {t("detail.servings")}
                   </span>
                   <div className="flex items-center overflow-hidden rounded-card-sm border border-light-border dark:border-dark-border">
-                    <button
+                    <button aria-label="Verringern"
                       type="button"
                       onClick={() => setServings((v) => Math.max(1, v - 1))}
                       className="px-2 py-1 text-light-text-secondary transition-colors hover:bg-light-hover dark:text-dark-text-secondary dark:hover:bg-canvas-3"
@@ -381,7 +383,7 @@ export default function RecipeDetailView({
                     <span className="min-w-[2rem] border-x border-light-border bg-light-bg px-2 py-1 text-center text-xs font-medium text-light-text-main dark:border-dark-border dark:bg-canvas-1 dark:text-dark-text-main">
                       {servings}
                     </span>
-                    <button
+                    <button aria-label="Hinzufügen"
                       type="button"
                       onClick={() => setServings((v) => v + 1)}
                       className="px-2 py-1 text-light-text-secondary transition-colors hover:bg-light-hover dark:text-dark-text-secondary dark:hover:bg-canvas-3"
@@ -411,7 +413,7 @@ export default function RecipeDetailView({
             <motion.button
               type="button"
               onClick={() => onAddShopping?.(servings)}
-              whileTap={reduced ? {} : { scale: 0.96 }}
+              whileTap={reduced ? {} : { scale: .97 }}
               className="mt-3 inline-flex items-center gap-1.5 rounded-pill bg-amber-500 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-600"
             >
               <ShoppingCart size={14} /> {t("detail.addMissingShopping")}
@@ -419,7 +421,7 @@ export default function RecipeDetailView({
             <motion.button
               type="button"
               onClick={() => onPlanRecipe?.(recipe)}
-              whileTap={reduced ? {} : { scale: 0.96 }}
+              whileTap={reduced ? {} : { scale: .97 }}
               className="ml-2 mt-3 inline-flex items-center gap-1.5 rounded-pill border border-light-border px-3 py-2 text-sm font-medium text-light-text-main transition-colors hover:border-primary-500/40 hover:bg-light-hover dark:border-dark-border dark:text-dark-text-main dark:hover:bg-canvas-3"
             >
               <CalendarPlus size={14} /> {t("detail.planMeal")}
@@ -427,7 +429,7 @@ export default function RecipeDetailView({
             <motion.button
               type="button"
               onClick={() => setCookModeOpen(true)}
-              whileTap={reduced ? {} : { scale: 0.96 }}
+              whileTap={reduced ? {} : { scale: .97 }}
               className="ml-2 mt-3 inline-flex items-center gap-1.5 rounded-pill border border-light-border px-3 py-2 text-sm font-medium text-light-text-main transition-colors hover:border-primary-500/40 hover:bg-light-hover dark:border-dark-border dark:text-dark-text-main dark:hover:bg-canvas-3"
             >
               <Utensils size={14} /> {t("detail.cookMode")}
@@ -445,7 +447,7 @@ export default function RecipeDetailView({
                     key={`${index}-${step?.slice?.(0, 12)}`}
                     className="flex gap-3 rounded-card-sm border border-light-border bg-light-bg p-3 dark:border-dark-border dark:bg-canvas-1"
                   >
-                    <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary-500/15 text-[10px] font-bold text-primary-600 dark:text-primary-400">
+                    <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary-500/15 text-xs font-bold text-primary-600 dark:text-primary-400">
                       {index + 1}
                     </span>
                     <span className="text-sm leading-relaxed text-light-text-main dark:text-dark-text-main">

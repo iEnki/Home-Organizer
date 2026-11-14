@@ -1,3 +1,4 @@
+import OverlayPortal from "./ui/OverlayPortal";
 import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../supabaseClient";
@@ -374,7 +375,7 @@ const KontaktManager = ({ session }) => {
         </div>
       </div>
       <div className="mb-4 relative">
-        <input
+        <input aria-label={t("move:contacts.searchPlaceholder")}
           type="text"
           placeholder={t("move:contacts.searchPlaceholder")}
           value={searchTerm}
@@ -435,9 +436,9 @@ const KontaktManager = ({ session }) => {
       )}
 
       {userId && showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-3 z-50">
+        <OverlayPortal><div data-app-dialog="" className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex justify-center items-center p-3 z-50">
           <div className="bg-light-card dark:bg-canvas-2 p-4 rounded-card shadow-elevation-3 w-full max-w-md relative border border-light-border dark:border-dark-border">
-            <button
+            <button aria-label="Schließen"
               onClick={() => setShowForm(false)}
               className="absolute top-3 right-3 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
             >
@@ -590,7 +591,7 @@ const KontaktManager = ({ session }) => {
               </div>
             </form>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
 
       {Object.keys(gefilterteUndGruppierteKontakte).length === 0 &&
@@ -690,19 +691,19 @@ const KontaktManager = ({ session }) => {
                             )}
                             {kontakt.notiz && (
                               <div className="mt-1 pt-1 border-t border-light-border dark:border-dark-border/30">
-                                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary whitespace-pre-wrap">
+                                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary whitespace-pre-wrap">
                                   {kontakt.notiz}
                                 </p>
                               </div>
                             )}
                             {kontakt.bemerkungen && (
                               <div className={`${!kontakt.notiz ? "mt-1 pt-1 border-t border-light-border dark:border-dark-border/30" : "mt-1"}`}>
-                                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary whitespace-pre-wrap italic">
+                                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary whitespace-pre-wrap italic">
                                   {kontakt.bemerkungen}
                                 </p>
                               </div>
                             )}
-                            <div className="flex justify-end space-x-0.5 pt-1 mt-auto opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <div className="flex justify-end space-x-0.5 pt-1 mt-auto opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();

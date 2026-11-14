@@ -1,3 +1,4 @@
+import OverlayPortal from "./ui/OverlayPortal";
 import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../supabaseClient";
@@ -894,7 +895,7 @@ Generiere nun das Umzugstagebuch:`;
             Kategorie: {aufgabe.kategorie}
           </h4>
         )}
-        <p className="text-xs mt-1">
+        <p className="text-sm mt-1">
           Priorität: {aufgabe.prioritaet || "Standard"}{" "}
           {isOverdue(aufgabe.faelligkeitsdatum, aufgabe.erledigt) && (
             <span className="text-red-500 dark:text-red-400 font-semibold ml-2">
@@ -1223,14 +1224,14 @@ Generiere nun das Umzugstagebuch:`;
               : "Tagebuch als PDF generieren"}
           </button>
           {false && !isApiKeySetForZeitstrahl && !tagebuchLoading && (
-            <p className="text-xs text-orange-500 dark:text-orange-400 flex items-center mt-1">
+            <p className="text-sm text-orange-500 dark:text-orange-400 flex items-center mt-1">
               <InfoIcon size={14} className="mr-1 flex-shrink-0" />
               Für die Tagebuch-Generierung wird ein OpenAI API-Key benötigt.
               Bitte über "API-Key verwalten" einrichten.
             </p>
           )}
           {tagebuchError && (
-            <p className="text-red-500 text-xs mt-2">{tagebuchError}</p>
+            <p className="text-red-500 text-sm mt-2">{tagebuchError}</p>
           )}
           {false && <button
             onClick={() => {
@@ -1343,7 +1344,7 @@ Generiere nun das Umzugstagebuch:`;
 
       {/* API Key Modal */}
       {showApiKeyModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+        <OverlayPortal><div data-app-dialog="" className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
           <div
             className={`p-6 rounded-card shadow-elevation-3 w-full max-w-md relative border ${
               theme === "dark"
@@ -1398,7 +1399,7 @@ Generiere nun das Umzugstagebuch:`;
                   }`}
                 />
                 {apiKeyError && (
-                  <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+                  <p className="text-sm text-red-500 dark:text-red-400 mt-1">
                     {apiKeyError}
                   </p>
                 )}
@@ -1467,7 +1468,7 @@ Generiere nun das Umzugstagebuch:`;
               </button>
             </div>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
       {apiKeyToastMessage.text && (
         <div

@@ -186,7 +186,7 @@ const UpdatePasswordPage = () => {
                     aria-hidden="true"
                   />
                 </div>
-                <input
+                <input aria-label="Neues Passwort"
                   id="new-password"
                   name="new-password"
                   type="password"
@@ -205,7 +205,7 @@ const UpdatePasswordPage = () => {
                     aria-hidden="true"
                   />
                 </div>
-                <input
+                <input aria-label="Neues Passwort bestätigen"
                   id="confirm-password"
                   name="confirm-password"
                   type="password"

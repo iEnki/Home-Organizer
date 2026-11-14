@@ -1,3 +1,4 @@
+import OverlayPortal from "../../ui/OverlayPortal";
 import React from "react";
 import { Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -6,7 +7,7 @@ export default function TourPromptModal({ onJa, onNein }) {
   const { t } = useTranslation(["tour"]);
 
   return (
-    <div className="fixed inset-0 z-[10100] flex items-center justify-center p-4 pb-safe bg-black/60">
+    <OverlayPortal><div data-app-dialog="" className="fixed inset-0 z-[10100] flex items-center justify-center p-4 pb-safe bg-black/60">
       <div
         className="bg-light-card dark:bg-canvas-2 rounded-card border border-light-border
                    dark:border-dark-border shadow-elevation-2 max-w-sm w-full p-6"
@@ -39,6 +40,6 @@ export default function TourPromptModal({ onJa, onNein }) {
           </button>
         </div>
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 }

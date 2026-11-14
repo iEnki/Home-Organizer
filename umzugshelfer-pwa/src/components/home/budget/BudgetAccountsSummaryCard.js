@@ -26,13 +26,13 @@ export default function BudgetAccountsSummaryCard({
     <section className="space-y-2">
       <div className="flex items-center justify-between gap-2 px-1 py-2">
         <div>
-          <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+          <p className="text-sm uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
             {t("budget:accounts.paymentSources", { defaultValue: "Payment sources" })}
           </p>
-          <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
+          <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
             {t("budget:accounts.budgetAccounts", { defaultValue: "Budget accounts" })}
           </h3>
-          <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+          <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
             {t("budget:accounts.usageThisMonth", { month: monatLabel })}
           </p>
         </div>
@@ -77,14 +77,14 @@ export default function BudgetAccountsSummaryCard({
                   <p className="truncate text-sm font-medium text-light-text-main dark:text-dark-text-main">
                     {konto.name}
                   </p>
-                  <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                     {konto.konto_typ}
                     {ownerLabel ? ` · ${ownerLabel}` : ""}
                   </p>
                 </div>
 
                 <div className="text-right">
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                     {t("budget:entries.count", { count: stats.buchungen })}
                   </p>
                   <p className="mt-1 text-sm font-semibold tabular-nums text-primary-500">

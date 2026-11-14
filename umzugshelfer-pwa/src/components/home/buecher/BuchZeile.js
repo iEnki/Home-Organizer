@@ -157,12 +157,12 @@ export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen,
             <div className="min-w-0">
               <p className="text-sm font-semibold text-light-text-main dark:text-dark-text-main truncate">{buch.titel}</p>
               {buch.autor_anzeige && (
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">{buch.autor_anzeige}</p>
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary truncate">{buch.autor_anzeige}</p>
               )}
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className={`hidden sm:inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${statusCfg.badge}`}>
+            <span className={`hidden sm:inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-bold uppercase tracking-wider ${statusCfg.badge}`}>
               <span className={`h-1 w-1 rounded-full shrink-0 ${statusCfg.dot}`} />
               {statusLabel}
             </span>
@@ -188,31 +188,31 @@ export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen,
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
               {buch.verlag && (
                 <div>
-                  <span className="text-[10px] uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary">{t("books:row.publisher")}</span>
+                  <span className="text-xs uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary">{t("books:row.publisher")}</span>
                   <p className="font-medium text-light-text-main dark:text-dark-text-main mt-0.5">{buch.verlag}</p>
                 </div>
               )}
               {buch.erscheinungsjahr && (
                 <div>
-                  <span className="text-[10px] uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary">{t("books:row.year")}</span>
+                  <span className="text-xs uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary">{t("books:row.year")}</span>
                   <p className="font-medium text-light-text-main dark:text-dark-text-main mt-0.5">{buch.erscheinungsjahr}</p>
                 </div>
               )}
               {buch.isbn_13 && (
                 <div>
-                  <span className="text-[10px] uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary">{t("books:row.isbn13")}</span>
+                  <span className="text-xs uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary">{t("books:row.isbn13")}</span>
                   <p className="font-medium text-light-text-main dark:text-dark-text-main mt-0.5 font-mono">{buch.isbn_13}</p>
                 </div>
               )}
               {buch.seitenzahl && (
                 <div>
-                  <span className="text-[10px] uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary">{t("books:row.pages")}</span>
+                  <span className="text-xs uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary">{t("books:row.pages")}</span>
                   <p className="font-medium text-light-text-main dark:text-dark-text-main mt-0.5">{buch.seitenzahl}</p>
                 </div>
               )}
               {buch.zustand && (
                 <div>
-                  <span className="text-[10px] uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary">{t("books:row.conditionLabel")}</span>
+                  <span className="text-xs uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary">{t("books:row.conditionLabel")}</span>
                   <p className="font-medium text-light-text-main dark:text-dark-text-main mt-0.5">
                     {t(`books:condition.${buch.zustand}`, { defaultValue: buch.zustand })}
                   </p>
@@ -220,7 +220,7 @@ export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen,
               )}
               {buch.anzahl > 1 && (
                 <div>
-                  <span className="text-[10px] uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary">{t("books:row.quantity")}</span>
+                  <span className="text-xs uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary">{t("books:row.quantity")}</span>
                   <p className="font-medium text-light-text-main dark:text-dark-text-main mt-0.5">{buch.anzahl}</p>
                 </div>
               )}
@@ -241,7 +241,7 @@ export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen,
             )}
 
             {buch.notizen && (
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary italic">{buch.notizen}</p>
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary italic">{buch.notizen}</p>
             )}
 
             {buch.beschreibung && (
@@ -299,17 +299,17 @@ export default function BuchZeile({ buch, onBearbeiten, onVerleihen, onLoeschen,
             )}
 
             {refreshStatus === "ok" && (
-              <p className="text-xs text-primary-500 flex items-center gap-1.5">
+              <p className="text-sm text-primary-500 flex items-center gap-1.5">
                 <CheckCircle size={12} /> {t("books:row.metaUpdated")}
               </p>
             )}
             {refreshStatus === "kein_treffer" && (
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary flex items-center gap-1.5">
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary flex items-center gap-1.5">
                 <AlertCircle size={12} /> {t("books:row.noMatch")}
               </p>
             )}
             {refreshStatus === "fehler" && (
-              <p className="text-xs text-accent-danger flex items-center gap-1.5">
+              <p className="text-sm text-accent-danger flex items-center gap-1.5">
                 <AlertCircle size={12} /> {t("books:row.searchUnavailable")}
               </p>
             )}

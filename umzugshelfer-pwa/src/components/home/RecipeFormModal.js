@@ -84,30 +84,30 @@ export default function RecipeFormModal({ open, initialRecipe, initialIngredient
       <div className="space-y-4">
         <div>
           <label className={labelCls}>{t("form.title")}</label>
-          <input className={inputCls} value={form.titel} onChange={(e) => setForm((p) => ({ ...p, titel: e.target.value }))} />
+          <input aria-label={t("form.title")} className={inputCls} value={form.titel} onChange={(e) => setForm((p) => ({ ...p, titel: e.target.value }))} />
         </div>
         <div>
           <label className={labelCls}>{t("form.description")}</label>
-          <textarea className={inputCls} rows={2} value={form.beschreibung} onChange={(e) => setForm((p) => ({ ...p, beschreibung: e.target.value }))} />
+          <textarea aria-label={t("form.description")} className={inputCls} rows={2} value={form.beschreibung} onChange={(e) => setForm((p) => ({ ...p, beschreibung: e.target.value }))} />
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div>
             <label className={labelCls}>{t("form.servings")}</label>
-            <input className={inputCls} type="number" min="1" value={form.portionen} onChange={(e) => setForm((p) => ({ ...p, portionen: e.target.value }))} />
+            <input aria-label={t("form.servings")} className={inputCls} type="number" min="1" value={form.portionen} onChange={(e) => setForm((p) => ({ ...p, portionen: e.target.value }))} />
           </div>
           <div>
             <label className={labelCls}>{t("form.group")}</label>
-            <input className={inputCls} value={form.gruppe} placeholder={t("form.groupPlaceholder")} onChange={(e) => setForm((p) => ({ ...p, gruppe: e.target.value }))} />
+            <input aria-label={t("form.group")} className={inputCls} value={form.gruppe} placeholder={t("form.groupPlaceholder")} onChange={(e) => setForm((p) => ({ ...p, gruppe: e.target.value }))} />
           </div>
           <div>
             <label className={labelCls}>{t("form.prepMinutes")}</label>
-            <input className={inputCls} type="number" min="0" value={form.vorbereitungszeit_minuten} onChange={(e) => setForm((p) => ({ ...p, vorbereitungszeit_minuten: e.target.value }))} />
+            <input aria-label={t("form.prepMinutes")} className={inputCls} type="number" min="0" value={form.vorbereitungszeit_minuten} onChange={(e) => setForm((p) => ({ ...p, vorbereitungszeit_minuten: e.target.value }))} />
           </div>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className={labelCls}>{t("form.cookMinutes")}</label>
-            <input className={inputCls} type="number" min="0" value={form.kochzeit_minuten} onChange={(e) => setForm((p) => ({ ...p, kochzeit_minuten: e.target.value }))} />
+            <input aria-label={t("form.cookMinutes")} className={inputCls} type="number" min="0" value={form.kochzeit_minuten} onChange={(e) => setForm((p) => ({ ...p, kochzeit_minuten: e.target.value }))} />
           </div>
         </div>
 
@@ -119,9 +119,9 @@ export default function RecipeFormModal({ open, initialRecipe, initialIngredient
           <div className="space-y-2">
             {ingredients.map((item, index) => (
               <div key={index} className="grid grid-cols-[1fr_90px_90px_36px] gap-2">
-                <input className={inputCls} placeholder={t("form.ingredientName")} value={item.name || ""} onChange={(e) => updateIngredient(index, { name: e.target.value })} />
-                <input className={inputCls} placeholder={t("form.amount")} type="number" value={item.menge ?? ""} onChange={(e) => updateIngredient(index, { menge: e.target.value })} />
-                <input className={inputCls} placeholder={t("form.unit")} value={item.einheit || ""} onChange={(e) => updateIngredient(index, { einheit: e.target.value })} />
+                <input aria-label={t("form.ingredientName")} className={inputCls} placeholder={t("form.ingredientName")} value={item.name || ""} onChange={(e) => updateIngredient(index, { name: e.target.value })} />
+                <input aria-label={t("form.amount")} className={inputCls} placeholder={t("form.amount")} type="number" value={item.menge ?? ""} onChange={(e) => updateIngredient(index, { menge: e.target.value })} />
+                <input aria-label={t("form.unit")} className={inputCls} placeholder={t("form.unit")} value={item.einheit || ""} onChange={(e) => updateIngredient(index, { einheit: e.target.value })} />
                 <button type="button" aria-label={t("form.removeIngredient")} onClick={() => setIngredients((p) => p.filter((_, i) => i !== index))} className="rounded-card-sm border border-light-border text-light-text-secondary dark:border-dark-border">×</button>
               </div>
             ))}
@@ -130,15 +130,15 @@ export default function RecipeFormModal({ open, initialRecipe, initialIngredient
 
         <div>
           <label className={labelCls}>{t("form.instructions")}</label>
-          <textarea className={inputCls} rows={6} value={form.anleitung} onChange={(e) => setForm((p) => ({ ...p, anleitung: e.target.value }))} />
+          <textarea aria-label={t("form.instructions")} className={inputCls} rows={6} value={form.anleitung} onChange={(e) => setForm((p) => ({ ...p, anleitung: e.target.value }))} />
         </div>
         <div>
           <label className={labelCls}>{t("form.tags")}</label>
-          <input className={inputCls} value={form.tags} onChange={(e) => setForm((p) => ({ ...p, tags: e.target.value }))} />
+          <input aria-label={t("form.tags")} className={inputCls} value={form.tags} onChange={(e) => setForm((p) => ({ ...p, tags: e.target.value }))} />
         </div>
         <div>
           <label className={labelCls}>{t("form.notes")}</label>
-          <textarea className={inputCls} rows={3} value={form.notizen} onChange={(e) => setForm((p) => ({ ...p, notizen: e.target.value }))} />
+          <textarea aria-label={t("form.notes")} className={inputCls} rows={3} value={form.notizen} onChange={(e) => setForm((p) => ({ ...p, notizen: e.target.value }))} />
         </div>
       </div>
     </ModalShell>

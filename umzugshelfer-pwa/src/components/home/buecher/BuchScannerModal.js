@@ -219,7 +219,7 @@ export default function BuchScannerModal({
               {modus === "stapel" ? t("books:scannerModal.titleBatch") : t("books:scannerModal.titleSingle")}
             </h2>
           </div>
-          <button onClick={() => { stopScanner(); onAbbrechen(); }} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger">
+          <button aria-label="Schließen" onClick={() => { stopScanner(); onAbbrechen(); }} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger">
             <X size={18} />
           </button>
         </div>
@@ -243,7 +243,7 @@ export default function BuchScannerModal({
           </div>
 
           {modus === "stapel" && zuletzt && (
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary text-center">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary text-center">
               Zuletzt gescannt: <span className="font-mono">{zuletzt}</span>
             </p>
           )}
@@ -272,7 +272,7 @@ export default function BuchScannerModal({
 
           {modus === "einzel" && treffer.length > 0 && (
             <div className="space-y-2">
-              <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
+              <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary">
                 {t("books:scannerModal.resultsTitle")}
               </p>
               {treffer.map((buch, idx) => (
@@ -290,7 +290,7 @@ export default function BuchScannerModal({
                   )}
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main truncate">{buch.title}</p>
-                    <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">
+                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary truncate">
                       {buch.authorDisplay}{buch.publishedYear ? ` · ${buch.publishedYear}` : ""}
                     </p>
                   </div>
@@ -302,7 +302,7 @@ export default function BuchScannerModal({
 
           {modus === "stapel" && kandidaten.length > 0 && (
             <div className="space-y-2">
-              <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
+              <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary">
                 {t("books:scannerModal.scannedCount", { count: kandidaten.length })}
               </p>
               {kandidaten.map(({ isbn, bookResult }) => (
@@ -317,14 +317,14 @@ export default function BuchScannerModal({
                   <div className="min-w-0 flex-1">
                     {bookResult ? (
                       <>
-                        <p className="text-xs font-medium text-light-text-main dark:text-dark-text-main truncate">{bookResult.title}</p>
-                        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">{bookResult.authorDisplay}</p>
+                        <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main truncate">{bookResult.title}</p>
+                        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary truncate">{bookResult.authorDisplay}</p>
                       </>
                     ) : (
-                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary font-mono">{isbn} {t("books:scannerModal.noMatch")}</p>
+                      <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary font-mono">{isbn} {t("books:scannerModal.noMatch")}</p>
                     )}
                   </div>
-                  <button
+                  <button aria-label="Löschen"
                     onClick={() => handleKandidatEntfernen(isbn)}
                     className="shrink-0 text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger"
                   >
@@ -362,7 +362,7 @@ export default function BuchScannerModal({
           )}
 
           <form onSubmit={handleManuelleEingabe} className="flex gap-2">
-            <input
+            <input aria-label={t("books:scannerModal.manualIsbn")}
               type="text"
               value={manuelleIsbn}
               onChange={(e) => setManuelleIsbn(e.target.value)}

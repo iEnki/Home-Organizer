@@ -10,7 +10,7 @@ export default function RecipeQualityBadges({ recipe, ingredients = [], t, limit
       {visible.map((badge) => (
         <span
           key={badge.key}
-          className={`inline-flex items-center rounded-pill px-2 py-0.5 text-[10px] font-medium ${getBadgeToneClass(badge.tone)}`}
+          className={`inline-flex items-center rounded-pill px-2 py-0.5 text-xs font-medium ${getBadgeToneClass(badge.tone)}`}
         >
           {badge.label}
         </span>

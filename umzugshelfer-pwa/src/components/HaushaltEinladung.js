@@ -217,7 +217,7 @@ const HaushaltEinladung = ({ session, loadingAuth }) => {
                   <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
                     Passwort festlegen
                   </h2>
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                     Schritt 2 von 2 — Einladung angenommen
                   </p>
                 </div>
@@ -237,7 +237,7 @@ const HaushaltEinladung = ({ session, loadingAuth }) => {
 
               <div className="space-y-3">
                 <div className="relative">
-                  <input
+                  <input aria-label="Neues Passwort (min. 8 Zeichen)"
                     type={pwZeigen1 ? "text" : "password"}
                     placeholder="Neues Passwort (min. 8 Zeichen)"
                     value={neuesPasswort}
@@ -255,7 +255,7 @@ const HaushaltEinladung = ({ session, loadingAuth }) => {
                   </button>
                 </div>
                 <div className="relative">
-                  <input
+                  <input aria-label="Passwort wiederholen"
                     type={pwZeigen2 ? "text" : "password"}
                     placeholder="Passwort wiederholen"
                     value={pwWiederholung}

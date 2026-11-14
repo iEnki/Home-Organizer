@@ -1,3 +1,4 @@
+import OverlayPortal from "../ui/OverlayPortal";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -307,7 +308,7 @@ function EntryPreviewRow({
               true
             ) && (
               <span
-                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
                   getShoppingCategoryStyle(
                     editedValues?.hauptkategorie ?? draft.hauptkategorie
                   ).soft
@@ -322,25 +323,25 @@ function EntryPreviewRow({
               </span>
             )}
             {draft.review_noetig && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[11px] font-medium">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 text-xs font-medium">
                 <AlertTriangle size={12} />
                 {t("home:shopping.review", { defaultValue: "Review" })}
               </span>
             )}
           </div>
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1">
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1">
             {editedValues?.menge != null || editedValues?.einheit != null
               ? `${editedValues?.menge ?? draft.menge ?? 1} ${editedValues?.einheit ?? draft.einheit ?? "Stück"}`
               : getShoppingEntrySubtitle(draft)}
           </p>
           {draft.merged_original_texts?.length > 1 && (
-            <p className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary mt-1">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1">
               Batch-intern zusammengeführt aus {draft.merged_original_texts.length} Roh-Einträgen
             </p>
           )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          <span className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">
+          <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
             Confidence {Math.round((draft.confidence || 0) * 100)}%
           </span>
           {!isAusgeschlossen && (
@@ -373,7 +374,7 @@ function EntryPreviewRow({
       {/* Inline-Edit-Felder */}
       {editOffen && !isAusgeschlossen && (
         <div className="border-t border-light-border dark:border-dark-border pt-3 space-y-2">
-          <input
+          <input aria-label={t("home:einkaufliste.namePlaceholder")}
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -389,7 +390,7 @@ function EntryPreviewRow({
               step="any"
               className="w-20 px-3 py-1.5 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
             />
-            <input
+            <input aria-label={t("home:shopping.unit", { defaultValue: "Unit" })}
               type="text"
               value={einheit}
               onChange={(e) => setEinheit(e.target.value)}
@@ -417,7 +418,7 @@ function EntryPreviewRow({
       {/* Duplikat-Block (unverändert, nur via Props) */}
       {duplicate && (
         <div className="rounded-card-sm border border-amber-500/30 bg-amber-500/10 p-3 space-y-2">
-          <p className="text-xs text-amber-700 dark:text-amber-300">
+          <p className="text-sm text-amber-700 dark:text-amber-300">
             {t("home:shopping.duplicateExisting", { defaultValue: "Already open:" })} <strong>{duplicate.existing_entry.name}</strong>{" "}
             ({getShoppingEntrySubtitle(duplicate.existing_entry)})
           </p>
@@ -1090,7 +1091,7 @@ const HomeEinkaufliste = ({ session }) => {
           className="flex items-center gap-3 px-4 py-3"
         >
           <Search size={17} className="text-light-text-secondary dark:text-dark-text-secondary" />
-          <input
+          <input aria-label={t("home:shopping.searchPlaceholder", { defaultValue: "Search item, category or subcategory" })}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder={t("home:shopping.searchPlaceholder", { defaultValue: "Search item, category or subcategory" })}
@@ -1182,7 +1183,7 @@ const HomeEinkaufliste = ({ session }) => {
           {sortMode !== "Markt" && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary-500/10 text-primary-500 border border-primary-500/20">
               {t("home:shopping.sort", { defaultValue: "Sort" })}: {getShoppingUiLabel(sortMode, i18n.language)}
-              <button onClick={() => setSortMode("Markt")} className="hover:text-primary-600">
+              <button aria-label="Schließen" onClick={() => setSortMode("Markt")} className="hover:text-primary-600">
                 <X size={10} />
               </button>
             </span>
@@ -1197,7 +1198,7 @@ const HomeEinkaufliste = ({ session }) => {
               }`}
             >
               {t("home:shopping.filter", { defaultValue: "Filter" })}: {getShoppingUiLabel(filter, i18n.language)}
-              <button onClick={() => setFilter("Alle")} className="hover:text-amber-500">
+              <button aria-label="Schließen" onClick={() => setFilter("Alle")} className="hover:text-amber-500">
                 <X size={10} />
               </button>
             </span>
@@ -1271,12 +1272,12 @@ const HomeEinkaufliste = ({ session }) => {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
+                            <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
                               {resolveLocalizedShoppingEntry(entry, activeLocale).name}
                             </h3>
                             {getShoppingCategoryBadgeLabel(entry) && (
                               <span
-                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${getShoppingCategoryStyle(
+                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getShoppingCategoryStyle(
                                   entry.hauptkategorie
                                 ).soft}`}
                               >
@@ -1284,13 +1285,13 @@ const HomeEinkaufliste = ({ session }) => {
                               </span>
                             )}
                             {entry.review_noetig && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[11px] font-medium">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 text-xs font-medium">
                                 <AlertTriangle size={12} />
                                 {t("home:shopping.review", { defaultValue: "Review" })}
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1">
+                          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1">
                             {getShoppingEntrySubtitle(entry)}
                           </p>
                         </div>
@@ -1330,7 +1331,7 @@ const HomeEinkaufliste = ({ session }) => {
                 <h2 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
                   {t("home:shopping.completed", { defaultValue: "Done" })}
                 </h2>
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                   {t("home:shopping.completedCount", { count: erledigteEintraege.length, defaultValue: "{{count}} recently checked off items" })}
                 </p>
               </div>
@@ -1353,20 +1354,20 @@ const HomeEinkaufliste = ({ session }) => {
                     key={entry.id}
                     className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 p-3 flex items-start gap-3 opacity-75"
                   >
-                    <button
+                    <button aria-label="Bestätigen"
                       onClick={() => toggleErledigt(entry)}
                       className="w-5 h-5 mt-1 rounded-full bg-primary-500 text-white flex items-center justify-center flex-shrink-0"
                     >
                       <Check size={12} />
                     </button>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-sm line-through text-light-text-main dark:text-dark-text-main">
+                      <h3 className="text-base line-through text-light-text-main dark:text-dark-text-main">
                         {resolveLocalizedShoppingEntry(entry, activeLocale).name}
                       </h3>
                       {getShoppingCategoryBadgeLabel(entry, true) && (
                         <div className="mt-1">
                           <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${getShoppingCategoryStyle(
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getShoppingCategoryStyle(
                               entry.hauptkategorie
                             ).soft}`}
                           >
@@ -1374,7 +1375,7 @@ const HomeEinkaufliste = ({ session }) => {
                           </span>
                         </div>
                       )}
-                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1">
+                      <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1">
                         {getShoppingEntrySubtitle(entry)}
                       </p>
                     </div>
@@ -1396,18 +1397,18 @@ const HomeEinkaufliste = ({ session }) => {
       </motion.div>
 
       {createModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 pb-safe flex items-center justify-center">
+        <OverlayPortal><div data-app-dialog="" className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 pb-safe flex items-center justify-center">
           <div className={`${glassSurfaceClass} w-full max-w-2xl overflow-hidden`}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-light-border dark:border-dark-border">
               <div>
                 <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
                   {t("home:shopping.captureItems", { defaultValue: "Add items" })}
                 </h2>
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                   {t("home:shopping.captureHint", { defaultValue: "Separate multiple entries with commas, semicolons or line breaks." })}
                 </p>
               </div>
-              <button
+              <button aria-label="Schließen"
                 onClick={resetCreateFlow}
                 className="p-2 rounded-full text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
               >
@@ -1441,7 +1442,7 @@ const HomeEinkaufliste = ({ session }) => {
               </div>
 
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                   {t("home:shopping.rawBeforeAnalysis", { count: splitShoppingInput(createText).length, defaultValue: "{{count}} raw entries before analysis" })}
                 </p>
 
@@ -1464,22 +1465,22 @@ const HomeEinkaufliste = ({ session }) => {
               </div>
             </div>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
 
       {previewState && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 pb-safe flex items-center justify-center">
+        <OverlayPortal><div data-app-dialog="" className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 pb-safe flex items-center justify-center">
           <div className={`${glassSurfaceClass} w-full max-w-3xl overflow-hidden`}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-light-border dark:border-dark-border">
               <div>
                 <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
                   {t("home:shopping.previewTitle", { defaultValue: "Preview before saving" })}
                 </h2>
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                   {t("home:shopping.previewHint", { defaultValue: "Uncertain entries are marked. Duplicates can be merged." })}
                 </p>
               </div>
-              <button
+              <button aria-label="Schließen"
                 onClick={() => setPreviewState(null)}
                 className="p-2 rounded-full text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
               >
@@ -1519,7 +1520,7 @@ const HomeEinkaufliste = ({ session }) => {
               ).length;
               return (
                 <div className="px-4 py-3 border-t border-light-border dark:border-dark-border flex items-center justify-between gap-3">
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                     {t("home:shopping.readyToSave", { count: aktiveAnzahl, defaultValue: "{{count}} entries ready to save" })}
                   </p>
                   <div className="flex gap-2">
@@ -1542,11 +1543,11 @@ const HomeEinkaufliste = ({ session }) => {
               );
             })()}
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
 
       {stockDecision && (
-        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm p-4 pb-safe flex items-center justify-center">
+        <OverlayPortal><div data-app-dialog="" className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm p-4 pb-safe flex items-center justify-center">
           <div className={`${glassSurfaceClass} w-full max-w-md overflow-hidden`}>
             <div className="px-4 py-3 border-b border-light-border dark:border-dark-border">
               <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
@@ -1579,17 +1580,17 @@ const HomeEinkaufliste = ({ session }) => {
               </button>
             </div>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
 
       {editForm.id && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 pb-safe flex items-center justify-center">
+        <OverlayPortal><div data-app-dialog="" className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 pb-safe flex items-center justify-center">
           <div className={`${glassSurfaceClass} w-full max-w-lg overflow-hidden`}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-light-border dark:border-dark-border">
               <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
                 {t("home:shopping.editItem", { defaultValue: "Edit shopping item" })}
               </h2>
-              <button
+              <button aria-label="Schließen"
                 onClick={closeEditModal}
                 className="p-2 rounded-full text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
               >
@@ -1602,7 +1603,7 @@ const HomeEinkaufliste = ({ session }) => {
                 <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
                   Name
                 </label>
-                <input
+                <input aria-label="Name"
                   value={editForm.name}
                   onChange={(event) =>
                     setEditForm((current) => ({ ...current, name: event.target.value }))
@@ -1616,7 +1617,7 @@ const HomeEinkaufliste = ({ session }) => {
                   <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
                   {t("home:shopping.quantity", { defaultValue: "Quantity" })}
                   </label>
-                  <input
+                  <input aria-label={t("home:shopping.quantity", { defaultValue: "Quantity" })}
                     type="number"
                     min="0.1"
                     step="0.1"
@@ -1631,7 +1632,7 @@ const HomeEinkaufliste = ({ session }) => {
                   <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
                   {t("home:shopping.unit", { defaultValue: "Unit" })}
                   </label>
-                  <input
+                  <input aria-label={t("home:shopping.unit", { defaultValue: "Unit" })}
                     value={editForm.einheit}
                     onChange={(event) =>
                       setEditForm((current) => ({ ...current, einheit: event.target.value }))
@@ -1646,7 +1647,7 @@ const HomeEinkaufliste = ({ session }) => {
                   <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
                     {t("home:shopping.mainCategory", { defaultValue: "Main category" })}
                   </label>
-                  <select
+                  <select aria-label={t("home:shopping.mainCategory", { defaultValue: "Main category" })}
                     value={editForm.hauptkategorie}
                     onChange={(event) =>
                       setEditForm((current) => ({
@@ -1668,7 +1669,7 @@ const HomeEinkaufliste = ({ session }) => {
                   <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
                     {t("home:shopping.subcategory", { defaultValue: "Subcategory" })}
                   </label>
-                  <select
+                  <select aria-label={t("home:shopping.subcategory", { defaultValue: "Subcategory" })}
                     value={editForm.unterkategorie}
                     onChange={(event) =>
                       setEditForm((current) => ({
@@ -1706,7 +1707,7 @@ const HomeEinkaufliste = ({ session }) => {
               </button>
             </div>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
 
       {tourAktiv && (

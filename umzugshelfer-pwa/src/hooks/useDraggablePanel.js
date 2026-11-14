@@ -19,6 +19,7 @@ export default function useDraggablePanel({ enabled = true, initialPosition = nu
   const elementRef = useRef(null);
   const dragState = useRef(null);
   const frame = useRef(null);
+  const cleanup = useRef(null);
   const onDragEndRef = useRef(onDragEnd);
   onDragEndRef.current = onDragEnd;
 
@@ -67,6 +68,7 @@ export default function useDraggablePanel({ enabled = true, initialPosition = nu
 
   useEffect(() => () => {
     if (frame.current) cancelAnimationFrame(frame.current);
+    cleanup.current?.();
   }, []);
 
   const onPointerDown = useCallback(
@@ -76,20 +78,24 @@ export default function useDraggablePanel({ enabled = true, initialPosition = nu
       if (event.target.closest("button, input, select, textarea, a")) return;
       const el = elementRef.current;
       if (!el) return;
+      cleanup.current?.();
       const rect = el.getBoundingClientRect();
       dragState.current = {
         pointerId: event.pointerId,
         offsetX: event.clientX - rect.left,
         offsetY: event.clientY - rect.top,
         moved: false,
+        startX: event.clientX, startY: event.clientY,
       };
       event.currentTarget.setPointerCapture?.(event.pointerId);
-      setDragging(true);
+
 
       const handleMove = (moveEvent) => {
         const state = dragState.current;
         if (!state || moveEvent.pointerId !== state.pointerId) return;
+        if (!state.moved && Math.hypot(moveEvent.clientX - state.startX, moveEvent.clientY - state.startY) < 8) return;
         state.moved = true;
+        setDragging(true);
         const next = {
           x: moveEvent.clientX - state.offsetX,
           y: moveEvent.clientY - state.offsetY,
@@ -103,19 +109,22 @@ export default function useDraggablePanel({ enabled = true, initialPosition = nu
       const handleUp = (upEvent) => {
         const state = dragState.current;
         if (!state || upEvent.pointerId !== state.pointerId) return;
-        window.removeEventListener("pointermove", handleMove);
-        window.removeEventListener("pointerup", handleUp);
-        window.removeEventListener("pointercancel", handleUp);
+        cleanup.current?.();
+        if (frame.current) cancelAnimationFrame(frame.current);
         dragState.current = null;
         setDragging(false);
         if (state.moved) {
-          setPosition((current) => {
-            if (current) onDragEndRef.current?.(current);
-            return current;
-          });
+          const final = clamp({ x: upEvent.clientX - state.offsetX, y: upEvent.clientY - state.offsetY });
+          setPosition(final);
+          if (upEvent.type !== "pointercancel") onDragEndRef.current?.(final);
         }
       };
 
+      cleanup.current = () => {
+        window.removeEventListener("pointermove", handleMove);
+        window.removeEventListener("pointerup", handleUp);
+        window.removeEventListener("pointercancel", handleUp);
+      };
       window.addEventListener("pointermove", handleMove);
       window.addEventListener("pointerup", handleUp);
       window.addEventListener("pointercancel", handleUp);

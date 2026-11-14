@@ -409,7 +409,7 @@ export default function BuchFormModal({
               {istNeu ? t("books:form.addTitle") : t("books:form.editTitle")}
             </h2>
           </div>
-          <button onClick={onAbbrechen} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger">
+          <button aria-label="Schließen" onClick={onAbbrechen} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger">
             <X size={18} />
           </button>
         </div>
@@ -418,12 +418,12 @@ export default function BuchFormModal({
         <div className="mobile-modal-body flex-1 p-4 pb-2 space-y-4">
           {/* API-Suche */}
           <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 p-3 space-y-2">
-            <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
+            <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary">
               {t("books:form.searchDb")}
             </p>
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary" />
-              <input
+              <input aria-label={t("books:form.searchPlaceholder")}
                 type="text"
                 value={suchbegriff}
                 onChange={(e) => setSuchbegriff(e.target.value)}
@@ -442,7 +442,7 @@ export default function BuchFormModal({
                   >
                     <p className="font-medium text-light-text-main dark:text-dark-text-main truncate">{e.title}</p>
                     {e.authorDisplay && (
-                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">{e.authorDisplay}</p>
+                      <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary truncate">{e.authorDisplay}</p>
                     )}
                   </button>
                 ))}
@@ -459,7 +459,7 @@ export default function BuchFormModal({
                   className="w-16 h-24 rounded object-cover shrink-0 border border-light-border dark:border-dark-border"
                 />
                 <div className="min-w-0 flex-1 space-y-2">
-                  <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">
+                  <p className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary">
                     {t("books:form.currentCover")}
                   </p>
                   <div className="flex flex-wrap gap-2">
@@ -508,21 +508,21 @@ export default function BuchFormModal({
           {/* Pflichtfelder */}
           <div>
             <label className={labelCls}>{t("books:form.titleLabel")}</label>
-            <input type="text" value={form.titel} onChange={(e) => setForm((p) => ({ ...p, titel: e.target.value }))} className={inputCls} />
+            <input aria-label={t("books:form.titleLabel")} type="text" value={form.titel} onChange={(e) => setForm((p) => ({ ...p, titel: e.target.value }))} className={inputCls} />
           </div>
           <div>
             <label className={labelCls}>{t("books:form.subtitle")}</label>
-            <input type="text" value={form.untertitel} onChange={(e) => setForm((p) => ({ ...p, untertitel: e.target.value }))} className={inputCls} />
+            <input aria-label={t("books:form.subtitle")} type="text" value={form.untertitel} onChange={(e) => setForm((p) => ({ ...p, untertitel: e.target.value }))} className={inputCls} />
           </div>
           <div>
             <label className={labelCls}>{t("books:form.authors")}</label>
-            <input type="text" value={form.autoren} onChange={(e) => setForm((p) => ({ ...p, autoren: e.target.value }))} className={inputCls} placeholder={t("books:form.authorsPlaceholder")} />
+            <input aria-label={t("books:form.authors")} type="text" value={form.autoren} onChange={(e) => setForm((p) => ({ ...p, autoren: e.target.value }))} className={inputCls} placeholder={t("books:form.authorsPlaceholder")} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>{t("books:form.isbn13")}</label>
               <div className="flex gap-1.5">
-                <input
+                <input aria-label={t("books:form.isbnPlaceholder")}
                   type="text"
                   value={form.isbn_13}
                   onChange={(e) => setForm((p) => ({ ...p, isbn_13: e.target.value }))}
@@ -542,44 +542,44 @@ export default function BuchFormModal({
             </div>
             <div>
               <label className={labelCls}>{t("books:form.publisher")}</label>
-              <input type="text" value={form.verlag} onChange={(e) => setForm((p) => ({ ...p, verlag: e.target.value }))} className={inputCls} />
+              <input aria-label={t("books:form.publisher")} type="text" value={form.verlag} onChange={(e) => setForm((p) => ({ ...p, verlag: e.target.value }))} className={inputCls} />
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className={labelCls}>{t("books:form.year")}</label>
-              <input type="number" value={form.erscheinungsjahr} onChange={(e) => setForm((p) => ({ ...p, erscheinungsjahr: e.target.value }))} className={inputCls} placeholder="2024" />
+              <input aria-label={t("books:form.year")} type="number" value={form.erscheinungsjahr} onChange={(e) => setForm((p) => ({ ...p, erscheinungsjahr: e.target.value }))} className={inputCls} placeholder="2024" />
             </div>
             <div>
               <label className={labelCls}>{t("books:form.language")}</label>
-              <input type="text" value={form.sprache} onChange={(e) => setForm((p) => ({ ...p, sprache: e.target.value }))} className={inputCls} placeholder={t("books:form.languagePlaceholder")} />
+              <input aria-label={t("books:form.language")} type="text" value={form.sprache} onChange={(e) => setForm((p) => ({ ...p, sprache: e.target.value }))} className={inputCls} placeholder={t("books:form.languagePlaceholder")} />
             </div>
             <div>
               <label className={labelCls}>{t("books:form.pages")}</label>
-              <input type="number" value={form.seitenzahl} onChange={(e) => setForm((p) => ({ ...p, seitenzahl: e.target.value }))} className={inputCls} />
+              <input aria-label={t("books:form.pages")} type="number" value={form.seitenzahl} onChange={(e) => setForm((p) => ({ ...p, seitenzahl: e.target.value }))} className={inputCls} />
             </div>
           </div>
           <div>
             <label className={labelCls}>{t("books:form.description")}</label>
-            <textarea rows={3} value={form.beschreibung} onChange={(e) => setForm((p) => ({ ...p, beschreibung: e.target.value }))} className={inputCls} />
+            <textarea aria-label={t("books:form.description")} rows={3} value={form.beschreibung} onChange={(e) => setForm((p) => ({ ...p, beschreibung: e.target.value }))} className={inputCls} />
           </div>
           <div>
             <label className={labelCls}>{t("books:form.tags")}</label>
-            <input type="text" value={form.tags} onChange={(e) => setForm((p) => ({ ...p, tags: e.target.value }))} className={inputCls} placeholder={t("books:form.tagsPlaceholder")} />
+            <input aria-label={t("books:form.tags")} type="text" value={form.tags} onChange={(e) => setForm((p) => ({ ...p, tags: e.target.value }))} className={inputCls} placeholder={t("books:form.tagsPlaceholder")} />
           </div>
 
           {/* Standort */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>{t("books:form.location")}</label>
-              <select value={form.ort_id} onChange={(e) => setForm((p) => ({ ...p, ort_id: e.target.value, lagerort_id: "" }))} className={inputCls}>
+              <select aria-label={t("books:form.location")} value={form.ort_id} onChange={(e) => setForm((p) => ({ ...p, ort_id: e.target.value, lagerort_id: "" }))} className={inputCls}>
                 <option value="">{t("books:form.locationNone")}</option>
                 {orte.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
               </select>
             </div>
             <div>
               <label className={labelCls}>{t("books:form.storageLocation")}</label>
-              <select value={form.lagerort_id} onChange={(e) => setForm((p) => ({ ...p, lagerort_id: e.target.value }))} className={inputCls}>
+              <select aria-label={t("books:form.storageLocation")} value={form.lagerort_id} onChange={(e) => setForm((p) => ({ ...p, lagerort_id: e.target.value }))} className={inputCls}>
                 <option value="">{t("books:form.storageNone")}</option>
                 {filteredLagerorte.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
@@ -590,7 +590,7 @@ export default function BuchFormModal({
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className={labelCls}>{t("books:form.statusLabel")}</label>
-              <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))} className={inputCls}>
+              <select aria-label={t("books:form.statusLabel")} value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))} className={inputCls}>
                 {Object.keys(BUCH_STATUS).map((val) => (
                   <option key={val} value={val}>{t(`books:status.${val}`)}</option>
                 ))}
@@ -598,7 +598,7 @@ export default function BuchFormModal({
             </div>
             <div>
               <label className={labelCls}>{t("books:form.conditionLabel")}</label>
-              <select value={form.zustand} onChange={(e) => setForm((p) => ({ ...p, zustand: e.target.value }))} className={inputCls}>
+              <select aria-label={t("books:form.conditionLabel")} value={form.zustand} onChange={(e) => setForm((p) => ({ ...p, zustand: e.target.value }))} className={inputCls}>
                 <option value="">—</option>
                 {Object.keys(BUCH_ZUSTAND).map((val) => (
                   <option key={val} value={val}>{t(`books:condition.${val}`)}</option>
@@ -607,17 +607,17 @@ export default function BuchFormModal({
             </div>
             <div>
               <label className={labelCls}>{t("books:form.quantity")}</label>
-              <input type="number" min="1" value={form.anzahl} onChange={(e) => setForm((p) => ({ ...p, anzahl: e.target.value }))} className={inputCls} />
+              <input aria-label={t("books:form.quantity")} type="number" min="1" value={form.anzahl} onChange={(e) => setForm((p) => ({ ...p, anzahl: e.target.value }))} className={inputCls} />
             </div>
           </div>
 
           <div>
             <label className={labelCls}>{t("books:form.notes")}</label>
-            <textarea rows={2} value={form.notizen} onChange={(e) => setForm((p) => ({ ...p, notizen: e.target.value }))} className={inputCls} />
+            <textarea aria-label={t("books:form.notes")} rows={2} value={form.notizen} onChange={(e) => setForm((p) => ({ ...p, notizen: e.target.value }))} className={inputCls} />
           </div>
 
           {fehler && (
-            <p className="text-xs text-accent-danger">{fehler}</p>
+            <p className="text-sm text-accent-danger">{fehler}</p>
           )}
         </div>
 

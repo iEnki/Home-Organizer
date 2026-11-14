@@ -4,7 +4,12 @@ const path = require("path");
 process.env.REACT_APP_SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL || "https://example.supabase.co";
 process.env.REACT_APP_SUPABASE_ANON_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY || "test-anon-key";
 
-const { isUmzugRoutePath, UMZUG_ROUTE_PREFIXES } = require("./App");
+const {
+  isInvalidRefreshTokenError,
+  isUmzugRoutePath,
+  resolveGlobalSearchMode,
+  UMZUG_ROUTE_PREFIXES,
+} = require("./App");
 
 test("defines and exports the root app component", () => {
   const source = fs.readFileSync(path.join(__dirname, "App.js"), "utf8");
@@ -40,4 +45,15 @@ test("does not redirect shared or home routes as moving-planner routes", () => {
   expect(isUmzugRoutePath("/profil")).toBe(false);
   expect(isUmzugRoutePath("/features/todo-listen")).toBe(false);
   expect(isUmzugRoutePath("/budget-extra")).toBe(false);
+});
+
+test("uses the visible moving route for global search even when home mode is persisted", () => {
+  expect(resolveGlobalSearchMode("home", "/packliste")).toBe("umzug");
+  expect(resolveGlobalSearchMode("home", "/home/inventar")).toBe("home");
+  expect(resolveGlobalSearchMode("umzug", "/profil")).toBe("umzug");
+});
+
+test("recognizes stale refresh token failures without swallowing unrelated auth errors", () => {
+  expect(isInvalidRefreshTokenError(new Error("Invalid Refresh Token: Refresh Token Not Found"))).toBe(true);
+  expect(isInvalidRefreshTokenError(new Error("User account is disabled"))).toBe(false);
 });

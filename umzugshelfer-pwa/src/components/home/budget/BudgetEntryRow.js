@@ -19,7 +19,7 @@ import { getHomeBudgetCategoryLabel } from "../../../utils/homeBudgetCategories"
 import GlassSurface from "../../ui/GlassSurface";
 
 const DETAIL_LABEL_CLS =
-  "text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary";
+  "text-xs uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary";
 
 const DETAIL_VALUE_CLS =
   "mt-1 text-sm text-light-text-main dark:text-dark-text-main";
@@ -118,21 +118,21 @@ export default function BudgetEntryRow({
                   </p>
 
                   {meta.istRecurring && (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-secondary-500/30 bg-secondary-500/10 px-1.5 py-0.5 text-[10px] font-medium text-secondary-600 dark:text-secondary-300">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-secondary-500/30 bg-secondary-500/10 px-1.5 py-0.5 text-xs font-medium text-secondary-600 dark:text-secondary-300">
                       <RefreshCw size={10} />
                       {meta.istTemplate ? "Vorlage" : "Wiederkehrend"}
                     </span>
                   )}
 
                   {meta.hatRechnung && (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-primary-500/20 bg-primary-500/10 px-1.5 py-0.5 text-[10px] font-medium text-primary-500">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-primary-500/20 bg-primary-500/10 px-1.5 py-0.5 text-xs font-medium text-primary-500">
                       <Receipt size={10} />
                       Rechnung
                     </span>
                   )}
 
                   {meta.hatSplit && (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-300">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-300">
                       {meta.istIndividuellerSplit
                         ? "Geteilt"
                         : meta.splitOriginLabel
@@ -142,7 +142,7 @@ export default function BudgetEntryRow({
                   )}
 
                   <span
-                    className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${meta.scopeColorClass}`}
+                    className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-xs font-medium ${meta.scopeColorClass}`}
                   >
                     {meta.scopeLabel}
                   </span>
@@ -221,7 +221,7 @@ export default function BudgetEntryRow({
               {meta.konto ? (
                 <div className="mt-1 space-y-1.5">
                   <BudgetAccountBadge konto={meta.konto} />
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                     {meta.kontoTyp || "Unbekannter Typ"}
                     {meta.kontoInhaberName ? ` · ${meta.kontoInhaberName}` : ""}
                   </p>
@@ -237,11 +237,11 @@ export default function BudgetEntryRow({
                   {meta.istTemplate ? `Vorlage · ${entry.intervall || "ohne Intervall"}` : "Wiederkehrende Buchung"}
                 </p>
                 {meta.istTemplate && entry.naechstes_datum && (
-                  <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                  <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                     Naechstes Datum: {entry.naechstes_datum}
                   </p>
                 )}
-                <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                   {meta.istTemplate
                     ? "Nur echte Buchungen wirken im Ausgleich; die Vorlage speichert den Default."
                     : meta.istVererbterSplit
@@ -279,7 +279,7 @@ export default function BudgetEntryRow({
                             {getInvoiceTitle(rechnung)}
                           </p>
                           {details.length > 0 && (
-                            <p className="truncate text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                            <p className="truncate text-sm text-light-text-secondary dark:text-dark-text-secondary">
                               {details.join(" · ")}
                             </p>
                           )}

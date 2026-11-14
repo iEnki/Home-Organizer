@@ -1,3 +1,4 @@
+import OverlayPortal from "../ui/OverlayPortal";
 import React, { useState, useEffect, useCallback, useMemo, useRef, forwardRef, useImperativeHandle } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -384,12 +385,12 @@ const RechnungZuordnenModal = ({ entry, open, onClose, onLinked, householdId, us
     <ModalShell open title="Rechnung zuordnen" onClose={onClose} maxWidthClass="max-w-3xl" bodyClassName="space-y-4">
       <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-3 py-3">
         <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">{entry.beschreibung || "Budgeteintrag"}</p>
-        <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+        <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
           Waehle eine bestehende Rechnung aus dem Dokumentarchiv. Danach ist die Vorschau im Budgetposten verfuegbar.
         </p>
       </div>
 
-      <input
+      <input aria-label="Rechnung suchen..."
         value={suchbegriff}
         onChange={(event) => setSuchbegriff(event.target.value)}
         placeholder="Rechnung suchen..."
@@ -424,30 +425,30 @@ const RechnungZuordnenModal = ({ entry, open, onClose, onLinked, householdId, us
                     <p className="truncate text-sm font-semibold text-light-text-main dark:text-dark-text-main">
                       {info.lieferant_name || dok.dateiname || "Rechnung"}
                     </p>
-                    <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                    <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                       {formatInvoiceSelectionDate(info.rechnungsdatum)}
                       {dok.dateiname ? ` · ${dok.dateiname}` : ""}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {dok.linked_to_current && (
-                        <span className="rounded-full border border-primary-500/30 bg-primary-500/10 px-2 py-0.5 text-[10px] font-medium text-primary-500">
+                        <span className="rounded-full border border-primary-500/30 bg-primary-500/10 px-2 py-0.5 text-xs font-medium text-primary-500">
                           Bereits diesem Budgetposten zugeordnet
                         </span>
                       )}
                       {!dok.linked_to_current && dok.budget_link_count > 0 && (
-                        <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-300">
+                        <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-300">
                           Bereits im Budget
                         </span>
                       )}
                       {!info.id && (
-                        <span className="rounded-full border border-light-border dark:border-dark-border px-2 py-0.5 text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
+                        <span className="rounded-full border border-light-border dark:border-dark-border px-2 py-0.5 text-xs text-light-text-secondary dark:text-dark-text-secondary">
                           Nur Vorschau, keine Positionsdaten
                         </span>
                       )}
                     </div>
                   </div>
                   <div className="shrink-0 text-right">
-                    <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">Betrag</p>
+                    <p className="text-sm uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">Betrag</p>
                     <p className="mt-1 text-sm font-medium text-light-text-main dark:text-dark-text-main">
                       {info.brutto != null ? fmt(info.brutto) : "Unbekannt"}
                     </p>
@@ -722,7 +723,7 @@ const BudgetForm = forwardRef(({
     <div className="space-y-3">
       <div>
         <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:form.description")}</label>
-        <input
+        <input aria-label={t("budget:form.description")}
           value={form.beschreibung}
           onChange={e => setForm(p => ({ ...p, beschreibung: e.target.value }))}
           placeholder={t("budget:form.descriptionPlaceholder")}
@@ -732,7 +733,7 @@ const BudgetForm = forwardRef(({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:form.category")}</label>
-          <select value={form.kategorie} onChange={e => setForm(p => ({ ...p, kategorie: e.target.value }))} className={INPUT_CLS}>
+          <select aria-label={t("budget:form.category")} value={form.kategorie} onChange={e => setForm(p => ({ ...p, kategorie: e.target.value }))} className={INPUT_CLS}>
             {selectableCategories.map(k => (
               <option key={k} value={k}>
                 {getHomeBudgetCategoryLabel(k, i18n.language)}
@@ -742,7 +743,7 @@ const BudgetForm = forwardRef(({
         </div>
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:form.amount")}</label>
-          <input
+          <input aria-label={t("budget:form.amount")}
             type="number" step="0.01" min="0"
             value={form.betrag}
             onChange={e => setForm(p => ({ ...p, betrag: e.target.value }))}
@@ -752,7 +753,7 @@ const BudgetForm = forwardRef(({
       </div>
       <div>
         <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:form.date")}</label>
-        <input type="date" value={form.datum} onChange={e => setForm(p => ({ ...p, datum: e.target.value }))} className={INPUT_CLS} />
+        <input aria-label={t("budget:form.date")} type="date" value={form.datum} onChange={e => setForm(p => ({ ...p, datum: e.target.value }))} className={INPUT_CLS} />
       </div>
       <label className="flex items-center gap-2 cursor-pointer select-none">
         <input type="checkbox" checked={wiederholen} onChange={e => setWiederholen(e.target.checked)} className="w-4 h-4 rounded accent-primary-500" />
@@ -762,7 +763,7 @@ const BudgetForm = forwardRef(({
         <div className="space-y-3">
           <div>
             <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:form.interval")}</label>
-            <select value={intervall} onChange={e => setIntervall(e.target.value)} className={INPUT_CLS}>
+            <select aria-label={t("budget:form.interval")} value={intervall} onChange={e => setIntervall(e.target.value)} className={INPUT_CLS}>
               {INTERVALL_OPTIONEN.map(o => <option key={o} value={o}>{t(`budget:interval.${o}`, { defaultValue: o })}</option>)}
             </select>
           </div>
@@ -799,7 +800,7 @@ const BudgetForm = forwardRef(({
       {bewohner?.length > 0 && (
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:form.person")}</label>
-          <select value={form.bewohner_id} onChange={e => setForm(p => ({ ...p, bewohner_id: e.target.value }))} className={INPUT_CLS}>
+          <select aria-label={t("budget:form.person")} value={form.bewohner_id} onChange={e => setForm(p => ({ ...p, bewohner_id: e.target.value }))} className={INPUT_CLS}>
             <option value="">{t("budget:form.noResident")}</option>
             {bewohner.map(b => <option key={b.id} value={b.id}>{b.emoji} {getBewohnerDisplayName(b)}</option>)}
           </select>
@@ -823,7 +824,7 @@ const BudgetForm = forwardRef(({
       {aktiveFinanzkonten.length > 0 && (
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:form.paidBy")}</label>
-          <select
+          <select aria-label={t("budget:form.paidBy")}
             value={zahlungskontoId}
             onChange={e => {
               setKontoAutoModus(false);
@@ -907,25 +908,25 @@ const SparzieleModal = ({ initial, onSpeichern, onAbbrechen }) => {
       </div>
       <div>
         <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:goals.form.name")}</label>
-        <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder={t("budget:goals.form.namePlaceholder")} className={INPUT_CLS} />
+        <input aria-label={t("budget:goals.form.name")} value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder={t("budget:goals.form.namePlaceholder")} className={INPUT_CLS} />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:goals.form.targetAmount")}</label>
-          <input type="number" step="0.01" min="0" value={form.ziel_betrag} onChange={e => setForm(p => ({ ...p, ziel_betrag: e.target.value }))} placeholder="0,00" className={INPUT_CLS} />
+          <input aria-label={t("budget:goals.form.targetAmount")} type="number" step="0.01" min="0" value={form.ziel_betrag} onChange={e => setForm(p => ({ ...p, ziel_betrag: e.target.value }))} placeholder="0,00" className={INPUT_CLS} />
         </div>
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:goals.form.currentAmount")}</label>
-          <input type="number" step="0.01" min="0" value={form.aktueller_betrag} onChange={e => setForm(p => ({ ...p, aktueller_betrag: e.target.value }))} placeholder="0,00" className={INPUT_CLS} />
+          <input aria-label={t("budget:goals.form.currentAmount")} type="number" step="0.01" min="0" value={form.aktueller_betrag} onChange={e => setForm(p => ({ ...p, aktueller_betrag: e.target.value }))} placeholder="0,00" className={INPUT_CLS} />
         </div>
       </div>
       <div>
         <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:goals.form.targetDate")}</label>
-        <input type="date" value={form.zieldatum} onChange={e => setForm(p => ({ ...p, zieldatum: e.target.value }))} className={INPUT_CLS} />
+        <input aria-label={t("budget:goals.form.targetDate")} type="date" value={form.zieldatum} onChange={e => setForm(p => ({ ...p, zieldatum: e.target.value }))} className={INPUT_CLS} />
       </div>
       <div>
         <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">{t("budget:goals.form.productLink")}</label>
-        <input
+        <input aria-label={t("budget:goals.form.productLink")}
           type="url"
           value={form.produkt_url}
           onChange={e => setForm(p => ({ ...p, produkt_url: e.target.value }))}
@@ -1000,18 +1001,18 @@ const KontoForm = ({ initial, bewohner, onSpeichern, onDeaktivieren, onAbbrechen
     <div className="space-y-3">
       <div>
         <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Name*</label>
-        <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} className={INPUT_CLS} placeholder="z.B. Haushaltskonto" />
+        <input aria-label="Name*" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} className={INPUT_CLS} placeholder="z.B. Haushaltskonto" />
       </div>
       <div>
         <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Typ</label>
-        <select value={form.konto_typ} onChange={e => setForm(p => ({ ...p, konto_typ: e.target.value }))} className={INPUT_CLS}>
+        <select aria-label="Typ" value={form.konto_typ} onChange={e => setForm(p => ({ ...p, konto_typ: e.target.value }))} className={INPUT_CLS}>
           {KONTO_TYP_OPTIONEN.map(t => <option key={t}>{t}</option>)}
         </select>
       </div>
       {bewohner?.length > 0 && (
         <div>
           <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Inhaber</label>
-          <select value={form.inhaber_bewohner_id} onChange={e => setForm(p => ({ ...p, inhaber_bewohner_id: e.target.value, inhaber_typ: e.target.value ? "bewohner" : "household" }))} className={INPUT_CLS}>
+          <select aria-label="Inhaber" value={form.inhaber_bewohner_id} onChange={e => setForm(p => ({ ...p, inhaber_bewohner_id: e.target.value, inhaber_typ: e.target.value ? "bewohner" : "household" }))} className={INPUT_CLS}>
             <option value="">— Haushalt —</option>
             {bewohner.map(b => <option key={b.id} value={b.id}>{b.emoji} {getBewohnerDisplayName(b)}</option>)}
           </select>
@@ -1998,11 +1999,11 @@ const HomeBudget = ({ session }) => {
       );
       setRechnungsAuswahlDialog((prev) => (
         prev
-          ?? {
+          ? {
               ...prev,
               rechnungen: (prev.rechnungen || []).map((rechnung) => (
                 rechnung.rechnung_id === aktualisierteRechnung.rechnung_id
-                  ?? { ...rechnung, ...aktualisierteRechnung }
+                  ? { ...rechnung, ...aktualisierteRechnung }
                   : rechnung
               )),
             }
@@ -4006,15 +4007,15 @@ const HomeBudget = ({ session }) => {
           {/* Ausgaben-Karten */}
           <div data-tour="tour-budget-uebersicht" className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="rounded-card border p-3 text-center bg-red-500/10 border-red-500/20">
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">Haushalt</p>
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-1">Haushalt</p>
               <p className="text-sm font-bold text-red-400 tabular-nums">{ausgabenHaushalt.toFixed(2)} €</p>
             </div>
             <div className="rounded-card border p-3 text-center bg-amber-500/10 border-amber-500/20">
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">Privat</p>
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-1">Privat</p>
               <p className="text-sm font-bold text-amber-400 tabular-nums">{ausgabenPrivat.toFixed(2)} €</p>
             </div>
             <div className="rounded-card border p-3 text-center bg-light-card dark:bg-canvas-2 border-light-border dark:border-dark-border">
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">Buchungen</p>
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-1">Buchungen</p>
               <p className="text-sm font-bold text-light-text-main dark:text-dark-text-main tabular-nums">{gefiltertPosten.length}</p>
             </div>
           </div>
@@ -4110,7 +4111,7 @@ const HomeBudget = ({ session }) => {
                           <RefreshCw size={12} className="text-secondary-400 flex-shrink-0" title={p.wiederholen ? `Wiederkehrend: ${p.intervall}` : "Wiederkehrende Zahlung"} />
                         )}
                         {p.budget_scope === "privat" && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-500 font-medium flex-shrink-0">Privat</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-500 font-medium flex-shrink-0">Privat</span>
                         )}
                       </div>
                       {/* Betrag auf Mobile (inline rechts neben Beschreibung) */}
@@ -4156,10 +4157,10 @@ const HomeBudget = ({ session }) => {
                       {Math.abs(Number(p.betrag)).toFixed(2)} €
                     </span>
                     <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex-shrink-0">
-                      <button onClick={() => oeffneEditModal(p)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500">
+                      <button aria-label="Bearbeiten" onClick={() => oeffneEditModal(p)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500">
                         <Edit2 size={13} />
                       </button>
-                      <button onClick={() => loesche(p)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500">
+                      <button aria-label="Löschen" onClick={() => loesche(p)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500">
                         <Trash2 size={13} />
                       </button>
                     </div>
@@ -4414,7 +4415,7 @@ const HomeBudget = ({ session }) => {
             <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">
               {getHomeBudgetCategoryLabel(categoryDeleteDialog.category?.name, i18n.language)}
             </p>
-            <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+            <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
               Kategorien können gelöscht werden. Wenn Bezüge existieren, werden sie vorher auf eine Zielkategorie umgehängt.
             </p>
           </div>
@@ -4525,7 +4526,7 @@ const HomeBudget = ({ session }) => {
             <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">
               {rechnungsAuswahlDialog.beschreibung || "Budgeteintrag"}
             </p>
-            <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+            <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
               Dieser Budgeteintrag hat mehrere verknüpfte Rechnungen. Wähle die Rechnung, deren Positionen du ansehen oder bearbeiten willst.
             </p>
           </div>
@@ -4543,13 +4544,13 @@ const HomeBudget = ({ session }) => {
                     <p className="truncate text-sm font-semibold text-light-text-main dark:text-dark-text-main">
                       {rechnung.lieferant_name || rechnung.dateiname || "Rechnung"}
                     </p>
-                    <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                    <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                       {formatInvoiceSelectionDate(rechnung.rechnungsdatum)}
                       {rechnung.dateiname ? ` · ${rechnung.dateiname}` : ""}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+                    <p className="text-sm uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
                       Betrag
                     </p>
                     <p className="mt-1 text-sm font-medium text-light-text-main dark:text-dark-text-main">
@@ -4621,27 +4622,27 @@ const HomeBudget = ({ session }) => {
       )}
 
       {rechnungsLoeschDialog && (
-        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm px-4 pt-4 pb-safe flex items-center justify-center">
+        <OverlayPortal><div data-app-dialog="" className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm px-4 pt-4 pb-safe flex items-center justify-center">
           <GlassSurface interactive={false} className="w-full max-w-md">
             <div className="p-4 border-b border-light-border dark:border-dark-border">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
                 Rechnung verknüpft
               </h3>
-              <p className="text-xs mt-1 text-light-text-secondary dark:text-dark-text-secondary">
+              <p className="text-sm mt-1 text-light-text-secondary dark:text-dark-text-secondary">
                 Soll nur der Budgeteintrag entfernt werden oder die komplette Rechnung aus der Datenbank?
               </p>
               {rechnungsLoeschDialog.hatSplit && (
-                <p className="mt-2 rounded-card-sm border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                <p className="mt-2 rounded-card-sm border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
                   Dieser Budgeteintrag hat eine Kostenaufteilung. Bereits ausgeglichene Anteile bleiben fuer den Ausgleich erhalten; der Posten wird aus der Budgetansicht entfernt.
                 </p>
               )}
               {rechnungsLoeschDialog.weitereBudgetpostenCount > 0 && (
-                <p className="mt-2 rounded-card-sm border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-300">
+                <p className="mt-2 rounded-card-sm border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-300">
                   Diese Rechnung ist noch mit {rechnungsLoeschDialog.weitereBudgetpostenCount} weiteren Budgetposten verknuepft. "Komplett aus DB loeschen" entfernt die Rechnung; ausgeglichene Budgetposten werden nur archiviert.
                 </p>
               )}
               {rechnungsLoeschFehler && (
-                <p className="mt-2 rounded-card-sm border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-300">
+                <p className="mt-2 rounded-card-sm border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-300">
                   {rechnungsLoeschFehler}
                 </p>
               )}
@@ -4673,7 +4674,7 @@ const HomeBudget = ({ session }) => {
               </button>
             </div>
           </GlassSurface>
-        </div>
+        </div></OverlayPortal>
       )}
 
       {modal !== null && (
@@ -4748,13 +4749,13 @@ const HomeBudget = ({ session }) => {
       )}
 
       {einzahlenModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-safe">
+        <OverlayPortal><div data-app-dialog="" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-safe">
           <GlassSurface interactive={false} className="max-w-sm w-full">
             <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
                 {einzahlenModal.emoji} Einzahlen
               </h3>
-              <button onClick={() => setEinzahlenModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary">
+              <button aria-label="Schließen" onClick={() => setEinzahlenModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary">
                 <X size={18} />
               </button>
             </div>
@@ -4764,7 +4765,7 @@ const HomeBudget = ({ session }) => {
               </p>
               <div>
                 <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Betrag (€)*</label>
-                <input
+                <input aria-label="Betrag (€)*"
                   type="number" step="0.01" min="0"
                   value={einzahlenBetrag}
                   onChange={e => setEinzahlenBetrag(e.target.value)}
@@ -4788,7 +4789,7 @@ const HomeBudget = ({ session }) => {
               </div>
             </div>
           </GlassSurface>
-        </div>
+        </div></OverlayPortal>
       )}
 
       {tourAktiv && (

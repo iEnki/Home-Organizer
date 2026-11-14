@@ -196,7 +196,7 @@
     "openBalances": "Offene Nettosalden im Haushalt",
     "openBalancesSubtitle": "Ausgleich",
     "suggestions": "Offene Ausgleichsvorschläge",
-    "suggestionsSubtitle": "Brutto pro Schuldner-/Empfänger-Richtung, allocation-sicher aus dem Open-Item-Ledger",
+    "suggestionsSubtitle": "Offene Beträge je Zahlungsrichtung",
     "suggestionsInfo": "Jeder Vorschlag basiert auf offenen Split-Positionen je Richtungspaar. Gegenläufige Forderungen zwischen denselben zwei Bewohnern werden hier getrennt angezeigt, im Monatsabschluss und bei den Nettosalden aber miteinander verrechnet.",
     "applyAll": "Alle übernehmen",
     "apply": "Übernehmen",

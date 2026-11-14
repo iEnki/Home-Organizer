@@ -1,337 +1,72 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Search, Upload, List, LayoutGrid, X } from "lucide-react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { formatMonatLabel } from "../../../utils/dokumentArchiv";
-import GlassSurface from "../../ui/GlassSurface";
 
-const KATEGORIEN = [
-  "Rechnung", "Vertrag", "Handbuch", "Garantie",
-  "Versicherung", "Behörde", "Gesundheit", "Medikamente", "Sonstiges",
-];
-
-const KATEGORIE_DOTS = {
-  Rechnung: "bg-blue-400",    Vertrag: "bg-purple-400",  Handbuch: "bg-green-400",
-  Garantie: "bg-amber-400",   Versicherung: "bg-teal-400", Behörde: "bg-red-400",
-  Gesundheit: "bg-pink-400",  Medikamente: "bg-emerald-400", Sonstiges: "bg-slate-400",
-};
-
-const MONATS_NAMEN = {
-  "01": "Januar", "02": "Februar", "03": "März", "04": "April",
-  "05": "Mai", "06": "Juni", "07": "Juli", "08": "August",
-  "09": "September", "10": "Oktober", "11": "November", "12": "Dezember",
-};
+const KATEGORIEN = ["Rechnung", "Vertrag", "Handbuch", "Garantie", "Versicherung", "Behörde", "Gesundheit", "Medikamente", "Sonstiges"];
+const MONATS_NAMEN = { "01": "Januar", "02": "Februar", "03": "März", "04": "April", "05": "Mai", "06": "Juni", "07": "Juli", "08": "August", "09": "September", "10": "Oktober", "11": "November", "12": "Dezember" };
 
 export default function DokumentFilterBar({
-  suchbegriff,
-  onSuche,
-  kategorieFilter,
-  onKategorie,
-  statusFilter,
-  onStatus,
-  monatFilter,
-  onMonat,
-  jahrFilter,
-  onJahr,
-  sortierung,
-  onSortierung,
-  viewMode,
-  onViewMode,
-  verfuegbareJahre,
-  verfuegbareMonate,
-  kategorieZaehlung,
-  anzahlGefiltert,
-  onUpload,
+  suchbegriff, onSuche, kategorieFilter, onKategorie, statusFilter, onStatus,
+  monatFilter, onMonat, jahrFilter, onJahr, sortierung, onSortierung, viewMode,
+  onViewMode, verfuegbareJahre, verfuegbareMonate, kategorieZaehlung, anzahlGefiltert,
+  onUpload, children,
 }) {
-  const { t } = useTranslation(["documents","common"]);
-  void t;
-  const reduced = useReducedMotion();
-
-  const hatAktivenFilter =
-    kategorieFilter !== "Alle" ||
-    monatFilter !== "alle" ||
-    jahrFilter !== "alle" ||
-    sortierung !== "neueste" ||
-    statusFilter !== "alle" ||
-    suchbegriff !== "";
-
-  const resetAlleFilter = () => {
-    onSuche("");
-    onKategorie("Alle");
-    onMonat("alle");
-    onJahr("alle");
-    onSortierung("neueste");
-    onStatus("alle");
-  };
-
-  const formatMonatOption = (key) => {
-    const [, m] = key.split("-");
-    return MONATS_NAMEN[m] || formatMonatLabel(key);
-  };
-
-  const STATUS_LABEL = { budget: "Im Budget", wissen: "Als Wissen", offen: "Offen (Rechnung)" };
-  const kategorieOptionen = [
-    "Alle",
-    ...KATEGORIEN,
-    ...Object.keys(kategorieZaehlung || {}).filter((kat) => kat && !KATEGORIEN.includes(kat)),
-  ];
-
-  return (
-    <motion.div
-      initial={reduced ? false : { opacity: 0, y: -8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ type: "spring", stiffness: 360, damping: 32, delay: 0.08 }}
-      className="sticky top-[72px] z-10 -mx-1 min-w-0 overflow-x-hidden px-1 py-1"
-    >
-      <GlassSurface interactive={false} className="space-y-2 px-4 py-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div data-tour="tour-dokumente-suche" className="relative basis-full w-full min-w-0 sm:flex-1 sm:basis-auto">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary pointer-events-none" />
-            <input
-              value={suchbegriff}
-              onChange={(e) => onSuche(e.target.value)}
-              placeholder="Dokument suchen..."
-              className="w-full pl-9 pr-8 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500"
-            />
-            {suchbegriff && (
-              <button
-                onClick={() => onSuche("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main"
-              >
-                <X size={13} />
-              </button>
-            )}
-          </div>
-
-          <div className="flex w-full min-w-0 items-center justify-between gap-2 sm:w-auto sm:min-w-fit sm:justify-start">
-            <motion.button
-              data-tour="tour-dokumente-upload"
-              onClick={onUpload}
-              whileTap={reduced ? {} : { scale: 0.95 }}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-pill transition-colors whitespace-nowrap flex-shrink-0"
-            >
-              <Upload size={13} /> Hochladen
-            </motion.button>
-
-            <div className="flex items-center rounded-card-sm border border-light-border dark:border-dark-border overflow-hidden flex-shrink-0">
-              <button
-                onClick={() => onViewMode("archiv")}
-                className={`px-2.5 py-2 transition-colors ${
-                  viewMode === "archiv"
-                    ? "bg-primary-500 text-white"
-                    : "bg-light-card dark:bg-canvas-2 text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
-                }`}
-                title="Archivansicht"
-              >
-                <List size={14} />
-              </button>
-              <button
-                onClick={() => onViewMode("karten")}
-                className={`px-2.5 py-2 transition-colors ${
-                  viewMode === "karten"
-                    ? "bg-primary-500 text-white"
-                    : "bg-light-card dark:bg-canvas-2 text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-hover dark:hover:bg-canvas-3"
-                }`}
-                title="Kartenansicht"
-              >
-                <LayoutGrid size={14} />
-              </button>
-            </div>
+  const { t } = useTranslation(["documents", "common"]);
+  const label = key => t(`documents:archiveLayout.${key}`);
+  const categoryLabel = kat => kat === "Alle" ? label("allCategories") : t(`documents:categories.${kat}`, { defaultValue: kat });
+  const kategorien = ["Alle", ...KATEGORIEN, ...Object.keys(kategorieZaehlung || {}).filter(kat => kat && kat !== "Alle" && !KATEGORIEN.includes(kat))]
+    .filter(kat => kat === "Alle" || kat === kategorieFilter || (kategorieZaehlung?.[kat] || 0) > 0);
+  const hatAktivenFilter = kategorieFilter !== "Alle" || monatFilter !== "alle" || jahrFilter !== "alle" || sortierung !== "neueste" || statusFilter !== "alle" || suchbegriff !== "";
+  const resetAlleFilter = () => { onSuche(""); onKategorie("Alle"); onMonat("alle"); onJahr("alle"); onSortierung("neueste"); onStatus("alle"); };
+  // The original option labels and values are preserved; only their placement changes.
+  const formatMonatOption = key => MONATS_NAMEN[key.split("-")[1]] || formatMonatLabel(key);
+  const statusLabels = { budget: label("inBudget"), wissen: label("asKnowledge"), offen: label("openInvoice") };
+  const chips = [
+    kategorieFilter !== "Alle" && [categoryLabel(kategorieFilter), () => onKategorie("Alle")],
+    monatFilter !== "alle" && [formatMonatLabel(monatFilter), () => onMonat("alle")],
+    jahrFilter !== "alle" && [jahrFilter, () => onJahr("alle")],
+    sortierung !== "neueste" && [label(sortierung === "aelteste" ? "oldest" : "nameAz"), () => onSortierung("neueste")],
+    statusFilter !== "alle" && [statusLabels[statusFilter], () => onStatus("alle")],
+  ].filter(Boolean);
+  const filterFields = () => <div className="document-filter-fields">
+    <label>{label("year")}<select value={jahrFilter} onChange={e => onJahr(e.target.value)}><option value="alle">{label("allYears")}</option>{verfuegbareJahre.map(jahr => <option key={jahr} value={jahr}>{jahr}</option>)}</select></label>
+    <label>{label("month")}<select value={monatFilter} onChange={e => onMonat(e.target.value)}><option value="alle">{label("allMonths")}</option>{verfuegbareMonate.map(key => <option key={key} value={key}>{formatMonatOption(key)}</option>)}</select></label>
+    <label>{label("status")}<select value={statusFilter} onChange={e => onStatus(e.target.value)}><option value="alle">{label("allStatus")}</option>{Object.entries(statusLabels).map(([key, text]) => <option key={key} value={key}>{text}</option>)}</select></label>
+    <label>{label("sort")}<select value={sortierung} onChange={e => onSortierung(e.target.value)}><option value="neueste">{label("newest")}</option><option value="aelteste">{label("oldest")}</option><option value="name_az">{label("nameAz")}</option></select></label>
+  </div>;
+  return <div className="document-archive-layout">
+    <aside className="document-category-sidebar" aria-label={label("categories")}>
+      <h2>{label("categories")}</h2>
+      <nav aria-label={label("categories")}>{kategorien.map(kat => <button type="button" key={kat} aria-pressed={kategorieFilter === kat} onClick={() => onKategorie(kat)}>
+        <span>{categoryLabel(kat)}</span>{kat !== "Alle" && <span className="tabular-nums">{kategorieZaehlung?.[kat] || 0}</span>}
+      </button>)}</nav>
+    </aside>
+    <div className="document-archive-main">
+      <div className="document-search-toolbar">
+        <div data-tour="tour-dokumente-suche" className="document-search-field">
+          <Search size={18} aria-hidden="true" />
+          <input aria-label={label("search")} placeholder={label("search")} value={suchbegriff} onChange={e => onSuche(e.target.value)} />
+          {suchbegriff && <button type="button" aria-label={label("clearSearch")} onClick={() => onSuche("")}><X size={18} /></button>}
+        </div>
+        <div className="document-toolbar-actions">
+          <button type="button" data-tour="tour-dokumente-upload" onClick={onUpload} className="document-upload bg-primary-500 text-white"><Upload size={17} aria-hidden="true" />{t("documents:upload")}</button>
+          <div className="document-view-switch" role="group" aria-label={label("view")}>
+            {[["archiv", List, "listView"], ["karten", LayoutGrid, "cardView"]].map(([mode, Icon, key]) => <button type="button" key={mode} aria-label={label(key)} title={label(key)} aria-pressed={viewMode === mode} onClick={() => onViewMode(mode)}><Icon size={18} /></button>)}
           </div>
         </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <div data-tour="tour-dokumente-filter" className="flex gap-1.5 overflow-x-auto scrollbar-hide w-full">
-            {kategorieOptionen.map((kat) => {
-              const aktiv = kategorieFilter === kat;
-              const anzahl = kat === "Alle" ? undefined : (kategorieZaehlung[kat] || 0);
-              if (kat !== "Alle" && anzahl === 0) return null;
-              return (
-                <motion.button
-                  key={kat}
-                  onClick={() => onKategorie(kat)}
-                  whileTap={reduced ? {} : { scale: 0.93 }}
-                  whileHover={reduced ? {} : { scale: 1.04, transition: { type: "spring", stiffness: 500, damping: 28 } }}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-xs font-medium whitespace-nowrap transition-colors border flex-shrink-0 ${
-                    aktiv
-                      ? "bg-primary-500 text-white border-primary-500 shadow-sm"
-                      : "bg-light-card dark:bg-canvas-2 text-light-text-secondary dark:text-dark-text-secondary border-light-border dark:border-dark-border hover:border-primary-500/50"
-                  }`}
-                >
-                  {kat !== "Alle" && (
-                    <span
-                      className={`w-2 h-2 rounded-full flex-shrink-0 ${aktiv ? "bg-white/70" : (KATEGORIE_DOTS[kat] ?? "bg-slate-400")}`}
-                      aria-hidden="true"
-                    />
-                  )}
-                  {kat}
-                  {anzahl != null && anzahl > 0 && (
-                    <span className={`text-[10px] ${aktiv ? "opacity-80" : "opacity-60"}`}>
-                      {anzahl}
-                    </span>
-                  )}
-                </motion.button>
-              );
-            })}
-          </div>
-
-          <div className="hidden sm:block w-px h-5 bg-light-border dark:bg-dark-border flex-shrink-0" />
-
-          <select
-            value={monatFilter}
-            onChange={(e) => onMonat(e.target.value)}
-            className="text-xs px-2 py-1.5 rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500 flex-shrink-0"
-          >
-            <option value="alle">Alle Monate</option>
-            {verfuegbareMonate.map((key) => (
-              <option key={key} value={key}>
-                {formatMonatOption(key)}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={jahrFilter}
-            onChange={(e) => onJahr(e.target.value)}
-            className="text-xs px-2 py-1.5 rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500 flex-shrink-0"
-          >
-            <option value="alle">Alle Jahre</option>
-            {verfuegbareJahre.map((jahr) => (
-              <option key={jahr} value={jahr}>{jahr}</option>
-            ))}
-          </select>
-
-          <select
-            value={sortierung}
-            onChange={(e) => onSortierung(e.target.value)}
-            className="text-xs px-2 py-1.5 rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500 flex-shrink-0"
-          >
-            <option value="neueste">Neueste zuerst</option>
-            <option value="aelteste">Aelteste zuerst</option>
-            <option value="name_az">Name A-Z</option>
-          </select>
-
-          <select
-            value={statusFilter}
-            onChange={(e) => onStatus(e.target.value)}
-            className="text-xs px-2 py-1.5 rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-primary-500 flex-shrink-0"
-          >
-            <option value="alle">Alle Status</option>
-            <option value="budget">Im Budget</option>
-            <option value="wissen">Als Wissen</option>
-            <option value="offen">Offen (Rechnung)</option>
-          </select>
-        </div>
-
-        {/* Aktive Filter-Chips — AnimatePresence für sanftes Ein-/Ausblenden */}
-        <AnimatePresence>
-          {hatAktivenFilter && (
-            <motion.div
-              key="filter-chips"
-              initial={reduced ? false : { opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={reduced ? {} : { opacity: 0, height: 0, transition: { duration: 0.18 } }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-              className="overflow-hidden"
-            >
-              <div className="flex items-center gap-2 flex-wrap pt-1">
-                <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                  {anzahlGefiltert} {anzahlGefiltert === 1 ? "Dokument" : "Dokumente"}
-                </span>
-
-                <AnimatePresence>
-                  {kategorieFilter !== "Alle" && (
-                    <motion.span
-                      key="chip-kat"
-                      initial={reduced ? false : { opacity: 0, scale: 0.88 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={reduced ? {} : { opacity: 0, scale: 0.88 }}
-                      transition={{ type: "spring", stiffness: 420, damping: 28 }}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary-500/10 text-primary-500 border border-primary-500/20"
-                    >
-                      {kategorieFilter}
-                      <button onClick={() => onKategorie("Alle")} className="hover:text-primary-600">
-                        <X size={10} />
-                      </button>
-                    </motion.span>
-                  )}
-
-                  {monatFilter !== "alle" && (
-                    <motion.span
-                      key="chip-monat"
-                      initial={reduced ? false : { opacity: 0, scale: 0.88 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={reduced ? {} : { opacity: 0, scale: 0.88 }}
-                      transition={{ type: "spring", stiffness: 420, damping: 28 }}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary-500/10 text-primary-500 border border-primary-500/20"
-                    >
-                      {formatMonatLabel(monatFilter)}
-                      <button onClick={() => onMonat("alle")} className="hover:text-primary-600">
-                        <X size={10} />
-                      </button>
-                    </motion.span>
-                  )}
-
-                  {jahrFilter !== "alle" && (
-                    <motion.span
-                      key="chip-jahr"
-                      initial={reduced ? false : { opacity: 0, scale: 0.88 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={reduced ? {} : { opacity: 0, scale: 0.88 }}
-                      transition={{ type: "spring", stiffness: 420, damping: 28 }}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary-500/10 text-primary-500 border border-primary-500/20"
-                    >
-                      {jahrFilter}
-                      <button onClick={() => onJahr("alle")} className="hover:text-primary-600">
-                        <X size={10} />
-                      </button>
-                    </motion.span>
-                  )}
-
-                  {sortierung !== "neueste" && (
-                    <motion.span
-                      key="chip-sort"
-                      initial={reduced ? false : { opacity: 0, scale: 0.88 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={reduced ? {} : { opacity: 0, scale: 0.88 }}
-                      transition={{ type: "spring", stiffness: 420, damping: 28 }}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary-500/10 text-primary-500 border border-primary-500/20"
-                    >
-                      {sortierung === "aelteste" ? "Aelteste zuerst" : "Name A-Z"}
-                      <button onClick={() => onSortierung("neueste")} className="hover:text-primary-600">
-                        <X size={10} />
-                      </button>
-                    </motion.span>
-                  )}
-
-                  {statusFilter !== "alle" && (
-                    <motion.span
-                      key="chip-status"
-                      initial={reduced ? false : { opacity: 0, scale: 0.88 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={reduced ? {} : { opacity: 0, scale: 0.88 }}
-                      transition={{ type: "spring", stiffness: 420, damping: 28 }}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary-500/10 text-primary-500 border border-primary-500/20"
-                    >
-                      {STATUS_LABEL[statusFilter]}
-                      <button onClick={() => onStatus("alle")} className="hover:text-primary-600">
-                        <X size={10} />
-                      </button>
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-
-                <button
-                  onClick={resetAlleFilter}
-                  className="text-xs text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-main dark:hover:text-dark-text-main underline underline-offset-2"
-                >
-                  Alle zurücksetzen
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </GlassSurface>
-    </motion.div>
-  );
+      </div>
+      <div data-tour="tour-dokumente-filter" className="document-filter-area">
+        <label className="document-mobile-category">{label("categories")}<select value={kategorieFilter} onChange={e => onKategorie(e.target.value)}>{kategorien.map(kat => <option key={kat} value={kat}>{categoryLabel(kat)}{kat !== "Alle" ? ` (${kategorieZaehlung?.[kat] || 0})` : ""}</option>)}</select></label>
+        <div className="document-desktop-filters">{filterFields()}</div>
+        <details className="document-mobile-filters"><summary>{label("moreFilters")}</summary>{filterFields()}</details>
+      </div>
+      <div className="document-active-filters">
+        <span role="status" aria-live="polite">{t("documents:archiveLayout.count", { count: anzahlGefiltert })}</span>
+        {chips.map(([text, clear], index) => <button type="button" key={index} className="document-filter-chip" onClick={clear} aria-label={t("documents:archiveLayout.removeFilter", { filter: text })}>{text}<X size={14} aria-hidden="true" /></button>)}
+        {hatAktivenFilter && <button type="button" className="document-reset" onClick={resetAlleFilter}>{label("reset")}</button>}
+      </div>
+      {children}
+    </div>
+  </div>;
 }

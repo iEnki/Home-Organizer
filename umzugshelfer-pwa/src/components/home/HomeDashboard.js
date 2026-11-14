@@ -7,7 +7,7 @@ import {
   TrendingUp, TrendingDown, Calendar, Clock, FileText, Pill,
 } from "lucide-react";
 import {
-  motion, animate, useMotionValue, useTransform,
+  motion,  
   AnimatePresence, useReducedMotion,
 } from "framer-motion";
 import { getActiveHouseholdId, supabase } from "../../supabaseClient";
@@ -28,20 +28,12 @@ import GlassSurface, { GlassModule } from "../ui/GlassSurface";
 import AnimatedGreeting from "../ui/AnimatedGreeting";
 
 // ── Animated count-up number ─────────────────────────────────────────────────
-const AnimatedNumber = ({ value }) => {
-  const count = useMotionValue(0);
-  const rounded = useTransform(count, Math.round);
-  useEffect(() => {
-    const controls = animate(count, value, { duration: 0.7, ease: "easeOut" });
-    return controls.stop;
-  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
-  return <motion.span>{rounded}</motion.span>;
-};
+const AnimatedNumber = ({ value }) => <span className="tabular-nums">{value}</span>;
 
 // ── Motion-Varianten ─────────────────────────────────────────────────────────
 const sectionVariants = {
   hidden: {},
-  show: { transition: { staggerChildren: 0.09, delayChildren: 0.05 } },
+  show: { transition: { staggerChildren: 0.025, delayChildren: 0 } },
 };
 const sectionItemVariants = {
   hidden: { opacity: 0, y: 24 },
@@ -53,7 +45,7 @@ const cardVariants = {
 };
 const gridVariants = {
   hidden: {},
-  show: { transition: { staggerChildren: 0.07 } },
+  show: { transition: { staggerChildren: 0.025 } },
 };
 const listVariants = {
   hidden: {},
@@ -84,6 +76,7 @@ const headerVariants = {
 // ── Hilfsfunktionen ──────────────────────────────────────────────────────────
 const relativeZeit = (isoStr, t) => {
   const diff = Date.now() - new Date(isoStr).getTime();
+  if (!Number.isFinite(diff)) return t("home:dashboard.dateUnknown");
   const h = Math.floor(diff / 3600000);
   if (h < 1) return t("home:dashboard.relativeTime.justNow");
   if (h < 24) return t("home:dashboard.relativeTime.hoursAgo", { h });
@@ -220,7 +213,7 @@ const SkeletonWidget = ({ className = "" }) => (
 const SectionHeader = ({ icon: Icon, label, iconClass = "text-primary-500" }) => (
   <div className="flex items-center gap-2 mb-3">
     {Icon && <Icon size={14} className={`${iconClass} flex-shrink-0`} />}
-    <span className="text-[11px] font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-widest whitespace-nowrap">
+    <span className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-widest whitespace-nowrap">
       {label}
     </span>
     <div className="flex-1 h-px bg-light-border dark:bg-dark-border" />
@@ -712,7 +705,7 @@ const HomeDashboard = ({ session }) => {
               text={getVorname(session) ? `${getGreeting()}, ${getVorname(session)}` : getGreeting()}
             />
           </h1>
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5 truncate">
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-0.5 truncate">
             {heuteLang()} · {t("home:dashboard.subtitle")}
           </p>
         </div>
@@ -738,7 +731,13 @@ const HomeDashboard = ({ session }) => {
               >
                 <AlertTriangle size={14} className="text-amber-400 shrink-0" />
                 <span className="text-sm text-amber-300">
-                  {urgencyCount === 1 ? "1 Punkt benötigt" : `${urgencyCount} Punkte benötigen`} Aufmerksamkeit
+                  {[
+                    stats.aufgabenHeute > 0 && { path: "/home/aufgaben", label: t("home:dashboard.warnTask", { count: stats.aufgabenHeute }) },
+                    stats.vorraeteRot > 0 && { path: "/home/vorraete", label: t("home:dashboard.warnStock", { count: stats.vorraeteRot }) },
+                    stats.medikamenteNiedrig > 0 && { path: "/home/heimapotheke", label: t("home:dashboard.warnMedicineLow", { count: stats.medikamenteNiedrig }) },
+                    stats.medikamenteAblauf > 0 && { path: "/home/heimapotheke", label: t("home:dashboard.warnMedicineExpiry", { count: stats.medikamenteAblauf }) },
+                    stats.geraeteWartungFaellig > 0 && { path: "/home/geraete", label: t("home:dashboard.warnDevice", { count: stats.geraeteWartungFaellig }) },
+                  ].filter(Boolean).map(item => <button key={item.label} type="button" className="block text-left underline underline-offset-4" onClick={() => navigate(item.path)}>{item.label}</button>)}
                 </span>
               </motion.div>
             )}
@@ -765,37 +764,52 @@ const HomeDashboard = ({ session }) => {
               <div className="text-2xl font-bold text-light-text-main dark:text-dark-text-main">
                 <AnimatedNumber value={stats.aufgabenHeute} />
               </div>
-              <div className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">fällig</div>
+              <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">fällig</div>
               <div className="text-xs font-medium text-light-text-main dark:text-dark-text-main mt-0.5">
                 Aufgaben heute
               </div>
             </GlassSurface>
 
             <GlassSurface
+              as="button" type="button" onClick={() => navigate(timeline[0] ? "/kalender" : "/home/budget")}
               variants={reduced ? {} : cardVariants}
-              className="p-3"
+              className="p-3 text-left"
             >
-              <Calendar size={18} className="text-secondary-500 mb-2" />
+              {timeline[0] ? <Calendar size={18} className="text-secondary-500 mb-2" /> : <TrendingUp size={18} className="text-primary-500 mb-2"/>}
               {timeline[0] ? (
                 <>
                   <div className="text-2xl font-bold text-light-text-main dark:text-dark-text-main">
                     {Math.max(0, tagesBis(timeline[0].datum) ?? 0)}
                   </div>
-                  <div className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">Tage</div>
+                  <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Tage</div>
                   <div className="text-xs font-medium text-light-text-main dark:text-dark-text-main mt-0.5 truncate">
                     {timeline[0].titel}
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="text-2xl font-bold text-light-text-main dark:text-dark-text-main">–</div>
+                  <div className="text-2xl font-bold text-light-text-main dark:text-dark-text-main">{Math.round(budgetTotal).toLocaleString("de-DE")} €</div>
                   <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
-                    Keine Events
+                    {t("home:dashboard.budgetThisMonth")}
                   </div>
                 </>
               )}
             </GlassSurface>
           </motion.div>
+
+          <section data-tour="tour-dashboard-status" className="space-y-3">
+            <h2 className="text-base font-semibold">{t("home:dashboard.householdOverview")}</h2>
+            <div className="home-dashboard-grid grid gap-2">
+              {SEKTIONEN.flatMap(sek => sek.items).map(k => {
+                const Icon=k.icon;
+                return <button key={k.pfad} aria-label={k.pfad === "/home/heimapotheke" ? `${k.titel}: ${k.wert} ${k.einheit}` : undefined} data-tour={k.tourId || undefined} onClick={()=>navigate(k.pfad)} className={`min-w-0 rounded-card-sm border bg-light-card p-2.5 text-left dark:bg-canvas-2 ${k.warnung || k.pfad===urgentKachel?.pfad ? "border-amber-500/60" : "border-light-border dark:border-dark-border"}`}>
+                  <span className="flex items-center justify-between gap-2"><Icon size={18} className={farbKlassen[k.farbe].split(" ")[1]}/><strong className="text-lg tabular-nums leading-tight">{k.wert}</strong></span>
+                  <span className="mt-2 block break-words text-sm font-semibold leading-tight">{k.pfad === "/home/heimapotheke" ? t("home:dashboard.compactMedicine") : k.titel}</span>
+                  <span className="mt-1 block break-words text-xs leading-snug text-light-text-secondary dark:text-dark-text-secondary">{k.pfad === "/home/heimapotheke" ? (stats.medikamenteAblauf > 0 ? t("home:dashboard.compactExpiry", {count:stats.medikamenteAblauf}) : stats.medikamenteNiedrig > 0 ? t("home:dashboard.compactLow", {count:stats.medikamenteNiedrig}) : k.einheit) : k.unter || k.einheit}</span>
+                </button>;
+              })}
+            </div>
+          </section>
 
           {/* ── Budget + Ausgleich – kombinierte Karte (immer sichtbar) ────── */}
           <GlassSurface
@@ -816,7 +830,7 @@ const HomeDashboard = ({ session }) => {
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-1.5">
                   <span className="text-sm">💶</span>
-                  <span className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">
+                  <span className="text-sm font-semibold text-light-text-secondary dark:text-dark-text-secondary">
                     Budget – {monatLabel()}
                   </span>
                 </div>
@@ -863,7 +877,7 @@ const HomeDashboard = ({ session }) => {
                   {/* Haushalt / Privat Mini-Bar */}
                   {budgetTotal > 0 && (
                     <div className="mt-3">
-                      <div className="flex items-center gap-3 text-[10px] text-light-text-secondary dark:text-dark-text-secondary mb-1">
+                      <div className="flex items-center gap-3 text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">
                         <span className="flex items-center gap-1">
                           <span className="inline-block w-2 h-2 rounded-full bg-primary-500" />
                           Haushalt
@@ -904,17 +918,17 @@ const HomeDashboard = ({ session }) => {
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1.5">
                   <span className="text-sm">↔</span>
-                  <span className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">
+                  <span className="text-sm font-semibold text-light-text-secondary dark:text-dark-text-secondary">
                     Ausgleich im Haushalt
                   </span>
                 </div>
                 {offeneSaldoCount === 0 ? (
-                  <span className="text-[10px] px-2 py-0.5 rounded-pill font-semibold
+                  <span className="text-xs px-2 py-0.5 rounded-pill font-semibold
                                    bg-green-500/15 text-green-400 border border-green-500/30">
                     ✓ Ausgeglichen
                   </span>
                 ) : (
-                  <span className="text-[10px] px-2 py-0.5 rounded-pill font-semibold
+                  <span className="text-xs px-2 py-0.5 rounded-pill font-semibold
                                    bg-amber-500/15 text-amber-400 border border-amber-500/30">
                     {offeneSaldoCount} offen
                   </span>
@@ -936,6 +950,8 @@ const HomeDashboard = ({ session }) => {
             {/* ── Trennlinie ── */}
             <div className="h-px bg-light-border dark:bg-dark-border" />
 
+            <details open={budgetLimitRows.some(row => row.status === "ueberschritten")}>
+              <summary className="flex min-h-12 cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-semibold"><span>{t("home:dashboard.financialPlanning")}</span><span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("home:dashboard.financialPlanningCounts", {goals:sparziele.length,limits:budgetLimitRows.length})}</span></summary>
             {/* ── Sparziele (Mobile) ── */}
             <button
               onClick={() => navigate("/home/budget")}
@@ -947,11 +963,11 @@ const HomeDashboard = ({ session }) => {
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1.5">
                   <span className="text-sm">🎯</span>
-                  <span className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">
+                  <span className="text-sm font-semibold text-light-text-secondary dark:text-dark-text-secondary">
                     Sparziele
                   </span>
                   {sparziele.length > 0 && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-pill font-semibold
+                    <span className="text-xs px-1.5 py-0.5 rounded-pill font-semibold
                                      bg-amber-500/15 text-amber-400 border border-amber-500/30">
                       {sparziele.length}
                     </span>
@@ -960,7 +976,7 @@ const HomeDashboard = ({ session }) => {
                 <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary" />
               </div>
               {sparziele.length === 0 ? (
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                   Keine Sparziele angelegt.
                 </p>
               ) : (
@@ -986,7 +1002,7 @@ const HomeDashboard = ({ session }) => {
                             style={{ width: progress === 0 ? "3px" : `${progress}%` }}
                           />
                         </div>
-                        <div className="flex justify-between text-[10px] text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                        <div className="flex justify-between text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
                           <span>{Number(z.aktueller_betrag).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €</span>
                           <span>{Number(z.ziel_betrag).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €</span>
                         </div>
@@ -994,7 +1010,7 @@ const HomeDashboard = ({ session }) => {
                     );
                   })}
                   {sparziele.length > 2 && (
-                    <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
+                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                       +{sparziele.length - 2} weitere
                     </p>
                   )}
@@ -1019,11 +1035,11 @@ const HomeDashboard = ({ session }) => {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm">📊</span>
-                    <span className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">
+                    <span className="text-sm font-semibold text-light-text-secondary dark:text-dark-text-secondary">
                       Budgetlimits
                     </span>
                     {budgetLimitRows.some(r => r.status === "ueberschritten") && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-pill font-semibold bg-red-500/15 text-red-500 border border-red-500/20">
+                      <span className="text-xs px-1.5 py-0.5 rounded-pill font-semibold bg-red-500/15 text-red-500 border border-red-500/20">
                         {budgetLimitRows.filter(r => r.status === "ueberschritten").length} überschritten
                       </span>
                     )}
@@ -1049,7 +1065,7 @@ const HomeDashboard = ({ session }) => {
                             style={{ width: `${row.progress}%` }}
                           />
                         </div>
-                        <div className="flex justify-between text-[10px] text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                        <div className="flex justify-between text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
                           <span>{Number(row.verbrauch).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €</span>
                           <span>von {Number(row.limitEuro).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €</span>
                         </div>
@@ -1057,160 +1073,13 @@ const HomeDashboard = ({ session }) => {
                     );
                   })}
                   {budgetLimitRows.length > 2 && (
-                    <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">+{budgetLimitRows.length - 2} weitere</p>
+                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">+{budgetLimitRows.length - 2} weitere</p>
                   )}
                 </div>
               </button>
             )}
+            </details>
           </GlassSurface>
-
-          {/* ── Urgent Card (optional, nur wenn Modul Warnung hat) ──────────── */}
-          {urgentKachel && (() => {
-            const UrgentIcon = urgentKachel.icon;
-            return (
-              <GlassSurface
-                as="button"
-                initial={{ opacity: 0, y: 18 }}
-                animate={{
-                  opacity: 1,
-                  y: 0,
-                  boxShadow: [
-                    "0 0 0px rgba(239,68,68,0)",
-                    "0 0 16px rgba(239,68,68,0.3)",
-                    "0 0 0px rgba(239,68,68,0)",
-                  ],
-                }}
-                transition={{
-                  opacity: { duration: 0.3 },
-                  y: { type: "spring", stiffness: 320, damping: 30 },
-                  boxShadow: { repeat: Infinity, duration: 2.4, ease: "easeInOut", delay: 0.5 },
-                }}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => navigate(urgentKachel.pfad)}
-                className="w-full p-4 cursor-pointer border-red-500/30 text-left relative"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className={`p-2 rounded-card-sm ${farbKlassen[urgentKachel.farbe]}`}>
-                    <UrgentIcon size={18} />
-                  </div>
-                  <motion.span
-                    className="w-2.5 h-2.5 rounded-full bg-red-500"
-                    animate={{ scale: [1, 1.5, 1], opacity: [1, 0.6, 1] }}
-                    transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
-                  />
-                </div>
-                <div className="text-3xl font-bold text-light-text-main dark:text-dark-text-main">
-                  <AnimatedNumber value={urgentKachel.wert} />
-                </div>
-                <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
-                  {urgentKachel.einheit}
-                </div>
-                <div className="text-base font-semibold text-light-text-main dark:text-dark-text-main mt-1">
-                  {urgentKachel.titel}
-                </div>
-                {urgentKachel.unter && (
-                  <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
-                    {urgentKachel.unter}
-                  </div>
-                )}
-              </GlassSurface>
-            );
-          })()}
-
-          {/* ── Haushalts-Übersichtskarte (Mobile) ──────────────────────── */}
-          <GlassSurface
-            data-tour="tour-dashboard-status"
-            className="overflow-hidden"
-          >
-            <div className="grid grid-cols-1 divide-y divide-light-border dark:divide-dark-border">
-              {SEKTIONEN.map((sek) => (
-                <div key={sek.titel} className="relative flex flex-col">
-                  <div className={`absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r ${sek.grad}`} />
-                  <div className="px-4 pt-4 pb-1.5">
-                    <span className={`text-[10px] font-semibold uppercase tracking-wider ${sek.labelFarbe}`}>
-                      {sek.titel}
-                    </span>
-                  </div>
-                  {sek.items.map((k) => {
-                    const Icon = k.icon;
-                    return (
-                      <button
-                        key={k.pfad}
-                        data-tour={k.tourId || undefined}
-                        onClick={() => navigate(k.pfad)}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-light-hover dark:hover:bg-canvas-3 active:bg-light-hover dark:active:bg-canvas-3 transition-colors text-left group"
-                      >
-                        <div className="relative shrink-0">
-                          <div className={`w-8 h-8 rounded-card-sm flex items-center justify-center ${farbKlassen[k.farbe]}`}>
-                            <Icon size={15} />
-                          </div>
-                          {k.warnung && (
-                            <motion.span
-                              className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-light-card dark:ring-canvas-2"
-                              animate={{ scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }}
-                              transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
-                            />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium text-light-text-main dark:text-dark-text-main truncate">
-                            {k.titel}
-                          </div>
-                          {k.unter && (
-                            <div className="text-[10px] text-dark-text-secondary truncate leading-tight">{k.unter}</div>
-                          )}
-                        </div>
-                        <div className="text-right shrink-0">
-                          <div className="text-base font-bold text-light-text-main dark:text-dark-text-main leading-none">
-                            <AnimatedNumber value={k.wert} />
-                          </div>
-                          <div className="text-[10px] text-dark-text-secondary">{k.einheit}</div>
-                        </div>
-                        <ChevronRight size={12} className="text-dark-text-secondary opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                      </button>
-                    );
-                  })}
-                  <div className="pb-2" />
-                </div>
-              ))}
-            </div>
-          </GlassSurface>
-
-          {/* ── Horizontales Scroll-Row: Sekundär-Module ────────────────────── */}
-          <div
-            className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4"
-            style={{ scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}
-          >
-            {[
-              { label: "Aufgaben",  icon: CheckSquare, route: "/home/aufgaben",  count: stats.aufgabenHeute,  color: "text-primary-500"  },
-              { label: "Projekte",  icon: FolderOpen,  route: "/home/projekte",  count: stats.projekteAktiv,  color: "text-purple-400"   },
-              { label: "Bewohner",  icon: Users,        route: "/home/bewohner",  count: stats.bewohner,       color: "text-teal-400"     },
-              { label: "Dokumente", icon: FileText,     route: "/home/dokumente", count: stats.dokumente,      color: "text-indigo-400"   },
-            ].map(item => {
-              const ItemIcon = item.icon;
-              return (
-                <button
-                  key={item.label}
-                  onClick={() => navigate(item.route)}
-                  className="flex items-center gap-1.5 shrink-0 px-3 py-2 rounded-pill
-                             bg-light-card dark:bg-canvas-2
-                             border border-light-border dark:border-dark-border
-                             text-sm font-medium
-                             text-light-text-main dark:text-dark-text-main
-                             cursor-pointer hover:bg-light-hover dark:hover:bg-canvas-3
-                             transition-colors duration-200"
-                >
-                  <ItemIcon size={14} className={item.color} />
-                  <span>{item.label}</span>
-                  {item.count != null && (
-                    <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                      {item.count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
 
           {/* ── Verlauf (kompakt, wenn vorhanden) ───────────────────────────── */}
           {verlauf.length > 0 && (
@@ -1234,7 +1103,7 @@ const HomeDashboard = ({ session }) => {
                       <span className="text-xs text-light-text-main dark:text-dark-text-main flex-1 truncate">
                         {getVerlaufDisplayText(v)}
                       </span>
-                      <span className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary shrink-0">
+                      <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary shrink-0">
                         {relativeZeit(v.created_at, t)}
                       </span>
                     </div>
@@ -1293,7 +1162,7 @@ const HomeDashboard = ({ session }) => {
                   <GlassSurface key={sek.titel} className="relative flex flex-col overflow-hidden">
                     <div className={`absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r ${sek.grad}`} />
                     <div className="px-4 pt-4 pb-1.5">
-                      <span className={`text-[10px] font-semibold uppercase tracking-wider ${sek.labelFarbe}`}>
+                      <span className={`text-xs font-semibold uppercase tracking-wider ${sek.labelFarbe}`}>
                         {sek.titel}
                       </span>
                     </div>
@@ -1304,7 +1173,7 @@ const HomeDashboard = ({ session }) => {
                           key={k.pfad}
                           data-tour={k.tourId || undefined}
                           onClick={() => navigate(k.pfad)}
-                          whileTap={{ scale: 0.98 }}
+                          whileTap={{ scale: .97 }}
                           className="w-full flex items-center gap-3 px-4 py-2.5 text-left group"
                         >
                           <div className="relative shrink-0">
@@ -1315,7 +1184,7 @@ const HomeDashboard = ({ session }) => {
                               <motion.span
                                 className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-light-card dark:ring-canvas-2"
                                 animate={{ scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }}
-                                transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
+                                
                               />
                             )}
                           </div>
@@ -1324,16 +1193,16 @@ const HomeDashboard = ({ session }) => {
                               {k.titel}
                             </div>
                             {k.unter && (
-                              <div className="text-[10px] text-dark-text-secondary truncate leading-tight">{k.unter}</div>
+                              <div className="text-xs text-dark-text-secondary truncate leading-tight">{k.unter}</div>
                             )}
                           </div>
                           <div className="text-right shrink-0">
                             <div className="text-base font-bold text-light-text-main dark:text-dark-text-main leading-none">
                               <AnimatedNumber value={k.wert} />
                             </div>
-                            <div className="text-[10px] text-dark-text-secondary">{k.einheit}</div>
+                            <div className="text-xs text-dark-text-secondary">{k.einheit}</div>
                           </div>
-                          <ChevronRight size={12} className="text-dark-text-secondary opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                          <ChevronRight size={12} className="text-dark-text-secondary opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0" />
                         </motion.button>
                       );
                     })}
@@ -1353,7 +1222,7 @@ const HomeDashboard = ({ session }) => {
                   <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-primary-500 to-emerald-400" />
                   <motion.button
                     data-tour="tour-dashboard-budget"
-                    whileTap={{ scale: 0.99 }}
+                    whileTap={{ scale: .97 }}
                     onClick={() => navigate("/home/budget")}
                     className="w-full p-4 text-left group"
                   >
@@ -1364,7 +1233,7 @@ const HomeDashboard = ({ session }) => {
                           {t("home:dashboard.budgetTitle", { month: monatLabel() })}
                         </span>
                       </div>
-                      <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity" />
                     </div>
                     {budgetMonat.ausgabenHaushalt === 0 && budgetMonat.ausgabenPrivat === 0 && budgetMonat.buchungen === 0 ? (
                       <>
@@ -1372,7 +1241,7 @@ const HomeDashboard = ({ session }) => {
                           {t("home:dashboard.noBudgetEntries")}
                         </p>
                         {budgetMonat.kommendeNichtMonatlich.length > 0 && (
-                          <p className="text-xs text-amber-400 flex items-center gap-1 mt-2">
+                          <p className="text-sm text-amber-400 flex items-center gap-1 mt-2">
                             <AlertTriangle size={11} />
                             {t("home:dashboard.irregularPayments", {
                               count: budgetMonat.kommendeNichtMonatlich.length,
@@ -1391,11 +1260,11 @@ const HomeDashboard = ({ session }) => {
                             {t("home:dashboard.bookings", { count: budgetMonat.buchungen })}
                           </span>
                         </div>
-                        <p className="text-xs text-red-400 flex items-center gap-1">
+                        <p className="text-sm text-red-400 flex items-center gap-1">
                           <TrendingDown size={11} /> {t("home:dashboard.householdThisMonth")}
                         </p>
                         {budgetMonat.ausgabenPrivat > 0 && (
-                          <p className="text-xs text-amber-400">
+                          <p className="text-sm text-amber-400">
                             + {fmt(budgetMonat.ausgabenPrivat)} € privat
                           </p>
                         )}
@@ -1411,7 +1280,7 @@ const HomeDashboard = ({ session }) => {
                           );
                         })()}
                         {budgetMonat.kommendeNichtMonatlich.length > 0 && (
-                          <p className="text-xs text-amber-400 flex items-center gap-1">
+                          <p className="text-sm text-amber-400 flex items-center gap-1">
                             <AlertTriangle size={11} />
                             {t("home:dashboard.irregularPayments", {
                               count: budgetMonat.kommendeNichtMonatlich.length,
@@ -1421,7 +1290,7 @@ const HomeDashboard = ({ session }) => {
                         )}
                         {budgetTotal > 0 && (
                           <div className="mt-2 pt-2 border-t border-light-border dark:border-dark-border">
-                            <div className="flex items-center gap-3 text-[10px] text-light-text-secondary dark:text-dark-text-secondary mb-1.5">
+                            <div className="flex items-center gap-3 text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1.5">
                               <span className="flex items-center gap-1">
                                 <span className="inline-block w-2 h-2 rounded-full bg-primary-500" />
                                 Haushalt
@@ -1453,7 +1322,7 @@ const HomeDashboard = ({ session }) => {
                 <GlassSurface className="relative overflow-hidden">
                   <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-blue-500 to-sky-400" />
                   <motion.button
-                    whileTap={{ scale: 0.99 }}
+                    whileTap={{ scale: .97 }}
                     onClick={() => navigate("/home/budget?tab=ausgleich")}
                     className="w-full p-4 text-left group"
                   >
@@ -1465,11 +1334,11 @@ const HomeDashboard = ({ session }) => {
                         </span>
                       </div>
                       {offeneSaldoCount === 0 ? (
-                        <span className="text-[10px] px-2 py-0.5 rounded-pill font-semibold bg-green-500/15 text-green-400 border border-green-500/30">
+                        <span className="text-xs px-2 py-0.5 rounded-pill font-semibold bg-green-500/15 text-green-400 border border-green-500/30">
                           ✓ Ausgeglichen
                         </span>
                       ) : (
-                        <span className="text-[10px] px-2 py-0.5 rounded-pill font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                        <span className="text-xs px-2 py-0.5 rounded-pill font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
                           {offeneSaldoCount} offen
                         </span>
                       )}
@@ -1478,10 +1347,10 @@ const HomeDashboard = ({ session }) => {
                       <div className="text-2xl font-bold text-light-text-main dark:text-dark-text-main tabular-nums">
                         {formatGermanCurrency(gesamtOffeneSchulden)} €
                       </div>
-                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                      <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                         {t("home:dashboard.openDebtTotal")}
                       </p>
-                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                      <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                         {t("home:dashboard.openPositions", { count: offeneSaldoCount })}
                       </p>
                     </div>
@@ -1502,7 +1371,7 @@ const HomeDashboard = ({ session }) => {
                         <span className="text-base">🎯</span>
                         <span className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">Sparziele</span>
                       </div>
-                      <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity" />
                     </div>
                     {sparziele.length === 0 ? (
                       <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Keine Sparziele angelegt.</p>
@@ -1514,7 +1383,7 @@ const HomeDashboard = ({ session }) => {
                             <div key={z.id}>
                               <div className="flex items-baseline justify-between gap-2 mb-1">
                                 <span className="text-xs text-light-text-main dark:text-dark-text-main truncate">{z.emoji || "🎯"} {z.name}</span>
-                                <span className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary shrink-0">{Math.round(progress)}%</span>
+                                <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary shrink-0">{Math.round(progress)}%</span>
                               </div>
                               <div className="h-1.5 bg-light-border dark:bg-canvas-3 rounded-full overflow-hidden">
                                 <div
@@ -1522,7 +1391,7 @@ const HomeDashboard = ({ session }) => {
                                   style={{ width: progress === 0 ? "3px" : `${progress}%` }}
                                 />
                               </div>
-                              <div className="flex justify-between text-[10px] text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                              <div className="flex justify-between text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
                                 <span>{Number(z.aktueller_betrag).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €</span>
                                 <span>{Number(z.ziel_betrag).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €</span>
                               </div>
@@ -1530,7 +1399,7 @@ const HomeDashboard = ({ session }) => {
                           );
                         })}
                         {sparziele.length > (budgetLimitRows.length > 0 ? 2 : 3) && (
-                          <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
+                          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                             +{sparziele.length - (budgetLimitRows.length > 0 ? 2 : 3)} weitere
                           </p>
                         )}
@@ -1559,22 +1428,22 @@ const HomeDashboard = ({ session }) => {
                             const ueberschritten = budgetLimitRows.filter(r => r.status === "ueberschritten").length;
                             const warnung = budgetLimitRows.filter(r => r.status === "warnung").length;
                             if (ueberschritten > 0) return (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-pill font-semibold bg-red-500/10 text-red-500 border border-red-500/20">
+                              <span className="text-xs px-1.5 py-0.5 rounded-pill font-semibold bg-red-500/10 text-red-500 border border-red-500/20">
                                 {ueberschritten} überschritten
                               </span>
                             );
                             if (warnung > 0) return (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-pill font-semibold bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                              <span className="text-xs px-1.5 py-0.5 rounded-pill font-semibold bg-amber-500/10 text-amber-500 border border-amber-500/20">
                                 {warnung} Warnung
                               </span>
                             );
                             return (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-pill font-semibold bg-green-500/10 text-green-500 border border-green-500/20">
+                              <span className="text-xs px-1.5 py-0.5 rounded-pill font-semibold bg-green-500/10 text-green-500 border border-green-500/20">
                                 Alles OK
                               </span>
                             );
                           })()}
-                          <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
+                          <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity" />
                         </div>
                       </div>
                       <div className="space-y-2">
@@ -1588,7 +1457,7 @@ const HomeDashboard = ({ session }) => {
                                   <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: row.color }} />
                                   <span className="text-xs text-light-text-main dark:text-dark-text-main truncate">{row.kategorie}</span>
                                 </div>
-                                <span className={`text-[10px] shrink-0 font-medium ${pctClass}`}>{Math.round(row.progress)}%</span>
+                                <span className={`text-xs shrink-0 font-medium ${pctClass}`}>{Math.round(row.progress)}%</span>
                               </div>
                               <div className="h-1.5 bg-light-border dark:bg-canvas-3 rounded-full overflow-hidden">
                                 <motion.div
@@ -1599,7 +1468,7 @@ const HomeDashboard = ({ session }) => {
                                   style={{ transformOrigin: "left" }}
                                 />
                               </div>
-                              <div className="flex justify-between text-[10px] text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                              <div className="flex justify-between text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
                                 <span>{Number(row.verbrauch).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €</span>
                                 <span>von {Number(row.limitEuro).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €</span>
                               </div>
@@ -1607,7 +1476,7 @@ const HomeDashboard = ({ session }) => {
                           );
                         })}
                         {budgetLimitRows.length > 3 && (
-                          <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">+{budgetLimitRows.length - 3} weitere</p>
+                          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">+{budgetLimitRows.length - 3} weitere</p>
                         )}
                       </div>
                     </button>
@@ -1626,7 +1495,7 @@ const HomeDashboard = ({ session }) => {
               <GlassSurface
                 as="button"
                 variants={cardVariants}
-                whileTap={{ scale: 0.99 }}
+                whileTap={{ scale: .97 }}
                 onClick={() => navigate("/home/projekte")}
                 className="p-4 cursor-pointer text-left"
               >
@@ -1638,7 +1507,7 @@ const HomeDashboard = ({ session }) => {
                     </span>
                   </div>
                   <ChevronRight size={14} className="text-light-text-secondary dark:text-dark-text-secondary
-                                                     opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                     opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity" />
                 </div>
 
                 {aktiveProjekte.length === 0 ? (
@@ -1734,18 +1603,18 @@ const HomeDashboard = ({ session }) => {
                           </span>
                           <div className="flex flex-col items-end gap-1 flex-shrink-0">
                             {isHodie && (
-                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-pill
+                              <span className="text-xs font-semibold px-1.5 py-0.5 rounded-pill
                                                bg-red-500/15 text-red-400 border border-red-500/30">
                                 heute
                               </span>
                             )}
                             {isOverdue && (
-                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-pill
+                              <span className="text-xs font-semibold px-1.5 py-0.5 rounded-pill
                                                bg-red-500/15 text-red-400 border border-red-500/30">
                                 überfällig
                               </span>
                             )}
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-pill font-medium
+                            <span className={`text-xs px-1.5 py-0.5 rounded-pill font-medium
                                               bg-light-surface-2 dark:bg-canvas-3
                                               border border-light-border dark:border-dark-border
                                               ${tagesFarbe(e.datum)}`}>
@@ -1793,11 +1662,11 @@ const HomeDashboard = ({ session }) => {
                           <span className="block text-xs text-light-text-main dark:text-dark-text-main truncate">
                             {getVerlaufDisplayText(v)}
                           </span>
-                          <span className="block text-[11px] text-light-text-secondary dark:text-dark-text-secondary truncate">
+                          <span className="block text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">
                             {meta.label}
                           </span>
                         </div>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-pill flex-shrink-0
+                        <span className="text-xs px-1.5 py-0.5 rounded-pill flex-shrink-0
                                          bg-light-surface-2 dark:bg-canvas-3
                                          border border-light-border dark:border-dark-border
                                          text-light-text-secondary dark:text-dark-text-secondary">
@@ -1839,7 +1708,7 @@ const HomeDashboard = ({ session }) => {
                   <ChevronRight
                     size={14}
                     className="text-light-text-secondary dark:text-dark-text-secondary
-                               opacity-0 group-hover:opacity-100 flex-shrink-0
+                               opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 flex-shrink-0
                                transition-opacity duration-150"
                   />
                 </GlassSurface>

@@ -36,7 +36,12 @@
     "analyse": "Rechnung analysieren",
     "pdfOcrRunning": "Gescannte PDF-Seiten werden gelesen...",
     "pdfOcrLimited": "Das PDF hat {{pages}} Seiten. Es werden die ersten {{limit}} Seiten analysiert.",
-    "pdfOcrFailed": "Das gescannte PDF konnte nicht gelesen werden. Bitte lade ein schärferes PDF oder einzelne Fotos hoch."
+    "pdfOcrFailed": "Das gescannte PDF konnte nicht gelesen werden. Bitte lade ein schärferes PDF oder einzelne Fotos hoch.",
+    "mobilePhoto": "Rechnung fotografieren",
+    "mobileFile": "Bild oder PDF auswählen",
+    "hidePreview": "Vorschau ausblenden",
+    "requiredField": "Bitte einen gültigen Wert eingeben.",
+    "replaceFile": "Andere Datei auswählen"
   },
   "categories": {
     "Rechnung": "Rechnung",
@@ -46,7 +51,9 @@
     "Versicherung": "Versicherung",
     "Beh?rde": "Behörde",
     "Gesundheit": "Gesundheit",
-    "Sonstiges": "Sonstiges"
+    "Sonstiges": "Sonstiges",
+    "Behörde": "Behörde",
+    "Medikamente": "Medikamente"
   },
   "manager": {
     "title": "Meine Dokumente",
@@ -72,5 +79,34 @@
     "sizeLabel": "Größe:",
     "uploadedLabel": "Hochgeladen:",
     "unknown": "Unbekannt"
+  },
+  "archiveLayout": {
+    "categories": "Kategorien",
+    "allCategories": "Alle Dokumente",
+    "search": "Dokumente durchsuchen",
+    "clearSearch": "Suche löschen",
+    "view": "Darstellung",
+    "listView": "Archivansicht",
+    "cardView": "Kartenansicht",
+    "year": "Jahr",
+    "month": "Monat",
+    "status": "Status",
+    "sort": "Sortierung",
+    "allYears": "Alle Jahre",
+    "allMonths": "Alle Monate",
+    "allStatus": "Alle Status",
+    "newest": "Neueste zuerst",
+    "oldest": "Älteste zuerst",
+    "nameAz": "Name A–Z",
+    "inBudget": "Im Budget",
+    "asKnowledge": "Als Wissen",
+    "openInvoice": "Offen (Rechnung)",
+    "moreFilters": "Weitere Filter",
+    "reset": "Alle zurücksetzen",
+    "removeFilter": "Filter entfernen: {{filter}}",
+    "count_one": "{{count}} Dokument",
+    "count_other": "{{count}} Dokumente",
+    "edit": "Bearbeiten",
+    "moreActions": "Weitere Aktionen"
   }
 }

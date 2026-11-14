@@ -1,3 +1,4 @@
+import OverlayPortal from "./ui/OverlayPortal";
 import React, { useState, useEffect, useCallback } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useTranslation } from "react-i18next";
@@ -91,7 +92,7 @@ function MonthView({ datum, events, onEventClick }) {
       {/* Wochentag-Header */}
       <div className="grid grid-cols-7 shrink-0 bg-light-surface-1/60 dark:bg-white/[0.03] border-b border-light-border dark:border-white/[0.08]">
         {WOCHENTAGE_KURZ.map((d) => (
-          <div key={d} className="py-2 text-center text-[10px] font-semibold tracking-widest uppercase text-light-text-secondary dark:text-dark-text-secondary">
+          <div key={d} className="py-2 text-center text-xs font-semibold tracking-widest uppercase text-light-text-secondary dark:text-dark-text-secondary">
             {d}
           </div>
         ))}
@@ -132,7 +133,7 @@ function MonthView({ datum, events, onEventClick }) {
             >
               {/* Tageszahl */}
               <div className={[
-                "mb-1 flex h-5 w-5 shrink-0 sm:h-6 sm:w-6 items-center justify-center rounded-full text-[11px] sm:text-xs font-medium transition-colors",
+                "mb-1 flex h-5 w-5 shrink-0 sm:h-6 sm:w-6 items-center justify-center rounded-full text-xs sm:text-xs font-medium transition-colors",
                 today
                   ? "bg-primary-500 text-white font-bold shadow-glow-primary"
                   : inMonth
@@ -150,7 +151,7 @@ function MonthView({ datum, events, onEventClick }) {
                     <button
                       key={ev.id}
                       onClick={() => onEventClick(ev)}
-                      className={`w-full text-left rounded px-1.5 py-0.5 text-[9px] sm:text-[10px] font-semibold truncate
+                      className={`w-full text-left rounded px-1.5 py-0.5 text-xs sm:text-xs font-semibold truncate
                                   transition-[transform,opacity,box-shadow] duration-150 ease-out
                                   hover:-translate-y-px hover:opacity-90 hover:shadow-elevation-1 ${cfg.pill}`}
                     >
@@ -161,7 +162,7 @@ function MonthView({ datum, events, onEventClick }) {
                 {dayEvents.length > 2 && (
                   <button
                     onClick={() => setExpandedDay(isExpanded ? null : dayKey)}
-                    className="w-full rounded px-1 py-0.5 text-left text-[9px] font-semibold
+                    className="w-full rounded px-1 py-0.5 text-left text-xs font-semibold
                                text-light-text-secondary dark:text-dark-text-secondary
                                hover:bg-primary-500/10 hover:text-primary-500 transition-colors"
                   >
@@ -229,7 +230,7 @@ function AgendaView({ datum, events, onEventClick }) {
                   ? "bg-primary-500 border-primary-500 text-white shadow-glow-primary"
                   : "bg-light-surface-1 dark:bg-canvas-3 border-light-border dark:border-dark-border text-light-text-main dark:text-dark-text-main"}`}
               >
-                <span className="text-[9px] font-bold uppercase leading-none tracking-wider">
+                <span className="text-xs font-bold uppercase leading-none tracking-wider">
                   {format(dayDate, "EEE", { locale: de })}
                 </span>
                 <span className="text-sm font-bold leading-none mt-0.5">
@@ -237,7 +238,7 @@ function AgendaView({ datum, events, onEventClick }) {
                 </span>
               </div>
               <div className="flex-1 h-px bg-light-border dark:bg-dark-border" />
-              <span className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary shrink-0 uppercase tracking-wider">
+              <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary shrink-0 uppercase tracking-wider">
                 {format(dayDate, "MMMM", { locale: de })}
               </span>
             </div>
@@ -270,14 +271,14 @@ function AgendaView({ datum, events, onEventClick }) {
                           {ev.title}
                         </p>
                         {ev.sub && (
-                          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5 truncate">
+                          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-0.5 truncate">
                             {ev.sub}
                           </p>
                         )}
                       </div>
 
                       {/* Typ-Badge */}
-                      <div className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider shrink-0 ${cfg.badge}`}>
+                      <div className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-bold uppercase tracking-wider shrink-0 ${cfg.badge}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
                         {ev.typ}
                       </div>
@@ -299,8 +300,8 @@ function EventModal({ event, onClose, onOpenLink }) {
   const cfg   = EVENT_CFG[event.typ] || EVENT_CFG.aufgabe;
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-canvas-0/70 backdrop-blur-sm animate-fade-in"
+    <OverlayPortal><div
+      data-app-dialog="" className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-canvas-0/70 backdrop-blur-sm animate-fade-in"
       onClick={onClose}
     >
       <div
@@ -324,12 +325,12 @@ function EventModal({ event, onClose, onOpenLink }) {
                 <h3 className="text-base font-semibold text-light-text-main dark:text-dark-text-main leading-tight">
                   {event.title}
                 </h3>
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
                   {format(new Date(event.start), "EEEE, dd. MMMM yyyy", { locale: de })}
                 </p>
               </div>
             </div>
-            <button
+            <button aria-label="Schließen"
               onClick={onClose}
               className="w-7 h-7 rounded-card-sm flex items-center justify-center shrink-0
                          text-light-text-secondary dark:text-dark-text-secondary
@@ -362,7 +363,7 @@ function EventModal({ event, onClose, onOpenLink }) {
           )}
         </div>
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 }
 
@@ -535,7 +536,7 @@ const KalenderUebersicht = ({ session }) => {
             return (
               <div key={typ} className="flex items-center gap-1.5">
                 <div className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-                <span className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">
+                <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
                   {LEGENDE_LABELS[typ]}
                 </span>
               </div>

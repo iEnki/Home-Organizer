@@ -127,6 +127,7 @@ const Sidebar = ({ activeRoute, onNavigate, appMode, mobileNavigationEnabled = f
   const { t } = useTranslation(["nav", "common"]);
   const [mobileOpen,  setMobileOpen]  = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(true);
+  const [pinned, setPinned] = useState(false);
 
   // Gleitender Hover-Indikator (Desktop): Position relativ zum Scroll-Container
   const navScrollRef = useRef(null);
@@ -187,7 +188,7 @@ const Sidebar = ({ activeRoute, onNavigate, appMode, mobileNavigationEnabled = f
               <div className="px-2 mt-3 mb-1">
                 <div className="h-px bg-gradient-to-r from-transparent via-light-border to-transparent dark:via-dark-border/70" />
                 <p
-                  className={`sidebar-group-label mt-1.5 px-1 text-[10px] font-semibold uppercase tracking-widest whitespace-nowrap
+                  className={`sidebar-group-label mt-1.5 px-1 text-xs font-semibold uppercase tracking-widest whitespace-nowrap
                               text-light-text-secondary/50
                               transition-[opacity,transform] duration-200 ease-out
                               ${isCollapsed ? "opacity-0 -translate-x-2" : "opacity-100 translate-x-0"}`}
@@ -257,8 +258,7 @@ const Sidebar = ({ activeRoute, onNavigate, appMode, mobileNavigationEnabled = f
           {gruppe.label && (
             <div className="px-3 mt-4 mb-1">
               <div className="h-px bg-light-border dark:bg-dark-border/60 mb-2" />
-              <p className="px-1 text-[10px] font-semibold uppercase tracking-widest
-                            text-light-text-secondary/50 dark:text-dark-text-secondary/50">
+              <p className="px-1 text-sm font-semibold uppercase tracking-widest\r\n                            text-light-text-secondary/50 dark:text-dark-text-secondary/50">
                 {gruppe.label}
               </p>
             </div>
@@ -308,8 +308,11 @@ const Sidebar = ({ activeRoute, onNavigate, appMode, mobileNavigationEnabled = f
                     overflow-hidden
                     ${isCollapsed ? "" : "shadow-elevation-3 dark:border-r-primary-500/20"}`}
         onMouseEnter={() => setIsCollapsed(false)}
-        onMouseLeave={() => { setIsCollapsed(true); hideLamp(); }}
+        onMouseLeave={() => { if (!pinned) setIsCollapsed(true); hideLamp(); }}
+        onFocus={() => setIsCollapsed(false)}
+        onBlur={(e) => { if (!pinned && !e.currentTarget.contains(e.relatedTarget)) setIsCollapsed(true); }}
       >
+        <button type="button" className="sidebar-pin shrink-0 mx-1 mt-2 rounded-lg" aria-label={t("nav:sidebarToggle")} aria-expanded={!isCollapsed} aria-pressed={pinned} onClick={() => { setPinned(!pinned); setIsCollapsed(pinned); }}><Menu size={20} className="mx-auto" /></button>
         {renderDesktopNav()}
       </aside>
 

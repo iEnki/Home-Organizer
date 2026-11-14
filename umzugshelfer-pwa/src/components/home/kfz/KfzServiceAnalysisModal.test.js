@@ -1,0 +1,50 @@
+import React from "react";
+import {act,fireEvent,render,screen,waitFor} from "@testing-library/react";
+import KfzServiceAnalysisModal from "./KfzServiceAnalysisModal";
+import {uploadKfzServiceDocument,analyzeKfzServiceDocument,discardKfzServiceDocument,saveKfzServiceAnalysis} from "../../../utils/kfzServiceAnalysis";
+jest.mock("../../../contexts/LocaleContext",()=>({useLocale:()=>({locale:"de"})}));
+jest.mock("react-i18next",()=>({initReactI18next:{type:"3rdParty",init:jest.fn()},useTranslation:()=>({t:key=>key})}));
+jest.mock("../../../utils/kfzData",()=>({createKfzDocumentUrl:jest.fn().mockResolvedValue("blob:preview")}));
+jest.mock("../../../utils/pushNotifications",()=>({notifyHouseholdEvent:jest.fn().mockResolvedValue({})}));
+jest.mock("../../../utils/kfzServiceAnalysis",()=>({uploadKfzServiceDocument:jest.fn(),analyzeKfzServiceDocument:jest.fn(),discardKfzServiceDocument:jest.fn(),saveKfzServiceAnalysis:jest.fn(),calculatePositionDifference:()=>0}));
+const result={service:{fahrzeug_id:"vehicle-1",typ:"Service",datum:"2026-11-14",kosten:125.5,beschreibung:"Inspection"},positions:[{sortierung:1,beschreibung:"Oil",kategorie:"arbeit",gesamtpreis:100,confidence:.95},{sortierung:2,beschreibung:"Filter",kategorie:"ersatzteil",gesamtpreis:25.5,confidence:.4}],reminders:[],field_confidence:{},overall_confidence:.8};
+const props={open:true,onClose:jest.fn(),onSaved:jest.fn(),vehicles:[{id:"vehicle-1",name:"Test car"}],selectedVehicleId:"vehicle-1",userId:"user-1",householdId:"household-1"};
+const selectFile=container=>fireEvent.change(document.querySelector('input[type="file"]:not([capture])'),{target:{files:[new File(["pdf"],"service.pdf",{type:"application/pdf"})]}});
+beforeEach(()=>{jest.clearAllMocks();uploadKfzServiceDocument.mockResolvedValue({id:"document-1",dateiname:"service.pdf",datei_typ:"application/pdf"});analyzeKfzServiceDocument.mockResolvedValue(result);discardKfzServiceDocument.mockResolvedValue();saveKfzServiceAnalysis.mockResolvedValue("service-1");});
+test("keeps one dialog with footer outside its scrolling body and exposes uncertain positions",async()=>{
+ const {container,rerender}=render(<KfzServiceAnalysisModal {...props}/>);selectFile(container);
+ const amount=await screen.findByLabelText("analysis.fields.gross");
+ expect(screen.getByLabelText("analysis.fields.description · 1").closest("details").open).toBe(false);
+ expect(screen.getByLabelText("analysis.fields.description · 2").closest("details").open).toBe(true);
+ fireEvent.change(amount,{target:{value:"150.75"}});
+ const dialog=document.querySelector(".kfz-service-dialog");
+ expect(dialog.querySelector(".mobile-modal-body .kfz-service-actions")).toBeNull();
+ expect(dialog.querySelector(".mobile-modal-footer .kfz-service-actions")).not.toBeNull();
+ rerender(<KfzServiceAnalysisModal {...props} vehicles={[...props.vehicles]}/>);
+ expect(screen.getByLabelText("analysis.fields.gross")).toHaveValue(150.75);
+});
+test("retains the selected receipt after analysis failure and retries it",async()=>{
+ analyzeKfzServiceDocument.mockRejectedValueOnce(new Error("offline"));
+ const {container}=render(<KfzServiceAnalysisModal {...props}/>);selectFile(container);
+ await screen.findByRole("alert");expect(await screen.findByText("service.pdf")).toBeInTheDocument();expect(discardKfzServiceDocument).toHaveBeenCalledTimes(1);
+ fireEvent.click(screen.getByRole("button",{name:"analysis.retry"}));
+ await screen.findByLabelText("analysis.fields.gross");expect(uploadKfzServiceDocument).toHaveBeenCalledTimes(2);
+ expect(uploadKfzServiceDocument.mock.calls[0][0].file).toBe(uploadKfzServiceDocument.mock.calls[1][0].file);
+});
+test("does not save twice and preserves the analysed payload and target flags",async()=>{
+ let finish;saveKfzServiceAnalysis.mockImplementation(()=>new Promise(resolve=>{finish=resolve;}));
+ const {container}=render(<KfzServiceAnalysisModal {...props}/>);selectFile(container);
+ await screen.findByLabelText("analysis.fields.gross");
+ fireEvent.click(screen.getByRole("checkbox",{name:"analysis.createBudget"}));
+ const save=screen.getByRole("button",{name:"analysis.confirm"});fireEvent.click(save);fireEvent.click(save);
+ await waitFor(()=>expect(saveKfzServiceAnalysis).toHaveBeenCalledTimes(1));
+ expect(saveKfzServiceAnalysis).toHaveBeenCalledWith(expect.objectContaining({kosten:125.5,fahrzeug_id:"vehicle-1",datum:"2026-11-14",positionen:result.positions,create_budget:true,create_invoice:false}));
+ await act(async()=>finish("service-1"));expect(props.onSaved).toHaveBeenCalledTimes(1);
+});
+test("focuses missing vehicle data without sending a save call",async()=>{
+ analyzeKfzServiceDocument.mockResolvedValue({...result,service:{...result.service,fahrzeug_id:""}});
+ const {container}=render(<KfzServiceAnalysisModal {...props} selectedVehicleId=""/>);selectFile(container);
+ const vehicle=await screen.findByLabelText(/analysis.fields.vehicle/);
+ fireEvent.click(screen.getByRole("button",{name:"analysis.confirm"}));
+ await waitFor(()=>expect(vehicle).toHaveFocus());expect(saveKfzServiceAnalysis).not.toHaveBeenCalled();
+});

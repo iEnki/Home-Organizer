@@ -96,7 +96,7 @@ const RegisterPage = () => {
                   aria-hidden="true"
                 />
               </div>
-              <input
+              <input aria-label="E-Mail-Adresse"
                 id="email-address"
                 name="email"
                 type="email"
@@ -116,7 +116,7 @@ const RegisterPage = () => {
                   aria-hidden="true"
                 />
               </div>
-              <input
+              <input aria-label="Passwort"
                 id="password"
                 name="password"
                 type="password"
@@ -136,7 +136,7 @@ const RegisterPage = () => {
                   aria-hidden="true"
                 />
               </div>
-              <input
+              <input aria-label="Passwort bestätigen"
                 id="confirm-password"
                 name="confirm-password"
                 type="password"

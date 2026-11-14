@@ -26,7 +26,7 @@ export default function BuecherFilterBar({
       <div className="flex gap-2">
         <div className="relative flex-1 min-w-0">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary pointer-events-none" />
-          <input
+          <input aria-label={t("books:filter.searchPlaceholder")}
             type="text"
             value={suche}
             onChange={(e) => onSucheChange(e.target.value)}
@@ -34,7 +34,7 @@ export default function BuecherFilterBar({
             className="w-full pl-8 pr-8 py-2.5 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-card/80 dark:bg-canvas-2/80 backdrop-blur-sm text-light-text-main dark:text-dark-text-main placeholder:text-light-text-secondary dark:placeholder:text-dark-text-secondary focus:outline-none focus:border-secondary-500 transition-colors"
           />
           {suche && (
-            <button
+            <button aria-label="Schließen"
               onClick={() => onSucheChange("")}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger transition-colors"
             >

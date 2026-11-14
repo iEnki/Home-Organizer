@@ -148,7 +148,7 @@ function PlanItem({ entry, recipe, label, onEdit, onDelete, onOpen, dragDisabled
         <button
           type="button"
           onClick={() => recipe && onOpen?.(recipe)}
-          className="min-w-0 flex-1 truncate text-left text-[11px] font-semibold
+          className="min-w-0 flex-1 truncate text-left text-xs font-semibold
                      text-light-text-main dark:text-dark-text-main
                      hover:text-primary-500 transition-colors"
         >
@@ -159,7 +159,7 @@ function PlanItem({ entry, recipe, label, onEdit, onDelete, onOpen, dragDisabled
       {/* Zeile 2: Portionen + Notizen + Actions (bündig unter Titel) */}
       <div className="mt-1.5 flex items-start gap-1.5 pl-[50px]">
         <div className="min-w-0 flex-1 space-y-0.5">
-          <div className="flex flex-nowrap items-center gap-1.5 text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
+          <div className="flex flex-nowrap items-center gap-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary">
             <span className="shrink-0">{t("mealPlanner.servingsShort", { count: entry.portionen || recipe?.portionen || 4 })}</span>
             {entry.recurrence_frequency === "weekly" && (
               <span className="shrink-0 rounded-full bg-primary-500/10 px-1.5 py-0.5 text-primary-500">
@@ -168,7 +168,7 @@ function PlanItem({ entry, recipe, label, onEdit, onDelete, onOpen, dragDisabled
             )}
           </div>
           {entry.notizen && (
-            <p className="truncate text-[10px] text-light-text-secondary dark:text-dark-text-secondary italic">
+            <p className="truncate text-sm text-light-text-secondary dark:text-dark-text-secondary italic">
               {entry.notizen}
             </p>
           )}
@@ -221,7 +221,7 @@ function PlanSlot({ id, children, label, slotKey, onAdd }) {
       <div className="mb-1.5 flex items-center justify-between gap-1">
         <div className="flex items-center gap-1.5">
           <span className={`inline-block h-1.5 w-1.5 rounded-full shrink-0 ${cfg.dot}`} />
-          <span className={`text-[10px] font-semibold uppercase tracking-widest ${cfg.text}`}>
+          <span className={`text-xs font-semibold uppercase tracking-widest ${cfg.text}`}>
             {label}
           </span>
         </div>
@@ -245,7 +245,7 @@ function PlanSlot({ id, children, label, slotKey, onAdd }) {
           <button
             type="button"
             onClick={onAdd}
-            className={`flex items-center gap-1 text-[10px] ${cfg.text} opacity-40 hover:opacity-70 transition-opacity`}
+            className={`flex items-center gap-1 text-xs ${cfg.text} opacity-40 hover:opacity-70 transition-opacity`}
           >
             <Plus size={11} /> hinzufügen
           </button>
@@ -681,7 +681,7 @@ export default function MealPlanner({
                 : "bg-light-card dark:bg-canvas-2 border border-light-border dark:border-dark-border"
               }`}
             >
-              <span className={`text-[9px] font-bold uppercase leading-none tracking-widest
+              <span className={`text-xs font-bold uppercase leading-none tracking-widest
                 ${today ? "text-white/70" : "text-light-text-secondary dark:text-dark-text-secondary"}`}>
                 {format(day, "EEE", { locale })}
               </span>
@@ -695,13 +695,13 @@ export default function MealPlanner({
                 ${today ? "text-primary-500" : "text-light-text-main dark:text-dark-text-main"}`}>
                 {format(day, "EEEE", { locale })}
               </p>
-              <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                 {format(day, "dd. MMM", { locale })}
               </p>
             </div>
           </div>
           {totalItems > 0 && (
-            <span className="rounded-pill bg-primary-500/15 px-2 py-0.5 text-[10px] font-semibold text-primary-500">
+            <span className="rounded-pill bg-primary-500/15 px-2 py-0.5 text-xs font-semibold text-primary-500">
               {totalItems}
             </span>
           )}
@@ -756,7 +756,7 @@ export default function MealPlanner({
               <h2 className="text-sm font-semibold text-light-text-main dark:text-dark-text-main">
                 {t("mealPlanner.title")}
               </h2>
-              <p className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                 {format(weekStart, "dd. MMM", { locale })} – {format(weekEnd, "dd. MMM yyyy", { locale })}
               </p>
             </div>
@@ -854,7 +854,7 @@ export default function MealPlanner({
                           : "border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-secondary dark:text-dark-text-secondary"
                       }`}
                   >
-                    <span className="text-[10px] font-semibold uppercase tracking-widest leading-none">
+                    <span className="text-xs font-semibold uppercase tracking-widest leading-none">
                       {format(day, "EEE", { locale })}
                     </span>
                     <span className={`text-base font-bold leading-tight mt-0.5
@@ -887,7 +887,7 @@ export default function MealPlanner({
                   <div className="h-7 w-7 shrink-0 flex items-center justify-center rounded-card-sm bg-primary-500/10">
                     <Utensils size={12} className="text-primary-500" />
                   </div>
-                  <p className="text-xs font-semibold text-light-text-main dark:text-dark-text-main line-clamp-2">
+                  <p className="text-sm font-semibold text-light-text-main dark:text-dark-text-main line-clamp-2">
                     {resolveLocalizedRecipe(getRecipe(activeDragEntry) || {}, activeLocale).title
                       || getRecipe(activeDragEntry)?.titel
                       || t("mealPlanner.unknownRecipe")}
@@ -913,7 +913,7 @@ export default function MealPlanner({
           <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main mb-1">
             {t("mealPlanner.empty")}
           </p>
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
             {t("mealPlanner.emptyHint", { defaultValue: "Tippe auf + in einem Slot, um ein Rezept einzuplanen." })}
           </p>
         </div>

@@ -1,3 +1,4 @@
+import OverlayPortal from "../ui/OverlayPortal";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -164,21 +165,21 @@ const WissenForm = ({ initial, onSpeichern, onAbbrechen }) => {
     <div className="space-y-3">
       <div>
         <label className={labelCls}>{t("home:knowledgeForm.titleLabel")}</label>
-        <input value={form.titel} onChange={(e) => setForm((p) => ({ ...p, titel: e.target.value }))} placeholder={t("home:knowledgeForm.titlePlaceholder")} className={inputCls} />
+        <input aria-label={t("home:knowledgeForm.titleLabel")} value={form.titel} onChange={(e) => setForm((p) => ({ ...p, titel: e.target.value }))} placeholder={t("home:knowledgeForm.titlePlaceholder")} className={inputCls} />
       </div>
       <div>
         <label className={labelCls}>{t("home:knowledgeForm.category")}</label>
-        <select value={form.kategorie} onChange={(e) => setForm((p) => ({ ...p, kategorie: e.target.value }))} className={inputCls}>
+        <select aria-label={t("home:knowledgeForm.category")} value={form.kategorie} onChange={(e) => setForm((p) => ({ ...p, kategorie: e.target.value }))} className={inputCls}>
           {KATEGORIEN.map((k) => <option key={k} value={k}>{t(`home:knowledgeForm.categories.${k}`, { defaultValue: k })}</option>)}
         </select>
       </div>
       <div>
         <label className={labelCls}>{t("home:knowledgeForm.content")}</label>
-        <textarea value={form.inhalt} onChange={(e) => setForm((p) => ({ ...p, inhalt: e.target.value }))} rows={5} placeholder={t("home:knowledgeForm.contentPlaceholder")} className={`${inputCls} resize-none`} />
+        <textarea aria-label={t("home:knowledgeForm.content")} value={form.inhalt} onChange={(e) => setForm((p) => ({ ...p, inhalt: e.target.value }))} rows={5} placeholder={t("home:knowledgeForm.contentPlaceholder")} className={`${inputCls} resize-none`} />
       </div>
       <div>
         <label className={labelCls}>{t("home:knowledgeForm.tags")}</label>
-        <input value={form.tags} onChange={(e) => setForm((p) => ({ ...p, tags: e.target.value }))} placeholder={t("home:knowledgeForm.tagsPlaceholder")} className={inputCls} />
+        <input aria-label={t("home:knowledgeForm.tags")} value={form.tags} onChange={(e) => setForm((p) => ({ ...p, tags: e.target.value }))} placeholder={t("home:knowledgeForm.tagsPlaceholder")} className={inputCls} />
       </div>
       <div className="flex gap-2 pt-1">
         <button onClick={onAbbrechen} className="flex-1 px-3 py-2 text-sm border border-light-border dark:border-dark-border rounded-pill hover:bg-light-hover dark:hover:bg-canvas-3 text-light-text-main dark:text-dark-text-main">
@@ -496,13 +497,13 @@ const HomeWissen = ({ session }) => {
                     <p className={`${textCls} font-medium text-light-text-main dark:text-dark-text-main break-words`}>
                       {pos.pos_nr ? `${pos.pos_nr}. ` : ""}{pos.beschreibung || "Position"}
                     </p>
-                    <p className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
                       Menge: {pos.menge ?? "-"} {pos.einheit || ""}
                     </p>
                   </div>
                   <div className="text-right shrink-0">
                     <p className={`${textCls} text-light-text-main dark:text-dark-text-main`}>{formatEuro(pos.gesamtpreis)}</p>
-                    <p className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">Einzel: {formatEuro(pos.einzelpreis)}</p>
+                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Einzel: {formatEuro(pos.einzelpreis)}</p>
                   </div>
                 </div>
               </div>
@@ -550,7 +551,7 @@ const HomeWissen = ({ session }) => {
       return <pre className={`${textCls} text-light-text-main dark:text-dark-text-main whitespace-pre-wrap font-sans`}>{display.content}</pre>;
     }
 
-    return <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t("home:wissen.noDetails")}</p>;
+    return <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t("home:wissen.noDetails")}</p>;
   };
 
   if (loading) {
@@ -597,7 +598,7 @@ const HomeWissen = ({ session }) => {
               <div className="shrink-0">{icon}</div>
               <div className="min-w-0">
                 <p className="text-lg font-bold text-light-text-main dark:text-dark-text-main leading-none">{value}</p>
-                <p className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary mt-0.5 truncate">{label}</p>
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-0.5 truncate">{label}</p>
               </div>
             </div>
           ))}
@@ -607,17 +608,17 @@ const HomeWissen = ({ session }) => {
       {/* Filter & Sort Bar */}
       <div className="space-y-2">
         {/* Row 1: Search + Sort + View toggle */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-full sm:w-auto sm:flex-1">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary" />
-            <input
+            <input aria-label={t("home:knowledgeForm.searchPlaceholder")}
               value={suchbegriff}
               onChange={(e) => setSuchbegriff(e.target.value)}
               placeholder={t("home:knowledgeForm.searchPlaceholder")}
               className="w-full pl-9 pr-8 py-2 text-sm rounded-card-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-canvas-2 text-light-text-main dark:text-dark-text-main focus:outline-none focus:border-amber-500"
             />
             {suchbegriff && (
-              <button onClick={() => setSuchbegriff("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger">
+              <button aria-label="Schließen" onClick={() => setSuchbegriff("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger">
                 <X size={13} />
               </button>
             )}
@@ -775,18 +776,18 @@ const HomeWissen = ({ session }) => {
               <div className="flex items-start justify-between gap-2 mb-1">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className={`w-2 h-2 rounded-full shrink-0 ${getKategorieFarbe(e.kategorie)}`} />
-                  <h3 className="font-semibold text-sm text-light-text-main dark:text-dark-text-main line-clamp-1">{display.title}</h3>
+                  <h3 className="font-semibold text-base text-light-text-main dark:text-dark-text-main line-clamp-1">{display.title}</h3>
                 </div>
                 <div className="flex gap-1 shrink-0">
-                  <button
+                  <button aria-label="Bearbeiten"
                     onClick={(ev) => { ev.stopPropagation(); setModal(e); }}
-                    className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
                   >
                     <Edit2 size={13} />
                   </button>
-                  <button
+                  <button aria-label="Löschen"
                     onClick={(ev) => { ev.stopPropagation(); loesche(e); }}
-                    className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="p-1 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
                   >
                     <Trash2 size={13} />
                   </button>
@@ -796,33 +797,33 @@ const HomeWissen = ({ session }) => {
               <div className="flex items-center gap-2 mb-2 flex-wrap pl-4">
                 <span className="text-xs text-amber-500 font-medium">{e.kategorie}</span>
                 {Number.isFinite(Number(e.analysis_confidence)) && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-pill bg-primary-500/10 text-primary-500">
+                  <span className="text-xs px-2 py-0.5 rounded-pill bg-primary-500/10 text-primary-500">
                     {Math.round(Number(e.analysis_confidence) * 100)} %
                   </span>
                 )}
                 {isManualOverride(e) && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-pill bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">{t("home:wissen.tagManual")}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-pill bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">{t("home:wissen.tagManual")}</span>
                 )}
               </div>
 
               <div className="pl-4">
                 {display.headline ? (
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary line-clamp-2">{display.headline}</p>
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary line-clamp-2">{display.headline}</p>
                 ) : display.content ? (
-                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary line-clamp-2">{display.content}</p>
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary line-clamp-2">{display.content}</p>
                 ) : null}
 
                 {getSummaryHighlights(e).slice(0, 2).map((item) => (
-                  <div key={item} className="text-[11px] rounded-card-sm bg-amber-500/10 px-2 py-1 text-amber-700 dark:text-amber-300 line-clamp-1 mt-1.5">{item}</div>
+                  <div key={item} className="text-xs rounded-card-sm bg-amber-500/10 px-2 py-1 text-amber-700 dark:text-amber-300 line-clamp-1 mt-1.5">{item}</div>
                 ))}
                 {getSummaryWarnings(e).slice(0, 1).map((item) => (
-                  <div key={item} className="text-[11px] rounded-card-sm border border-red-500/20 bg-red-500/10 px-2 py-1 text-red-600 dark:text-red-400 line-clamp-1 mt-1.5">{item}</div>
+                  <div key={item} className="text-xs rounded-card-sm border border-red-500/20 bg-red-500/10 px-2 py-1 text-red-600 dark:text-red-400 line-clamp-1 mt-1.5">{item}</div>
                 ))}
 
                 {(e.tags || []).length > 0 && (
                   <div className="flex gap-1 flex-wrap mt-2">
                     {e.tags.map((t) => (
-                      <span key={t} className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-pill bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                      <span key={t} className="flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-pill bg-amber-500/10 text-amber-600 dark:text-amber-400">
                         <Tag size={9} />{t}
                       </span>
                     ))}
@@ -872,7 +873,7 @@ const HomeWissen = ({ session }) => {
                   <span className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide group-hover:text-amber-500 transition-colors">
                     {formatMonatLabel(monatKey, t)}
                   </span>
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-light-border dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary">
+                  <span className="px-1.5 py-0.5 rounded-full text-xs bg-light-border dark:bg-canvas-3 text-light-text-secondary dark:text-dark-text-secondary">
                     {eintraegeFuerMonat.length}
                   </span>
                 </button>
@@ -892,7 +893,7 @@ const HomeWissen = ({ session }) => {
 
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between gap-2">
-                              <h3 className="font-medium text-sm text-light-text-main dark:text-dark-text-main leading-snug">{display.title}</h3>
+                              <h3 className="font-medium text-base text-light-text-main dark:text-dark-text-main leading-snug">{display.title}</h3>
                               <div className="flex items-center gap-0.5 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                 {e.dokument_id && (
                                   <button
@@ -903,13 +904,13 @@ const HomeWissen = ({ session }) => {
                                     <ExternalLink size={13} />
                                   </button>
                                 )}
-                                <button
+                                <button aria-label="Bearbeiten"
                                   onClick={(ev) => { ev.stopPropagation(); setModal(e); }}
                                   className="p-1.5 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500"
                                 >
                                   <Edit2 size={13} />
                                 </button>
-                                <button
+                                <button aria-label="Löschen"
                                   onClick={(ev) => { ev.stopPropagation(); loesche(e); }}
                                   className="p-1.5 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-red-500"
                                 >
@@ -919,24 +920,24 @@ const HomeWissen = ({ session }) => {
                             </div>
 
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                              <span className="text-[11px] text-amber-500 font-medium">{e.kategorie}</span>
+                              <span className="text-xs text-amber-500 font-medium">{e.kategorie}</span>
                               {isManualOverride(e) && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded-pill bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">Manuell</span>
+                                <span className="text-xs px-1.5 py-0.5 rounded-pill bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">Manuell</span>
                               )}
                               {Number.isFinite(Number(e.analysis_confidence)) && !isManualOverride(e) && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded-pill bg-primary-500/10 text-primary-500">
+                                <span className="text-xs px-1.5 py-0.5 rounded-pill bg-primary-500/10 text-primary-500">
                                   {Math.round(Number(e.analysis_confidence) * 100)} %
                                 </span>
                               )}
                               {(e.tags || []).map((t) => (
-                                <span key={t} className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-pill bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                                <span key={t} className="flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-pill bg-amber-500/10 text-amber-600 dark:text-amber-400">
                                   <Tag size={8} />{t}
                                 </span>
                               ))}
                             </div>
 
                             {(display.headline || display.content) && (
-                              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1 line-clamp-1">
+                              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1 line-clamp-1">
                                 {display.headline || display.content}
                               </p>
                             )}
@@ -975,19 +976,19 @@ const HomeWissen = ({ session }) => {
 
       {/* Mobile detail modal (card view only, on small screens) */}
       {detailEintrag && viewMode === "kacheln" && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)] sm:hidden">
+        <OverlayPortal><div data-app-dialog="" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)] sm:hidden">
           <div className="bg-light-card dark:bg-canvas-2 rounded-2xl shadow-2xl w-full border border-light-border dark:border-dark-border max-h-[calc(100dvh-var(--safe-area-bottom)-2rem)] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
               <div className="flex items-center gap-2 min-w-0">
                 <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${getKategorieFarbe(detailEintrag.kategorie)}`} />
                 <h3 className="font-semibold text-light-text-main dark:text-dark-text-main truncate">{detailDisplay?.title || detailEintrag.titel}</h3>
               </div>
-              <button onClick={() => setDetailId(null)} className="ml-2 shrink-0">
+              <button aria-label="Schließen" onClick={() => setDetailId(null)} className="ml-2 shrink-0">
                 <X size={18} className="text-light-text-secondary dark:text-dark-text-secondary" />
               </button>
             </div>
             <div className="overflow-y-auto p-4 flex-1 space-y-3">
-              <p className="text-xs text-amber-500 font-medium">{detailEintrag.kategorie}</p>
+              <p className="text-sm text-amber-500 font-medium">{detailEintrag.kategorie}</p>
               {renderDetailInhalt(detailEintrag, false)}
               {(detailEintrag.tags || []).length > 0 && (
                 <div className="flex gap-1 flex-wrap mt-4">
@@ -1014,7 +1015,7 @@ const HomeWissen = ({ session }) => {
                 >
                   <Edit2 size={13} /> {t("common:actions.edit")}
                 </button>
-                <button
+                <button aria-label="Löschen"
                   onClick={() => loesche(detailEintrag)}
                   className="flex items-center justify-center gap-1.5 px-3 py-2 text-sm border border-red-500/30 rounded-pill text-red-500 hover:bg-red-500/10"
                 >
@@ -1023,18 +1024,18 @@ const HomeWissen = ({ session }) => {
               </div>
             </div>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
 
       {/* Edit/Create modal */}
       {modal !== null && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)]">
+        <OverlayPortal><div data-app-dialog="" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 pt-4 pb-[calc(var(--safe-area-bottom)+1rem)]">
           <div className="bg-light-card dark:bg-canvas-2 rounded-2xl shadow-2xl max-w-lg w-full border border-light-border dark:border-dark-border max-h-[calc(100dvh-var(--safe-area-bottom)-2rem)] lg:max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border sticky top-0 bg-light-card dark:bg-canvas-2 z-10">
               <h3 className="font-semibold text-light-text-main dark:text-dark-text-main">
                 {modal.id ? t("home:knowledgeForm.edit") : t("home:knowledgeForm.new")}
               </h3>
-              <button onClick={() => setModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger">
+              <button aria-label="Schließen" onClick={() => setModal(null)} className="p-1 text-light-text-secondary dark:text-dark-text-secondary hover:text-accent-danger">
                 <X size={18} />
               </button>
             </div>
@@ -1042,7 +1043,7 @@ const HomeWissen = ({ session }) => {
               <WissenForm initial={modal.id ? modal : null} onSpeichern={speichere} onAbbrechen={() => setModal(null)} />
             </div>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
     </GlassModule>
   );

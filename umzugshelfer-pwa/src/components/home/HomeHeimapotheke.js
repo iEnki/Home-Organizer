@@ -1,3 +1,4 @@
+import OverlayPortal from "../ui/OverlayPortal";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -161,7 +162,7 @@ function StatusBadge({ medication }) {
   const status = getMedicationStatus(medication);
   const cfg = STATUS_CFG[status.key] || STATUS_CFG.ok;
   return (
-    <span className={`inline-flex items-center rounded-pill border px-2 py-0.5 text-[11px] font-medium ${cfg.badge}`}>
+    <span className={`inline-flex items-center rounded-pill border px-2 py-0.5 text-xs font-medium ${cfg.badge}`}>
       {cfg.label}
     </span>
   );
@@ -171,7 +172,7 @@ function SectionHeader({ label, icon: Icon }) {
   return (
     <div className="flex items-center gap-2 mb-3">
       <div className="h-3.5 w-0.5 rounded-full bg-primary-500 shrink-0" />
-      <span className="text-[11px] uppercase tracking-widest text-light-text-secondary dark:text-dark-text-secondary font-medium">
+      <span className="text-xs uppercase tracking-widest text-light-text-secondary dark:text-dark-text-secondary font-medium">
         {label}
       </span>
       {Icon && <Icon size={12} className="text-light-text-secondary dark:text-dark-text-secondary ml-auto" />}
@@ -182,7 +183,7 @@ function SectionHeader({ label, icon: Icon }) {
 function Field({ label, children }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[11px] uppercase tracking-wide font-medium text-light-text-secondary dark:text-dark-text-secondary">
+      <span className="mb-1.5 block text-xs uppercase tracking-wide font-medium text-light-text-secondary dark:text-dark-text-secondary">
         {label}
       </span>
       {children}
@@ -219,7 +220,7 @@ function MobileMedicationFilterSheet({
   if (!open) return null;
 
   return (
-    <div className="md:hidden fixed inset-0 z-[160] flex items-center justify-center p-4" style={{ paddingBottom: "calc(var(--mobile-bottom-offset, 0px) + 1rem)" }}>
+    <OverlayPortal><div data-app-dialog="" className="md:hidden fixed inset-0 z-[160] flex items-center justify-center p-4" style={{ paddingBottom: "calc(var(--mobile-bottom-offset, 0px) + 1rem)" }}>
       <button className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} aria-label="Filter schließen" />
       <section
         className="relative w-full max-w-md max-h-[calc(100dvh-var(--mobile-bottom-offset,0px)-2rem)] overflow-y-auto rounded-card border border-light-border bg-light-card shadow-elevation-3 dark:border-dark-border dark:bg-canvas-2"
@@ -275,7 +276,7 @@ function MobileMedicationFilterSheet({
           </div>
         </div>
       </section>
-    </div>
+    </div></OverlayPortal>
   );
 }
 
@@ -337,7 +338,7 @@ function MedicationForm({ initial, onCancel, onSave, saving, onSearchSelect, isM
     : "mobile-modal-body flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4";
 
   return (
-    <div className={overlayClass} style={isMobile ? { paddingBottom: "calc(var(--mobile-bottom-offset, 0px) + 1rem)" } : undefined}>
+    <OverlayPortal><div data-app-dialog="" className={overlayClass} style={isMobile ? { paddingBottom: "calc(var(--mobile-bottom-offset, 0px) + 1rem)" } : undefined}>
       <div className={dialogClass}>
         {/* Gradient top border */}
         <div className="absolute inset-x-0 top-0 h-[2px] rounded-t-card bg-gradient-to-r from-primary-500 to-secondary-500 z-10" />
@@ -348,7 +349,7 @@ function MedicationForm({ initial, onCancel, onSave, saving, onSearchSelect, isM
             <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">
               {initial?.id ? "Medikament bearbeiten" : "Medikament hinzufügen"}
             </h2>
-            <p className="mt-0.5 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+            <p className="mt-0.5 text-sm text-light-text-secondary dark:text-dark-text-secondary">
               Nur zur Organisation – keine medizinische Beratung.
             </p>
           </div>
@@ -367,7 +368,7 @@ function MedicationForm({ initial, onCancel, onSave, saving, onSearchSelect, isM
           <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 p-3">
             <SectionHeader label="Offizielle Medikamentensuche" icon={Search} />
             <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-              <input
+              <input aria-label="Wirkstoff oder Handelsname..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && runSearch()}
@@ -410,7 +411,7 @@ function MedicationForm({ initial, onCancel, onSave, saving, onSearchSelect, isM
               <SectionHeader label="Stammdaten & Bestand" />
             </div>
             <Field label="Name *">
-              <input value={form.name} onChange={(e) => update("name", e.target.value)} className={INPUT_CLS} placeholder="Handelsname" />
+              <input aria-label="Handelsname" value={form.name} onChange={(e) => update("name", e.target.value)} className={INPUT_CLS} placeholder="Handelsname" />
             </Field>
             <Field label="Wirkstoff">
               <input value={form.wirkstoff || ""} onChange={(e) => update("wirkstoff", e.target.value)} className={INPUT_CLS} />
@@ -434,7 +435,7 @@ function MedicationForm({ initial, onCancel, onSave, saving, onSearchSelect, isM
               <input type="date" value={form.ablaufdatum || ""} onChange={(e) => update("ablaufdatum", e.target.value)} className={INPUT_CLS} />
             </Field>
             <Field label="Lagerort">
-              <input value={form.lagerort || ""} onChange={(e) => update("lagerort", e.target.value)} className={INPUT_CLS} placeholder="z.B. Badezimmerschrank" />
+              <input aria-label="z.B. Badezimmerschrank" value={form.lagerort || ""} onChange={(e) => update("lagerort", e.target.value)} className={INPUT_CLS} placeholder="z.B. Badezimmerschrank" />
             </Field>
             <Field label="Kategorie">
               <select value={form.kategorie || "Sonstiges"} onChange={(e) => update("kategorie", e.target.value)} className={INPUT_CLS}>
@@ -451,7 +452,7 @@ function MedicationForm({ initial, onCancel, onSave, saving, onSearchSelect, isM
               <input value={form.haendler || ""} onChange={(e) => update("haendler", e.target.value)} className={INPUT_CLS} />
             </Field>
             <Field label="Beipackzettel-Link">
-              <input value={form.beipackzettel_url || ""} onChange={(e) => update("beipackzettel_url", e.target.value)} className={INPUT_CLS} placeholder="https://..." />
+              <input aria-label="https://..." value={form.beipackzettel_url || ""} onChange={(e) => update("beipackzettel_url", e.target.value)} className={INPUT_CLS} placeholder="https://..." />
             </Field>
             <Field label="Offizielle Quelle">
               <input value={form.offizielle_quelle || ""} onChange={(e) => update("offizielle_quelle", e.target.value)} className={INPUT_CLS} />
@@ -503,7 +504,7 @@ function MedicationForm({ initial, onCancel, onSave, saving, onSearchSelect, isM
           </button>
         </div>
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 }
 
@@ -609,14 +610,14 @@ function MedicationPhotoScanner({ onCancel, onImport, saving }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" style={{ paddingBottom: "calc(var(--mobile-bottom-offset, 0px) + 1rem)" }}>
+    <OverlayPortal><div data-app-dialog="" className="fixed inset-0 z-[160] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" style={{ paddingBottom: "calc(var(--mobile-bottom-offset, 0px) + 1rem)" }}>
       <div className="relative max-h-[calc(100dvh-var(--mobile-bottom-offset,0px)-2rem)] w-full max-w-3xl overflow-y-auto rounded-card border border-light-border bg-light-card shadow-elevation-3 dark:border-dark-border dark:bg-canvas-2 sm:max-h-[92vh]">
         <div className="absolute inset-x-0 top-0 h-[2px] rounded-t-card bg-gradient-to-r from-primary-500 to-secondary-500" />
         <div className="p-5">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold text-light-text-main dark:text-dark-text-main">Medikament per Foto scannen</h2>
-              <p className="mt-0.5 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+              <p className="mt-0.5 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                 Foto der Packung analysieren, offiziell suchen und speichern.
               </p>
             </div>
@@ -636,7 +637,7 @@ function MedicationPhotoScanner({ onCancel, onImport, saving }) {
                 ) : (
                   <div className="text-center text-light-text-secondary dark:text-dark-text-secondary">
                     <Camera size={28} className="mx-auto mb-2 opacity-70" />
-                    <p className="text-xs">Packung fotografieren</p>
+                    <p className="text-sm">Packung fotografieren</p>
                   </div>
                 )}
               </div>
@@ -656,7 +657,7 @@ function MedicationPhotoScanner({ onCancel, onImport, saving }) {
 
             <div className="space-y-3">
               {error && (
-                <p className="rounded-card-sm border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-700 dark:text-red-400">
+                <p className="rounded-card-sm border border-red-500/20 bg-red-500/5 px-3 py-2 text-sm text-red-700 dark:text-red-400">
                   {error}
                 </p>
               )}
@@ -672,19 +673,19 @@ function MedicationPhotoScanner({ onCancel, onImport, saving }) {
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-light-text-main dark:text-dark-text-main">{candidate.form.name}</p>
-                      <p className="mt-0.5 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                      <p className="mt-0.5 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                         {candidate.official ? "Offizieller Treffer gefunden" : "Kein offizieller Treffer, bitte prüfen"}
                       </p>
                     </div>
                     {candidate.official && <CheckCircle size={16} className="shrink-0 text-primary-500" />}
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <input value={candidate.form.name} onChange={(e) => updateCandidate(candidate.id, "name", e.target.value)} className={INPUT_CLS} placeholder="Name" />
-                    <input value={candidate.form.wirkstoff || ""} onChange={(e) => updateCandidate(candidate.id, "wirkstoff", e.target.value)} className={INPUT_CLS} placeholder="Wirkstoff" />
-                    <input value={candidate.form.darreichungsform || ""} onChange={(e) => updateCandidate(candidate.id, "darreichungsform", e.target.value)} className={INPUT_CLS} placeholder="Form" />
-                    <input value={candidate.form.packungsgroesse || ""} onChange={(e) => updateCandidate(candidate.id, "packungsgroesse", e.target.value)} className={INPUT_CLS} placeholder="Packung/Stärke" />
+                    <input aria-label="Name" value={candidate.form.name} onChange={(e) => updateCandidate(candidate.id, "name", e.target.value)} className={INPUT_CLS} placeholder="Name" />
+                    <input aria-label="Wirkstoff" value={candidate.form.wirkstoff || ""} onChange={(e) => updateCandidate(candidate.id, "wirkstoff", e.target.value)} className={INPUT_CLS} placeholder="Wirkstoff" />
+                    <input aria-label="Form" value={candidate.form.darreichungsform || ""} onChange={(e) => updateCandidate(candidate.id, "darreichungsform", e.target.value)} className={INPUT_CLS} placeholder="Form" />
+                    <input aria-label="Packung/Stärke" value={candidate.form.packungsgroesse || ""} onChange={(e) => updateCandidate(candidate.id, "packungsgroesse", e.target.value)} className={INPUT_CLS} placeholder="Packung/Stärke" />
                     <input type="date" value={candidate.form.ablaufdatum || ""} onChange={(e) => updateCandidate(candidate.id, "ablaufdatum", e.target.value)} className={INPUT_CLS} />
-                    <input type="number" min="0" step="0.5" value={candidate.form.bestand ?? 1} onChange={(e) => updateCandidate(candidate.id, "bestand", e.target.value)} className={INPUT_CLS} placeholder="Bestand" />
+                    <input aria-label="Bestand" type="number" min="0" step="0.5" value={candidate.form.bestand ?? 1} onChange={(e) => updateCandidate(candidate.id, "bestand", e.target.value)} className={INPUT_CLS} placeholder="Bestand" />
                   </div>
                   <button type="button" onClick={() => onImport(candidate.form)} disabled={!candidate.form.name.trim() || saving} className="mt-3 inline-flex min-h-[42px] items-center gap-2 rounded-card-sm bg-primary-500 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-600 disabled:opacity-50 transition-colors">
                     {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
@@ -696,7 +697,7 @@ function MedicationPhotoScanner({ onCancel, onImport, saving }) {
           </div>
         </div>
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 }
 
@@ -1056,7 +1057,7 @@ export default function HomeHeimapotheke({ session }) {
           </div>
           <div className="min-w-0">
             <h1 className="text-xl font-bold text-light-text-main dark:text-dark-text-main truncate">Heimapotheke</h1>
-            <p className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
               Bestand · Ablaufdaten · Beipackzettel
             </p>
           </div>
@@ -1074,7 +1075,7 @@ export default function HomeHeimapotheke({ session }) {
             className="inline-flex items-center gap-1.5 rounded-pill bg-primary-500 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-600 transition-colors"
           >
             <Plus size={15} />
-            Hinzuf?gen
+            Hinzufügen
           </button>
         </div>
       </div>
@@ -1103,7 +1104,7 @@ export default function HomeHeimapotheke({ session }) {
                       </div>
                       <div>
                         <p className="text-base sm:text-xl font-bold tabular-nums text-light-text-main dark:text-dark-text-main leading-none">{count}</p>
-                        <p className="text-[10px] sm:text-[11px] text-light-text-secondary dark:text-dark-text-secondary mt-0.5 leading-tight">{label}</p>
+                        <p className="text-sm sm:text-sm text-light-text-secondary dark:text-dark-text-secondary mt-0.5 leading-tight">{label}</p>
                       </div>
                     </div>
                   </GlassSurface>
@@ -1116,7 +1117,7 @@ export default function HomeHeimapotheke({ session }) {
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary" />
-                <input
+                <input aria-label="Suchen..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Suchen..."
@@ -1131,6 +1132,7 @@ export default function HomeHeimapotheke({ session }) {
                 <Camera size={15} />
               </button>
               <button
+                aria-label="Filter öffnen"
                 onClick={() => setFilterOpen(true)}
                 className={`flex shrink-0 items-center gap-1.5 rounded-card-sm border px-3 py-2 text-sm transition-colors ${
                   activeFilterCount > 0
@@ -1140,7 +1142,7 @@ export default function HomeHeimapotheke({ session }) {
               >
                 <Filter size={13} />
                 {activeFilterCount > 0 && (
-                  <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary-500 px-1 text-[10px] font-bold text-white">
+                  <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary-500 px-1 text-xs font-bold text-white">
                     {activeFilterCount}
                   </span>
                 )}
@@ -1182,7 +1184,7 @@ export default function HomeHeimapotheke({ session }) {
             <div className="grid gap-2 grid-cols-[minmax(0,1fr)_160px_160px_140px]">
               <div className="relative">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary" />
-                <input
+                <input aria-label="Name, Wirkstoff, Lagerort..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Name, Wirkstoff, Lagerort..."
@@ -1221,7 +1223,7 @@ export default function HomeHeimapotheke({ session }) {
                   <div className="absolute inset-0 rounded-full border border-primary-500/20 scale-110" />
                 </div>
                 <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">Keine Medikamente gefunden</p>
-                <p className="mt-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                <p className="mt-1 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                   {query || category || locationFilter || statusFilter ? "Filter anpassen oder" : ""} neues Medikament hinzufügen
                 </p>
               </GlassSurface>
@@ -1254,27 +1256,27 @@ export default function HomeHeimapotheke({ session }) {
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 min-w-0">
-                            <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-light-text-main dark:text-dark-text-main">
+                            <h3 className="min-w-0 flex-1 truncate text-base font-semibold text-light-text-main dark:text-dark-text-main">
                               {entry.name}
                             </h3>
                             <StatusBadge medication={entry} />
                           </div>
-                          <p className="mt-0.5 truncate text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                          <p className="mt-0.5 truncate text-sm text-light-text-secondary dark:text-dark-text-secondary">
                             {[entry.wirkstoff, entry.darreichungsform].filter(Boolean).join(" · ") || entry.kategorie || "Keine Stammdaten"}
                           </p>
                           <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-                            <span className="inline-flex items-center gap-1 rounded-pill border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-light-text-main dark:text-dark-text-main">
+                            <span className="inline-flex items-center gap-1 rounded-pill border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-1.5 py-0.5 text-xs font-medium tabular-nums text-light-text-main dark:text-dark-text-main">
                               <Package size={8} className="text-light-text-secondary dark:text-dark-text-secondary" />
                               {entry.bestand} Stk.
                             </span>
                             {entry.lagerort && (
-                              <span className="inline-flex items-center gap-1 text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
+                              <span className="inline-flex items-center gap-1 text-xs text-light-text-secondary dark:text-dark-text-secondary">
                                 <MapPin size={8} className="shrink-0" />
                                 <span className="truncate max-w-[80px]">{entry.lagerort}</span>
                               </span>
                             )}
                             {entry.ablaufdatum && (
-                              <span className={`inline-flex items-center gap-1 text-[10px] ${
+                              <span className={`inline-flex items-center gap-1 text-xs ${
                                 status.key === "expired" ? "text-red-400" : status.key === "expiring" ? "text-amber-400" : "text-light-text-secondary dark:text-dark-text-secondary"
                               }`}>
                                 <Calendar size={8} />
@@ -1338,7 +1340,7 @@ export default function HomeHeimapotheke({ session }) {
                               ["Händler",        entry.haendler],
                             ].map(([label, value]) => (
                               <div key={label}>
-                                <dt className="text-[10px] uppercase tracking-wide font-medium text-light-text-secondary dark:text-dark-text-secondary">
+                                <dt className="text-xs uppercase tracking-wide font-medium text-light-text-secondary dark:text-dark-text-secondary">
                                   {label}
                                 </dt>
                                 <dd className="mt-0.5 text-sm font-medium text-light-text-main dark:text-dark-text-main break-words">
@@ -1384,7 +1386,7 @@ export default function HomeHeimapotheke({ session }) {
                             </button>
                           )}
                           {(entry.offizielle_quelle || leafletDoc?.meta?.source) && (
-                            <p className="mt-2 text-[10px] text-light-text-secondary dark:text-dark-text-secondary truncate">
+                            <p className="mt-2 text-sm text-light-text-secondary dark:text-dark-text-secondary truncate">
                               {entry.offizielle_quelle || leafletDoc?.meta?.source}
                             </p>
                           )}
@@ -1396,28 +1398,28 @@ export default function HomeHeimapotheke({ session }) {
                           {analysis ? (
                             <div className="space-y-2.5">
                               {analysis.analyse_status === "failed" && (
-                                <p className="rounded-card-sm border border-red-500/20 bg-red-500/5 px-2.5 py-2 text-[11px] text-red-700 dark:text-red-400">
+                                <p className="rounded-card-sm border border-red-500/20 bg-red-500/5 px-2.5 py-2 text-sm text-red-700 dark:text-red-400">
                                   {analysis.fehler || "KI-Auswertung fehlgeschlagen."}
                                 </p>
                               )}
-                              <p className="rounded-card-sm border border-amber-500/20 bg-amber-500/5 px-2.5 py-2 text-[11px] text-amber-700 dark:text-amber-400">
+                              <p className="rounded-card-sm border border-amber-500/20 bg-amber-500/5 px-2.5 py-2 text-sm text-amber-700 dark:text-amber-400">
                                 {analysis.summary_payload?.disclaimer || "KI-Zusammenfassung - keine medizinische Beratung."}
                               </p>
                               {Object.entries(analysis.summary_payload || {})
                                 .filter(([key, value]) => !["disclaimer"].includes(key) && (Array.isArray(value) ? value.length : value))
                                 .map(([key, value]) => (
                                   <div key={key}>
-                                    <p className="text-[10px] uppercase tracking-wide font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5">
+                                    <p className="text-sm uppercase tracking-wide font-medium text-light-text-secondary dark:text-dark-text-secondary mb-0.5">
                                       {key.replace(/_/g, " ")}
                                     </p>
-                                    <p className="break-words text-xs text-light-text-main dark:text-dark-text-main">
+                                    <p className="break-words text-sm text-light-text-main dark:text-dark-text-main">
                                       {Array.isArray(value) ? value.join(" · ") : String(value)}
                                     </p>
                                   </div>
                                 ))}
                             </div>
                           ) : (
-                            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">Noch keine Auswertung vorhanden.</p>
+                            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">Noch keine Auswertung vorhanden.</p>
                           )}
                         </div>
 
@@ -1425,7 +1427,7 @@ export default function HomeHeimapotheke({ session }) {
                         {entry.notizen && (
                           <div className="rounded-card-sm border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 p-3">
                             <SectionHeader label="Notizen" />
-                            <p className="whitespace-pre-wrap text-xs text-light-text-main dark:text-dark-text-main leading-relaxed">
+                            <p className="whitespace-pre-wrap text-sm text-light-text-main dark:text-dark-text-main leading-relaxed">
                               {entry.notizen}
                             </p>
                           </div>

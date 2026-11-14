@@ -19,7 +19,8 @@ import useViewport from "./hooks/useViewport";
 import { usePageBackground } from "./hooks/usePageBackground";
 
 // ── UI Primitives ──────────────────────────────────────────────────────────────
-import BeamsBackground from "./components/ui/BeamsBackground";
+import { MotionConfig } from "framer-motion";
+import InteractionAccessibility from "./components/ui/InteractionAccessibility";
 
 // ── Layout ─────────────────────────────────────────────────────────────────────
 import Sidebar from "./components/layout/Sidebar";
@@ -95,6 +96,7 @@ const ROUTE_TITLE_KEYS = {
   "/zeitstrahl":        "nav:routes.timeline",
   "/dokumente":         "nav:routes.documents",
   "/kostenvergleich":   "nav:routes.costComparison",
+  "/renovierung":      "nav:routes.renovation",
   "/kalender":          "nav:routes.calendar",
   "/profil":            "nav:routes.profile",
   "/home":              "nav:routes.home",
@@ -366,7 +368,7 @@ const TourPromptGate = ({ session }) => {
 
 // ── Authenticated Layout Shell ─────────────────────────────────────────────────
 // Layout-Komponente für alle geschützten Routen.
-// Rendert Sidebar + Topbar + <Outlet /> (React Router v6 Nested Route Pattern).
+// Rendert Sidebar + Topbar + {contextLoading ? <div className="app-loading" role="status" aria-live="polite">{t("app.loadingAuth")}</div> : <Suspense fallback={<div className="app-loading" role="status">{t("app.loadingAuth")}</div>}><Outlet /></Suspense>} (React Router v6 Nested Route Pattern).
 const AuthenticatedShell = ({
   session,
   setSession,
@@ -374,6 +376,7 @@ const AuthenticatedShell = ({
   passwordChangeRequired,
   onPasswordChangeCompleted,
   mobileNavFavorites,
+  contextLoading = false,
 }) => {
   const { t } = useTranslation(["common", "nav"]);
   const location = useLocation();
@@ -568,12 +571,12 @@ const AuthenticatedShell = ({
         open={passwordChangeRequired}
         onCompleted={onPasswordChangeCompleted}
       />
-      <GlobalAssistantLauncher
+      <Suspense fallback={null}><GlobalAssistantLauncher
         session={session}
         householdContext={householdContext}
         appMode={appMode}
         onRegisterOpen={(fn) => { assistantOpenRef.current = fn; }}
-      />
+      /></Suspense>
     </div>
   );
 };
@@ -586,6 +589,8 @@ function App() {
   const [session,     setSession]     = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [householdContext, setHouseholdContext] = useState(null);
+  const [contextOwner, setContextOwner] = useState(null);
+  const [validatedLocation, setValidatedLocation] = useState("");
   const [householdLoading, setHouseholdLoading] = useState(false);
   const [passwordChangeRequired, setPasswordChangeRequired] = useState(false);
   const [passwordFlagLoading, setPasswordFlagLoading] = useState(false);
@@ -643,6 +648,7 @@ function App() {
       if (!session?.user?.id) {
         setActiveHouseholdId(null);
         setHouseholdContext(null);
+        setContextOwner(null);
         setHouseholdLoading(false);
         return;
       }
@@ -674,6 +680,8 @@ function App() {
 
       if (cancelled) return;
       setHouseholdContext(ctx || null);
+      setContextOwner(session.user.id);
+      setValidatedLocation(location.pathname + location.search);
       setActiveHouseholdId(ctx?.household_id || null);
       setHouseholdLoading(false);
     };
@@ -736,15 +744,17 @@ function App() {
     ? loadingScreen
     : !session
     ? <Navigate to="/login" replace />
-    : householdLoading
+    : contextOwner !== session.user.id || (householdLoading && !householdContext)
     ? loadingScreen
     : passwordFlagLoading
     ? loadingScreen
     : (
       <AuthenticatedShell
+        key={session.user.id}
         session={session}
         setSession={setSession}
         householdContext={householdContext}
+        contextLoading={householdLoading || validatedLocation !== location.pathname + location.search}
         passwordChangeRequired={passwordChangeRequired}
         onPasswordChangeCompleted={() => setPasswordChangeRequired(false)}
         mobileNavFavorites={mobileNavFavorites}
@@ -752,10 +762,10 @@ function App() {
     );
 
   return (
-    <ToastProvider>
+    <MotionConfig reducedMotion="user"><ToastProvider>
     <ThemeProvider>
       {/* Animierter Canvas-Hintergrund — liegt hinter allen Inhalten (z-index: 0) */}
-      <BeamsBackground intensity="subtle" />
+      <InteractionAccessibility />
       <AppModeProvider>
         <HomeModusSyncer session={session} householdContext={householdContext} />
         <TourProvider session={session}>
@@ -842,7 +852,7 @@ function App() {
         </TourProvider>
       </AppModeProvider>
     </ThemeProvider>
-    </ToastProvider>
+    </ToastProvider></MotionConfig>
   );
 }
 

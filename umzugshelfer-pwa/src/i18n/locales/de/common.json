@@ -26,7 +26,8 @@
     "activate": "Aktivieren",
     "invite": "Einladen",
     "switch": "Umschalten",
-    "toggleMenu": "Menü öffnen/schließen"
+    "toggleMenu": "Menü öffnen/schließen",
+    "back": "Zurück"
   },
   "status": {
     "active": "Aktiv",

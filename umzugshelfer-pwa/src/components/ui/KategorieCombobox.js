@@ -111,7 +111,7 @@ export default function KategorieCombobox({
 
   return (
     <div ref={wrapperRef} className="relative">
-      <input
+      <input aria-label={placeholder}
         ref={inputRef}
         type="text"
         id={id}

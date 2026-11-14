@@ -224,7 +224,7 @@ const HaushaltsVerwaltung = ({ session }) => {
                         >
                           Bestätigen
                         </button>
-                        <button
+                        <button aria-label="Schließen"
                           onClick={() => setUebertragenFuer(null)}
                           className="p-1.5 rounded-lg text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-bg dark:hover:bg-canvas-1 transition-colors"
                         >
@@ -268,7 +268,7 @@ const HaushaltsVerwaltung = ({ session }) => {
 
           {/* Neue Einladung */}
           <form onSubmit={handleEinladungErstellen} className="flex gap-2 mb-4">
-            <input
+            <input aria-label="E-Mail (optional) – oder leer lassen für Code-only"
               type="email"
               value={neueMitgliedEmail}
               onChange={(e) => setNeueMitgliedEmail(e.target.value)}
@@ -300,15 +300,15 @@ const HaushaltsVerwaltung = ({ session }) => {
                   className="flex items-center gap-3 rounded-xl bg-light-bg dark:bg-canvas-1 border border-light-border dark:border-dark-border p-3"
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-mono text-light-text-secondary dark:text-dark-text-secondary truncate">
+                    <p className="text-sm font-mono text-light-text-secondary dark:text-dark-text-secondary truncate">
                       {einl.einladungs_code}
                     </p>
                     {einl.einladungs_email && (
-                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                      <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                         {einl.einladungs_email}
                       </p>
                     )}
-                    <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary flex items-center gap-1 mt-0.5">
+                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary flex items-center gap-1 mt-0.5">
                       <Clock className="w-3 h-3" />
                       Gültig bis {new Date(einl.gueltig_bis).toLocaleDateString("de-DE")}
                     </p>
@@ -398,7 +398,7 @@ const HaushaltsVerwaltung = ({ session }) => {
 
       {/* Hinweis für Admin: nicht verlassen ohne Übergabe */}
       {istAdmin && mitglieder.length > 1 && (
-        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary text-center">
+        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary text-center">
           Als Admin musst du zuerst die Rolle übertragen oder den Haushalt löschen, bevor du ihn verlassen kannst.
         </p>
       )}

@@ -136,7 +136,7 @@ const HaushaltsErstellen = ({ session }) => {
                     <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main">
                       {t("household:invites.invitedTo", { name: einladung.haushalte?.name || t("household:title") })}
                     </p>
-                    <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
                       {t("household:validUntil", { date: new Date(einladung.gueltig_bis).toLocaleDateString("de-DE") })}
                     </p>
                   </div>
@@ -198,7 +198,7 @@ const HaushaltsErstellen = ({ session }) => {
               <label className="block text-sm font-medium text-light-text-main dark:text-dark-text-main mb-1.5">
                 {t("household:setup.nameLabel")}
               </label>
-              <input
+              <input aria-label={t("household:setup.nameLabel")}
                 type="text"
                 value={haushaltsName}
                 onChange={(e) => setHaushaltsName(e.target.value)}
@@ -225,7 +225,7 @@ const HaushaltsErstellen = ({ session }) => {
               <label className="block text-sm font-medium text-light-text-main dark:text-dark-text-main mb-1.5">
                 {t("household:setup.codeLabel")}
               </label>
-              <input
+              <input aria-label={t("household:setup.codeLabel")}
                 type="text"
                 value={einladungsCode}
                 onChange={(e) => setEinladungsCode(e.target.value.trim())}
@@ -234,7 +234,7 @@ const HaushaltsErstellen = ({ session }) => {
                 required
                 className="w-full rounded-xl border border-light-border dark:border-dark-border bg-light-bg dark:bg-canvas-1 px-4 py-3 text-sm font-mono text-light-text-main dark:text-dark-text-main placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-light-accent-purple dark:focus:ring-accent-purple"
               />
-              <p className="mt-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+              <p className="mt-1.5 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                 {t("household:setup.codeHint")}
               </p>
             </div>

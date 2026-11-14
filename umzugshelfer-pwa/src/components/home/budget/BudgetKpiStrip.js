@@ -37,7 +37,7 @@ function KpiCard({ label, value, icon: Icon, accentFrom, accentTo, delay = 0 }) 
       </p>
 
       {/* Label */}
-      <p className="mt-0.5 text-[11px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
+      <p className="mt-0.5 text-sm uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
         {label}
       </p>
     </GlassSurface>

@@ -1,3 +1,4 @@
+import OverlayPortal from "../ui/OverlayPortal";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CheckCircle, ArrowRight, X, Loader2, Home, Package, CheckSquare, DollarSign } from "lucide-react";
@@ -176,7 +177,7 @@ const UmzugAbschlussModal = ({ session, onAbschluss, onSchliessen }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pb-safe">
+    <OverlayPortal><div data-app-dialog="" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pb-safe">
       <div className="bg-light-card dark:bg-dark-card rounded-2xl shadow-2xl max-w-lg w-full border border-light-border dark:border-dark-border">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-light-border dark:border-dark-border">
@@ -184,11 +185,11 @@ const UmzugAbschlussModal = ({ session, onAbschluss, onSchliessen }) => {
             <h2 className="text-lg font-bold text-light-text-main dark:text-dark-text-main">
               Umzug abschließen
             </h2>
-            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
               Schritt {schritt + 1} von {SCHRITTE.length}: {SCHRITTE[schritt]}
             </p>
           </div>
-          <button
+          <button aria-label="Schließen"
             onClick={onSchliessen}
             className="p-1.5 rounded-lg hover:bg-light-border dark:hover:bg-dark-border text-light-text-secondary dark:text-dark-text-secondary"
           >
@@ -247,7 +248,7 @@ const UmzugAbschlussModal = ({ session, onAbschluss, onSchliessen }) => {
                         <Icon size={14} />
                         {label}
                       </div>
-                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{desc}</p>
+                      <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{desc}</p>
                     </div>
                   </label>
                 ))}
@@ -296,7 +297,7 @@ const UmzugAbschlussModal = ({ session, onAbschluss, onSchliessen }) => {
                   </div>
                 )}
               </div>
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-4">
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-4">
                 Deine Umzugsdaten bleiben vollständig erhalten — die Migration ist nicht-destruktiv.
               </p>
               <div className="flex gap-3">
@@ -361,7 +362,7 @@ const UmzugAbschlussModal = ({ session, onAbschluss, onSchliessen }) => {
           )}
         </div>
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 };
 

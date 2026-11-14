@@ -15,7 +15,7 @@ export default function BudgetGroupSection({
           <span className="text-xs font-semibold uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">
             {label}
           </span>
-          <span className="rounded-full bg-light-border dark:bg-canvas-3 px-1.5 py-0.5 text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
+          <span className="rounded-full bg-light-border dark:bg-canvas-3 px-1.5 py-0.5 text-xs text-light-text-secondary dark:text-dark-text-secondary">
             {count}
           </span>
         </div>

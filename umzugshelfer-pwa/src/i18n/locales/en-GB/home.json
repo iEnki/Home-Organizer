@@ -78,11 +78,21 @@
       "overdue": "{{days}}d overdue",
       "today": "today",
       "inDays": "in {{days}}d"
-    }
+    },
+    "sectionProjects": "Projects & dates",
+    "financialPlanning": "Savings goals and budget limits",
+    "householdOverview": "Your household at a glance",
+    "financialPlanningCounts": "Goals {{goals}}, limits {{limits}}",
+    "compactMedicine": "Medicines",
+    "compactExpiry": "{{count}} expiring soon",
+    "compactLow": "{{count}} running low",
+    "budgetThisMonth": "Spent this month",
+    "dateUnknown": "Date unknown"
   },
   "inventory": "Inventory",
   "inventoryForm": {
     "status": {
+      "vorhanden": "Available",
       "in_verwendung": "In use",
       "eingelagert": "Stored",
       "verliehen": "Lent out",

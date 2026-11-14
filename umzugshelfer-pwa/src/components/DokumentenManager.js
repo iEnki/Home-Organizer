@@ -301,7 +301,7 @@ Antworte nur mit dem JSON.`;
             <p className="text-sm">
               {t("documents:manager.selected")} {selectedFile.name} ({Math.round(selectedFile.size / 1024)} {t("documents:manager.kb")})
             </p>
-            <input
+            <input aria-label={t("documents:manager.descriptionPlaceholder")}
               type="text"
               placeholder={t("documents:manager.descriptionPlaceholder")}
               value={beschreibung}
@@ -313,7 +313,7 @@ Antworte nur mit dem JSON.`;
               }`}
             />
             {!location.search.includes("aufgabeId=") && (
-              <input
+              <input aria-label={t("documents:manager.taskIdPlaceholder")}
                 type="text"
                 placeholder={t("documents:manager.taskIdPlaceholder")}
                 value={zugehoerigeAufgabeId}
@@ -363,7 +363,7 @@ Antworte nur mit dem JSON.`;
                 <p className="text-sm font-medium text-light-text-main dark:text-dark-text-main mb-0.5">
                   {t("documents:manager.aiSuggestion")} <span className="font-normal">{kiVorschlag.beschreibung}</span>
                 </p>
-                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
                   {t("documents:manager.aiCategory")} {kiVorschlag.kategorie_hinweis}
                 </p>
               </>

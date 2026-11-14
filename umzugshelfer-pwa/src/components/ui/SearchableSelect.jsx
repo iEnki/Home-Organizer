@@ -167,7 +167,8 @@ export default function SearchableSelect({
       {open && menuStyle && createPortal(
         <div
           ref={menuRef}
-          data-testid="searchable-select-menu"
+          onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); setOpen(false); setSearch(""); triggerRef.current?.focus(); } }}
+          data-overlay-portal="" data-testid="searchable-select-menu"
           style={menuStyle}
           className={`z-[1000] overflow-hidden rounded-card-sm border border-light-border bg-light-card shadow-elevation-3 dark:border-dark-border dark:bg-canvas-2 ${className}`}
           role="listbox"
@@ -179,14 +180,16 @@ export default function SearchableSelect({
                   size={11}
                   className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary"
                 />
-                <input
+                <input aria-label={searchPlaceholder}
                   ref={searchRef}
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Escape") {
+                      event.stopPropagation();
                       setOpen(false);
                       setSearch("");
+                      triggerRef.current?.focus();
                     }
                   }}
                   placeholder={searchPlaceholder}
@@ -232,13 +235,13 @@ export default function SearchableSelect({
                     <span className="min-w-0 flex-1">
                       <span className="block truncate">{item.label}</span>
                       {item.description && (
-                        <span className="mt-0.5 block truncate text-[10px] font-normal text-light-text-secondary dark:text-dark-text-secondary">
+                        <span className="mt-0.5 block truncate text-xs font-normal text-light-text-secondary dark:text-dark-text-secondary">
                           {item.description}
                         </span>
                       )}
                     </span>
                     {item.badge && (
-                      <span className={`flex-shrink-0 rounded-pill px-1.5 py-0.5 text-[9px] font-medium ${badgeToneClass}`}>
+                      <span className={`flex-shrink-0 rounded-pill px-1.5 py-0.5 text-xs font-medium ${badgeToneClass}`}>
                         {item.badge}
                       </span>
                     )}

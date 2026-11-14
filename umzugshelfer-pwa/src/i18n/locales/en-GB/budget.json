@@ -196,7 +196,7 @@
     "openBalances": "Open net balances in household",
     "openBalancesSubtitle": "Settlement",
     "suggestions": "Open settlement suggestions",
-    "suggestionsSubtitle": "Gross per debtor/creditor direction, allocation-safe from the open-item ledger",
+    "suggestionsSubtitle": "Open amounts in each payment direction",
     "suggestionsInfo": "Each suggestion is based on open split items per direction pair. Opposing claims between the same two residents are shown separately here, but netted against each other in the month-end close and net balances.",
     "applyAll": "Apply all",
     "apply": "Apply",

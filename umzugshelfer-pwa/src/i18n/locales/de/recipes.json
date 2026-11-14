@@ -164,7 +164,8 @@
       "twoWeeks": "2 Wochen",
       "month": "Monat",
       "all": "Alle"
-    }
+    },
+    "moreFilters": "Weitere Filter"
   },
   "lists": {
     "title": "Rezeptlisten",
