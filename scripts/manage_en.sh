@@ -2083,15 +2083,14 @@ fi
           info "Applying database_setup_complete.sql..."
           local SQL_RC=0
           run_sql_with_fallback "database_setup_complete.sql" || SQL_RC=$?
+          # ON_ERROR_STOP=1: any non-zero psql code (2 = connection lost,
+          # 3 = SQL error) is a failed import, never "applied with warnings".
           if [[ $SQL_RC -eq 0 ]]; then
             DB_SCHEMA_STATUS="angewendet"
             success "database_setup_complete.sql applied successfully."
-          elif [[ $SQL_RC -eq 2 ]]; then
-            DB_SCHEMA_STATUS="angewendet (mit Warnungen)"
-            warn "database_setup_complete.sql applied with warnings."
           else
-            DB_SCHEMA_STATUS="fehler"
-            warn "database_setup_complete.sql konnte nicht vollständig angewendet werden."
+            DB_SCHEMA_STATUS="fehler (psql-Code ${SQL_RC})"
+            warn "database_setup_complete.sql could not be applied completely (psql-Code ${SQL_RC})."
           fi
         else
           DB_SCHEMA_STATUS="nicht gefunden"
