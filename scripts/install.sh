@@ -858,18 +858,17 @@ if [[ "$MODE" == "vollstack" ]]; then
     else
       if [[ -f "database_setup_complete.sql" ]]; then
         info "Wende database_setup_complete.sql an..."
-        if run_sql_with_fallback "database_setup_complete.sql"; then
+        # psql with ON_ERROR_STOP=1 stops at the first error and rolls nothing
+        # forward silently: every non-zero exit code (1, 2 = connection lost,
+        # 3 = SQL error) is a failed import, never "applied with warnings".
+        SQL_RC=0
+        run_sql_with_fallback "database_setup_complete.sql" || SQL_RC=$?
+        if [[ $SQL_RC -eq 0 ]]; then
           DB_SCHEMA_STATUS="angewendet"
           success "database_setup_complete.sql erfolgreich angewendet."
         else
-          SQL_RC=$?
-          if [[ $SQL_RC -eq 2 ]]; then
-            DB_SCHEMA_STATUS="angewendet (mit Warnungen)"
-            warn "database_setup_complete.sql mit Warnungen angewendet (Storage-Policies uebersprungen)."
-          else
-            DB_SCHEMA_STATUS="fehler"
-            warn "database_setup_complete.sql konnte nicht vollstaendig angewendet werden."
-          fi
+          DB_SCHEMA_STATUS="fehler (psql-Code ${SQL_RC})"
+          warn "database_setup_complete.sql konnte nicht vollstaendig angewendet werden (psql-Code ${SQL_RC})."
         fi
       else
         DB_SCHEMA_STATUS="nicht gefunden"
