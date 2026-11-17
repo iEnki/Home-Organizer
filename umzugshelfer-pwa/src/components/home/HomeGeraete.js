@@ -1,7 +1,7 @@
 import OverlayPortal from "../ui/OverlayPortal";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Wrench, X, FileText, Link2, Loader2, AlertCircle, Sparkles, Plus, LayoutGrid, List } from "lucide-react";
 import { supabase } from "../../supabaseClient";

@@ -95,7 +95,7 @@ The app is responsive and installable as a PWA. The core stack is fully self-hos
 
 | Area | Technology |
 | --- | --- |
-| Frontend | React 18, Create React App, React Router |
+| Frontend | React 19, Vite 8, React Router |
 | Styling and UI | Tailwind CSS, Framer Motion, Lucide |
 | Charts and PDF | Chart.js, React PDF Renderer |
 | Backend | Supabase, PostgreSQL, Auth, Storage, Realtime |
@@ -151,14 +151,14 @@ Generated `.env` and `CREDENTIALS.txt` files contain secrets and must never be p
 The fullstack installer offers to apply the bundled baseline schema during installation. This manual step is only required when schema setup was skipped, the database was not ready, or app-only mode is used:
 
 ```bash
-docker exec -i supabase-db psql -U postgres -d postgres < database_setup_complete.sql
+docker exec -i supabase-db psql -v ON_ERROR_STOP=1 -U postgres -d postgres < database_setup_complete.sql
 ```
 
 You can also run the file in the Supabase Studio SQL editor. The schema contains tables, indexes, triggers, RPCs, storage configuration and RLS policies.
 
-For existing installations, create a backup first and then use the dated migrations or the management-script update flow. The bundled schema is the baseline for fresh installations.
+For existing installations, create a complete backup first and follow the documented [schema update procedure](INSTALL.md#bestehende-datenbank-aktualisieren). The bundled `scripts/migration_2026_08_02_schema_parity.sql` updates older app schemas; an image-only update does not run it automatically.
 
-> **Known schema gap:** The current frontend references a few areas that are not yet fully consolidated into `database_setup_complete.sql`: books/lending history, cooking logs, saved calculator scenarios and budget month-close tables. `scripts/migration_2026_05_23_home_rezept_kochprotokolle.sql` adds cooking logs; complete fresh-install migrations for the other areas are currently absent from the repository. Before a production rebuild, back up the existing database and verify these tables against the target installation.
+The complete setup includes books/lending history, cooking logs, saved calculator scenarios, budget month-close tables and member allocations. A fresh installation does not require an additional, missing migration for these tables.
 
 ## Local Development
 
@@ -194,17 +194,13 @@ REACT_APP_VAPID_PUBLIC_KEY=<vapid-public-key>
 
 Never expose a service-role key in the frontend.
 
-The current production Dockerfile does not pass the reset variable as a build argument; Docker builds therefore use `<App-Origin>/update-password` automatically. The variable applies to local builds.
+The production Dockerfile passes `REACT_APP_PASSWORD_RESET_REDIRECT_URL` as a public build argument. Without an explicit value, the app uses `<App-Origin>/update-password`; the same value can also be configured for local builds.
 
 ### AI and Document Analysis
 
 The household configuration selects OpenAI or Ollama. Household admins manage providers, API keys and models in the profile; keys are protected through column-level security and read server-side by Edge Functions. General AI, image analysis and cookbook workflows may use separate models. Ollama thinking behaviour can be controlled separately for cookbook processing.
 
-Existing installations need the following idempotent migration for the current model-selection support:
-
-```bash
-docker exec -i supabase-db psql -U postgres -d postgres < scripts/hotfix_2026_06_18_ki_model_selection.sql
-```
+Model selection is included in the current complete schema. For older, differing databases, compare the existing AI fields and RPCs with the target schema on a test copy before updating packages. The [schema update procedure](INSTALL.md#bestehende-datenbank-aktualisieren) describes the bundled parity migration; it does not replace arbitrary historical AI-schema upgrades.
 
 Fullstack deployments also configure:
 
@@ -328,8 +324,4 @@ Common causes:
 
 ## License
 
-[PolyForm Noncommercial License 1.0.0](LICENSE). Free for noncommercial use: private households, charitable organizations, educational institutions and public bodies may run and modify this software. Commercial use — including reselling it, offering it as a paid service, or using it inside a for-profit company — is not permitted without a separate license. For commercial licensing, please open an issue.
-
-This is source-available, not open source in the OSI sense.
-
-Versions released before this change remain available under the MIT license, which cannot be revoked retroactively.
+[MIT License](LICENSE).

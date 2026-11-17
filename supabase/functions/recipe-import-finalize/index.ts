@@ -3,7 +3,7 @@
 // local transcription. It performs household-key OpenAI recipe structuring and
 // persists the review draft.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.119.0";
 import {
   callChatProvider,
   resolveProvider,

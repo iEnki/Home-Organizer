@@ -8,7 +8,7 @@ import {
   Outlet,
   useLocation,
   useNavigate,
-} from "react-router-dom";
+} from "react-router";
 import { supabase, setActiveHouseholdId } from "./supabaseClient";
 import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 import { AppModeProvider, useAppMode } from "./contexts/AppModeContext";

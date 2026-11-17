@@ -1,7 +1,7 @@
 import OverlayPortal from "./ui/OverlayPortal";
 import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "../supabaseClient";
-import { useDropzone } from "react-dropzone";
+import useDropzone from "../hooks/useSingleFileDropzone";
 import { XCircle, UploadCloud, FileText, ImageIcon } from "lucide-react";
 import { useTheme } from "../contexts/ThemeContext";
 

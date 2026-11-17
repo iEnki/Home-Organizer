@@ -7,7 +7,7 @@ import i18n from "./i18n";
 import { installUiAutoTranslation } from "./i18n/uiAutoTranslate";
 import App from "./App";
 import reportWebVitals from "./reportWebVitals";
-import { BrowserRouter } from "react-router-dom";
+import { BrowserRouter } from "react-router";
 import { registerServiceWorker } from "./serviceWorkerRegistration";
 import { LocaleProvider } from "./contexts/LocaleContext";
 

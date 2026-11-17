@@ -1,8 +1,8 @@
 // Supabase Edge Function: send-push
 // Authentifizierter, gebuendelter Web-Push-Versand mit festen Zeitlimits.
 
-// @ts-ignore web-push is Deno-compatible through esm.sh.
-import webpush from "https://esm.sh/web-push@3.6.7";
+// Web Push4 exposes named ESM exports through esm.sh.
+import * as webpush from "https://esm.sh/web-push@4.0.0";
 import {
   fetchFirstAvailableSupabaseJson,
   requiredEnv,

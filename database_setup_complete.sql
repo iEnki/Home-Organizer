@@ -521,7 +521,13 @@ VALUES
   ('kisten-fotos',   'kisten-fotos',   TRUE,  10485760, ARRAY['image/jpeg','image/png','image/gif','image/webp'])
 ON CONFLICT (id) DO NOTHING;
 
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+-- Storage migrations normally enable RLS. Avoid an unnecessary owner-only ALTER
+-- when RLS is already enabled; a genuinely disabled table must still fail loudly.
+DO $$ BEGIN
+  IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'storage.objects'::regclass) THEN
+    ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;
 
 DROP POLICY IF EXISTS storage_user_dokumente_insert ON storage.objects;
 CREATE POLICY storage_user_dokumente_insert ON storage.objects FOR INSERT TO authenticated

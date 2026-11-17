@@ -1,7 +1,7 @@
 // Supabase Edge Function: medication-leaflet-fetch
 // Sucht und spiegelt Beipackzettel für die Heimapotheke in den privaten Storage.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.119.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,7 +40,7 @@ type LeafletResult = {
 };
 
 type DownloadedLeaflet = {
-  bytes: Uint8Array;
+  bytes: Uint8Array<ArrayBuffer>;
   contentType: string;
   url: string;
   source: string;
@@ -244,7 +244,7 @@ async function fetchBasgJson(url: string, init: RequestInit = {}): Promise<Respo
   }
 }
 
-async function readLimited(response: Response): Promise<Uint8Array> {
+async function readLimited(response: Response): Promise<Uint8Array<ArrayBuffer>> {
   const contentLength = Number(response.headers.get("content-length") || 0);
   if (contentLength > MAX_BYTES) throw new Error("Datei ist zu gross.");
   const buffer = new Uint8Array(await response.arrayBuffer());
@@ -252,7 +252,7 @@ async function readLimited(response: Response): Promise<Uint8Array> {
   return buffer;
 }
 
-function bytesToText(bytes: Uint8Array): string {
+function bytesToText(bytes: Uint8Array<ArrayBuffer>): string {
   return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
 }
 
@@ -329,7 +329,7 @@ function wrapText(text: string, maxChars = 92): string[] {
   return lines;
 }
 
-function buildPdfBytes({ title, sourceUrl, source, text }: { title: string; sourceUrl: string; source: string; text: string }): Uint8Array {
+function buildPdfBytes({ title, sourceUrl, source, text }: { title: string; sourceUrl: string; source: string; text: string }): Uint8Array<ArrayBuffer> {
   const headerLines = [
     title,
     `Quelle: ${source}`,
@@ -561,7 +561,7 @@ async function searchBasgLeafletCandidates(medication: Record<string, unknown>, 
     .slice(0, 10);
 }
 
-async function sha256Hex(bytes: Uint8Array): Promise<string> {
+async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest))
     .map((byte) => byte.toString(16).padStart(2, "0"))

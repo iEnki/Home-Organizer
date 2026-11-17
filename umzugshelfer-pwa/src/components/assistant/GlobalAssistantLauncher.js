@@ -1,7 +1,7 @@
 import OverlayPortal from "../ui/OverlayPortal";
 import { motion, useReducedMotion } from "framer-motion";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router";
 import {
   Loader2,
   MessageSquarePlus,

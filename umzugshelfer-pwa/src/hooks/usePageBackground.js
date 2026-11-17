@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation } from "react-router";
 
 const SUPPLIES_IMAGE = `vorr${String.fromCharCode(228)}te`;
 

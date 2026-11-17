@@ -1,7 +1,7 @@
 // Supabase Edge Function: check-reminders
 // Household-scope reminder checker for all users with active push subscriptions.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.119.0";
 import {
   dateThresholdKey,
   dayDiff,

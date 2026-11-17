@@ -33,14 +33,13 @@ success() { echo -e "${GREEN}OK $1${NC}"; }
 header()  { echo -e "\n${BOLD}${GREEN}$1${NC}"; echo "$(printf '=%.0s' {1..60})"; }
 
 cd "$PROJECT_DIR"
+# Shared, non-destructive App-only / Fullstack detection.
+source "$SCRIPT_DIR/lib/runtime-context.sh"
 
 # ============================================================
 # Installationstyp erkennen
 # ============================================================
-COMPOSE_FILE="docker-compose.full.yml"
-[[ ! -f "docker-compose.full.yml" ]] && COMPOSE_FILE="docker-compose.yml"
-IS_VOLLSTACK=false
-[[ "$COMPOSE_FILE" == "docker-compose.full.yml" ]] && IS_VOLLSTACK=true
+umzug_resolve_install_context "$PROJECT_DIR" de || exit 1
 
 PROJECT_NAME="$(basename "$PROJECT_DIR" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g')"
 PROJECT_NAME_ALT="$(basename "$PROJECT_DIR" | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g')"
@@ -52,11 +51,11 @@ PROJECT_NAME_ALT="$(basename "$PROJECT_DIR" | tr '[:upper:]' '[:lower:]' | sed '
 container_stoppen() {
   info "Stoppe und entferne Container..."
   if [[ "$IS_VOLLSTACK" == "true" ]]; then
-    docker compose -f "$COMPOSE_FILE" --profile ollama down --remove-orphans 2>/dev/null || \
-    docker compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || \
+    umzug_compose -f "$COMPOSE_FILE" --profile ollama down --remove-orphans 2>/dev/null || \
+    umzug_compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || \
     warn "Container konnten nicht entfernt werden (moeglicherweise schon gestoppt)."
   else
-    docker compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || \
+    umzug_compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || \
     warn "Container konnten nicht entfernt werden (moeglicherweise schon gestoppt)."
   fi
   success "Container entfernt."
@@ -68,8 +67,8 @@ volumes_entfernen() {
     return
   fi
   info "Entferne Docker Named Volumes..."
-  docker compose -f "$COMPOSE_FILE" --profile ollama down -v 2>/dev/null || \
-  docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true
+  umzug_compose -f "$COMPOSE_FILE" --profile ollama down -v 2>/dev/null || \
+  umzug_compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true
   for SUFFIX in db-config deno-cache ollama-data; do
     for PREFIX in "$PROJECT_NAME" "$PROJECT_NAME_ALT" "umzughelfer" "umzug-helfer"; do
       VOL="${PREFIX}_${SUFFIX}"
@@ -85,10 +84,13 @@ backup_erstellen() {
   if [[ -f ".env" || -f "CREDENTIALS.txt" ]]; then
     read -p "  .env und CREDENTIALS.txt vorher sichern? [J/n]: " DO_BACKUP
     if [[ "${DO_BACKUP,,}" != "n" ]]; then
-      BACKUP_DIR="backup_$(date +%Y%m%d_%H%M%S)"
-      mkdir -p "$BACKUP_DIR"
+      BACKUP_DIR="backups/config_$(date +%Y%m%d_%H%M%S)_${RANDOM}"
+      mkdir -p backups
+      chmod 700 backups
+      (umask 077; mkdir "$BACKUP_DIR")
       [[ -f ".env" ]]            && cp .env            "$BACKUP_DIR/.env"            && echo "    OK .env gesichert"
       [[ -f "CREDENTIALS.txt" ]] && cp CREDENTIALS.txt "$BACKUP_DIR/CREDENTIALS.txt" && echo "    OK CREDENTIALS.txt gesichert"
+      find "$BACKUP_DIR" -maxdepth 1 -type f -exec chmod 600 {} +
       success "Backup gespeichert in: ${BACKUP_DIR}/"
     else
       warn "Kein Backup erstellt."
@@ -196,7 +198,7 @@ if [[ "$MODE" == "functions" ]]; then
 
   if [[ $DEPLOYED -gt 0 ]]; then
     info "Starte Functions-Container neu..."
-    docker compose -f "$COMPOSE_FILE" restart functions 2>/dev/null || \
+    umzug_compose -f "$COMPOSE_FILE" restart functions 2>/dev/null || \
     warn "Functions-Container konnte nicht neu gestartet werden."
     success "${DEPLOYED} Function(s) deployt und Container neu gestartet."
   else
@@ -218,8 +220,8 @@ if [[ "$MODE" == "images" ]]; then
   [[ "${CONFIRM,,}" != "j" && "${CONFIRM,,}" != "y" ]] && { echo "  Abgebrochen."; exit 0; }
 
   info "Entferne Docker-Images..."
-  docker compose -f "$COMPOSE_FILE" --profile ollama down --rmi all 2>/dev/null || \
-  docker compose -f "$COMPOSE_FILE" down --rmi all 2>/dev/null || \
+  umzug_compose -f "$COMPOSE_FILE" --profile ollama down --rmi all 2>/dev/null || \
+  umzug_compose -f "$COMPOSE_FILE" down --rmi all 2>/dev/null || \
   warn "Einige Images konnten nicht entfernt werden."
 
   read -p "  Auch Docker Build-Cache leeren? [j/N]: " RM_CACHE
@@ -234,7 +236,7 @@ fi
 # ============================================================
 echo ""
 if [[ "$MODE" == "vollstaendig" ]]; then
-  echo -e "  ${RED}${BOLD}ACHTUNG: Diese Aktion loescht ALLE Daten unwiederruflich!${NC}"
+  echo -e "  ${RED}${BOLD}ACHTUNG: Diese Aktion entfernt die Installation; backups/ bleibt erhalten!${NC}"
   echo -e "  ${RED}Betroffen: Datenbank, Konfiguration, hochgeladene Dateien.${NC}"
 else
   echo -e "  ${YELLOW}Container und Docker-Volumes werden entfernt.${NC}"
@@ -285,8 +287,8 @@ if [[ "$MODE" == "vollstaendig" ]]; then
   echo ""
   read -p "  Docker-Images entfernen? (~3-5 GB) [j/N]: " RM_IMAGES
   if [[ "${RM_IMAGES,,}" == "j" || "${RM_IMAGES,,}" == "y" ]]; then
-    docker compose -f "$COMPOSE_FILE" --profile ollama down --rmi all 2>/dev/null || \
-    docker compose -f "$COMPOSE_FILE" down --rmi all 2>/dev/null || true
+    umzug_compose -f "$COMPOSE_FILE" --profile ollama down --rmi all 2>/dev/null || \
+    umzug_compose -f "$COMPOSE_FILE" down --rmi all 2>/dev/null || true
     success "Docker-Images entfernt."
   fi
 

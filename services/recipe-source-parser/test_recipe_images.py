@@ -38,7 +38,8 @@ class RecipeImageTests(unittest.TestCase):
         ])
 
     @patch.object(server, "run")
-    def test_social_thumbnail_is_downloaded_with_ytdlp(self, run):
+    @patch.object(server.socket, "getaddrinfo", return_value=[(2, 1, 6, "", ("93.184.216.34", 443))])
+    def test_social_thumbnail_is_downloaded_with_ytdlp(self, _dns, run):
         def create_thumbnail(_command, timeout):
             self.assertEqual(timeout, 90)
             output_index = _command.index("-o") + 1

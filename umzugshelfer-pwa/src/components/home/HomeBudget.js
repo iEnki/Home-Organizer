@@ -1,6 +1,6 @@
 import OverlayPortal from "../ui/OverlayPortal";
 import React, { useState, useEffect, useCallback, useMemo, useRef, forwardRef, useImperativeHandle } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
   DollarSign, Plus, Edit2, Trash2, X, Loader2, AlertCircle,

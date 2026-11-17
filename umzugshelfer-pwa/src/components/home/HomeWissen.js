@@ -20,7 +20,7 @@ import {
   PenLine,
   FolderOpen,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { supabase } from "../../supabaseClient";
 import { logVerlauf } from "../../utils/homeVerlauf";
 import { deleteInvoiceCascade } from "../../utils/invoiceCascadeDelete";

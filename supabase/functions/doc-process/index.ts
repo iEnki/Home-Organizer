@@ -5,7 +5,7 @@
 // Body: { dokument_id: string, level: "store_only"|"classify_only"|"full", force?: boolean }
 // Output: { status: "ok"|"already_done"|"busy"|"failed", doc_type?, wissen_id?, entity_id?, warnings[] }
 
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.119.0";
 import {
   callChatProvider,
   resolveProvider,

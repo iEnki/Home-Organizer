@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../supabaseClient";
 import { useTheme } from "../contexts/ThemeContext";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 import {
   CalendarClock,
   AlertTriangle,
@@ -28,6 +28,7 @@ import {
   VerticalTimelineElement,
 } from "react-vertical-timeline-component";
 import "react-vertical-timeline-component/style.min.css";
+import "./UmzugsZeitstrahl.compat.css";
 import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
 import BildVorschau from "./BildVorschau";
@@ -1330,6 +1331,7 @@ Generiere nun das Umzugstagebuch:`;
         </div>
       )}
       <VerticalTimeline
+        className="umzug-timeline"
         lineColor={getTailwindColor("border", theme)}
         layout="2-columns"
       >

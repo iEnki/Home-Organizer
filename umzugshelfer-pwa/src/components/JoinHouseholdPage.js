@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { AlertCircle, CheckCircle2, Loader2, Users } from "lucide-react";
 import { supabase, setActiveHouseholdId } from "../supabaseClient";
 import ForcedPasswordChangeModal from "./ForcedPasswordChangeModal";

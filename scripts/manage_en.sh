@@ -69,7 +69,8 @@ mit_spinner() {
   local MSG="$1"; shift
   local SPIN='|/-\'
   local LOG LAST_COPY INTERVAL LAST_SHOWN
-  LOG=$(mktemp)
+  LOG=$(mktemp /tmp/umzug-command.XXXXXX)
+  chmod 600 "$LOG"
   LAST_COPY="/tmp/umzug_last_command.log"
   INTERVAL="${UMZUG_LOG_INTERVAL:-20}"
   LAST_SHOWN=0
@@ -78,11 +79,11 @@ mit_spinner() {
   local PID=$!
   local i=0
 
-  echo -e "  ${DIM}Log: ${LAST_COPY}${NC}"
+  echo -e "  ${DIM}Log: ${LOG} (latest: ${LAST_COPY})${NC}"
   while kill -0 "$PID" 2>/dev/null; do
     local c="${SPIN:$((i % ${#SPIN})):1}"
     printf "\r  ${CYAN}${c}${NC}  %s  ${DIM}(%ds)${NC}" "$MSG" "$i"
-    cp "$LOG" "$LAST_COPY" 2>/dev/null || true
+    cp "$LOG" "$LAST_COPY" 2>/dev/null && chmod 600 "$LAST_COPY" || true
     if [[ $i -gt 0 && $((i % INTERVAL)) -eq 0 ]]; then
       local LINE_COUNT
       LINE_COUNT=$(wc -l < "$LOG" 2>/dev/null | tr -d ' ' || echo 0)
@@ -102,13 +103,13 @@ mit_spinner() {
   local EXIT_CODE=$?
   set -e
   printf "\r%60s\r" ""
-  cp "$LOG" "$LAST_COPY" 2>/dev/null || true
+  cp "$LOG" "$LAST_COPY" 2>/dev/null && chmod 600 "$LAST_COPY" || true
 
   if [[ $EXIT_CODE -eq 0 ]]; then
     success "$MSG"
   else
     echo -e "${RED}X  $MSG - failed (Exit $EXIT_CODE)${NC}"
-    cp "$LOG" /tmp/umzug_build_error.log 2>/dev/null || true
+    cp "$LOG" /tmp/umzug_build_error.log 2>/dev/null && chmod 600 /tmp/umzug_build_error.log || true
     echo -e "${DIM}--- Relevant errors/warnings ---${NC}"
     grep -iE 'error|failed|fail|fatal|exception|traceback|denied|not found|no such file|cannot|unable|warn' "$LOG" | tail -50 >&2 || true
     echo -e "${DIM}--- Last log lines ---${NC}"
@@ -117,10 +118,10 @@ mit_spinner() {
     echo -e "${DIM}  Full log:      cat /tmp/umzug_build_error.log${NC}"
     echo -e "${DIM}  Live/last log: cat /tmp/umzug_last_command.log${NC}"
     echo -e "${DIM}  Errors only:   grep -iE 'error|failed|fatal|unable|not found|warn' /tmp/umzug_build_error.log | tail -50${NC}"
-    rm -f "$LOG"
+    chmod 600 "$LOG"
     return $EXIT_CODE
   fi
-  rm -f "$LOG"
+  chmod 600 "$LOG"
 }
 
 deploy_edge_functions_to_volumes() {
@@ -156,25 +157,8 @@ run_sql_in_db_container() {
 }
 
 run_sql_with_fallback() {
-  local sql_file="$1"
-  local log_file
-  log_file="$(mktemp)"
-
-  if run_sql_in_db_container "$sql_file" 1 >"$log_file" 2>&1; then
-    cat "$log_file"; rm -f "$log_file"; return 0
-  fi
-
-  cat "$log_file"
-
-  if [[ "$sql_file" == "database_setup_complete.sql" ]] && grep -qi "must be owner of table objects" "$log_file"; then
-    warn "Storage policies could not be applied with full privileges."
-    warn "Retrying import in tolerant mode..."
-    if run_sql_in_db_container "$sql_file" 0; then
-      rm -f "$log_file"; return 2
-    fi
-  fi
-
-  rm -f "$log_file"; return 1
+  # Keep the existing interface; never mask a failed schema import.
+  run_sql_in_db_container "$1" 1
 }
 
 apply_fast_mutation_hotfix() {
@@ -188,47 +172,11 @@ apply_fast_mutation_hotfix() {
     warn "Performance indexes could not be applied."
     return 1
   fi
-  success "Performance indexes for fast save and delete operations are active."
+  info "Performance index check completed; review SQL warnings about missing privileges or name conflicts."
 }
 
 ensure_kong_entrypoint_script() {
-  mkdir -p volumes/api
-  cat > volumes/api/kong-entrypoint.sh << 'KONG_ENTRYPOINT'
-#!/usr/bin/env bash
-set -euo pipefail
-
-if [[ -n "${SUPABASE_SECRET_KEY:-}" && -n "${SUPABASE_PUBLISHABLE_KEY:-}" ]]; then
-  export LUA_AUTH_EXPR="\$((headers.authorization ~= nil and headers.authorization:sub(1, 10) ~= 'Bearer sb_' and headers.authorization) or (headers.apikey == '${SUPABASE_SECRET_KEY}' and 'Bearer ${SERVICE_ROLE_KEY_ASYMMETRIC}') or (headers.apikey == '${SUPABASE_PUBLISHABLE_KEY}' and 'Bearer ${ANON_KEY_ASYMMETRIC}') or headers.apikey)"
-  export LUA_RT_WS_EXPR="\$((query_params.apikey == '${SUPABASE_SECRET_KEY}' and '${SERVICE_ROLE_KEY_ASYMMETRIC}') or (query_params.apikey == '${SUPABASE_PUBLISHABLE_KEY}' and '${ANON_KEY_ASYMMETRIC}') or query_params.apikey)"
-else
-  export LUA_AUTH_EXPR="\$((headers.authorization ~= nil and headers.authorization:sub(1, 10) ~= 'Bearer sb_' and headers.authorization) or headers.apikey)"
-  export LUA_RT_WS_EXPR="\$(query_params.apikey)"
-fi
-
-awk '{
-  result = ""
-  rest = $0
-  while (match(rest, /\$[A-Za-z_][A-Za-z_0-9]*/)) {
-    varname = substr(rest, RSTART + 1, RLENGTH - 1)
-    if (varname in ENVIRON) {
-      result = result substr(rest, 1, RSTART - 1) ENVIRON[varname]
-    } else {
-      result = result substr(rest, 1, RSTART + RLENGTH - 1)
-    }
-    rest = substr(rest, RSTART + RLENGTH)
-  }
-  print result rest
-}' /home/kong/temp.yml > "${KONG_DECLARATIVE_CONFIG}"
-
-sed -i '/^[[:space:]]*- key:[[:space:]]*$/d' "${KONG_DECLARATIVE_CONFIG}"
-
-if [[ -x /entrypoint.sh ]]; then
-  exec /entrypoint.sh kong docker-start
-fi
-
-exec /docker-entrypoint.sh kong docker-start
-KONG_ENTRYPOINT
-  chmod +x volumes/api/kong-entrypoint.sh
+  umzug_prepare_kong_entrypoint "$PROJECT_DIR"
 }
 
 ensure_updated_at_functions() {
@@ -258,6 +206,15 @@ env_set() {
 ensure_recipe_parser_env() {
   [[ ! -f ".env" ]] && return 0
   local UPDATED=false
+  if [[ -z "$(env_get "DOCUMENT_OCR_INTERNAL_TOKEN")" ]]; then
+    local ocr_token
+    ocr_token="$(node -e "process.stdout.write(require('crypto').randomBytes(32).toString('hex'))")" || return 1
+    [[ -n "$ocr_token" ]] || return 1
+    env_set "DOCUMENT_OCR_INTERNAL_TOKEN" "$ocr_token"
+    UPDATED=true
+  fi
+  if ! grep -q '^BASG_API_TOKEN=' .env; then env_set "BASG_API_TOKEN" ""; UPDATED=true; fi
+
 
   if [[ -z "$(env_get "RECIPE_PARSER_INTERNAL_TOKEN")" ]]; then
     env_set "RECIPE_PARSER_INTERNAL_TOKEN" "$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")"
@@ -268,7 +225,7 @@ ensure_recipe_parser_env() {
   [[ -z "$(env_get "WHISPER_DEVICE")" ]] && env_set "WHISPER_DEVICE" "auto" && UPDATED=true
   [[ -z "$(env_get "WHISPER_MODEL")" ]] && env_set "WHISPER_MODEL" "small" && UPDATED=true
   [[ -z "$(env_get "WHISPER_CPU_COMPUTE_TYPE")" ]] && env_set "WHISPER_CPU_COMPUTE_TYPE" "int8" && UPDATED=true
-  [[ -z "$(env_get "WHISPER_GPU_COMPUTE_TYPE")" ]] && env_set "WHISPER_GPU_COMPUTE_TYPE" "float16" && UPDATED=true
+  [[ -z "$(env_get "WHISPER_GPU_COMPUTE_TYPE")" ]] && env_set "WHISPER_GPU_COMPUTE_TYPE" "auto" && UPDATED=true
   [[ -z "$(env_get "WHISPER_CPP_FALLBACK_ENABLED")" ]] && env_set "WHISPER_CPP_FALLBACK_ENABLED" "true" && UPDATED=true
 
   if [[ "$UPDATED" == "true" ]]; then
@@ -309,17 +266,23 @@ ensure_fullstack_update_prereqs() {
     ensure_kong_entrypoint_script
     KONG_RELOAD_REASON="${KONG_RELOAD_REASON:-kong-entrypoint regenerated}"
   fi
-  check_recipe_parser_context && check_edge_internal_service_config
+  check_recipe_parser_context && check_edge_internal_service_config || return 1
+  umzug_ensure_auth_redirects || return 1
+  if [[ "$AUTH_REDIRECTS_CHANGED" == true ]]; then
+    mit_spinner "Auth redirect configuration" umzug_compose -f "$COMPOSE_FILE" up -d --force-recreate auth mail-templates || return 1
+  fi
+  return 0
 }
 
 reload_kong_if_needed() {
   [[ "$IS_VOLLSTACK" != "true" ]] && return 0
   local reason="${1:-}"
   [[ -z "$reason" ]] && return 0
-  warn "Kong configuration changed (${reason}). Reloading Kong."
-  mit_spinner "Reloading Kong" \
-    docker compose -f "$COMPOSE_FILE" up -d --force-recreate kong || \
-    warn "Kong could not be reloaded. Check: docker compose -f ${COMPOSE_FILE} ps kong"
+  if ! mit_spinner "Kong configuration reload: $reason" umzug_compose -f "$COMPOSE_FILE" up -d --force-recreate kong; then
+    warn "Kong reload failed."
+    return 1
+  fi
+  return 0
 }
 
 maybe_reload_kong_for_git_range() {
@@ -351,11 +314,11 @@ check_supabase_studio_access() {
   done
 
   local internal_code=""
-  internal_code="$(docker exec supabase-kong sh -lc 'if command -v curl >/dev/null 2>&1; then curl -s -o /dev/null -w "%{http_code}" http://studio:3000; elif command -v wget >/dev/null 2>&1; then wget -q -S -O /dev/null http://studio:3000 2>&1 | awk "/HTTP\\// {code=\\$2} END {print code}"; else echo no-http-client; fi' 2>/dev/null || true)"
+  internal_code="$(umzug_studio_http_status 2>/dev/null || true)"
   if [[ "$internal_code" == "200" || "$internal_code" == "307" || "$internal_code" == "308" ]]; then
-    echo "    OK Kong can reach Studio internally (HTTP ${internal_code})"
+    echo "    OK Studio reachable internally (HTTP ${internal_code})"
   elif [[ -n "$internal_code" ]]; then
-    warn "Kong cannot reach Studio cleanly internally (HTTP/status: ${internal_code})."
+    warn "Internal Studio endpoint returned HTTP ${internal_code}."
   else
     warn "Internal Studio check could not be executed."
   fi
@@ -417,10 +380,10 @@ container_is_running() {
 print_edge_functions_diagnostics() {
   echo ""
   warn "Edge Functions failed to start. Container status and recent logs:"
-  docker compose -f "$COMPOSE_FILE" ps \
+  umzug_compose -f "$COMPOSE_FILE" ps \
     analytics recipe-source-parser document-ocr-service functions 2>/dev/null || true
   echo ""
-  docker compose -f "$COMPOSE_FILE" logs --tail=80 functions 2>/dev/null || \
+  umzug_compose -f "$COMPOSE_FILE" logs --tail=80 functions 2>/dev/null || \
     docker logs --tail=80 supabase-edge-functions 2>/dev/null || true
 }
 
@@ -452,7 +415,7 @@ restart_edge_functions() {
   [[ "$IS_VOLLSTACK" != "true" ]] && return 0
 
   if ! mit_spinner "Starting dependent services" \
-    docker compose -f "$COMPOSE_FILE" up -d analytics recipe-source-parser document-ocr-service; then
+    umzug_compose -f "$COMPOSE_FILE" up -d analytics recipe-source-parser document-ocr-service; then
     print_edge_functions_diagnostics
     return 1
   fi
@@ -471,7 +434,7 @@ restart_edge_functions() {
   done
 
   if ! mit_spinner "Recreating functions container" \
-    docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate functions; then
+    umzug_compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate functions; then
     print_edge_functions_diagnostics
     return 1
   fi
@@ -664,11 +627,11 @@ prompt_install_access_urls() {
 container_stoppen() {
   info "Stopping and removing containers..."
   if [[ "$IS_VOLLSTACK" == "true" ]]; then
-    docker compose -f "$COMPOSE_FILE" --profile ollama down --remove-orphans 2>/dev/null || \
-    docker compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || \
+    umzug_compose -f "$COMPOSE_FILE" --profile ollama down --remove-orphans 2>/dev/null || \
+    umzug_compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || \
     warn "Container konnten nicht removed werden (möglicherweise schon gestoppt)."
   else
-    docker compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || \
+    umzug_compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || \
     warn "Container konnten nicht removed werden (möglicherweise schon gestoppt)."
   fi
   success "Containers removed."
@@ -680,8 +643,8 @@ volumes_entfernen() {
     return
   fi
   info "Removing Docker named volumes..."
-  docker compose -f "$COMPOSE_FILE" --profile ollama down -v 2>/dev/null || \
-  docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true
+  umzug_compose -f "$COMPOSE_FILE" --profile ollama down -v 2>/dev/null || \
+  umzug_compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true
 
   local PROJECT_NAME PROJECT_NAME_ALT
   PROJECT_NAME="$(basename "$PROJECT_DIR" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g')"
@@ -699,6 +662,8 @@ volumes_entfernen() {
 
 # ============================================================
 cd "$PROJECT_DIR"
+# Shared, non-destructive App-only / Fullstack detection.
+source "$SCRIPT_DIR/lib/runtime-context.sh"
 
 # ============================================================
 # MODUS-FUNKTIONEN
@@ -707,14 +672,14 @@ cd "$PROJECT_DIR"
 modus_status() {
   header "Container Status"
   echo ""
-  docker compose -f "$COMPOSE_FILE" ps
+  umzug_compose -f "$COMPOSE_FILE" ps
   echo ""
   echo -e "  ${BOLD}Last lines from app log:${NC}"
-  docker compose -f "$COMPOSE_FILE" logs --tail=20 umzugsplaner-app 2>/dev/null || true
+  umzug_compose -f "$COMPOSE_FILE" logs --tail=20 umzugsplaner-app 2>/dev/null || true
   echo ""
   if [[ "$IS_VOLLSTACK" == "true" ]]; then
     echo -e "  ${BOLD}Last lines from functions log:${NC}"
-    docker compose -f "$COMPOSE_FILE" logs --tail=10 functions 2>/dev/null || true
+    umzug_compose -f "$COMPOSE_FILE" logs --tail=10 functions 2>/dev/null || true
     echo ""
     check_supabase_studio_access
   fi
@@ -722,239 +687,39 @@ modus_status() {
 }
 
 modus_backup() {
-  header "Create Database Backup"
-  echo ""
-
-  if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^supabase-db$"; then
-    warn "Container 'supabase-db' läuft nicht. Bitte zuerst die Container starten."
-    weiter; return 0
+  header "Create database backup"
+  if [[ "$IS_VOLLSTACK" != "true" ]]; then
+    warn "Only available for this fullstack installation."; weiter; return 0
   fi
-
-  BACKUP_DIR="backups/backup_$(date +%Y%m%d_%H%M%S)"
-  mkdir -p "$BACKUP_DIR"
-
-  info "Creating database dump (pg_dump)..."
-  docker exec supabase-db pg_dump -U postgres -d postgres -F c -f /tmp/db.dump
-  docker cp supabase-db:/tmp/db.dump "${BACKUP_DIR}/db.dump"
-  docker exec supabase-db rm -f /tmp/db.dump
-  echo "    OK ${BACKUP_DIR}/db.dump"
-
-  # Storage-Dateien sichern (Uploads, Fotos, Avatare)
-  if [[ -d "./volumes/storage" ]] && [[ -n "$(ls -A ./volumes/storage 2>/dev/null)" ]]; then
-    info "Backing up storage files (uploads, photos)..."
-    tar -czf "${BACKUP_DIR}/storage.tar.gz" -C "./volumes" storage
-    echo "    OK ${BACKUP_DIR}/storage.tar.gz"
-  else
-    echo "    INFO Storage-Verzeichnis leer oder nicht vorhanden, wird übersprungen."
-  fi
-
-  if [[ -f ".env" ]]; then
-    cp .env "${BACKUP_DIR}/.env"
-    echo "    OK ${BACKUP_DIR}/.env"
-  fi
-  if [[ -f "CREDENTIALS.txt" ]]; then
-    cp CREDENTIALS.txt "${BACKUP_DIR}/credentials.txt"
-    echo "    OK ${BACKUP_DIR}/credentials.txt"
-  fi
-
-  cat > "${BACKUP_DIR}/info.txt" << BACKUP_INFO
-Umzughelfer Backup
-==================
-Datum:    $(date "+%Y-%m-%d %H:%M:%S")
-Hostname: $(hostname)
-Compose:  ${COMPOSE_FILE}
-
-Dateien:
-  db.dump         — PostgreSQL Database (pg_dump -Fc)
-  storage.tar.gz  — Supabase Storage (Uploads, Fotos) [nur wenn Dateien vorhanden]
-  .env            — Konfigurationsdatei
-  credentials.txt — Zugangsdaten
-
-Wiederherstellen:
-  ./scripts/manage_en.sh -> [5] Restore
-BACKUP_INFO
-
-  echo ""
-  BACKUP_SIZE=$(du -sh "$BACKUP_DIR" 2>/dev/null | cut -f1)
-  success "Backup created: ${BACKUP_DIR}/ (${BACKUP_SIZE})"
+  bash "$SCRIPT_DIR/lib/backup-restore.sh" backup "$PROJECT_DIR" "$COMPOSE_FILE"
   weiter
 }
 
 modus_restore() {
-  header "Restore Database"
-  echo ""
-
+  header "Restore database"
   if [[ "$IS_VOLLSTACK" != "true" ]]; then
-    warn "Restore is only available for fullstack installations (supabase-db container required)."
-    weiter; return 0
+    warn "Only available for this fullstack installation."; weiter; return 0
   fi
-
-  if [[ ! -d "backups" ]] || ! ls -d backups/backup_* >/dev/null 2>&1; then
-    warn "No backups found under backups/. Please create a backup first (option [4])."
-    weiter; return 0
+  local backups=() directory choice confirm
+  while IFS= read -r directory; do
+    [[ -f "$directory/db.dump" ]] && backups+=("$directory")
+  done < <(find backups -mindepth 1 -maxdepth 1 -type d -name 'backup_*' 2>/dev/null | sort -r)
+  if (( ${#backups[@]} == 0 )); then
+    warn "No backups found."; weiter; return 0
   fi
-
-  echo "  Verfügbare Backups:"
-  echo ""
-  local i=1
-  local BACKUP_LIST=()
-  while IFS= read -r bdir; do
-    local BSIZE BDATE
-    BSIZE=$(du -sh "$bdir" 2>/dev/null | cut -f1)
-    BDATE=$(basename "$bdir" | sed 's/backup_//' | \
-      sed 's/\([0-9]\{4\}\)\([0-9]\{2\}\)\([0-9]\{2\}\)_\([0-9]\{2\}\)\([0-9]\{2\}\)\([0-9]\{2\}\)/\1-\2-\3 \4:\5:\6/')
-    echo "  [${i}] ${bdir}  (${BSIZE}, ${BDATE})"
-    BACKUP_LIST+=("$bdir")
-    i=$((i + 1))
-  done < <(ls -d backups/backup_* 2>/dev/null | sort -r)
-
-  echo "  [0] Back"
-  echo ""
-  read -p "  Backup-Nummer wählen [1]: " BACKUP_NR
-  [[ -z "$BACKUP_NR" ]] && BACKUP_NR=1
-  [[ "$BACKUP_NR" == "0" ]] && return 0
-
-  local SELECTED_BACKUP="${BACKUP_LIST[$((BACKUP_NR - 1))]}"
-  if [[ -z "$SELECTED_BACKUP" ]]; then
-    warn "Invalid choice."; weiter; return 0
+  local index
+  for index in "${!backups[@]}"; do printf '  [%s] %s\n' "$((index + 1))" "${backups[$index]}"; done
+  echo '  [0] Back'
+  read -rp "Choose backup number [1]: " choice || return 1
+  choice=${choice:-1}
+  [[ "$choice" == 0 ]] && return 0
+  # Validate before arithmetic expansion; never interpret user input as shell code.
+  if [[ ! "$choice" =~ ^[1-9][0-9]{0,5}$ ]] || (( choice > ${#backups[@]} )); then
+    warn "Invalid selection."; return 1
   fi
-  if [[ ! -f "${SELECTED_BACKUP}/db.dump" ]]; then
-    warn "db.dump not found in ${SELECTED_BACKUP}/"; weiter; return 0
-  fi
-
-  echo ""
-  warn "ACHTUNG: Die bestehende Database und Konfiguration werden vollständig überschrieben!"
-  warn "Backup:  ${SELECTED_BACKUP}"
-  echo ""
-  read -p "  Continue? [j/N]: " CONFIRM
-  [[ "${CONFIRM,,}" != "j" && "${CONFIRM,,}" != "y" ]] && { echo "  Cancelled."; return 0; }
-
-  # 1) Alle Stop Containers
-  info "Stopping all containers..."
-  set +e
-  docker compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null
-  set -e
-
-  # 2) Konfigurationsdateien automatisch wiederherstellen
-  if [[ -f "${SELECTED_BACKUP}/.env" ]]; then
-    cp "${SELECTED_BACKUP}/.env" .env
-    success ".env restored from backup."
-  else
-    warn ".env nicht im Backup gefunden — bestehende .env wird verwendet."
-  fi
-  if [[ -f "${SELECTED_BACKUP}/credentials.txt" ]]; then
-    cp "${SELECTED_BACKUP}/credentials.txt" CREDENTIALS.txt
-    success "CREDENTIALS.txt restored from backup."
-  fi
-
-  # 3) Nur Database-Container starten
-  info "Starting database container..."
-  set +e; docker compose -f "$COMPOSE_FILE" up -d db; set -e
-
-  # 4) Auf Databasebereitschaft warten (max. 2 Minuten)
-  info "Waiting for database readiness..."
-  local RETRIES=24
-  until docker exec supabase-db pg_isready -U postgres -h localhost >/dev/null 2>&1 || [[ $RETRIES -eq 0 ]]; do
-    echo -n "."; sleep 5; RETRIES=$((RETRIES - 1))
-  done
-  echo ""
-  if [[ $RETRIES -eq 0 ]]; then
-    warn "Database antwortet nicht. Bitte Container manuell prüfen."
-    weiter; return 0
-  fi
-
-  # 5) Restore Database
-  info "Copying backup into container..."
-  docker cp "${SELECTED_BACKUP}/db.dump" supabase-db:/tmp/restore.dump
-
-  # 5a) auth.users leeren — Frischinstallation legt automatisch neue User an,
-  #     deren UUIDs sich von den Backup-UUIDs unterscheiden → FK-Konflikte
-  info "Bereite auth.users für Restore vor..."
-  docker exec supabase-db psql -U postgres -d postgres \
-    -c "DELETE FROM auth.users;" 2>/dev/null || true
-
-  # 5b) auth.users aus Backup wiederherstellen — UUIDs müssen vor public-Daten existieren
-  info "Restoring auth.users..."
-  set +e
-  docker exec supabase-db pg_restore -U postgres -d postgres \
-    --data-only --no-owner --no-privileges \
-    --schema=auth --table=users /tmp/restore.dump 2>&1 \
-    | grep -v "^pg_restore: warning"
-  set -e
-
-  # 5c) public-Schema leeren — handle_new_user-Trigger hat durch 5b automatisch
-  #     Einträge angelegt; außerdem sicherstellen dass keine Altdaten stören
-  info "Leere public-Schema für sauberen Restore..."
-  docker exec supabase-db psql -U postgres -d postgres -c "
-SET session_replication_role = replica;
-DO \$\$ DECLARE r RECORD; BEGIN
-  FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP
-    EXECUTE 'TRUNCATE TABLE public.' || quote_ident(r.tablename) || ' CASCADE';
-  END LOOP;
-END \$\$;
-SET session_replication_role = DEFAULT;
-" 2>/dev/null
-
-  # 5d) public-Daten mit deaktivierten FK-Checks einspielen
-  # session_replication_role = replica deaktiviert alle FK-Constraint-Trigger
-  # ohne Table-Owner-Rechte zu benötigen (--disable-triggers schlägt fehl da
-  # Tabellen supabase_admin gehören, nicht postgres)
-  info "Restoring public schema..."
-  set +e
-  local RESTORE_ERRORS
-  RESTORE_ERRORS=$(docker exec supabase-db bash -c "
-(echo 'SET session_replication_role = replica;';
- pg_restore -f - --schema=public --data-only --no-owner --no-privileges /tmp/restore.dump;
- echo 'SET session_replication_role = DEFAULT;') | \
-psql -U postgres -d postgres 2>&1
-" | grep "^ERROR" | grep -v "duplicate key\|already exists")
-  set -e
-
-  if [[ -n "$RESTORE_ERRORS" ]]; then
-    warn "Restore-Warnungen (möglicherweise harmlos):"
-    echo "$RESTORE_ERRORS" | head -10
-  fi
-
-  docker exec supabase-db rm -f /tmp/restore.dump
-
-  # 5e) Storage-Dateien wiederherstellen (Uploads, Fotos, Avatare)
-  # VOR Container-Start: Bind-Mount ./volumes/storage ist sofort verfügbar
-  if [[ -f "${SELECTED_BACKUP}/storage.tar.gz" ]]; then
-    info "Restoring storage files..."
-    mkdir -p "./volumes/storage"
-    tar -xzf "${SELECTED_BACKUP}/storage.tar.gz" -C "./volumes"
-    echo "    OK Storage files restored"
-  else
-    warn "Kein storage.tar.gz im Backup — Uploads/Fotos werden nicht wiederhergestellt."
-  fi
-
-  # 6) Trigger-Funktionen sicherstellen
-  info "Ensuring database helper functions..."
-  ensure_updated_at_functions
-
-  # 7) Edge Functions in Volumes deployen
-  info "Deploying Edge Functions into volumes..."
-  deploy_edge_functions_to_volumes
-
-  # 8) Alle Container starten
-  info "Starting all containers..."
-  set +e; docker compose -f "$COMPOSE_FILE" up -d; set -e
-
-  # 9) Recreate the functions container so newly deployed functions are loaded
-  if [[ ${DEPLOYED:-0} -gt 0 ]]; then
-    if ! restart_edge_functions; then
-      warn "Restore completed, but Edge Functions could not be started."
-      weiter
-      return 1
-    fi
-  fi
-
-  local APP_URL_NOW
-  APP_URL_NOW="$(env_get "SITE_URL")"
-
-  echo ""
-  success "Restore completed from: ${SELECTED_BACKUP}"
-  [[ -n "$APP_URL_NOW" ]] && echo -e "  App available at: ${CYAN}${APP_URL_NOW}${NC}"
+  read -rp "Replace existing data from backup? [y/N]: " confirm || return 1
+  [[ "${confirm,,}" == j || "${confirm,,}" == y ]] || return 0
+  bash "$SCRIPT_DIR/lib/backup-restore.sh" restore "$PROJECT_DIR" "$COMPOSE_FILE" "${backups[$((choice - 1))]}"
   weiter
 }
 
@@ -1004,7 +769,7 @@ modus_smtp() {
 
   success "SMTP configuration updated in .env."
   info "Restarting auth container..."
-  docker compose -f "$COMPOSE_FILE" up -d --force-recreate auth
+  umzug_compose -f "$COMPOSE_FILE" up -d --force-recreate auth
   success "auth container restarted. SMTP is now active."
   echo ""
 
@@ -1095,7 +860,7 @@ modus_config() {
     read -p "  Reload auth + mail templates now? [J/n]: " DO_RELOAD_AUTH
     if [[ "${DO_RELOAD_AUTH,,}" != "n" ]]; then
       mit_spinner "auth + mail-templates werden neu geladen" \
-        docker compose -f "$COMPOSE_FILE" up -d --force-recreate mail-templates auth || {
+        umzug_compose -f "$COMPOSE_FILE" up -d --force-recreate mail-templates auth || {
         warn "Restart failed. Please check status: docker compose -f ${COMPOSE_FILE} ps"
         weiter; return 0
       }
@@ -1127,6 +892,7 @@ modus_config() {
   echo ""
 
   local CHANGED=false
+  local AUTH_CONFIG_CHANGED=false
 
   local OLD_URL NEW_URL
   OLD_URL="$(env_get "SITE_URL")"
@@ -1136,10 +902,9 @@ modus_config() {
   if [[ -n "$NEW_URL" && "$NEW_URL" != "$OLD_URL" ]]; then
     env_set "APP_URL"                               "$NEW_URL"
     env_set "SITE_URL"                              "$NEW_URL"
+    AUTH_CONFIG_CHANGED=true
     env_set "REACT_APP_PASSWORD_RESET_REDIRECT_URL" "${NEW_URL}/update-password"
-    if [[ -n "$(env_get "ADDITIONAL_REDIRECT_URLS")" ]]; then
-      env_set "ADDITIONAL_REDIRECT_URLS"            "$NEW_URL"
-    fi
+    env_set "ADDITIONAL_REDIRECT_URLS" "$(umzug_redirect_allowlist "$(env_get ADDITIONAL_REDIRECT_URLS)" "$NEW_URL" "$OLD_URL")"
     env_set "OLLAMA_ORIGINS"                        "$NEW_URL"
     warn "App-URL geändert → App-Rebuild erforderlich."
     CHANGED=true
@@ -1152,13 +917,14 @@ modus_config() {
   NEW_SUPABASE_URL=$(env_prompt "REACT_APP_SUPABASE_URL" "Supabase-URL / API (z.B. https://supa.meine-domain.de oder http://localhost:8000)")
   if [[ -n "$NEW_SUPABASE_URL" && "$NEW_SUPABASE_URL" != "$OLD_SUPABASE_URL" ]]; then
     env_set "REACT_APP_SUPABASE_URL" "$NEW_SUPABASE_URL"
+    AUTH_CONFIG_CHANGED=true
     if [[ -n "$(env_get "SUPABASE_PUBLIC_URL")" ]]; then
       env_set "SUPABASE_PUBLIC_URL" "$NEW_SUPABASE_URL"
     fi
     if [[ -n "$(env_get "API_EXTERNAL_URL")" ]]; then
       env_set "API_EXTERNAL_URL" "$NEW_SUPABASE_URL"
     fi
-    warn "Supabase-URL geÃ¤ndert â†’ App-Rebuild erforderlich."
+    warn "Supabase-URL geändert → App-Rebuild erforderlich."
     CHANGED=true
   fi
 
@@ -1191,9 +957,12 @@ modus_config() {
   read -p "  Rebuild and start the app container now? [J/n]: " DO_REBUILD
   if [[ "${DO_REBUILD,,}" != "n" ]]; then
     mit_spinner "App-Container wird gebaut (kann 2-5 Min dauern)" \
-      docker compose -f "$COMPOSE_FILE" build umzugsplaner-app
+      umzug_compose -f "$COMPOSE_FILE" build umzugsplaner-app
     mit_spinner "Container wird neu gestartet" \
-      docker compose -f "$COMPOSE_FILE" up -d --force-recreate umzugsplaner-app
+      umzug_compose -f "$COMPOSE_FILE" up -d --force-recreate umzugsplaner-app
+    if [[ "$IS_VOLLSTACK" == true && "$AUTH_CONFIG_CHANGED" == true ]]; then
+      mit_spinner "Auth configuration reload" umzug_compose -f "$COMPOSE_FILE" up -d --force-recreate auth mail-templates
+    fi
     success "App restarted."
     local NEW_URL_FINAL
     NEW_URL_FINAL="$(env_get "SITE_URL")"
@@ -1271,32 +1040,22 @@ SYSD
 
   elif [[ "$OLLAMA_SETUP" == "2" ]]; then
     header "Ollama — Docker"
-    local OLLAMA_APP_URL
-    read -p "  App-URL (für CORS): " OLLAMA_APP_URL
-
-    echo ""
-    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^ollama$"; then
-      info "Running 'ollama' container found."
-      echo "  OLLAMA_ORIGINS setzen: OLLAMA_ORIGINS=${OLLAMA_APP_URL}"
-      echo "  Then: docker compose -f docker-compose.full.yml up -d --force-recreate ollama"
-    else
-      warn "No running 'ollama' container found."
-      echo ""
-      echo "  docker run -d --name ollama \\"
-      echo "    -p 11434:11434 \\"
-      echo "    -e OLLAMA_ORIGINS=\"${OLLAMA_APP_URL}\" \\"
-      echo "    -v ollama-data:/root/.ollama \\"
-      echo "    ollama/ollama"
+    OLLAMA_MANAGED=n
+    if [[ "$IS_VOLLSTACK" == true ]]; then
+      read -rp "  Use this installation’s Compose service? [Y/n]: " OLLAMA_MANAGED
+      OLLAMA_MANAGED=${OLLAMA_MANAGED:-j}
     fi
-
-    echo ""
-    local OLLAMA_PORT_INPUT
-    read -p "  Ollama-Port [11434]: " OLLAMA_PORT_INPUT
-    [[ -z "$OLLAMA_PORT_INPUT" ]] && OLLAMA_PORT_INPUT=11434
-    OLLAMA_EXTERNAL_URL="http://localhost:${OLLAMA_PORT_INPUT}"
-    local CONFIRM_URL
-    read -p "  Update Ollama URL in .env with '${OLLAMA_EXTERNAL_URL}'? [j/N]: " CONFIRM_URL
-    [[ "${CONFIRM_URL,,}" != "j" && "${CONFIRM_URL,,}" != "y" ]] && OLLAMA_EXTERNAL_URL=""
+    if [[ "${OLLAMA_MANAGED,,}" == j || "${OLLAMA_MANAGED,,}" == y ]]; then
+      umzug_store_setting "$PROJECT_DIR" OLLAMA_INSTALLED true || return 1
+      echo "  Run in the installation directory (pinned image, app network):"
+      umzug_print_ollama_start "$PROJECT_DIR"
+      OLLAMA_EXTERNAL_URL="http://ollama:11434"
+    else
+      echo "  Configure Ollama on the other host; use an address reachable from the backend."
+      read -rp "  Backend-reachable Ollama URL (LAN IP or domain): " OLLAMA_EXTERNAL_URL
+    fi
+    read -rp "  Save '${OLLAMA_EXTERNAL_URL}' as the URL suggestion? [y/N]: " CONFIRM_URL
+    [[ "${CONFIRM_URL,,}" != j && "${CONFIRM_URL,,}" != y ]] && OLLAMA_EXTERNAL_URL=""
 
   else
     header "Ollama — Externer Server"
@@ -1318,6 +1077,7 @@ SYSD
     echo ""
     echo "  In der App: Profil → KI-Einstellungen → Ollama → Basis-URL:"
     echo "  ${OLLAMA_EXTERNAL_URL}"
+    echo "  Apply this address in the app profile; the .env value alone is a saved suggestion."
   fi
 
   echo ""
@@ -1326,6 +1086,7 @@ SYSD
 }
 
 modus_update() {
+  local UPDATE_RESULT=0
   while true; do
     clear
     echo ""
@@ -1350,18 +1111,18 @@ modus_update() {
     echo ""
     echo -e "  ${BOLD}What would you like to do?${NC}"
     echo ""
-    echo -e "  ${BOLD}[1]${NC} App update          — git pull + rebuild + restart"
+    echo -e "  ${BOLD}[1]${NC} App and service update — git pull + build + start"
     echo -e "  ${BOLD}[2]${NC} Rebuild app only    — without git pull (after local changes)"
     echo -e "  ${BOLD}[3]${NC} Edge Functions      — deploy supabase/functions/ + restart"
     echo -e "  ${BOLD}[4]${NC} Docker images       — update all images + restart"
-    echo -e "  ${BOLD}[5]${NC} Full server sync    — reload app + invite template + functions"
+    echo -e "  ${BOLD}[5]${NC} Full server sync    — update app, local services and functions"
     echo "  [0] Back to main menu"
     echo ""
-    read -p "  → Choice [1]: " UPDATE_CHOICE
-    [[ -z "$UPDATE_CHOICE" ]] && UPDATE_CHOICE=1
+    read -p "  → Choice [0]: " UPDATE_CHOICE
+    [[ -z "$UPDATE_CHOICE" ]] && UPDATE_CHOICE=0
 
     case "$UPDATE_CHOICE" in
-      0) return 0 ;;
+      0) return "$UPDATE_RESULT" ;;
 
       1)
         header "App-Update"
@@ -1390,7 +1151,8 @@ modus_update() {
             if git pull; then
               success "Repository updated."
             else
-              warn "git pull failed. The update will continue with the local revision."
+              warn "git pull failed. Update cancelled; use option [2] to rebuild the local revision."
+              UPDATE_RESULT=1; weiter; continue
             fi
           fi
           AFTER_UPDATE_REF="$(git rev-parse HEAD 2>/dev/null || true)"
@@ -1399,14 +1161,20 @@ modus_update() {
         fi
 
         echo ""
-        read -p "  Rebuild and start the app container now? [J/n]: " CONFIRM
+        read -p "  Build and start the required images now? [Y/n]: " CONFIRM
         if [[ "${CONFIRM,,}" == "n" ]]; then echo "  Cancelled."; weiter; continue; fi
 
+        mit_spinner "Building app and local service images (reusing unchanged build layers)" \
+          umzug_build_update_images "$COMPOSE_FILE" "$IS_VOLLSTACK" || {
+          warn "Image build failed; running containers remain unchanged."
+          UPDATE_RESULT=1; weiter; continue
+        }
+
         echo ""
-        info "Enabling performance indexes..."
+        info "Checking optional performance indexes..."
         apply_fast_mutation_hotfix || {
           warn "Update cancelled: database hotfix failed."
-          weiter; continue
+          UPDATE_RESULT=1; weiter; continue
         }
 
         echo ""
@@ -1414,26 +1182,27 @@ modus_update() {
         DEPLOYED=0; deploy_edge_functions_to_volumes
         [[ $DEPLOYED -gt 0 ]] && success "${DEPLOYED} function(s) updated." || dim "  No function files found."
         if [[ "$IS_VOLLSTACK" == "true" ]]; then
-          ensure_fullstack_update_prereqs || { weiter; continue; }
+          ensure_fullstack_update_prereqs || { UPDATE_RESULT=1; weiter; continue; }
           maybe_reload_kong_for_git_range "$BEFORE_UPDATE_REF" "$AFTER_UPDATE_REF"
-          reload_kong_if_needed "$KONG_RELOAD_REASON"
+          reload_kong_if_needed "$KONG_RELOAD_REASON" || { UPDATE_RESULT=1; weiter; continue; }
         fi
         echo ""
-        mit_spinner "App-Container wird gebaut (kann 2-5 Min dauern)" \
-          docker compose -f "$COMPOSE_FILE" build umzugsplaner-app || {
-          warn "Build failed. Logs prüfen: docker compose logs umzugsplaner-app"
-          weiter; continue
-        }
         mit_spinner "Container werden neu gestartet" \
-          docker compose -f "$COMPOSE_FILE" up -d --force-recreate umzugsplaner-app || {
+          umzug_compose -f "$COMPOSE_FILE" up -d --force-recreate umzugsplaner-app || {
           warn "Neustart failed. Status prüfen: docker compose ps"
-          weiter; continue
+          UPDATE_RESULT=1; weiter; continue
+        }
+
+        mit_spinner "Updating and checking local services" \
+          umzug_start_updated_local_services "$COMPOSE_FILE" "$IS_VOLLSTACK" || {
+          warn "Local service update failed."
+          UPDATE_RESULT=1; weiter; continue
         }
 
         if [[ "$IS_VOLLSTACK" == "true" && $DEPLOYED -gt 0 ]]; then
           restart_edge_functions || {
             warn "Update stopped: Edge Functions are not running."
-            weiter; continue
+            UPDATE_RESULT=1; weiter; continue
           }
           check_supabase_studio_access
         fi
@@ -1458,15 +1227,16 @@ modus_update() {
         read -p "  Rebuild and start app container? [J/n]: " CONFIRM
         if [[ "${CONFIRM,,}" == "n" ]]; then echo "  Cancelled."; weiter; continue; fi
 
+        ensure_fullstack_update_prereqs || { UPDATE_RESULT=1; weiter; continue; }
         mit_spinner "App-Container wird gebaut (kann 2-5 Min dauern)" \
-          docker compose -f "$COMPOSE_FILE" build umzugsplaner-app || {
+          umzug_compose -f "$COMPOSE_FILE" build umzugsplaner-app || {
           warn "Build failed. Logs prüfen: docker compose logs umzugsplaner-app"
-          weiter; continue
+          UPDATE_RESULT=1; weiter; continue
         }
         mit_spinner "Container wird neu gestartet" \
-          docker compose -f "$COMPOSE_FILE" up -d --force-recreate umzugsplaner-app || {
+          umzug_compose -f "$COMPOSE_FILE" up -d --force-recreate umzugsplaner-app || {
           warn "Neustart failed. Status prüfen: docker compose ps"
-          weiter; continue
+          UPDATE_RESULT=1; weiter; continue
         }
 
         [[ "$IS_VOLLSTACK" == "true" ]] && check_supabase_studio_access
@@ -1482,17 +1252,17 @@ modus_update() {
         KONG_RELOAD_REASON=""
         echo ""
         if [[ "$IS_VOLLSTACK" != "true" ]]; then
-          warn "Nur für Vollstack-Installation verfügbar."
-          weiter; continue
+          warn "Only available for fullstack installations."
+          UPDATE_RESULT=1; weiter; continue
         fi
-        ensure_fullstack_update_prereqs || { weiter; continue; }
-        reload_kong_if_needed "$KONG_RELOAD_REASON"
+        ensure_fullstack_update_prereqs || { UPDATE_RESULT=1; weiter; continue; }
+        reload_kong_if_needed "$KONG_RELOAD_REASON" || { UPDATE_RESULT=1; weiter; continue; }
         DEPLOYED=0; deploy_edge_functions_to_volumes
         if [[ $DEPLOYED -gt 0 ]]; then
           echo ""
           restart_edge_functions || {
             warn "Functions deployment failed."
-            weiter; continue
+            UPDATE_RESULT=1; weiter; continue
           }
           success "${DEPLOYED} Function(s) deployed and container restarted."
           check_supabase_studio_access
@@ -1506,7 +1276,6 @@ modus_update() {
         header "Update Docker Images"
         KONG_RELOAD_REASON=""
         echo ""
-        ensure_fullstack_update_prereqs || { weiter; continue; }
         warn "All Docker images will be updated to the latest version."
         warn "This can take several minutes (~500 MB - 2 GB Downloads)."
         echo ""
@@ -1514,56 +1283,42 @@ modus_update() {
         if [[ "${CONFIRM,,}" == "n" ]]; then echo "  Cancelled."; weiter; continue; fi
 
         if [[ "$HAS_OLLAMA" == "true" ]]; then
-          mit_spinner "Images werden heruntergeladen (kann 5-15 Min dauern)" \
-            bash -c "docker compose -f '$COMPOSE_FILE' --profile ollama pull --ignore-pull-failures 2>&1 | grep -v 'pull access denied' || true"
+          mit_spinner "Downloading images (may take 5-15 minutes)" \
+            umzug_compose -f "$COMPOSE_FILE" --profile ollama pull --ignore-buildable || {
+            warn "Image download failed; existing containers remain unchanged."
+            UPDATE_RESULT=1; weiter; continue
+          }
         else
-          mit_spinner "Images werden heruntergeladen (kann 5-15 Min dauern)" \
-            bash -c "docker compose -f '$COMPOSE_FILE' pull --ignore-pull-failures 2>&1 | grep -v 'pull access denied' || true"
+          mit_spinner "Downloading images (may take 5-15 minutes)" \
+            umzug_compose -f "$COMPOSE_FILE" pull --ignore-buildable || {
+            warn "Image download failed; existing containers remain unchanged."
+            UPDATE_RESULT=1; weiter; continue
+          }
         fi
 
         echo ""
-        mit_spinner "App-Image wird lokal gebaut (kann 2-5 Min dauern)" \
-          docker compose -f "$COMPOSE_FILE" build umzugsplaner-app || {
-          warn "Build failed. Logs prüfen: docker compose logs umzugsplaner-app"
-          weiter; continue
+        mit_spinner "Building app and local service images (reusing unchanged build layers)" \
+          umzug_build_update_images "$COMPOSE_FILE" "$IS_VOLLSTACK" || {
+          warn "Image build failed; running containers remain unchanged."
+          UPDATE_RESULT=1; weiter; continue
         }
-        if [[ "$IS_VOLLSTACK" == "true" ]]; then
-          if recipe_parser_image_exists; then
-            echo ""
-            warn "Recipe parser image already exists. Rebuilding often takes 10-20 minutes."
-            read -p "  Rebuild recipe parser image anyway? [y/N]: " BUILD_RECIPE_PARSER
-          else
-            warn "Recipe parser image is missing. It will be built once (can take 10-20 minutes)."
-            BUILD_RECIPE_PARSER="y"
-          fi
-          if [[ "${BUILD_RECIPE_PARSER,,}" == "j" || "${BUILD_RECIPE_PARSER,,}" == "y" ]]; then
-            mit_spinner "Building local recipe parser image (can take 10-20 min)" \
-              docker compose -f "$COMPOSE_FILE" build recipe-source-parser || {
-              warn "Recipe parser build failed. Check logs: docker compose logs recipe-source-parser"
-              weiter; continue
-            }
-          else
-            dim "  Recipe parser image will not be rebuilt."
-          fi
-        fi
+        ensure_fullstack_update_prereqs || { UPDATE_RESULT=1; weiter; continue; }
         echo ""
-        if [[ "$HAS_OLLAMA" == "true" ]]; then
-          mit_spinner "Alle Container werden neu gestartet" \
-            docker compose -f "$COMPOSE_FILE" --profile ollama up -d --force-recreate || {
-            warn "Neustart failed. Status prüfen: docker compose ps"
-            weiter; continue
-          }
-        else
-          mit_spinner "Alle Container werden neu gestartet" \
-            docker compose -f "$COMPOSE_FILE" up -d --force-recreate || {
-            warn "Neustart failed. Status prüfen: docker compose ps"
-            weiter; continue
-          }
-        fi
+        mit_spinner "Starting core services and optional Ollama separately" \
+          umzug_start_stack "$COMPOSE_FILE" "$HAS_OLLAMA" --no-build --wait --wait-timeout 300 || {
+          warn "Update incomplete. Ollama errors do not stop core services."
+          UPDATE_RESULT=1; weiter; continue
+        }
+
+        mit_spinner "Updating and checking local services" \
+          umzug_start_updated_local_services "$COMPOSE_FILE" "$IS_VOLLSTACK" || {
+          warn "Local service update failed."
+          UPDATE_RESULT=1; weiter; continue
+        }
 
         if [[ "$IS_VOLLSTACK" == "true" ]] && ! verify_edge_functions_running; then
           warn "Image update incomplete: Edge Functions are not running."
-          weiter; continue
+          UPDATE_RESULT=1; weiter; continue
         fi
         success "Docker images updated and containers restarted."
         check_supabase_studio_access
@@ -1575,25 +1330,31 @@ modus_update() {
         KONG_RELOAD_REASON=""
         echo ""
         if [[ "$IS_VOLLSTACK" != "true" ]]; then
-          warn "Nur für Vollstack-Installation verfügbar."
-          weiter; continue
+          warn "Only available for fullstack installations."
+          UPDATE_RESULT=1; weiter; continue
         fi
-        echo "  Dieser Ablauf lädt nach Datei-Kopie alle relevanten Komponenten neu:"
-        ensure_fullstack_update_prereqs || { weiter; continue; }
-        reload_kong_if_needed "$KONG_RELOAD_REASON"
-        echo "    1) Deploy Edge Functions"
-        echo "    2) Rebuild + restart app"
+        echo "  This updates all required components after copying the source files:"
+        echo "    1) Build app and local service images"
+        echo "    2) Deploy Edge Functions, update app and local services"
         echo "    3) force-recreate mail templates + auth"
         echo "    4) restart functions"
         echo ""
         read -p "  Continue? [J/n]: " CONFIRM
         if [[ "${CONFIRM,,}" == "n" ]]; then echo "  Cancelled."; weiter; continue; fi
 
+        mit_spinner "Building app and local service images (reusing unchanged build layers)" \
+          umzug_build_update_images "$COMPOSE_FILE" "$IS_VOLLSTACK" || {
+          warn "Image build failed; running containers remain unchanged."
+          UPDATE_RESULT=1; weiter; continue
+        }
+        ensure_fullstack_update_prereqs || { UPDATE_RESULT=1; weiter; continue; }
+        reload_kong_if_needed "$KONG_RELOAD_REASON" || { UPDATE_RESULT=1; weiter; continue; }
+
         echo ""
-        info "Enabling performance indexes..."
+        info "Checking optional performance indexes..."
         apply_fast_mutation_hotfix || {
           warn "Full server sync cancelled: database hotfix failed."
-          weiter; continue
+          UPDATE_RESULT=1; weiter; continue
         }
 
         echo ""
@@ -1603,28 +1364,29 @@ modus_update() {
         [[ $DEPLOYED -gt 0 ]] && success "${DEPLOYED} function(s) updated." || warn "No function files found."
 
         echo ""
-        mit_spinner "App-Container wird gebaut (kann 2-5 Min dauern)" \
-          docker compose -f "$COMPOSE_FILE" build umzugsplaner-app || {
-          warn "Build failed. Logs prüfen: docker compose logs umzugsplaner-app"
-          weiter; continue
-        }
         mit_spinner "App-Container wird neu gestartet" \
-          docker compose -f "$COMPOSE_FILE" up -d --force-recreate umzugsplaner-app || {
+          umzug_compose -f "$COMPOSE_FILE" up -d --force-recreate umzugsplaner-app || {
           warn "Neustart failed. Status prüfen: docker compose ps"
-          weiter; continue
+          UPDATE_RESULT=1; weiter; continue
         }
 
         echo ""
+        mit_spinner "Updating and checking local services" \
+          umzug_start_updated_local_services "$COMPOSE_FILE" "$IS_VOLLSTACK" || {
+          warn "Local service update failed."
+          UPDATE_RESULT=1; weiter; continue
+        }
+
         mit_spinner "mail-templates + auth werden neu geladen" \
-          docker compose -f "$COMPOSE_FILE" up -d --force-recreate mail-templates auth || {
+          umzug_compose -f "$COMPOSE_FILE" up -d --force-recreate mail-templates auth || {
           warn "auth/mail-templates Neustart failed. Status prüfen: docker compose ps"
-          weiter; continue
+          UPDATE_RESULT=1; weiter; continue
         }
 
         echo ""
         restart_edge_functions || {
           warn "Full server sync failed: Edge Functions are not running."
-          weiter; continue
+          UPDATE_RESULT=1; weiter; continue
         }
 
         echo ""
@@ -1719,8 +1481,8 @@ modus_deinstall() {
         if [[ "${CONFIRM,,}" != "j" && "${CONFIRM,,}" != "y" ]]; then echo "  Cancelled."; weiter; continue; fi
 
         info "Removing Docker images..."
-        docker compose -f "$COMPOSE_FILE" --profile ollama down --rmi all 2>/dev/null || \
-        docker compose -f "$COMPOSE_FILE" down --rmi all 2>/dev/null || \
+        umzug_compose -f "$COMPOSE_FILE" --profile ollama down --rmi all 2>/dev/null || \
+        umzug_compose -f "$COMPOSE_FILE" down --rmi all 2>/dev/null || \
         warn "Some images could not be removed."
 
         read -p "  Also clear Docker build cache? [j/N]: " RM_CACHE
@@ -1736,7 +1498,8 @@ modus_deinstall() {
 
         echo ""
         if [[ "$DEINSTALL_MODE" == "vollstaendig" ]]; then
-          echo -e "  ${RED}${BOLD}ACHTUNG: Diese Aktion löscht ALLE Daten unwiderruflich!${NC}"
+          echo "  backups/ is retained, including database dumps and credentials."
+          echo -e "  ${RED}${BOLD}ACHTUNG: Diese Aktion löscht die Installation unwiderruflich; backups/ bleibt erhalten!${NC}"
           echo -e "  ${RED}Affected: database, configuration, uploaded files.${NC}"
         else
           echo -e "  ${YELLOW}Containers and Docker volumes will be removed.${NC}"
@@ -1750,10 +1513,13 @@ modus_deinstall() {
         if [[ -f ".env" || -f "CREDENTIALS.txt" ]]; then
           read -p "  Back up .env and CREDENTIALS.txt first? [J/n]: " DO_BACKUP
           if [[ "${DO_BACKUP,,}" != "n" ]]; then
-            local CFG_BACKUP_DIR="backup_$(date +%Y%m%d_%H%M%S)"
-            mkdir -p "$CFG_BACKUP_DIR"
+            local CFG_BACKUP_DIR="backups/config_$(date +%Y%m%d_%H%M%S)_${RANDOM}"
+            mkdir -p backups
+            chmod 700 backups
+            (umask 077; mkdir "$CFG_BACKUP_DIR")
             [[ -f ".env" ]]            && cp .env            "$CFG_BACKUP_DIR/.env"            && echo "    OK .env backed up"
             [[ -f "CREDENTIALS.txt" ]] && cp CREDENTIALS.txt "$CFG_BACKUP_DIR/CREDENTIALS.txt" && echo "    OK CREDENTIALS.txt backed up"
+            find "$CFG_BACKUP_DIR" -maxdepth 1 -type f -exec chmod 600 {} +
             success "Backup saved in: ${CFG_BACKUP_DIR}/"
           else
             warn "No backup created."
@@ -1794,8 +1560,8 @@ modus_deinstall() {
           echo ""
           read -p "  Remove Docker Images? (~3-5 GB) [j/N]: " RM_IMAGES
           if [[ "${RM_IMAGES,,}" == "j" || "${RM_IMAGES,,}" == "y" ]]; then
-            docker compose -f "$COMPOSE_FILE" --profile ollama down --rmi all 2>/dev/null || \
-            docker compose -f "$COMPOSE_FILE" down --rmi all 2>/dev/null || true
+            umzug_compose -f "$COMPOSE_FILE" --profile ollama down --rmi all 2>/dev/null || \
+            umzug_compose -f "$COMPOSE_FILE" down --rmi all 2>/dev/null || true
             success "Docker images removed."
           fi
 
@@ -1867,7 +1633,7 @@ modus_installation() {
   header "Step 1: Check requirements"
 
   command -v docker >/dev/null 2>&1      || err "Docker is not installed.\n  → https://docs.docker.com/get-docker/"
-  docker compose version >/dev/null 2>&1 || err "Docker Compose plugin is missing.\n  → Update Docker or install the plugin."
+  umzug_compose version >/dev/null 2>&1 || err "Docker Compose plugin is missing.\n  → Update Docker or install the plugin."
   command -v node >/dev/null 2>&1        || err "Node.js is not installed.\n  → https://nodejs.org/"
   command -v openssl >/dev/null 2>&1     || err "openssl is not installed.\n  → sudo apt install openssl"
 
@@ -1970,6 +1736,7 @@ modus_installation() {
 
   if [[ "$OLLAMA_CHOICE" == "1" ]]; then
     INSTALL_OLLAMA=true
+    OLLAMA_EXTERNAL_URL="http://ollama:11434"
     read -p "  Ollama Port [11434]: " OLLAMA_PORT
     [[ -z "$OLLAMA_PORT" ]] && OLLAMA_PORT=11434
     info "Ollama will be started via Docker profile 'ollama'."
@@ -2034,8 +1801,10 @@ modus_installation() {
   local VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY
   VAPID_PUBLIC_KEY=$(extract_key VAPID_PUBLIC_KEY)
   VAPID_PRIVATE_KEY=$(extract_key VAPID_PRIVATE_KEY)
+  local DOCUMENT_OCR_INTERNAL_TOKEN
   local RECIPE_PARSER_INTERNAL_TOKEN
   RECIPE_PARSER_INTERNAL_TOKEN=$(extract_key RECIPE_PARSER_INTERNAL_TOKEN)
+  DOCUMENT_OCR_INTERNAL_TOKEN=$(extract_key DOCUMENT_OCR_INTERNAL_TOKEN)
 
   local ANON_KEY SERVICE_ROLE_KEY
   local POSTGRES_PASSWORD JWT_SECRET SECRET_KEY_BASE VAULT_ENC_KEY PG_META_CRYPTO_KEY
@@ -2062,36 +1831,13 @@ modus_installation() {
 
   # ---- Step 4: Supabase Initialization Files (nur Vollstack) ----
   if [[ "$INSTALL_MODE" == "vollstack" ]]; then
+    command -v python3 >/dev/null 2>&1 || err "python3 is required for storage backup/restore (apt install python3)."
     header "Step 4: Supabase Initialization Files"
 
-    local SUPABASE_RAW="https://raw.githubusercontent.com/supabase/supabase/master/docker"
-    local SUPABASE_FILES=(
-      "volumes/db/realtime.sql" "volumes/db/webhooks.sql"
-      "volumes/db/roles.sql"    "volumes/db/jwt.sql"
-      "volumes/db/_supabase.sql" "volumes/db/logs.sql"
-      "volumes/db/pooler.sql"   "volumes/logs/vector.yml"
-      "volumes/pooler/pooler.exs" "volumes/api/kong.yml"
-    )
-
-    mkdir -p volumes/db volumes/logs volumes/pooler volumes/storage volumes/functions \
-             volumes/snippets volumes/db/data volumes/api
-
-    local ALL_DOWNLOADED=true
-    for file in "${SUPABASE_FILES[@]}"; do
-      if [[ ! -f "$file" ]]; then
-        info "Downloading ${file}..."
-        if curl -fsSL "${SUPABASE_RAW}/${file}" -o "${file}" 2>/dev/null; then
-          echo "    OK ${file}"
-        else
-          warn "Could not download ${file} download."
-          ALL_DOWNLOADED=false
-        fi
-      else
-        echo "    OK ${file} (already exists)"
-      fi
-    done
-
-    ensure_kong_entrypoint_script
+  mkdir -p volumes/db volumes/logs volumes/pooler volumes/storage volumes/functions volumes/snippets volumes/db/data volumes/api
+  umzug_prepare_supabase_files "$PROJECT_DIR" || err "Versioned Supabase initialization files missing."
+  ALL_DOWNLOADED=true
+  ensure_kong_entrypoint_script
 
     if [[ -f "volumes/db/jwt.sql" ]]; then
       sed -i "s/your-super-secret-jwt-token-with-at-least-32-characters-long/${JWT_SECRET}/g" \
@@ -2115,7 +1861,9 @@ modus_installation() {
   info "Writing .env..."
 
   if [[ "$INSTALL_MODE" == "vollstack" ]]; then
-    cat > .env << VOLLSTACK_ENV
+    (umask 077; touch .env)
+  chmod 600 .env
+  cat > .env << VOLLSTACK_ENV
 # ============================================================
 # Umzughelfer + Supabase — Vollstack
 # Automatically generated by manage_en.sh on ${INSTALL_DATE}
@@ -2192,7 +1940,7 @@ ENABLE_EMAIL_AUTOCONFIRM=false
 ENABLE_PHONE_SIGNUP=false
 ENABLE_PHONE_AUTOCONFIRM=false
 ENABLE_ANONYMOUS_USERS=false
-ADDITIONAL_REDIRECT_URLS=${APP_URL}
+ADDITIONAL_REDIRECT_URLS=$(umzug_redirect_allowlist "" "$APP_URL")
 MAILER_URLPATHS_INVITE=/auth/v1/verify
 MAILER_URLPATHS_CONFIRMATION=/auth/v1/verify
 MAILER_URLPATHS_RECOVERY=/auth/v1/verify
@@ -2219,17 +1967,21 @@ INVITE_BRAND_NAME=Umzughelfer
 # Ollama (optional)
 OLLAMA_PORT=${OLLAMA_PORT}
 OLLAMA_EXTERNAL_URL=${OLLAMA_EXTERNAL_URL}
+OLLAMA_USE_GPU=false
+OLLAMA_INSTALLED=${INSTALL_OLLAMA}
 OLLAMA_ORIGINS=${APP_URL}
 
 # Edge Functions
 FUNCTIONS_VERIFY_JWT=true
 RECIPE_PARSER_INTERNAL_TOKEN=${RECIPE_PARSER_INTERNAL_TOKEN}
+DOCUMENT_OCR_INTERNAL_TOKEN=${DOCUMENT_OCR_INTERNAL_TOKEN}
+BASG_API_TOKEN=
 RECIPE_PARSER_URL=http://recipe-source-parser:8090
 RECIPE_PARSER_PORT=8090
 WHISPER_DEVICE=auto
 WHISPER_MODEL=small
 WHISPER_CPU_COMPUTE_TYPE=int8
-WHISPER_GPU_COMPUTE_TYPE=float16
+WHISPER_GPU_COMPUTE_TYPE=auto
 WHISPER_CPP_FALLBACK_ENABLED=true
 
 # PostgREST
@@ -2243,7 +1995,9 @@ DOCKER_SOCKET_LOCATION=/var/run/docker.sock
 VOLLSTACK_ENV
 
   else
-    cat > .env << APPONLY_ENV
+    (umask 077; touch .env)
+  chmod 600 .env
+  cat > .env << APPONLY_ENV
 # ============================================================
 # Umzughelfer App — Existing Supabase instance
 # Automatically generated by manage_en.sh on ${INSTALL_DATE}
@@ -2266,9 +2020,12 @@ REACT_APP_VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
 
 # Ollama (optional)
 OLLAMA_EXTERNAL_URL=${OLLAMA_EXTERNAL_URL}
+OLLAMA_USE_GPU=false
+OLLAMA_INSTALLED=${INSTALL_OLLAMA}
 APPONLY_ENV
   fi
 
+  umzug_save_install_mode "$PROJECT_DIR" "$INSTALL_MODE" || exit 1
   success ".env written."
 
   # SMTP-Werte via env_set schreiben — sicher gegen Sonderzeichen im Password (Heredoc würde $, `` etc. expandieren)
@@ -2289,41 +2046,18 @@ APPONLY_ENV
   [[ "$INSTALL_MODE" == "apponly" ]] && INST_COMPOSE_FILE="docker-compose.yml"
 
   info "Building React app (this can take a few minutes)..."
-  docker compose -f "$INST_COMPOSE_FILE" build umzugsplaner-app
+  umzug_compose -f "$INST_COMPOSE_FILE" build umzugsplaner-app
 
   info "Starting containers..."
   set +e
-  if [[ "$INSTALL_OLLAMA" == "true" ]]; then
-    docker compose -f "$INST_COMPOSE_FILE" --profile ollama up -d
-  else
-    docker compose -f "$INST_COMPOSE_FILE" up -d
-  fi
+  umzug_start_stack "$INST_COMPOSE_FILE" "$INSTALL_OLLAMA"
   local COMPOSE_EXIT=$?
   set -e
 
-  if [[ $COMPOSE_EXIT -ne 0 ]]; then
-    warn "Docker Compose reported an error (Exit ${COMPOSE_EXIT})."
-    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "supabase-analytics"; then
-      warn "Waiting for analytics container (can take up to 3 minutes during first install)..."
-      local ANALYTICS_OK=false
-      for _i in $(seq 1 36); do
-        if docker exec supabase-analytics curl -sf http://localhost:4000/health >/dev/null 2>&1; then
-          ANALYTICS_OK=true; break
-        fi
-        sleep 5; echo -n "."
-      done
-      echo ""
-      if [[ "$ANALYTICS_OK" == "true" ]]; then
-        success "Analytics ready."
-        docker compose -f "$INST_COMPOSE_FILE" up -d --no-recreate 2>/dev/null || true
-      else
-        warn "Analytics is not responding yet. App features are not affected."
-        warn "Restart if needed: docker compose -f ${INST_COMPOSE_FILE} restart supabase-analytics"
-      fi
-    else
-      err "Docker start failed (Exit ${COMPOSE_EXIT}). Logs: docker compose -f ${INST_COMPOSE_FILE} logs"
-    fi
-  fi
+if [[ $COMPOSE_EXIT -ne 0 ]]; then
+  err "Docker start failed (exit $COMPOSE_EXIT). Inspect compose ps and logs before retrying."
+fi
+
 
   # ---- DB-Schema anwenden (nur Vollstack) ----
   if [[ "$INSTALL_MODE" == "vollstack" ]]; then
@@ -2339,6 +2073,7 @@ APPONLY_ENV
       DB_SCHEMA_STATUS="übersprungen (DB nicht bereit)"
       MULTIUSER_SCHEMA_STATUS="übersprungen (DB nicht bereit)"
     else
+      umzug_wait_fullstack_ready || err "Storage/Kong readiness failed; schema was not imported."
       read -p "  Apply schema now? [J/n]: " APPLY_SCHEMA_NOW
       if [[ "${APPLY_SCHEMA_NOW,,}" == "n" ]]; then
         DB_SCHEMA_STATUS="manuell erforderlich"
@@ -2363,20 +2098,7 @@ APPONLY_ENV
           warn "database_setup_complete.sql not found."
         fi
 
-        if [[ -f "umzugshelfer-pwa/haushalt_multiuser_setup.sql" ]]; then
-          ensure_updated_at_functions
-          info "Applying haushalt_multiuser_setup.sql..."
-          if run_sql_in_db_container "umzugshelfer-pwa/haushalt_multiuser_setup.sql"; then
-            MULTIUSER_SCHEMA_STATUS="angewendet"
-            success "haushalt_multiuser_setup.sql applied successfully."
-          else
-            MULTIUSER_SCHEMA_STATUS="fehler"
-            warn "haushalt_multiuser_setup.sql konnte nicht vollständig angewendet werden."
-          fi
-        else
-          MULTIUSER_SCHEMA_STATUS="nicht vorhanden"
-          warn "Optional file haushalt_multiuser_setup.sql not found."
-        fi
+        MULTIUSER_SCHEMA_STATUS="in database_setup_complete.sql enthalten"
       fi
     fi
   else
@@ -2385,10 +2107,13 @@ APPONLY_ENV
   fi
 
   # ---- CREDENTIALS.txt schreiben ----
-  info "Writing CREDENTIALS.txt..."
+  if [[ -f CREDENTIALS.txt ]]; then chmod 600 CREDENTIALS.txt; fi
+info "Writing CREDENTIALS.txt..."
 
   if [[ "$INSTALL_MODE" == "vollstack" ]]; then
-    cat > CREDENTIALS.txt << VOLLSTACK_CREDS
+    (umask 077; touch CREDENTIALS.txt)
+  chmod 600 CREDENTIALS.txt
+  cat > CREDENTIALS.txt << VOLLSTACK_CREDS
 ============================================================
   Umzughelfer — Fullstack installation
   Created: ${INSTALL_DATE}
@@ -2427,9 +2152,11 @@ SMTP
   User:   ${SMTP_USER_VAL}
   Sender: ${SMTP_SENDER_VAL}
 
+OLLAMA (App profile)
+  Base URL: ${OLLAMA_EXTERNAL_URL:-not configured}
+
 SCHEMA STATUS
   database_setup_complete.sql:  ${DB_SCHEMA_STATUS}
-  haushalt_multiuser_setup.sql: ${MULTIUSER_SCHEMA_STATUS}
 
 ============================================================
   NEXT STEPS
@@ -2445,7 +2172,9 @@ SCHEMA STATUS
 VOLLSTACK_CREDS
 
   else
-    cat > CREDENTIALS.txt << APPONLY_CREDS
+    (umask 077; touch CREDENTIALS.txt)
+  chmod 600 CREDENTIALS.txt
+  cat > CREDENTIALS.txt << APPONLY_CREDS
 ============================================================
   Umzughelfer — App Installation (external Supabase)
   Created: ${INSTALL_DATE}
@@ -2466,13 +2195,11 @@ VAPID (Push-Notifications)
 
 SCHEMA STATUS
   database_setup_complete.sql:  ${DB_SCHEMA_STATUS}
-  haushalt_multiuser_setup.sql: ${MULTIUSER_SCHEMA_STATUS}
 
 ============================================================
   NEXT STEPS
 ============================================================
 1. In the Supabase SQL editor: run database_setup_complete.sql
-2. Then run haushalt_multiuser_setup.sql
 3. Open app: ${APP_URL}
 4. Management: ./scripts/manage_en.sh
 
@@ -2489,11 +2216,15 @@ APPONLY_CREDS
     printf "CREDENTIALS.txt\n.env\n" > .gitignore
   fi
 
-  success "CREDENTIALS.txt written."
+  chmod 600 CREDENTIALS.txt
+success "CREDENTIALS.txt written."
 
   # ---- Abschluss ----
   echo ""
   echo -e "${BOLD}${GREEN}============================================================${NC}"
+  if [[ "$INSTALL_MODE" == vollstack && "$DB_SCHEMA_STATUS" != angewendet && "$DB_SCHEMA_STATUS" != "manuell erforderlich" ]]; then
+    err "Installation incomplete: database schema status = $DB_SCHEMA_STATUS"
+  fi
   success "Installation completed!"
   echo -e "${BOLD}${GREEN}============================================================${NC}"
   echo ""
@@ -2503,7 +2234,7 @@ APPONLY_CREDS
   else
     echo -e "  Supabase:        ${CYAN}${SUPABASE_URL}${NC}  (extern)"
   fi
-  [[ "$INSTALL_OLLAMA" == "true" ]]     && echo -e "  Ollama API:      ${CYAN}http://localhost:${OLLAMA_PORT}${NC}"
+  [[ "$INSTALL_OLLAMA" == "true" ]]     && echo -e "  Ollama API:      ${CYAN}http://ollama:11434${NC}"
   [[ -n "$OLLAMA_EXTERNAL_URL" ]]       && echo -e "  Ollama Server:   ${CYAN}${OLLAMA_EXTERNAL_URL}${NC}"
   echo -e "  Schema:          ${CYAN}${DB_SCHEMA_STATUS}${NC}"
   echo ""
@@ -2558,13 +2289,19 @@ modus_docker_cleanup() {
 # RUNTIME CONTEXT / MAIN LOOP
 # ============================================================
 refresh_runtime_context() {
-  COMPOSE_FILE="docker-compose.full.yml"
-  [[ ! -f "docker-compose.full.yml" ]] && COMPOSE_FILE="docker-compose.yml"
-  IS_VOLLSTACK=false
-  [[ "$COMPOSE_FILE" == "docker-compose.full.yml" ]] && IS_VOLLSTACK=true
+  # Also protect secrets created by older installers, before any update action.
+  if [[ -f CREDENTIALS.txt ]]; then chmod 600 CREDENTIALS.txt || return 1; fi
+  umzug_resolve_install_context "$PROJECT_DIR" "en" || exit 1
 
   HAS_OLLAMA=false
-  docker ps --format '{{.Names}}' 2>/dev/null | grep -qi "ollama" && HAS_OLLAMA=true || true
+  if [[ "$IS_VOLLSTACK" == true ]]; then
+    if umzug_ollama_requested "$PROJECT_DIR"; then
+      HAS_OLLAMA=true
+    else
+      local ollama_choice_status=$?
+      [[ "$ollama_choice_status" == 1 ]] || return "$ollama_choice_status"
+    fi
+  fi
 
   CURRENT_APP_URL=""
   CURRENT_PORT=""
@@ -2573,12 +2310,19 @@ refresh_runtime_context() {
     CURRENT_PORT="$(env_get "APP_PORT")"
     [[ "$IS_VOLLSTACK" == "true" ]] && ensure_recipe_parser_env
   fi
+  # App-only intentionally skips fullstack setup; that is not a failure under set -e.
+  return 0
 }
+
+if [[ "${1:-}" == "maintenance" ]]; then
+  umzug_run_maintenance "$PROJECT_DIR" "${2:-}" "en"
+  exit $?
+fi
 
 if [[ "${1:-}" == "update" ]]; then
   refresh_runtime_context
   modus_update
-  exit 0
+  exit $?
 fi
 
 while true; do
@@ -2604,7 +2348,7 @@ while true; do
 
   echo ""
   CONTAINERS_RUNNING=0
-  CONTAINERS_RUNNING=$(docker compose -f "$COMPOSE_FILE" ps --status running --format "{{.Name}}" 2>/dev/null | wc -l | tr -d ' ') || true
+  CONTAINERS_RUNNING=$(umzug_compose -f "$COMPOSE_FILE" ps --status running --format "{{.Name}}" 2>/dev/null | wc -l | tr -d ' ') || true
   if [[ "$CONTAINERS_RUNNING" -gt 0 ]]; then
     echo -e "  Container:    ${GREEN}${CONTAINERS_RUNNING} running${NC}"
   else

@@ -6,7 +6,7 @@ import {
   FileText, FolderOpen, Upload, Download, Trash2, BookOpen,
   X, Plus, CheckCircle, File, Loader2, AlertTriangle, Pencil, ZoomIn, ZoomOut, Wallet,
 } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router";
 import { supabase, getActiveHouseholdId } from "../../supabaseClient";
 import { logVerlauf } from "../../utils/homeVerlauf";
 import { notifyHouseholdEvent } from "../../utils/pushNotifications";

@@ -2,7 +2,7 @@
 // Loescht den authentifizierten User-Account dauerhaft.
 // Verifiziert das JWT mit dem Anon-Key, dann loescht den Account mit dem Service-Role-Key.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.119.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

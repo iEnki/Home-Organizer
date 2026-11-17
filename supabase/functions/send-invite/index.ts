@@ -4,7 +4,7 @@
 // Body: { haushalt_id: string, email: string, app_url?: string }
 // Auth: aufrufer muss Mitglied (admin) des Haushalts sein
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.119.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

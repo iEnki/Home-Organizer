@@ -2,7 +2,7 @@ import OverlayPortal from "./ui/OverlayPortal";
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router";
 import {
   Eye, EyeOff, Save, Truck, Home, CheckCircle, AlertCircle,
   RotateCcw, Bell, BellOff, BellRing, Cpu, Wifi, WifiOff,

@@ -10,6 +10,7 @@ services:
         REACT_APP_SUPABASE_ANON_KEY: ${REACT_APP_SUPABASE_ANON_KEY}
         REACT_APP_PASSWORD_RESET_REDIRECT_URL: ${REACT_APP_PASSWORD_RESET_REDIRECT_URL}
         REACT_APP_VAPID_PUBLIC_KEY: ${REACT_APP_VAPID_PUBLIC_KEY}
+        REACT_APP_GLOBAL_ASSISTANT_ENABLED: ${REACT_APP_GLOBAL_ASSISTANT_ENABLED:-true}
         # REACT_APP_OPENAI_API_KEY wurde entfernt, da der Key zur Laufzeit vom Benutzerprofil geladen wird.
     image: umzugsplaner-pwa-image # Name des zu erstellenden Images
     container_name: umzugsplaner-pwa-container
