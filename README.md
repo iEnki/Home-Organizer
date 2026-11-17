@@ -19,7 +19,7 @@ Demo login: `demo@demo.com` / `Demo1234`
 
 ## Technology
 
-React 18, Tailwind CSS, Supabase/PostgreSQL, Supabase Edge Functions, Docker Compose, Chart.js, Framer Motion, Web Push, OpenAI and optional Ollama.
+React 19, Vite 8, Tailwind CSS, Supabase/PostgreSQL, Supabase Edge Functions, Docker Compose, Chart.js, Framer Motion, Web Push, OpenAI and optional Ollama.
 
 The fullstack deployment also includes local services for document OCR and recipe-source processing.
 
@@ -37,7 +37,7 @@ Choose installation mode in the menu:
 - **Fullstack:** app, Supabase, storage, Edge Functions, OCR and recipe services.
 - **App-only:** frontend connected to an existing Supabase project.
 
-During fullstack installation, the management script offers to apply [`database_setup_complete.sql`](database_setup_complete.sql). App-only or skipped schema setup requires a manual run; review the known schema gaps in the language-specific guides. Never commit the generated `.env` or `CREDENTIALS.txt`.
+During fullstack installation, the management script offers to apply [`database_setup_complete.sql`](database_setup_complete.sql). App-only or skipped schema setup requires a manual run; follow the schema setup instructions in the language-specific guides. Never commit the generated `.env` or `CREDENTIALS.txt`.
 
 ## Documentation
 
@@ -48,8 +48,4 @@ During fullstack installation, the management script offers to apply [`database_
 
 ## License
 
-[PolyForm Noncommercial License 1.0.0](LICENSE). Free for noncommercial use: private households, charitable organizations, educational institutions and public bodies may run and modify this software. Commercial use — including reselling it, offering it as a paid service, or using it inside a for-profit company — is not permitted without a separate license. For commercial licensing, please open an issue.
-
-This is source-available, not open source in the OSI sense.
-
-Versions released before this change remain available under the MIT license, which cannot be revoked retroactively.
+[MIT License](LICENSE).

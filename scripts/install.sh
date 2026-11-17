@@ -51,6 +51,8 @@ print_supabase_proxy_timeout_notice() {
 }
 
 cd "$PROJECT_DIR"
+# Shared, non-destructive App-only / Fullstack detection.
+source "$SCRIPT_DIR/lib/runtime-context.sh"
 
 deploy_edge_functions_to_volumes() {
   local deployed
@@ -87,69 +89,12 @@ run_sql_in_db_container() {
 }
 
 run_sql_with_fallback() {
-  local sql_file="$1"
-  local log_file
-  log_file="$(mktemp)"
-
-  if run_sql_in_db_container "$sql_file" 1 >"$log_file" 2>&1; then
-    cat "$log_file"
-    rm -f "$log_file"
-    return 0
-  fi
-
-  cat "$log_file"
-
-  if [[ "$sql_file" == "database_setup_complete.sql" ]] && grep -qi "must be owner of table objects" "$log_file"; then
-    warn "Storage-Policies auf storage.objects konnten nicht mit voller Berechtigung gesetzt werden."
-    warn "Import wird tolerant wiederholt, damit restliches Schema nicht abbricht."
-    if run_sql_in_db_container "$sql_file" 0; then
-      rm -f "$log_file"
-      return 2
-    fi
-  fi
-
-  rm -f "$log_file"
-  return 1
+  # Compatibility name retained; never repeat a failed import ignoring errors.
+  run_sql_in_db_container "$1" 1
 }
 
 ensure_kong_entrypoint_script() {
-  mkdir -p volumes/api
-  cat > volumes/api/kong-entrypoint.sh << 'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-
-if [[ -n "${SUPABASE_SECRET_KEY:-}" && -n "${SUPABASE_PUBLISHABLE_KEY:-}" ]]; then
-  export LUA_AUTH_EXPR="\$((headers.authorization ~= nil and headers.authorization:sub(1, 10) ~= 'Bearer sb_' and headers.authorization) or (headers.apikey == '${SUPABASE_SECRET_KEY}' and 'Bearer ${SERVICE_ROLE_KEY_ASYMMETRIC}') or (headers.apikey == '${SUPABASE_PUBLISHABLE_KEY}' and 'Bearer ${ANON_KEY_ASYMMETRIC}') or headers.apikey)"
-  export LUA_RT_WS_EXPR="\$((query_params.apikey == '${SUPABASE_SECRET_KEY}' and '${SERVICE_ROLE_KEY_ASYMMETRIC}') or (query_params.apikey == '${SUPABASE_PUBLISHABLE_KEY}' and '${ANON_KEY_ASYMMETRIC}') or query_params.apikey)"
-else
-  export LUA_AUTH_EXPR="\$((headers.authorization ~= nil and headers.authorization:sub(1, 10) ~= 'Bearer sb_' and headers.authorization) or headers.apikey)"
-  export LUA_RT_WS_EXPR="\$(query_params.apikey)"
-fi
-
-awk '{
-  result = ""
-  rest = $0
-  while (match(rest, /\$[A-Za-z_][A-Za-z_0-9]*/)) {
-    varname = substr(rest, RSTART + 1, RLENGTH - 1)
-    if (varname in ENVIRON) {
-      result = result substr(rest, 1, RSTART - 1) ENVIRON[varname]
-    } else {
-      result = result substr(rest, 1, RSTART + RLENGTH - 1)
-    }
-    rest = substr(rest, RSTART + RLENGTH)
-  }
-  print result rest
-}' /home/kong/temp.yml > "${KONG_DECLARATIVE_CONFIG}"
-
-sed -i '/^[[:space:]]*- key:[[:space:]]*$/d' "${KONG_DECLARATIVE_CONFIG}"
-
-if [[ -x /entrypoint.sh ]]; then
-  exec /entrypoint.sh kong docker-start
-fi
-
-exec /docker-entrypoint.sh kong docker-start
-EOF
-  chmod +x volumes/api/kong-entrypoint.sh
+  umzug_prepare_kong_entrypoint "$PROJECT_DIR"
 }
 
 ensure_updated_at_functions() {
@@ -349,8 +294,7 @@ if [[ "$MODE" == "rebuild" ]]; then
 
   [[ ! -f ".env" ]] && err ".env nicht gefunden. Bitte zuerst eine Neuinstallation durchfuehren."
 
-  COMPOSE_FILE="docker-compose.full.yml"
-  [[ ! -f "$COMPOSE_FILE" ]] && COMPOSE_FILE="docker-compose.yml"
+  umzug_resolve_install_context "$PROJECT_DIR" de || exit 1
 
   echo ""
   echo "  Compose-Datei: ${COMPOSE_FILE}"
@@ -359,15 +303,15 @@ if [[ "$MODE" == "rebuild" ]]; then
   [[ "${CONFIRM,,}" != "j" && "${CONFIRM,,}" != "y" ]] && { echo "  Abgebrochen."; exit 0; }
 
   info "Baue App-Container neu..."
-  docker compose -f "$COMPOSE_FILE" build umzugsplaner-app
+  umzug_compose -f "$COMPOSE_FILE" build umzugsplaner-app
 
   info "Starte Container neu..."
-  docker compose -f "$COMPOSE_FILE" up -d --force-recreate umzugsplaner-app
+  umzug_compose -f "$COMPOSE_FILE" up -d --force-recreate umzugsplaner-app
 
   if [[ "$COMPOSE_FILE" == "docker-compose.full.yml" ]]; then
     info "Synchronisiere und aktualisiere Edge Functions..."
     deploy_edge_functions_to_volumes
-    docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate functions
+    umzug_compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate functions
 
     FUNCTIONS_ENV="$(docker inspect supabase-edge-functions --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null || true)"
     if ! grep -qx 'SUPABASE_AUTH_URL=http://auth:9999' <<< "$FUNCTIONS_ENV" \
@@ -385,6 +329,7 @@ fi
 # MODUS: Ollama konfigurieren
 # ============================================================
 if [[ "$MODE" == "ollama" ]]; then
+  umzug_resolve_install_context "$PROJECT_DIR" de || exit 1
   header "Ollama konfigurieren"
 
   echo ""
@@ -468,35 +413,23 @@ SYSD
     read -p "  Ollama-URL in .env aktualisieren? (z.B. https://gpt.meine-domain.de) [Enter = ueberspringen]: " OLLAMA_EXTERNAL_URL
 
   elif [[ "$OLLAMA_SETUP" == "2" ]]; then
-    # --- Docker ---
-    header "Ollama - Docker"
-
-    read -p "  App-URL (fuer CORS, z.B. https://umzug.meine-domain.de): " OLLAMA_APP_URL
-
-    echo ""
-    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^ollama$"; then
-      info "Laufender 'ollama' Container gefunden."
-      echo ""
-      echo "  OLLAMA_ORIGINS setzen:"
-      echo "  In deiner .env: OLLAMA_ORIGINS=${OLLAMA_APP_URL}"
-      echo "  Dann: docker compose -f docker-compose.full.yml up -d --force-recreate ollama"
-    else
-      warn "Kein laufender 'ollama' Container gefunden."
-      echo ""
-      echo "  Starten mit CORS-Unterstuetzung:"
-      echo "  docker run -d --name ollama \\"
-      echo "    -p 11434:11434 \\"
-      echo "    -e OLLAMA_ORIGINS=\"${OLLAMA_APP_URL}\" \\"
-      echo "    -v ollama-data:/root/.ollama \\"
-      echo "    ollama/ollama"
+    header "Ollama — Docker"
+    OLLAMA_MANAGED=n
+    if [[ "$IS_VOLLSTACK" == true ]]; then
+      read -rp "  Compose-Dienst dieser Installation verwenden? [J/n]: " OLLAMA_MANAGED
+      OLLAMA_MANAGED=${OLLAMA_MANAGED:-j}
     fi
-
-    echo ""
-    read -p "  Ollama-Port [11434]: " OLLAMA_PORT
-    [[ -z "$OLLAMA_PORT" ]] && OLLAMA_PORT=11434
-    OLLAMA_EXTERNAL_URL="http://localhost:${OLLAMA_PORT}"
-    read -p "  Ollama-URL in .env aktualisieren mit '${OLLAMA_EXTERNAL_URL}'? [j/N]: " CONFIRM_URL
-    [[ "${CONFIRM_URL,,}" != "j" && "${CONFIRM_URL,,}" != "y" ]] && OLLAMA_EXTERNAL_URL=""
+    if [[ "${OLLAMA_MANAGED,,}" == j || "${OLLAMA_MANAGED,,}" == y ]]; then
+      umzug_store_setting "$PROJECT_DIR" OLLAMA_INSTALLED true || exit 1
+      echo "  Im Installationsordner starten (festgelegte Version, App-Netz):"
+      umzug_print_ollama_start "$PROJECT_DIR"
+      OLLAMA_EXTERNAL_URL="http://ollama:11434"
+    else
+      echo "  Ollama auf dem anderen Host einrichten; die Adresse muss vom Backend erreichbar sein."
+      read -rp "  Vom Backend erreichbare Ollama-URL (LAN-IP oder Domain): " OLLAMA_EXTERNAL_URL
+    fi
+    read -rp "  '${OLLAMA_EXTERNAL_URL}' als URL-Vorschlag speichern? [j/N]: " CONFIRM_URL
+    [[ "${CONFIRM_URL,,}" != j && "${CONFIRM_URL,,}" != y ]] && OLLAMA_EXTERNAL_URL=""
 
   else
     # --- Extern ---
@@ -520,6 +453,7 @@ SYSD
     echo ""
     echo "  In der App: Profil -> KI-Einstellungen -> Ollama -> Basis-URL eintragen:"
     echo "  ${OLLAMA_EXTERNAL_URL}"
+    echo "  Diese Adresse im App-Profil übernehmen; die .env speichert nur den Vorschlag."
   fi
 
   echo ""
@@ -538,7 +472,7 @@ MULTIUSER_SCHEMA_STATUS="nicht ausgefuehrt"
 header "Schritt 1: Voraussetzungen pruefen"
 
 command -v docker >/dev/null 2>&1 || err "Docker ist nicht installiert.\n  -> https://docs.docker.com/get-docker/"
-docker compose version >/dev/null 2>&1 || err "Docker Compose Plugin fehlt.\n  -> Docker aktualisieren oder Plugin installieren."
+umzug_compose version >/dev/null 2>&1 || err "Docker Compose Plugin fehlt.\n  -> Docker aktualisieren oder Plugin installieren."
 command -v node >/dev/null 2>&1 || err "Node.js ist nicht installiert.\n  -> https://nodejs.org/"
 command -v openssl >/dev/null 2>&1 || err "openssl ist nicht installiert.\n  -> sudo apt install openssl"
 
@@ -624,6 +558,7 @@ OLLAMA_EXTERNAL_URL=""
 
 if [[ "$OLLAMA_CHOICE" == "1" ]]; then
   INSTALL_OLLAMA=true
+  OLLAMA_EXTERNAL_URL="http://ollama:11434"
   read -p "  Ollama Port [11434]: " OLLAMA_PORT
   [[ -z "$OLLAMA_PORT" ]] && OLLAMA_PORT=11434
   info "Ollama wird via Docker-Profil 'ollama' mitgestartet."
@@ -664,6 +599,7 @@ extract_key() {
 VAPID_PUBLIC_KEY=$(extract_key VAPID_PUBLIC_KEY)
 VAPID_PRIVATE_KEY=$(extract_key VAPID_PRIVATE_KEY)
 RECIPE_PARSER_INTERNAL_TOKEN=$(extract_key RECIPE_PARSER_INTERNAL_TOKEN)
+  DOCUMENT_OCR_INTERNAL_TOKEN=$(extract_key DOCUMENT_OCR_INTERNAL_TOKEN)
 
 if [[ "$MODE" == "vollstack" ]]; then
   POSTGRES_PASSWORD=$(extract_key POSTGRES_PASSWORD)
@@ -686,40 +622,12 @@ success "Schluessel generiert."
 
 # ---- Supabase DB-Init-Dateien (nur Vollstack) ----
 if [[ "$MODE" == "vollstack" ]]; then
+  command -v python3 >/dev/null 2>&1 || err "python3 is required for storage backup/restore (apt install python3)."
   header "Schritt 4: Supabase-Initialisierungsdateien"
 
-  SUPABASE_RAW="https://raw.githubusercontent.com/supabase/supabase/master/docker"
-  SUPABASE_FILES=(
-    "volumes/db/realtime.sql"
-    "volumes/db/webhooks.sql"
-    "volumes/db/roles.sql"
-    "volumes/db/jwt.sql"
-    "volumes/db/_supabase.sql"
-    "volumes/db/logs.sql"
-    "volumes/db/pooler.sql"
-    "volumes/logs/vector.yml"
-    "volumes/pooler/pooler.exs"
-    "volumes/api/kong.yml"
-  )
-
-  mkdir -p volumes/db volumes/logs volumes/pooler volumes/storage volumes/functions \
-           volumes/snippets volumes/db/data volumes/api
-
+  mkdir -p volumes/db volumes/logs volumes/pooler volumes/storage volumes/functions volumes/snippets volumes/db/data volumes/api
+  umzug_prepare_supabase_files "$PROJECT_DIR" || err "Versioned Supabase initialization files missing."
   ALL_DOWNLOADED=true
-  for file in "${SUPABASE_FILES[@]}"; do
-    if [[ ! -f "$file" ]]; then
-      info "Lade ${file}..."
-      if curl -fsSL "${SUPABASE_RAW}/${file}" -o "${file}" 2>/dev/null; then
-        echo "    OK ${file}"
-      else
-        warn "Konnte ${file} nicht herunterladen."
-        ALL_DOWNLOADED=false
-      fi
-    else
-      echo "    OK ${file} (bereits vorhanden)"
-    fi
-  done
-
   ensure_kong_entrypoint_script
 
   if [[ -f "volumes/db/jwt.sql" ]]; then
@@ -741,6 +649,8 @@ INSTALL_DATE=$(date "+%Y-%m-%d %H:%M:%S")
 info "Schreibe .env..."
 
 if [[ "$MODE" == "vollstack" ]]; then
+  (umask 077; touch .env)
+  chmod 600 .env
   cat > .env << EOF
 # ============================================================
 # Umzughelfer + Supabase - Vollstack
@@ -818,7 +728,7 @@ ENABLE_EMAIL_AUTOCONFIRM=false
 ENABLE_PHONE_SIGNUP=false
 ENABLE_PHONE_AUTOCONFIRM=false
 ENABLE_ANONYMOUS_USERS=false
-ADDITIONAL_REDIRECT_URLS=${APP_URL}
+ADDITIONAL_REDIRECT_URLS=$(umzug_redirect_allowlist "" "$APP_URL")
 MAILER_URLPATHS_INVITE=/auth/v1/verify
 MAILER_URLPATHS_CONFIRMATION=/auth/v1/verify
 MAILER_URLPATHS_RECOVERY=/auth/v1/verify
@@ -845,17 +755,21 @@ INVITE_BRAND_NAME=Umzughelfer
 # Ollama (optional)
 OLLAMA_PORT=${OLLAMA_PORT}
 OLLAMA_EXTERNAL_URL=${OLLAMA_EXTERNAL_URL}
+OLLAMA_USE_GPU=false
+OLLAMA_INSTALLED=${INSTALL_OLLAMA}
 OLLAMA_ORIGINS=${APP_URL}
 
 # Edge Functions
 FUNCTIONS_VERIFY_JWT=true
 RECIPE_PARSER_INTERNAL_TOKEN=${RECIPE_PARSER_INTERNAL_TOKEN}
+DOCUMENT_OCR_INTERNAL_TOKEN=${DOCUMENT_OCR_INTERNAL_TOKEN}
+BASG_API_TOKEN=
 RECIPE_PARSER_URL=http://recipe-source-parser:8090
 RECIPE_PARSER_PORT=8090
 WHISPER_DEVICE=auto
 WHISPER_MODEL=small
 WHISPER_CPU_COMPUTE_TYPE=int8
-WHISPER_GPU_COMPUTE_TYPE=float16
+WHISPER_GPU_COMPUTE_TYPE=auto
 WHISPER_CPP_FALLBACK_ENABLED=true
 
 # PostgREST
@@ -869,6 +783,8 @@ DOCKER_SOCKET_LOCATION=/var/run/docker.sock
 EOF
 
 else
+  (umask 077; touch .env)
+  chmod 600 .env
   cat > .env << EOF
 # ============================================================
 # Umzughelfer App - Bestehende Supabase-Instanz
@@ -892,9 +808,12 @@ REACT_APP_VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
 
 # Ollama (optional - Basis-URL ohne Pfad, z.B. https://gpt.meine-domain.de)
 OLLAMA_EXTERNAL_URL=${OLLAMA_EXTERNAL_URL}
+OLLAMA_USE_GPU=false
+OLLAMA_INSTALLED=${INSTALL_OLLAMA}
 EOF
 fi
 
+umzug_save_install_mode "$PROJECT_DIR" "$MODE" || exit 1
 success ".env geschrieben."
 
 # ---- Docker Build und Start ----
@@ -904,45 +823,18 @@ COMPOSE_FILE="docker-compose.full.yml"
 [[ "$MODE" == "apponly" ]] && COMPOSE_FILE="docker-compose.yml"
 
 info "Baue React-App (kann einige Minuten dauern)..."
-docker compose -f "$COMPOSE_FILE" build umzugsplaner-app
+umzug_compose -f "$COMPOSE_FILE" build umzugsplaner-app
 
 info "Starte Container..."
 set +e
-if [[ "$INSTALL_OLLAMA" == "true" ]]; then
-  docker compose -f "$COMPOSE_FILE" --profile ollama up -d
-else
-  docker compose -f "$COMPOSE_FILE" up -d
-fi
+umzug_start_stack "$COMPOSE_FILE" "$INSTALL_OLLAMA"
 COMPOSE_EXIT=$?
 set -e
 
 if [[ $COMPOSE_EXIT -ne 0 ]]; then
-  warn "Docker Compose meldete einen Fehler (Exit ${COMPOSE_EXIT})."
-  # Analytics benoetigt bei Erstinstallation bis zu 3 Min fuer DB-Initialisierung.
-  # Pruefen ob er der einzige Fehler ist und ggf. warten.
-  if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "supabase-analytics"; then
-    warn "Warte auf Analytics-Container (kann bei Erstinstallation bis zu 3 Min dauern)..."
-    ANALYTICS_OK=false
-    for _i in $(seq 1 36); do
-      if docker exec supabase-analytics curl -sf http://localhost:4000/health >/dev/null 2>&1; then
-        ANALYTICS_OK=true
-        break
-      fi
-      sleep 5
-      echo -n "."
-    done
-    echo ""
-    if [[ "$ANALYTICS_OK" == "true" ]]; then
-      success "Analytics bereit."
-      docker compose -f "$COMPOSE_FILE" up -d --no-recreate 2>/dev/null || true
-    else
-      warn "Analytics antwortet noch nicht. Die App-Funktionen sind davon nicht betroffen."
-      warn "Neustart bei Bedarf: docker compose -f ${COMPOSE_FILE} restart supabase-analytics"
-    fi
-  else
-    err "Docker-Start fehlgeschlagen (Exit ${COMPOSE_EXIT}). Logs: docker compose -f ${COMPOSE_FILE} logs"
-  fi
+  err "Docker-Start fehlgeschlagen (Exit $COMPOSE_EXIT). Bitte Containerstatus und Logs prüfen."
 fi
+
 
 if [[ "$MODE" == "vollstack" ]]; then
   info "Warte auf Datenbankbereitschaft (bis zu 2 Minuten)..."
@@ -958,6 +850,7 @@ if [[ "$MODE" == "vollstack" ]]; then
     DB_SCHEMA_STATUS="uebersprungen (DB nicht bereit)"
     MULTIUSER_SCHEMA_STATUS="uebersprungen (DB nicht bereit)"
   else
+      umzug_wait_fullstack_ready || err "Storage/Kong readiness check failed; schema was not imported."
     read -p "  Schema jetzt anwenden? [J/n]: " APPLY_SCHEMA_NOW
     if [[ "${APPLY_SCHEMA_NOW,,}" == "n" ]]; then
       DB_SCHEMA_STATUS="manuell erforderlich"
@@ -983,20 +876,7 @@ if [[ "$MODE" == "vollstack" ]]; then
         warn "database_setup_complete.sql nicht gefunden."
       fi
 
-      if [[ -f "umzugshelfer-pwa/haushalt_multiuser_setup.sql" ]]; then
-        ensure_updated_at_functions
-        info "Wende optional umzugshelfer-pwa/haushalt_multiuser_setup.sql an..."
-        if run_sql_in_db_container "umzugshelfer-pwa/haushalt_multiuser_setup.sql"; then
-          MULTIUSER_SCHEMA_STATUS="angewendet"
-          success "haushalt_multiuser_setup.sql erfolgreich angewendet."
-        else
-          MULTIUSER_SCHEMA_STATUS="fehler"
-          warn "haushalt_multiuser_setup.sql konnte nicht vollstaendig angewendet werden."
-        fi
-      else
-        MULTIUSER_SCHEMA_STATUS="nicht vorhanden"
-        warn "Optionale Datei umzugshelfer-pwa/haushalt_multiuser_setup.sql nicht gefunden."
-      fi
+      MULTIUSER_SCHEMA_STATUS="in database_setup_complete.sql enthalten"
     fi
   fi
 else
@@ -1005,9 +885,12 @@ else
 fi
 
 # ---- CREDENTIALS.txt ----
+if [[ -f CREDENTIALS.txt ]]; then chmod 600 CREDENTIALS.txt; fi
 info "Schreibe CREDENTIALS.txt..."
 
 if [[ "$MODE" == "vollstack" ]]; then
+  (umask 077; touch CREDENTIALS.txt)
+  chmod 600 CREDENTIALS.txt
   cat > CREDENTIALS.txt << CREDS
 ============================================================
   Umzughelfer - Vollstack-Installation
@@ -1059,18 +942,16 @@ EINLADUNGS-MAIL (optional, Edge Function send-household-invite)
    b) Mit "supabase" / "${STUDIO_PASSWORD}" anmelden
    c) SQL Editor -> Neue Abfrage
    d) Falls noch offen: database_setup_complete.sql ausfuehren
-   e) Optional/empfohlen: umzugshelfer-pwa/haushalt_multiuser_setup.sql ausfuehren
 
 SCHEMA-STATUS
   database_setup_complete.sql: ${DB_SCHEMA_STATUS}
-  haushalt_multiuser_setup.sql: ${MULTIUSER_SCHEMA_STATUS}
 
 2. App aufrufen: ${APP_URL}
 
 3. Ersten Benutzer registrieren und loslegen!
 
 4. Optional - SMTP einrichten (.env -> SMTP_* Variablen):
-   docker compose -f docker-compose.full.yml restart supabase-auth
+   docker compose -f docker-compose.full.yml restart auth
 
 5. Optional - Push-Notifications testen:
    Profil -> Push-Benachrichtigungen -> Aktivieren
@@ -1078,7 +959,7 @@ SCHEMA-STATUS
 6. Optional - Ollama KI-Assistent:
 $(if [[ "$INSTALL_OLLAMA" == "true" ]]; then
   echo "   Modell laden: docker exec ollama ollama pull llama3.2"
-  echo "   In der App: Profil -> KI-Einstellungen -> Ollama -> Basis-URL: http://localhost:${OLLAMA_PORT}"
+  echo "   In der App: Profil -> KI-Einstellungen -> Ollama -> Basis-URL: http://ollama:11434"
 elif [[ -n "$OLLAMA_EXTERNAL_URL" ]]; then
   echo "   Externer Server: ${OLLAMA_EXTERNAL_URL}"
   echo "   In der App: Profil -> KI-Einstellungen -> Ollama -> Basis-URL eintragen"
@@ -1092,7 +973,7 @@ fi)
 7. Optional - Einladungs-E-Mails aktivieren:
    In .env setzen: RESEND_API_KEY + INVITE_FROM_EMAIL
    Optional: INVITE_BRAND_NAME
-   Dann: docker compose -f docker-compose.full.yml restart supabase-edge-functions
+   Dann: docker compose -f docker-compose.full.yml restart functions
 
 ============================================================
   SICHERHEITSHINWEIS
@@ -1102,6 +983,8 @@ fi)
 CREDS
 
 else
+  (umask 077; touch CREDENTIALS.txt)
+  chmod 600 CREDENTIALS.txt
   cat > CREDENTIALS.txt << CREDS
 ============================================================
   Umzughelfer - App-Installation (externe Supabase)
@@ -1140,11 +1023,9 @@ PUSH NOTIFICATIONS (VAPID)
 
 1. Datenbank einrichten (in deiner Supabase-Instanz):
    -> SQL Editor -> zuerst database_setup_complete.sql ausfuehren
-   -> danach (falls vorhanden) umzugshelfer-pwa/haushalt_multiuser_setup.sql ausfuehren
 
 SCHEMA-STATUS
   database_setup_complete.sql: ${DB_SCHEMA_STATUS}
-  haushalt_multiuser_setup.sql: ${MULTIUSER_SCHEMA_STATUS}
 
 2. App aufrufen: ${APP_URL}
 
@@ -1184,11 +1065,15 @@ else
   printf "CREDENTIALS.txt\n.env\n" > .gitignore
 fi
 
+chmod 600 CREDENTIALS.txt
 success "CREDENTIALS.txt geschrieben."
 
 # ---- Fertig ----
 echo ""
 echo -e "${BOLD}${GREEN}============================================================${NC}"
+if [[ "${MODE:-${INSTALL_MODE:-}}" == vollstack && "$DB_SCHEMA_STATUS" != angewendet && "$DB_SCHEMA_STATUS" != "manuell erforderlich" ]]; then
+  err "Installation incomplete: database schema status = $DB_SCHEMA_STATUS"
+fi
 success "Installation abgeschlossen!"
 echo -e "${BOLD}${GREEN}============================================================${NC}"
 echo ""
@@ -1199,26 +1084,23 @@ else
   echo -e "  Supabase:        ${CYAN}${SUPABASE_URL}${NC}  (extern)"
 fi
 if [[ "$INSTALL_OLLAMA" == "true" ]]; then
-  echo -e "  Ollama API:      ${CYAN}http://localhost:${OLLAMA_PORT}${NC}"
+  echo -e "  Ollama API:      ${CYAN}http://ollama:11434${NC}"
 elif [[ -n "$OLLAMA_EXTERNAL_URL" ]]; then
   echo -e "  Ollama Server:   ${CYAN}${OLLAMA_EXTERNAL_URL}${NC}"
 fi
 echo -e "  Zugangsdaten:    ${CYAN}CREDENTIALS.txt${NC}"
 echo -e "  Schema:         ${CYAN}database_setup_complete.sql = ${DB_SCHEMA_STATUS}${NC}"
-echo -e "  Multiuser:      ${CYAN}haushalt_multiuser_setup.sql = ${MULTIUSER_SCHEMA_STATUS}${NC}"
 echo ""
 echo -e "  ${BOLD}=> Naechster Schritt:${NC}"
 if [[ "$MODE" == "vollstack" ]]; then
   echo "    1. Studio oeffnen: ${STUDIO_ACCESS_URL}"
   echo "    2. Falls offen: database_setup_complete.sql ausfuehren"
-  echo "    3. Optional/empfohlen: umzugshelfer-pwa/haushalt_multiuser_setup.sql ausfuehren"
-  echo "    4. App aufrufen: ${APP_URL}"
-  echo "    5. Nach Erstlogin: Haushalt erstellen oder per Invite-Link beitreten"
-else
-  echo "    1. In Supabase SQL Editor: database_setup_complete.sql ausfuehren"
-  echo "    2. Danach (falls vorhanden): umzugshelfer-pwa/haushalt_multiuser_setup.sql ausfuehren"
   echo "    3. App aufrufen: ${APP_URL}"
   echo "    4. Nach Erstlogin: Haushalt erstellen oder per Invite-Link beitreten"
+else
+  echo "    1. In Supabase SQL Editor: database_setup_complete.sql ausfuehren"
+  echo "    2. App aufrufen: ${APP_URL}"
+  echo "    3. Nach Erstlogin: Haushalt erstellen oder per Invite-Link beitreten"
 fi
 echo ""
 echo -e "  ${BOLD}Nachtraegliche Konfiguration jederzeit:${NC}"

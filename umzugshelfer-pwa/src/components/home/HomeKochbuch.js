@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChefHat, History, Plus, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { motion, useReducedMotion } from "framer-motion";
 import { supabase } from "../../supabaseClient";
 import { useLocale } from "../../contexts/LocaleContext";

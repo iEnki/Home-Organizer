@@ -18,13 +18,14 @@ services:
   # ---- Supabase Studio (Admin-UI) ----
   studio:
     container_name: supabase-studio
-    image: supabase/studio:2026.02.16-sha-26c615c
+    image: supabase/studio:2026.11.02-sha-a05e7ec
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://studio:3000/api/platform/profile').then((r) => {if (r.status !== 200) throw new Error(r.status)})"]
       timeout: 10s
       interval: 5s
       retries: 3
+      start_period: 20s
     depends_on:
       analytics:
         condition: service_healthy
@@ -63,8 +64,14 @@ services:
   # ---- Kong API-Gateway ----
   kong:
     container_name: supabase-kong
-    image: kong:2.8.1
+    image: kong/kong:3.9.3
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     ports:
       - ${KONG_HTTP_PORT}:8000/tcp
       - ${KONG_HTTPS_PORT}:8443/tcp
@@ -75,6 +82,8 @@ services:
       analytics:
         condition: service_healthy
     environment:
+      KONG_ROUTER_FLAVOR: traditional_compatible
+      KONG_DNS_VALID_TTL: 5
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: /usr/local/kong/kong.yml
       KONG_DNS_ORDER: LAST,A,CNAME
@@ -95,7 +104,7 @@ services:
   # ---- Auth (GoTrue) ----
   mail-templates:
     container_name: supabase-mail-templates
-    image: nginx:alpine
+    image: nginx:1.31.8-alpine3.24
     restart: unless-stopped
     volumes:
       - ./supabase/templates:/usr/share/nginx/html:ro,z
@@ -107,7 +116,7 @@ services:
 
   auth:
     container_name: supabase-auth
-    image: supabase/gotrue:v2.186.0
+    image: supabase/gotrue:v2.197.0
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9999/health"]
@@ -155,7 +164,7 @@ services:
   # ---- PostgREST ----
   rest:
     container_name: supabase-rest
-    image: postgrest/postgrest:v14.5
+    image: postgrest/postgrest:v14.18
     restart: unless-stopped
     depends_on:
       db:
@@ -177,7 +186,7 @@ services:
   # ---- Realtime ----
   realtime:
     container_name: realtime-dev.supabase-realtime
-    image: supabase/realtime:v2.76.5
+    image: supabase/realtime:v2.148.3
     restart: unless-stopped
     depends_on:
       db:
@@ -191,6 +200,7 @@ services:
       retries: 3
       start_period: 10s
     environment:
+      METRICS_JWT_SECRET: ${JWT_SECRET}
       PORT: 4000
       DB_HOST: ${POSTGRES_HOST}
       DB_PORT: ${POSTGRES_PORT}
@@ -212,7 +222,7 @@ services:
   # ---- Storage ----
   storage:
     container_name: supabase-storage
-    image: supabase/storage-api:v1.37.8
+    image: supabase/storage-api:v1.89.12
     restart: unless-stopped
     depends_on:
       db:
@@ -226,7 +236,10 @@ services:
       timeout: 5s
       interval: 5s
       retries: 3
+      start_period: 10s
     environment:
+      AUTH_JWT_SECRET: ${JWT_SECRET}
+      STORAGE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL}
       ANON_KEY: ${ANON_KEY}
       SERVICE_KEY: ${SERVICE_ROLE_KEY}
       POSTGREST_URL: http://rest:3000
@@ -249,7 +262,7 @@ services:
   # ---- Imgproxy ----
   imgproxy:
     container_name: supabase-imgproxy
-    image: darthsim/imgproxy:v3.30.1
+    image: darthsim/imgproxy:v4.0.21
     restart: unless-stopped
     volumes:
       - ./volumes/storage:/var/lib/storage:z
@@ -268,7 +281,7 @@ services:
   # ---- Meta (pg-meta) ----
   meta:
     container_name: supabase-meta
-    image: supabase/postgres-meta:v0.95.2
+    image: supabase/postgres-meta:v0.100.0
     restart: unless-stopped
     depends_on:
       db:
@@ -287,8 +300,14 @@ services:
   # ---- Edge Functions (Deno) — inkl. VAPID für Push-Notifications ----
   functions:
     container_name: supabase-edge-functions
-    image: supabase/edge-runtime:v1.70.3
+    image: supabase/edge-runtime:v1.77.9
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 1 bash -c '</dev/tcp/127.0.0.1/9000'"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     volumes:
       - ./volumes/functions:/home/deno/functions:Z
       - deno-cache:/root/.cache/deno
@@ -335,7 +354,7 @@ services:
   # ---- Analytics (Logflare) ----
   analytics:
     container_name: supabase-analytics
-    image: supabase/logflare:1.31.2
+    image: supabase/logflare:1.50.15
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "http://localhost:4000/health"]
@@ -419,24 +438,27 @@ services:
   # ---- Supavisor (Connection Pooler) ----
   supavisor:
     container_name: supabase-pooler
-    image: supabase/supavisor:2.7.4
+    image: supabase/supavisor:2.9.13
     restart: unless-stopped
     ports:
       - ${POSTGRES_PORT}:5432
       - ${POOLER_PROXY_PORT_TRANSACTION}:6543
     volumes:
       - ./volumes/pooler/pooler.exs:/etc/pooler/pooler.exs:ro,z
+      - ./scripts/lib/pooler-manager.exs:/etc/pooler/manager-credentials.exs:ro,z
     healthcheck:
       test: ["CMD", "curl", "-sSfL", "--head", "-o", "/dev/null", "http://127.0.0.1:4000/api/health"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 30s
     depends_on:
       db:
         condition: service_healthy
       analytics:
         condition: service_healthy
     environment:
+      POSTGRES_HOST: ${POSTGRES_HOST}
       PORT: 4000
       POSTGRES_PORT: ${POSTGRES_PORT}
       POSTGRES_DB: ${POSTGRES_DB}
@@ -454,7 +476,7 @@ services:
       POOLER_MAX_CLIENT_CONN: ${POOLER_MAX_CLIENT_CONN}
       POOLER_POOL_MODE: transaction
       DB_POOL_SIZE: ${POOLER_DB_POOL_SIZE}
-    command: ["/bin/sh", "-c", "/app/bin/migrate && /app/bin/supavisor eval \"$$(cat /etc/pooler/pooler.exs)\" && /app/bin/server"]
+    command: ["/bin/sh", "-c", "/app/bin/migrate && /app/bin/supavisor eval 'Code.require_file(\"/etc/pooler/manager-credentials.exs\"); UmzugPoolerManager.sync!()' && /app/bin/supavisor eval \"$$(cat /etc/pooler/pooler.exs)\" && /app/bin/server"]
 
   # ============================================================
   # Ollama (optional — self-hosted LLM für KI-Assistenten)
@@ -468,7 +490,7 @@ services:
   # ============================================================
   ollama:
     container_name: ollama
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.40.16
     restart: unless-stopped
     profiles: ["ollama"]
     ports:
@@ -477,13 +499,19 @@ services:
       - ollama-data:/root/.ollama
     environment:
       OLLAMA_ORIGINS: "*"
-    # GPU-Unterstützung (Nvidia). Erfordert NVIDIA Container Toolkit auf dem Host.
-    gpus: all
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    # Optional NVIDIA GPU: OLLAMA_USE_GPU=true; management loads the override.
 
   # ============================================================
   # Kochbuch Parser/Transkriptions-Service
   # Lokaler Whisper-Default mit Auto-Erkennung:
-  # CUDA/float16 wenn verfuegbar, sonst CPU/int8.
+  # CUDA mit dem besten von der GPU unterstuetzten Typ (WHISPER_GPU_COMPUTE_TYPE=auto),
+  # sonst CPU/int8.
   # ============================================================
   recipe-source-parser:
     build:
@@ -491,6 +519,12 @@ services:
       dockerfile: Dockerfile
     container_name: recipe-source-parser
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import json,sys,urllib.request; r=urllib.request.urlopen(\"http://127.0.0.1:8090/health\", timeout=2); sys.exit(0 if r.status == 200 and json.load(r).get(\"status\") == \"ok\" else 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     environment:
       PORT: 8090
       RECIPE_PARSER_INTERNAL_TOKEN: ${RECIPE_PARSER_INTERNAL_TOKEN}
@@ -499,7 +533,7 @@ services:
       WHISPER_DEVICE: ${WHISPER_DEVICE:-auto}
       WHISPER_MODEL: ${WHISPER_MODEL:-small}
       WHISPER_CPU_COMPUTE_TYPE: ${WHISPER_CPU_COMPUTE_TYPE:-int8}
-      WHISPER_GPU_COMPUTE_TYPE: ${WHISPER_GPU_COMPUTE_TYPE:-float16}
+      WHISPER_GPU_COMPUTE_TYPE: ${WHISPER_GPU_COMPUTE_TYPE:-auto}
       WHISPER_CPP_FALLBACK_ENABLED: ${WHISPER_CPP_FALLBACK_ENABLED:-true}
       WHISPER_MODEL_DIR: /models/whisper
     ports:
@@ -524,6 +558,12 @@ services:
       dockerfile: Dockerfile
     container_name: document-ocr-service
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import json,sys,urllib.request; r=urllib.request.urlopen(\"http://127.0.0.1:8091/health\", timeout=2); sys.exit(0 if r.status == 200 and json.load(r).get(\"status\") == \"ok\" else 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     environment:
       PORT: 8091
       DOCUMENT_OCR_INTERNAL_TOKEN: ${DOCUMENT_OCR_INTERNAL_TOKEN}
@@ -542,6 +582,7 @@ services:
         REACT_APP_SUPABASE_ANON_KEY: ${REACT_APP_SUPABASE_ANON_KEY}
         REACT_APP_PASSWORD_RESET_REDIRECT_URL: ${REACT_APP_PASSWORD_RESET_REDIRECT_URL}
         REACT_APP_VAPID_PUBLIC_KEY: ${REACT_APP_VAPID_PUBLIC_KEY}
+        REACT_APP_GLOBAL_ASSISTANT_ENABLED: ${REACT_APP_GLOBAL_ASSISTANT_ENABLED:-true}
     image: umzugsplaner-pwa-image
     container_name: umzugsplaner-pwa-container
     ports:

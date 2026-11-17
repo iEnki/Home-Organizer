@@ -2,7 +2,8 @@ import OverlayPortal from "./ui/OverlayPortal";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../supabaseClient";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { getSafeRedirectPath } from "../utils/safeRedirect";
+import { Link, useLocation, useNavigate } from "react-router";
 import { LogIn, Mail, KeyRound, XCircle } from "lucide-react";
 
 const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
@@ -22,8 +23,7 @@ const LoginForm = ({ setSession, onLoginSuccess, closeLoginModal }) => {
     process.env.REACT_APP_PASSWORD_RESET_REDIRECT_URL ||
     `${window.location.origin}/update-password`;
   const requestedNextPath = new URLSearchParams(location.search).get("next") || "";
-  const redirectPath =
-    requestedNextPath.startsWith("/") ? requestedNextPath : "/dashboard";
+  const redirectPath = getSafeRedirectPath(requestedNextPath);
 
   const handleLogin = async (e) => {
     e.preventDefault();

@@ -1,3 +1,5 @@
+// iOS 11/12 remain supported; i18next 24+ requires Intl.PluralRules.
+import "intl-pluralrules";
 import i18n from "i18next";
 import LanguageDetector from "i18next-browser-languagedetector";
 import { initReactI18next } from "react-i18next";
@@ -133,6 +135,8 @@ i18n
       convertDetectedLanguage: normalizeLocale,
     },
     returnNull: false,
+    // Preserve intentional blank translations across the i18next 27 default change.
+    returnEmptyString: true,
   });
 
 export default i18n;

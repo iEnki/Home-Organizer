@@ -113,5 +113,10 @@
   "agentBudgetExceeded": "I could not finish the request within the tool budget. Please narrow down the question.",
   "flowInactive": "{{label}} is prepared but not currently wired up as a Home route.",
   "flowOpening": "Opening the matching Home flow: {{label}}.",
-  "preparedSummary": "I have prepared {{summary}}."
+  "preparedSummary": "I have prepared {{summary}}.",
+  "audioRecorder": {
+    "unsupportedMicrophone": "This browser does not support microphone recording.",
+    "unsupportedRecording": "This browser does not support audio recording.",
+    "recordingFailed": "Audio recording failed."
+  }
 }

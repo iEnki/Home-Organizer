@@ -1,14 +1,14 @@
 import React, { useState } from "react";
 import { supabase } from "../supabaseClient";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { getSafeRedirectPath } from "../utils/safeRedirect";
+import { Link, useLocation, useNavigate } from "react-router";
 import { UserPlus, Mail, KeyRound } from "lucide-react";
 
 const RegisterPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const requestedNextPath = new URLSearchParams(location.search).get("next") || "";
-  const redirectPath =
-    requestedNextPath.startsWith("/") ? requestedNextPath : "/dashboard";
+  const redirectPath = getSafeRedirectPath(requestedNextPath);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");

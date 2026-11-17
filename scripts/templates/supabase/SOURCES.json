@@ -1,0 +1,55 @@
+{
+  "upstreamCommit": "1d06ec81541f5ba86ef124732633ff5dfdcfabc1",
+  "files": [
+    {
+      "path": "volumes/db/realtime.sql",
+      "source": "https://raw.githubusercontent.com/supabase/supabase/1d06ec81541f5ba86ef124732633ff5dfdcfabc1/docker/volumes/db/realtime.sql",
+      "sha256": "7e9e442e7fc4dae05544c07b67bede37a00d84644304dfce4d937134cb4c8f88"
+    },
+    {
+      "path": "volumes/db/webhooks.sql",
+      "source": "https://raw.githubusercontent.com/supabase/supabase/1d06ec81541f5ba86ef124732633ff5dfdcfabc1/docker/volumes/db/webhooks.sql",
+      "sha256": "b584aaaa0c393f27218f81e01e76e1d07d42f947083249adcd6097ad471cde62"
+    },
+    {
+      "path": "volumes/db/roles.sql",
+      "source": "https://raw.githubusercontent.com/supabase/supabase/1d06ec81541f5ba86ef124732633ff5dfdcfabc1/docker/volumes/db/roles.sql",
+      "sha256": "3ad717b225daa38aa982da26750f35641eb404e1eb5e69a763c22236ab96c1b2"
+    },
+    {
+      "path": "volumes/db/jwt.sql",
+      "source": "https://raw.githubusercontent.com/supabase/supabase/1d06ec81541f5ba86ef124732633ff5dfdcfabc1/docker/volumes/db/jwt.sql",
+      "sha256": "1cc94a4f16f6e2932b383cd68e211a96bcae298437ca4120d8a5106396c58465"
+    },
+    {
+      "path": "volumes/db/_supabase.sql",
+      "source": "https://raw.githubusercontent.com/supabase/supabase/1d06ec81541f5ba86ef124732633ff5dfdcfabc1/docker/volumes/db/_supabase.sql",
+      "sha256": "9dce462adc04137d6afabcf28efa60a6c355270a4b32d7af58891ac4eb964c5f"
+    },
+    {
+      "path": "volumes/db/logs.sql",
+      "source": "https://raw.githubusercontent.com/supabase/supabase/1d06ec81541f5ba86ef124732633ff5dfdcfabc1/docker/volumes/db/logs.sql",
+      "sha256": "f0463ce5030907acef49326d2bffd36002df0718035071be7c99bd7fc897c63d"
+    },
+    {
+      "path": "volumes/db/pooler.sql",
+      "source": "https://raw.githubusercontent.com/supabase/supabase/1d06ec81541f5ba86ef124732633ff5dfdcfabc1/docker/volumes/db/pooler.sql",
+      "sha256": "df97ebe148d94cfb92a5e37ebf972dfd496be195f0915ecf14396b2cf50efecb"
+    },
+    {
+      "path": "volumes/logs/vector.yml",
+      "source": "https://raw.githubusercontent.com/supabase/supabase/1d06ec81541f5ba86ef124732633ff5dfdcfabc1/docker/volumes/logs/vector.yml",
+      "sha256": "a78bb48ec254e9d8fb09148ca6b4c90f69079c90ab442cd9897d282123c4492a"
+    },
+    {
+      "path": "volumes/pooler/pooler.exs",
+      "source": "https://raw.githubusercontent.com/supabase/supabase/1d06ec81541f5ba86ef124732633ff5dfdcfabc1/docker/volumes/pooler/pooler.exs",
+      "sha256": "312e963efcfad533af647574692277c238937ec995907682063cfd026cd43234"
+    },
+    {
+      "path": "volumes/api/kong.yml",
+      "source": "Existing locally indexed Kong 2.8.1 configuration, successfully tested in HOME-10. Not downloaded from master.",
+      "sha256": "b47e07da894cce4e73ca014536d6f4b38aba93afe946680ddb932aeb6e256bd1"
+    }
+  ]
+}

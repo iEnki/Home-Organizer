@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../supabaseClient";
 import OpenAI from "openai";
-import { ReactMic } from "react-mic"; // Hinzugefügt
+import AudioRecorder from "./AudioRecorder";
 import { useLocale } from "../contexts/LocaleContext";
 import { getKiClient, isKiClientReady, startSpeechRecognition } from "../utils/kiClient";
 import {
@@ -186,7 +186,8 @@ const KiPacklisteAssistent = ({ session, onItemsExtracted }) => {
         apiKey: apiKey,
         dangerouslyAllowBrowser: true,
       });
-      const audioFile = new File([audioBlob], "aufnahme.webm", {
+      const extension = audioBlob.type.includes("mp4") ? "mp4" : audioBlob.type.includes("ogg") ? "ogg" : "webm";
+      const audioFile = new File([audioBlob], `aufnahme.${extension}`, {
         type: audioBlob.type,
       });
 
@@ -512,10 +513,11 @@ Antworte nur mit dem JSON-Array. Achte darauf, dass jeder explizit genannte Gege
           {inputModus === "sprache" ? (
             <>
               <div style={{ display: isRecording ? "block" : "none" }}>
-                <ReactMic
+                <AudioRecorder
                   record={isRecording}
                   className="sound-wave w-full h-20"
                   onStop={onStopRecording}
+                  onError={(err) => { setError(err.message); setIsRecording(false); }}
                   strokeColor="#60A5FA"
                   backgroundColor="#374151"
                   mimeType="audio/webm"

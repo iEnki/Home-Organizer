@@ -95,7 +95,7 @@ Die App ist für Desktop und Mobilgeräte optimiert und als PWA installierbar. D
 
 | Bereich | Technologie |
 | --- | --- |
-| Frontend | React 18, Create React App, React Router |
+| Frontend | React 19, Vite 8, React Router |
 | Styling und UI | Tailwind CSS, Framer Motion, Lucide |
 | Diagramme und PDF | Chart.js, React PDF Renderer |
 | Backend | Supabase, PostgreSQL, Auth, Storage, Realtime |
@@ -151,14 +151,14 @@ Die erzeugten Dateien `.env` und `CREDENTIALS.txt` enthalten Geheimnisse und dü
 Der Fullstack-Installer bietet an, das gebündelte Basisschema direkt während der Installation auszuführen. Nur bei übersprungenem Setup, nicht bereiter Datenbank oder App-only-Installation ist der manuelle Schritt erforderlich:
 
 ```bash
-docker exec -i supabase-db psql -U postgres -d postgres < database_setup_complete.sql
+docker exec -i supabase-db psql -v ON_ERROR_STOP=1 -U postgres -d postgres < database_setup_complete.sql
 ```
 
 Alternativ kann die Datei im SQL-Editor von Supabase Studio ausgeführt werden. Das Schema enthält Tabellen, Indizes, Trigger, RPCs, Storage-Konfiguration und RLS-Richtlinien.
 
-Für bestehende Installationen zuerst ein Backup erstellen und anschließend die datierten Migrationen beziehungsweise den Update-Ablauf des Verwaltungsskripts verwenden. Das gebündelte Schema dient als Basis für Neuinstallationen.
+Für bestehende Installationen zuerst ein vollständiges Backup erstellen und den dokumentierten [Schema-Update-Ablauf](INSTALL.md#bestehende-datenbank-aktualisieren) verwenden. Die mitgelieferte `scripts/migration_2026_08_02_schema_parity.sql` ergänzt ältere App-Schemata; ein reines Image-Update führt sie nicht automatisch aus.
 
-> **Bekannte Schema-Lücke:** Der aktuelle Frontendstand referenziert einzelne Bereiche, die noch nicht vollständig in `database_setup_complete.sql` konsolidiert sind. Dazu gehören Bücher/Verleihverlauf, Kochprotokolle, gespeicherte Rechnerszenarien und Tabellen des Budget-Monatsabschlusses. `scripts/migration_2026_05_23_home_rezept_kochprotokolle.sql` ergänzt die Kochprotokolle; für die übrigen Bereiche fehlt im Repository derzeit eine vollständige Neuinstallationsmigration. Vor einem produktiven Neuaufbau den vorhandenen Datenbankstand sichern und diese Tabellen gegen die Zielinstanz prüfen.
+Das vollständige Setup enthält Bücher/Verleihverlauf, Kochprotokolle, gespeicherte Rechnerszenarien sowie Budget-Monatsabschluss und Mitgliederzuordnung. Für eine Neuinstallation ist keine zusätzliche, nicht mitgelieferte Migration für diese Tabellen erforderlich.
 
 ## Lokale Entwicklung
 
@@ -194,17 +194,13 @@ REACT_APP_VAPID_PUBLIC_KEY=<vapid-public-key>
 
 Ein Service-Role-Key gehört niemals in das Frontend.
 
-Beim aktuellen Docker-Produktionsbuild wird die Reset-Variable noch nicht als Build-Argument übernommen; dort verwendet die App automatisch `<App-Origin>/update-password`. Die Variable wirkt bei lokalen Builds.
+Der Docker-Produktionsbuild übernimmt `REACT_APP_PASSWORD_RESET_REDIRECT_URL` als öffentliches Build-Argument. Ohne Vorgabe verwendet die App `<App-Origin>/update-password`; derselbe Wert kann auch für lokale Builds gesetzt werden.
 
 ### KI und Dokumentanalyse
 
 Die Haushaltskonfiguration entscheidet zwischen OpenAI und Ollama. Haushaltsadmins verwalten Provider, API-Schlüssel und Modelle im Profil; Schlüssel bleiben durch Column-Level Security geschützt und werden von den Edge Functions serverseitig gelesen. Allgemeine KI, Bildanalyse und Kochbuch können getrennte Modelle verwenden. Für Ollama lässt sich das Thinking-Verhalten des Kochbuchs separat steuern.
 
-Bestehende Installationen benötigen für die aktuelle Modellwahl zusätzlich die idempotente Migration:
-
-```bash
-docker exec -i supabase-db psql -U postgres -d postgres < scripts/hotfix_2026_06_18_ki_model_selection.sql
-```
+Die Modellwahl ist im aktuellen Komplettschema enthalten. Bei älteren, abweichenden Datenbanken vor dem Paketupdate die vorhandenen KI-Felder und RPCs auf einer Testkopie gegen den Zielstand prüfen. Der [Schema-Update-Ablauf](INSTALL.md#bestehende-datenbank-aktualisieren) beschreibt die mitgelieferte Paritätsmigration; sie ersetzt keine beliebigen historischen KI-Schema-Upgrades.
 
 Der Fullstack-Betrieb konfiguriert zusätzlich:
 
@@ -328,8 +324,4 @@ Typische Ursachen:
 
 ## Lizenz
 
-[PolyForm Noncommercial License 1.0.0](LICENSE). Frei für nicht-kommerzielle Nutzung: Privathaushalte, gemeinnützige Organisationen, Bildungseinrichtungen und öffentliche Stellen dürfen diese Software betreiben und anpassen. Kommerzielle Nutzung — Weiterverkauf, Angebot als kostenpflichtiger Dienst oder Einsatz innerhalb eines gewinnorientierten Unternehmens — ist ohne gesonderte Lizenz nicht gestattet. Für eine kommerzielle Lizenz bitte ein Issue eröffnen.
-
-Das Projekt ist damit „source available", nicht Open Source im Sinne der OSI.
-
-Vor dieser Umstellung veröffentlichte Versionen bleiben unter der MIT-Lizenz verfügbar; diese kann nicht rückwirkend widerrufen werden.
+[MIT-Lizenz](LICENSE).

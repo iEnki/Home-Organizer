@@ -20,7 +20,7 @@ import {
   FileText,
   BookMarked,
 } from "lucide-react";
-// import { Link } from "react-router-dom";
+// import { Link } from "react-router";
 import { generateIcsData, downloadIcsFile } from "../utils/calendarUtils";
 import KiHomeAssistent from "./home/KiHomeAssistent";
 import KategorieCombobox from "./ui/KategorieCombobox";

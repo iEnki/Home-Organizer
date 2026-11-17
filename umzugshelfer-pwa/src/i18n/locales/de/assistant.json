@@ -113,5 +113,10 @@
   "agentBudgetExceeded": "Ich konnte die Anfrage nicht innerhalb des Tool-Budgets abschließen. Bitte grenze die Frage etwas ein.",
   "flowInactive": "{{label}} ist vorbereitet, aber aktuell nicht als Home-Route eingebunden.",
   "flowOpening": "Ich öffne den passenden Home-Flow: {{label}}.",
-  "preparedSummary": "Ich habe {{summary}} vorbereitet."
+  "preparedSummary": "Ich habe {{summary}} vorbereitet.",
+  "audioRecorder": {
+    "unsupportedMicrophone": "Mikrofonaufnahme wird von diesem Browser nicht unterstützt.",
+    "unsupportedRecording": "Audioaufnahme wird von diesem Browser nicht unterstützt.",
+    "recordingFailed": "Audioaufnahme fehlgeschlagen."
+  }
 }

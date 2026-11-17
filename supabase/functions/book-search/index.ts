@@ -2,7 +2,7 @@
 // Sucht Buecher ueber Open Library und Google Books API.
 // Gibt normierte BookResult[] zurueck. JWT-Auth erforderlich.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.119.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

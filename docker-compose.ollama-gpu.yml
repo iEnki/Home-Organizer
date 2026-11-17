@@ -1,0 +1,4 @@
+# Optional NVIDIA acceleration. Loaded by management when OLLAMA_USE_GPU=true.
+services:
+  ollama:
+    gpus: all

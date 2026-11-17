@@ -1,16 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { getSafeRedirectPath } from "../utils/safeRedirect";
+import { useNavigate, useSearchParams } from "react-router";
 import { KeyRound, ShieldCheck } from "lucide-react"; // AlertCircle entfernt
 
 const UpdatePasswordPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const nextTargetRaw = (searchParams.get("next") || "/").trim();
-  const nextTarget =
-    nextTargetRaw.startsWith("/") && !nextTargetRaw.startsWith("//")
-      ? nextTargetRaw
-      : "/";
+  const nextTarget = getSafeRedirectPath(searchParams.get("next"), "/");
   // const location = useLocation(); // Entfernt
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");

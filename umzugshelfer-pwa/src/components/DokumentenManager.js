@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { useDropzone } from "react-dropzone";
+import useDropzone from "../hooks/useSingleFileDropzone";
 import { supabase } from "../supabaseClient";
 import { getKiClient, isKiClientReady } from "../utils/kiClient";
 import { useTheme } from "../contexts/ThemeContext";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router";
 import {
   UploadCloud,
   FileText,
@@ -450,7 +450,7 @@ Antworte nur mit dem JSON.`;
                 }`}
               >
                 {t("documents:manager.typeLabel")} {doc.datei_typ || t("documents:manager.unknown")}, {t("documents:manager.sizeLabel")}{" "}
-                {doc.groesse_kb || "?"} {t("documents:manager.kb")}
+                {doc.groesse_kb ?? "?"} {t("documents:manager.kb")}
               </p>
               {doc.todo_aufgabe_id && doc.todo_aufgaben && (
                 <Link

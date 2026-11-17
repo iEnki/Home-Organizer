@@ -2,7 +2,7 @@
 // Starts an asynchronous cookbook import job and delegates long processing to
 // the internal recipe-source-parser service.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.119.0";
 import { resolveProvider, type KiSettingsRow } from "../_shared/kiProviders.ts";
 
 const corsHeaders = {

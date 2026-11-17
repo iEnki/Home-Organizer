@@ -1,7 +1,7 @@
 import OverlayPortal from "../ui/OverlayPortal";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   Package, Plus, ChevronRight, ChevronDown, Trash2, Edit2, MoreVertical,

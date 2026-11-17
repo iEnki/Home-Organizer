@@ -16,3 +16,37 @@ dist/
 # Python caches
 __pycache__/
 *.pyc
+
+# Local workspace, plans and private documentation
+.agents/
+.claude/
+.codex/
+.vscode/
+AGENTS.md
+CLAUDE.md
+memory/
+backups/
+Pläne/
+plans/
+notes/
+docs/
+documentation/
+codex_implementierungsplan_*.md
+skills-lock.json
+/umzugsplaner-architecture*
+/FastBox.pdf
+/day-night-switch/
+
+# Local environment and credentials (keep distributable examples)
+.env.*
+!.env.full.example
+!.env.example
+*.local
+*.pem
+*.key
+
+# Private backup/restore working data must never be committed.
+.backup-work.*/
+# Reviewed initialization templates are source, unlike live volumes/.
+!scripts/templates/supabase/volumes/
+!scripts/templates/supabase/volumes/**

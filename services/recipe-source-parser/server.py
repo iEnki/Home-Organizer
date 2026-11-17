@@ -28,7 +28,10 @@ MODEL_DIR = os.getenv("WHISPER_MODEL_DIR", "/models/whisper")
 DEFAULT_MODEL = os.getenv("WHISPER_MODEL", "small")
 WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "auto")
 CPU_COMPUTE = os.getenv("WHISPER_CPU_COMPUTE_TYPE", "int8")
-GPU_COMPUTE = os.getenv("WHISPER_GPU_COMPUTE_TYPE", "float16")
+GPU_COMPUTE = os.getenv("WHISPER_GPU_COMPUTE_TYPE", "auto").strip() or "auto"
+# First supported type wins when WHISPER_GPU_COMPUTE_TYPE=auto. Pascal cards
+# such as the GTX 10xx series offer no float16 and use int8_float32.
+GPU_COMPUTE_PREFERENCE = ("float16", "int8_float16", "int8_float32", "int8")
 WHISPER_CPP_FALLBACK = os.getenv("WHISPER_CPP_FALLBACK_ENABLED", "true").lower() == "true"
 SOCIAL_DOMAINS = {"youtube.com", "youtu.be", "tiktok.com", "instagram.com"}
 RECIPE_IMAGE_BUCKET = "recipe-images"
@@ -99,17 +102,72 @@ def cuda_available():
         return False
     try:
         import ctranslate2
-        return "cuda" in ctranslate2.get_supported_compute_types("cuda")
+        # Compute-type capabilities may be cached even when no CUDA device is
+        # available. Only the visible device count establishes GPU presence.
+        return ctranslate2.get_cuda_device_count() > 0
     except Exception:
         return command_available("nvidia-smi")
 
 
+def gpu_compute_is_auto():
+    return GPU_COMPUTE.lower() == "auto"
+
+
+def cuda_compute_types():
+    """Compute types the visible CUDA device supports, or None if unknown."""
+    try:
+        import ctranslate2
+        return set(ctranslate2.get_supported_compute_types("cuda"))
+    except Exception:
+        return None
+
+
+def auto_gpu_compute(supported=None):
+    if supported is None:
+        supported = cuda_compute_types()
+    if not supported:
+        return GPU_COMPUTE_PREFERENCE[0]
+    for compute_type in GPU_COMPUTE_PREFERENCE:
+        if compute_type in supported:
+            return compute_type
+    if "float32" in supported:
+        return "float32"
+    return GPU_COMPUTE_PREFERENCE[0]
+
+
+def gpu_compute_type():
+    if gpu_compute_is_auto():
+        return auto_gpu_compute()
+    return GPU_COMPUTE
+
+
 def select_device():
     if WHISPER_DEVICE != "auto":
-        return WHISPER_DEVICE, GPU_COMPUTE if WHISPER_DEVICE == "cuda" else CPU_COMPUTE
+        return WHISPER_DEVICE, gpu_compute_type() if WHISPER_DEVICE == "cuda" else CPU_COMPUTE
     if cuda_available():
-        return "cuda", GPU_COMPUTE
+        return "cuda", gpu_compute_type()
     return "cpu", CPU_COMPUTE
+
+
+def transcription_attempts():
+    """Ordered (device, compute_type) attempts plus advance warnings."""
+    preferred = select_device()
+    attempts = [preferred]
+    warnings = []
+    if preferred[0] == "cuda":
+        if not gpu_compute_is_auto():
+            supported = cuda_compute_types()
+            if supported and preferred[1] not in supported:
+                alternative = auto_gpu_compute(supported)
+                warnings.append(
+                    f"WHISPER_GPU_COMPUTE_TYPE={preferred[1]} is not supported by this GPU "
+                    f"(supported: {', '.join(sorted(supported))}). "
+                    f"Set WHISPER_GPU_COMPUTE_TYPE=auto or {alternative}."
+                )
+                if alternative != preferred[1]:
+                    attempts.append(("cuda", alternative))
+        attempts.append(("cpu", CPU_COMPUTE))
+    return attempts, warnings
 
 
 def get_model(model_name, device, compute_type):
@@ -547,11 +605,8 @@ def download_audio(raw_url, job_dir, max_minutes):
 
 def transcribe_audio(audio_path, settings):
     model_name = settings.get("whisper_model") or DEFAULT_MODEL
-    preferred_device, preferred_compute = select_device()
-    attempts = [(preferred_device, preferred_compute)]
-    if preferred_device == "cuda":
-        attempts.append(("cpu", CPU_COMPUTE))
-    warnings = []
+    attempts, warnings = transcription_attempts()
+    preferred_device, preferred_compute = attempts[0]
     last_error = None
     for device, compute_type in attempts:
         try:
@@ -577,7 +632,7 @@ def transcribe_audio(audio_path, settings):
                 "device": device,
                 "compute_type": compute_type,
                 "engine": "faster-whisper",
-                "transcription_fallback_used": device != preferred_device,
+                "transcription_fallback_used": (device, compute_type) != (preferred_device, preferred_compute),
                 "warnings": warnings,
             }
         except Exception as exc:
@@ -748,10 +803,13 @@ def health():
     }
     if deep:
         device, compute_type = select_device()
+        supported = cuda_compute_types() if device == "cuda" else None
         data.update({
             "cuda_available": cuda_available(),
             "selected_device": device,
             "selected_compute_type": compute_type,
+            "gpu_compute_type_setting": GPU_COMPUTE,
+            "cuda_compute_types": sorted(supported) if supported else None,
             "whisper_model": DEFAULT_MODEL,
             "whisper_cpp_available": command_available("whisper-cli"),
         })

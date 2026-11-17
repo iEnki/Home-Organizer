@@ -16,7 +16,7 @@ import {
   ChefHat,
   Pill,
 } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router";
 import { supabase } from "../../supabaseClient";
 import { answerSemanticHouseholdQuestion } from "../../utils/assistantAi";
 import { resolveLocalizedRecipe } from "../../utils/localizedRecipeShopping";

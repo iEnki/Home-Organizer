@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.119.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,7 +27,7 @@ const resolveInviteLink = (inviteLink: string) => {
 };
 
 const findExistingAuthUserByEmail = async (
-  adminClient: ReturnType<typeof createClient>,
+  adminClient: Pick<ReturnType<typeof createClient>, "auth">,
   inviteEmail: string,
 ) => {
   const targetEmail = inviteEmail.trim().toLowerCase();
