@@ -966,9 +966,9 @@ export default function HomeKfz({ session }) {
 
   if (loading) return <div className="flex items-center gap-2 p-6 text-light-text-main dark:text-dark-text-main"><Loader2 className="animate-spin" size={18} /> {t("loading")}</div>;
 
+  // Der Verlauf liegt direkt auf dem Modul. Eine eigene Ebene mit -z-10 flackerte in Edge im Vollbild.
   return (
-    <div className="kfz-modern glass-module relative min-h-full min-w-0 max-w-full space-y-5 overflow-x-clip bg-transparent p-4 pb-28 text-light-text-main md:p-6 lg:pb-8 dark:text-dark-text-main">
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-light-bg/35 via-light-bg/10 to-light-bg/45 dark:from-canvas-0/25 dark:via-transparent dark:to-canvas-0/55" />
+    <div className="kfz-modern glass-module relative min-h-full min-w-0 max-w-full space-y-5 overflow-x-clip bg-transparent bg-gradient-to-b from-light-bg/35 via-light-bg/10 to-light-bg/45 p-4 pb-28 text-light-text-main md:p-6 lg:pb-8 dark:from-canvas-0/25 dark:via-transparent dark:to-canvas-0/55 dark:text-dark-text-main">
       <motion.header
         initial={reducedMotion ? false : { opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
